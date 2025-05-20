@@ -2,13 +2,15 @@
 # -*- coding:utf-8 -*-
 import sys
 import os
-picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
-libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
+picdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pic')
+libdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib')
 if os.path.exists(libdir):
     sys.path.append(libdir)
+else:
+    print("lib does not exists")
 
 import logging
-from waveshare_epd import epd2in13_V4
+from lib.waveshare_epd import epd2in13_V4
 import time
 from PIL import Image,ImageDraw,ImageFont
 import traceback
