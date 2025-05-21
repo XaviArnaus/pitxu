@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "pitxu"
+version = "0.1.0"
+description = "Chatbot for the Raspberry Pi Zero 2w"
+authors = ["Xavi <xavi@arnaus.net>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyxavi = "^0.8"
+google-genai = "^1.16"
+python-dotenv = "^1.1"
+
+[tool.poetry.scripts]
+main = "runner:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
