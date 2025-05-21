@@ -68,7 +68,7 @@ def run():
         chatbot = GeminaiChatbot(config=config, params=parameters)
 
         # Here we start with the Chatbot
-        question = "Hola bon dia, Pitxu!"
+        question = "com es fa un gelat?"
         answer = chatbot.ask(question)
 
         # Manage the answer

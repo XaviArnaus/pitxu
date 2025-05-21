@@ -1,10 +1,11 @@
 from google import genai
+from google.genai import types
+
 from pitxu.lib.chatbot.chatbot_protocol import ChatbotProtocol
 
 from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
-from pyxavi.debugger import dd
 
 import logging
 
@@ -35,7 +36,9 @@ class GeminaiChatbot(ChatbotProtocol):
         self._logger.debug("Question: " + question)
 
         response = self._client.models.generate_content(
-            model="gemini-2.0-flash", contents=question
+            model="gemini-2.0-flash",
+            config=types.GenerateContentConfig(system_instruction="Ets un nen de 10 anys, El teu nom és Pitxu"),
+            contents=question
         )
 
         self._logger.debug("Received answer: " + response.text)
