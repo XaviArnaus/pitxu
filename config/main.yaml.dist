@@ -7,6 +7,12 @@ app:
   # Application name
   name: "Pitxu"
 
+# Configuration of the Chatbot
+chatbot:
+  # [String] Sets up the context for the interaction. Has a prompt shape.
+  system_instruction: "Ets un nen de 10 anys, i parles amb una nena menor de 10 anys. Si us plau fes respostes curtes. El teu nom és Pitxu"
+
+
 # Logging config
 logger:
   # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50

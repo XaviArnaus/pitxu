@@ -37,7 +37,7 @@ class GeminaiChatbot(ChatbotProtocol):
 
         response = self._client.models.generate_content(
             model="gemini-2.0-flash",
-            config=types.GenerateContentConfig(system_instruction="Ets un nen de 10 anys, El teu nom és Pitxu"),
+            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
             contents=question
         )
 
