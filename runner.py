@@ -12,6 +12,7 @@ from pyxavi.debugger import full_stack
 from definitions import ROOT_DIR, CONFIG_DIR
 
 from pitxu.lib.chatbot.geminai_chatbot import GeminaiChatbot
+from pitxu.lib.eink.display import EinkDisplay
 
 
 def load_environment():
@@ -63,7 +64,11 @@ def run():
             "api_key": os.getenv("API_KEY")
         }
 
-        # Initialise
+        # Initialise eInk Display
+        display = EinkDisplay(config=config, params=parameters)
+        display.test()
+
+        # Initialise Chatbot
         logger.debug("Initialising the Chatbot Client")
         chatbot = GeminaiChatbot(config=config, params=parameters)
 
