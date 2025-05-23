@@ -35,11 +35,14 @@ class GeminaiChatbot(ChatbotProtocol):
 
         self._logger.debug("Question: " + question)
 
-        response = self._client.models.generate_content(
-            model="gemini-2.0-flash",
-            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
-            contents=question
-        )
+        if (self._config.get("chatbot.mock", True)):
+            return "Chatbot is Mocked. Check the config."
+        else:
+            response = self._client.models.generate_content(
+                model="gemini-2.0-flash",
+                config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
+                contents=question
+            )
 
-        self._logger.debug("Received answer: " + response.text)
-        return response.text
+            self._logger.debug("Received answer: " + response.text)
+            return response.text

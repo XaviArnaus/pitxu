@@ -9,6 +9,8 @@ app:
 
 # Configuration of the Chatbot
 chatbot:
+  # [Bool] Avoids the communication to the LLM server
+  mock: True
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction: "Ets un nen de 10 anys, i parles amb una nena menor de 10 anys. Si us plau fes respostes curtes. El teu nom és Pitxu"
 
