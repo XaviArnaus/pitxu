@@ -4,15 +4,17 @@ import logging
 import traceback
 import time
 
-# Lib should be in the sys path
-picdir = os.path.join("..", "..", os.path.dirname(os.path.realpath(__file__)), 'pic')
-libdir = os.path.join("..", "..", os.path.dirname(os.path.realpath(__file__)), 'lib')
-if os.path.exists(libdir):
-    sys.path.append(libdir)
-else:
-    print("lib does not exists")
+# # Lib should be in the sys path
+# picdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pic')
+# libdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib')
+# print("Lib dir is " + libdir)
+# if os.path.exists(libdir):
+#     sys.path.append(libdir)
+# else:
+#     print("lib does not exists")
 
-from ..waveshare_epd import epd2in13_V4
+# from ..waveshare_epd import epd2in13_V4
+
 from PIL import Image,ImageDraw,ImageFont
 
 from pyxavi.config import Config
@@ -28,15 +30,16 @@ class EinkDisplay:
     _font_big = None
     _font_medium = None
     _font_small = None
+    _pic_dir: str = None
 
     DEFAULT_FONT_BIG_SIZE = 24
     DEFAULT_FONT_MEDIUM_SIZE = 20
     DEFAULT_FONT_SMALL_SIZE = 15
 
-    def __init__(self, config: Config = None, params: dict = {}):
+    def __init__(self, config: Config = None, params: Dictionary = None):
 
         # Possible runtime parameters
-        self._parameters = Dictionary(params)
+        self._parameters = params
 
         # Config is mandatory
         if config is None:
@@ -44,17 +47,43 @@ class EinkDisplay:
         self._config = config
 
         # Common Logger
-        self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
         
-        # Initialise the display controller
-        self._epd = epd2in13_V4.EPD()
-
-        # Initialise the display itself
-        self._epd.init()
-        self._epd.Clear(0xFF)
+        # Initialise the display
+        self._initialise_display()
 
         # Initialise fonts
         self._initialise_fonts()
+    
+    def _initialise_display(self):
+        """
+        Initialisation of the actual e-Ink controller
+
+        As it uses internal compiled source, it needs the real path to be added into the system lookup paths.
+        Once it is loaded, the controller stays instantiated in the class, so it's fine to have it imported
+        here locally if we expose the instance afterwards.
+        """
+
+        # Initialise the paths
+        self._pic_dir = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'pic')
+        libdir = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'lib')
+
+        # Lib should be in the sys path
+        print("Lib dir is " + libdir)
+        if os.path.exists(libdir):
+            sys.path.append(libdir)
+        else:
+            print("lib does not exists")
+        from waveshare_epd.epd2in13_V4 import EPD
+
+        # Initialise the display controller
+        self._logger.debug("Initialising eInk controller")
+        self._epd = EPD()
+
+        # Initialise the display itself
+        self._logger.debug("Initialising eInk display")
+        self._epd.init()
+        self._epd.Clear(0xFF)
     
     def test(self):
         logging.info("E-paper refresh")
@@ -77,6 +106,8 @@ class EinkDisplay:
         # image = image.rotate(180) # rotate
         self._epd.display(self._epd.getbuffer(image))
         time.sleep(2)
+        self._epd.Clear(0xFF)
+        time.sleep(2)
     
     def _initialise_fonts(self):
         """
@@ -95,20 +126,20 @@ class EinkDisplay:
             big_size = self._parameters.get("display.fonts.big")
         elif (self._config.key_exists("display.fonts.big")):
             big_size = self._config.get("display.fonts.big")
-        self._font_big = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), big_size)
+        self._font_big = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), big_size)
 
         # Medium size
         if (self._parameters.key_exists("display.fonts.medium")):
             medium_size = self._parameters.get("display.fonts.medium")
         elif (self._config.key_exists("display.fonts.medium")):
             medium_size = self._config.get("display.fonts.medium")
-        self._font_medium = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), medium_size)
+        self._font_medium = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), medium_size)
 
         # Small size
         if (self._parameters.key_exists("display.fonts.small")):
             small_size = self._parameters.get("display.fonts.small")
         elif (self._config.key_exists("display.fonts.small")):
             small_size = self._config.get("display.fonts.small")
-        self._font_small = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), small_size)
+        self._font_small = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), small_size)
     
     

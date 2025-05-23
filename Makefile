@@ -20,6 +20,6 @@ update:
 run:
 	@$(POETRY) run main
 
-.PHONY: where-is-python3
+.PHONY: where-is-python
 where-is-python:
-	$(POETRY) run whereis python
+	$(POETRY) run whereis python3

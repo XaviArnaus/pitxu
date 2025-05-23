@@ -10,9 +10,17 @@ python = "^3.11"
 pyxavi = "^0.8"
 google-genai = "^1.16"
 python-dotenv = "^1.1"
+spidev = "^3.7"
+gpiozero = "^2.0"
+"rpi.gpio" = "^0.7"
+lgpio = "^0.2.2.0"
+pillow = "^11.2.1"
 
 [tool.poetry.scripts]
 main = "runner:run"
+
+[virtualenvs.options]
+system-site-packages = true
 
 [build-system]
 requires = ["poetry-core"]

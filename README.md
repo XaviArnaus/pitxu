@@ -4,6 +4,15 @@ Chatbot project over Raspberry Pi Zero 2w
 
 # Install
 
+## Make sure that your system has the dependencies to compile Pillow
+
+This is needed for the internal Pillow support, for the e-Ink display
+
+For Debian based linux distros:
+```
+sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev
+```
+
 ## Clone the repo and move yourself in
 
 ```

@@ -16,8 +16,8 @@ class GeminaiChatbot(ChatbotProtocol):
     _config: Config = None
     _logger: logging
 
-    def __init__(self, config: Config = None, params: dict = {}):
-        self._parameters = Dictionary(params)
+    def __init__(self, config: Config = None, params: Dictionary = None):
+        self._parameters = params
         if not self._parameters.key_exists("api_key"):
             raise RuntimeError("API Key is mandatory")
 

@@ -7,12 +7,12 @@ import logging
 from pyxavi.terminal_color import TerminalColor
 from pyxavi.config import Config
 from pyxavi.logger import Logger
+from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
-from pitxu.lib.chatbot.geminai_chatbot import GeminaiChatbot
-from pitxu.lib.eink.display import EinkDisplay
+from pitxu.main import Main
 
 
 def load_environment():
@@ -59,25 +59,16 @@ def run():
         load_environment()
         config = load_config_files()
         logger = load_logger(config=config)
-        parameters = {
+        parameters = Dictionary({
             "base_path": ROOT_DIR,
             "api_key": os.getenv("API_KEY")
-        }
+        })
 
-        # Initialise eInk Display
-        display = EinkDisplay(config=config, params=parameters)
-        display.test()
-
-        # Initialise Chatbot
-        logger.debug("Initialising the Chatbot Client")
-        chatbot = GeminaiChatbot(config=config, params=parameters)
-
-        # Here we start with the Chatbot
-        question = "com es fa un gelat?"
-        answer = chatbot.ask(question)
-
-        # Manage the answer
-        print(answer)
+        # Delegate the run to Main
+        logger.debug("Starting Main run")
+        main = Main(config=config, params=parameters)
+        main.run()
+        logger.info("End of the Main run")
 
 
     except RuntimeError as e:
