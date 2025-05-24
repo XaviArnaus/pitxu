@@ -14,6 +14,21 @@ chatbot:
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction: "Ets un nen de 10 anys, i parles amb una nena menor de 10 anys. Si us plau fes respostes curtes. El teu nom és Pitxu"
 
+# Configuration fo the eInk Display
+display:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+  # Size of the display
+  size:
+    x: 250
+    y: 122
+  # Rotate the display. Not really tested, is meant to have only 0 or 180
+  rotate: 0
+
+# Filesystem definition
+storage:
+  # Where, from the root of the project
+  path: "storage/"
 
 # Logging config
 logger:

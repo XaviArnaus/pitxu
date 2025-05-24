@@ -58,3 +58,14 @@ API_KEY=abcdefghijkl
 ```
 make run
 ```
+
+# Resources
+
+## eInk Display
+
+### Original example code in Python
+It also explains dependencies from Debian. Useful to deal with PIL. Remember to port to Poetry.
+https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/python/readme_rpi_EN.txt
+
+### Manual
+https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT_Manual#Demo_code
