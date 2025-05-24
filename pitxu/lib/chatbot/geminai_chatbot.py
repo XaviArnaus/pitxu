@@ -29,6 +29,9 @@ class GeminaiChatbot(ChatbotProtocol):
         self.load()
 
     def load(self):
+        if (self._config.get("chatbot.mock", True)):
+            self._logger.warning("Chatbot is mocked, Not initialising it.")
+            return "Chatbot is Mocked. Check the config."
         self._client = genai.Client(api_key=self._parameters.get("api_key"))
     
     def ask(self, question: str) -> str:

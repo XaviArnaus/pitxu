@@ -76,11 +76,7 @@ class EinkDisplay:
             pass
     
     def test(self):
-        # logging.info("E-paper refresh")
-        # self._epd.init()
-        logging.info("1.Drawing on the image...")
-        # image = Image.new('1', (self._epd.height, self._epd.width), 255)  # 255: clear the frame
-        # draw = ImageDraw.Draw(image)
+        logging.info("Drawing on the image...")
         draw = self.create_canvas()
         draw.rectangle([(0,0),(50,50)],outline = 0)
         draw.rectangle([(55,0),(100,50)],fill = 0)
