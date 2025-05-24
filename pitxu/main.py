@@ -14,6 +14,8 @@ class Main:
     _config: Config = None
     _logger: logging = None
 
+    EXIT_WORDS = ["exit", "quit", "sortir", "adéu"]
+
     def __init__(self, config: Config = None, params: Dictionary = None):
 
         # Possible runtime parameters
@@ -38,15 +40,23 @@ class Main:
         self._logger.debug("Initialising the Chatbot Client")
         chatbot = GeminaiChatbot(config=self._config, params=self._parameters)
 
-        # Here we start with the Chatbot
-        question = "que és un cotxe?"
-        answer = chatbot.ask(question)
-        answer = "Un cotxe és com un llit amb rodes que va molt ràpid! Brum, brum! 🚗"
+        question = ""
+        while(self._text_has_exit_intention(question)):
+            # Listen to the input of the user
+            question = input("Introdueix la teva pregunta: [\"exit\" to leave]: \n")
 
-        # Show the answer
-        canvas = display.create_canvas()
-        macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
-        display.display()
+            # Avoid calling the Chatbot when exiting
+            if self._text_has_exit_intention(question):
+                # Just assume a goodbye
+                answer = "Fins la propera! Adéu! Chúus!"
+            else:
+                # Here we start with the Chatbot
+                answer = chatbot.ask(question)
 
-        # Manage the answer
-        print(answer)
+            # Show the answer
+            canvas = display.create_canvas()
+            macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
+            display.display()
+    
+    def _text_has_exit_intention(self, text):
+        return text in ["exit", "quit", "sortir", "adéu"]
