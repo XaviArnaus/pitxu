@@ -39,8 +39,9 @@ class Main:
         chatbot = GeminaiChatbot(config=self._config, params=self._parameters)
 
         # Here we start with the Chatbot
-        question = "com es fa un gelat?"
+        question = "que és un cotxe?"
         answer = chatbot.ask(question)
+        answer = "Un cotxe és com un llit amb rodes que va molt ràpid! Brum, brum! 🚗"
 
         # Show the answer
         canvas = display.create_canvas()

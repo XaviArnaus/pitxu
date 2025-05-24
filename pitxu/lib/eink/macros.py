@@ -9,6 +9,8 @@ from ..dto.point import Point
 from ..dto.font_size import FontSize
 
 import logging
+import emoji
+import re
 from pyxavi.debugger import dd
 
 class Macros:
@@ -47,7 +49,7 @@ class Macros:
 
         # Prepare the area for the text
         rect_text_1 = Point(rect_1.x + padding, rect_1.y + padding)
-        rect_text_2 = Point(rect_2.x - padding, rect_2.y - padding)
+        rect_text_2 = Point(rect_2.x - padding - 2, rect_2.y - padding)
         textbox_boundaries = Rectangle(rect_text_1, rect_text_2)
 
         # Ensure that the text fits in the square.
@@ -67,38 +69,42 @@ class Macros:
 
         self._logger.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
 
-        width_text = canvas.textlength(text, font)
-        self._logger.debug("Text [" + text + "] has width " + "{:.9f}".format(width_text))
-        if width_text > boundaries.point_2.x:
+        # Clean the text first, we don't want emojis
+        text = self._get_emoji_regexp().sub(r'', text)
         
-            # Split the lines, we need to cover all individually
-            lines = text.split("\n")
-            words_to_add__to_next_line = []
-            new_text_lines = []
-            for line in lines:
-                # First we add the words that don't have a space in the previous line
-                words_to_add__to_next_line.reverse()
-                working_line = " ".join(words_to_add__to_next_line) + (" " if words_to_add__to_next_line else "") + line
-                # What's the current size
-                width_text = canvas.textlength(working_line, font)
-                self._logger.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
-                # Loop while  the text is still bigger
-                while(width_text > boundaries.point_2.x):
-                    # Split by words
-                    words = working_line.split(" ")
-                    # Join all but the last word
-                    working_line = " ".join(words[0:-1])
-                    # Keep the last word for the next line
-                    words_to_add__to_next_line.append(words[-1])
-                    # Get the new line size for the loop to analyse
-                    width_text = canvas.textlength(working_line, font)
-                # Once the line is ready, add it to the outcome list
-                new_text_lines.append(working_line)
-            
+        # Split the lines, we need to cover all individually
+        lines = text.split("\n")
+        words_to_add__to_next_line = []
+        new_text_lines = []
+        for line in lines:
+            # First we add the words that don't have a space in the previous line
             words_to_add__to_next_line.reverse()
-            final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
-            self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
-            return final_text
-        else:
-            return text
+            working_line = " ".join(words_to_add__to_next_line) + (" " if words_to_add__to_next_line else "") + line
+            words_to_add__to_next_line = []
+            # What's the current size
+            width_text = canvas.textlength(working_line, font)
+            self._logger.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
+            # Loop while  the text is still bigger
+            while(width_text > boundaries.point_2.x):
+                # Split by words
+                words = working_line.split(" ")
+                # Join all but the last word
+                working_line = " ".join(words[0:-1])
+                # Keep the last word for the next line
+                words_to_add__to_next_line.append(words[-1])
+                # Get the new line size for the loop to analyse
+                width_text = canvas.textlength(working_line, font)
+            # Once the line is ready, add it to the outcome list
+            new_text_lines.append(working_line)
+        
+        words_to_add__to_next_line.reverse()
+        final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
+        self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
+        return final_text
 
+    def _get_emoji_regexp(self):
+        # Sort emoji by length to make sure multi-character emojis are
+        # matched first
+        emojis = sorted(emoji.EMOJI_DATA, key=len, reverse=True)
+        pattern = '(' + '|'.join(re.escape(u) for u in emojis) + ')'
+        return re.compile(pattern)
