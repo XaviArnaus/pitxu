@@ -14,6 +14,9 @@ class Rectangle:
     def __init__(self, point_1: Point, point_2: Point):
         self.point_1 = point_1
         self.point_2 = point_2
+
+    def fromTuple(positions: tuple):
+        return Rectangle(Point(positions[0], positions[1]), Point(positions[2], positions[3]))
     
     # def with_offset(self, offset: int, direction: OffsetRectangle = OffsetRectangle.INNER):
     #     # The horizontal
@@ -74,7 +77,7 @@ class Rectangle:
         return [self.point_1.to_image_point(), self.point_2.to_image_point()]
     
     def is_valid(self, config: Config) -> bool:
-        return True if self.point_1.is_valid and \
-                        self.point_2.is_valid and \
+        return True if self.point_1.is_valid(config) and \
+                        self.point_2.is_valid(config) and \
                         not self.point_1.equals_to(self.point_2) \
                     else False

@@ -6,6 +6,8 @@ from pyxavi.dictionary import Dictionary
 
 from pitxu.lib.chatbot.geminai_chatbot import GeminaiChatbot
 from pitxu.lib.eink.display import EinkDisplay
+from pitxu.lib.eink.macros import Macros
+from pitxu.lib.dto.font_size import FontSize
 
 class Main:
 
@@ -26,9 +28,11 @@ class Main:
         self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
     
     def run(self):
-        # Initialise eInk Display
+
+        # Initialise eInk Display and the helper macros
         display = EinkDisplay(config=self._config, params=self._parameters)
-        display.test()
+        macros = Macros(self._config, params=self._parameters)
+        #display.test()
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
@@ -37,6 +41,11 @@ class Main:
         # Here we start with the Chatbot
         question = "com es fa un gelat?"
         answer = chatbot.ask(question)
+
+        # Show the answer
+        canvas = display.create_canvas()
+        macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
+        display.display()
 
         # Manage the answer
         print(answer)

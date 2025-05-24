@@ -22,8 +22,13 @@ display:
   size:
     x: 250
     y: 122
-  # Rotate the display. Not really tested, is meant to have only 0 or 180
+  # [Integer] Rotate the display. Not really tested, is meant to have only 0 or 180
   rotate: 0
+  # Configuration regarding the fonts
+  fonts:
+    big: 22
+    medium: 14
+    small: 10
 
 # Filesystem definition
 storage:
