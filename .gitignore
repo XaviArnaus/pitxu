@@ -12,7 +12,7 @@ log/*
 
 # No user files
 storage/*.yaml
-storage/media/*
+storage/mocked/*
 !**/.keep
 
 # No user config files
