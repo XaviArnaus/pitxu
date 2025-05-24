@@ -4,6 +4,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from ..dto.rectangle import Rectangle
+from ..dto.line import Line
 from ..dto.point import Point
 from ..dto.font_size import FontSize
 
@@ -31,21 +32,23 @@ class Macros:
     def draw_text_bubble(self, canvas: ImageDraw, text: str, font: ImageFont):
 
         # Padding of text from bubble frame
-        padding = 3
+        padding = 5
 
         # Drawing the frame, The bubble takes almost full screen
         # All coordinates are relative to these points
         rect_1 = Point(2, 2)
         rect_2 = Point(self._display_size.x - 2, self._display_size.y - 20)
-        dd(Rectangle(rect_1, rect_2).to_image_rectangle())
-        canvas.rectangle(Rectangle(rect_1, rect_2).to_image_rectangle(),outline = self.COLOR_BLACK, fill=self.COLOR_WHITE)
-        # canvas.rectangle([(2, 2), (248, 112)], outline = 0, fill=1)
+        canvas.rounded_rectangle(
+            Rectangle(rect_1, rect_2).to_image_rectangle(),
+            radius=10,
+            outline=self.COLOR_BLACK,
+            fill=self.COLOR_WHITE,
+            corners=(True, True, True, True))
 
         # Prepare the area for the text
         rect_text_1 = Point(rect_1.x + padding, rect_1.y + padding)
         rect_text_2 = Point(rect_2.x - padding, rect_2.y - padding)
         textbox_boundaries = Rectangle(rect_text_1, rect_text_2)
-        dd(textbox_boundaries.to_image_rectangle())
 
         # Ensure that the text fits in the square.
         # For that, introduce line breaks in the text.
@@ -53,9 +56,12 @@ class Macros:
         text = self.break_line_in_text_if_needed(canvas, text, textbox_boundaries, font)
 
         # Draw the text
-        bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = 0)
-        # dd(bounding_rectangle)
-        # rectangle = Rectangle.fromTuple(bounding_rectangle)
+        bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
+
+        # The pick of the speach bubble
+        canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_WHITE, width=1)
+        canvas.line(Line(Point(30,rect_2.y), Point(31, self._display_size.y - 2)).to_image_line(), fill=self.COLOR_BLACK, width=1)
+        canvas.line(Line(Point(31, self._display_size.y - 2), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_BLACK, width=1)
 
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 
