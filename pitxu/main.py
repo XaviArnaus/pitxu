@@ -41,7 +41,7 @@ class Main:
         chatbot = GeminaiChatbot(config=self._config, params=self._parameters)
 
         question = ""
-        while(self._text_has_exit_intention(question)):
+        while(not self._text_has_exit_intention(question)):
             # Listen to the input of the user
             question = input("Introdueix la teva pregunta: [\"exit\" to leave]: \n")
 
