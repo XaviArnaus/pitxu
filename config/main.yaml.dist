@@ -30,6 +30,11 @@ display:
     medium: 14
     small: 10
 
+# Configurations for the Speech-to-Text
+speech-to-text:
+  # Which language to start with. Possible values "en-us", "ca", "de", "es"
+  default_language: "ca"
+
 # Filesystem definition
 storage:
   # Where, from the root of the project

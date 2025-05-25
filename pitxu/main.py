@@ -8,6 +8,9 @@ from pitxu.lib.chatbot.geminai_chatbot import GeminaiChatbot
 from pitxu.lib.eink.display import EinkDisplay
 from pitxu.lib.eink.macros import Macros
 from pitxu.lib.dto.font_size import FontSize
+from pitxu.lib.speech_to_text.vosk import Vosk
+
+import sounddevice
 
 class Main:
 
@@ -34,29 +37,50 @@ class Main:
         # Initialise eInk Display and the helper macros
         display = EinkDisplay(config=self._config, params=self._parameters)
         macros = Macros(self._config, params=self._parameters)
+        speech = Vosk(self._config, params=self._parameters)
         #display.test()
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
         chatbot = GeminaiChatbot(config=self._config, params=self._parameters)
 
-        question = ""
-        while(not self._text_has_exit_intention(question)):
-            # Listen to the input of the user
-            question = input("Introdueix la teva pregunta: [\"exit\" to leave]: \n")
+        self._logger.debug("Initialising the Speech-to-Text")
+        speech.initialize()
 
-            # Avoid calling the Chatbot when exiting
-            if self._text_has_exit_intention(question):
-                # Just assume a goodbye
-                answer = "Fins la propera! Adéu! Chúus!"
-            else:
-                # Here we start with the Chatbot
-                answer = chatbot.ask(question)
+        try:
+            # Read from microphone
+            with sounddevice.RawInputStream(samplerate=speech.samplerate,
+                                blocksize = 8000, 
+                                device=speech.device,
+                                dtype="int16", 
+                                channels=1, 
+                                callback=speech.callback):
 
-            # Show the answer
-            canvas = display.create_canvas()
-            macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
-            display.display()
+                question = ""
+                while(not self._text_has_exit_intention(question)):
+                    # Listen to the input of the user
+                    #question = input("Introdueix la teva pregunta: [\"exit\" to leave]: \n")
+
+                    # Recognize what comes from the microphone
+                    question = speech.recognize()
+                    if (question == None or question.strip() == ""):
+                        continue
+
+                    # Avoid calling the Chatbot when exiting
+                    if self._text_has_exit_intention(question):
+                        # Just assume a goodbye
+                        answer = "Fins la propera! Adéu! Chúus!"
+                    else:
+                        # Here we start with the Chatbot
+                        answer = chatbot.ask(question)
+
+                    # Show the answer
+                    canvas = display.create_canvas()
+                    macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
+                    display.display()
+
+        except KeyboardInterrupt:
+            self._logger.info("Pressed Control + C")
     
     def _text_has_exit_intention(self, text):
         return text in ["exit", "quit", "sortir", "adéu"]

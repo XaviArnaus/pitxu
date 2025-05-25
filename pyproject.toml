@@ -16,6 +16,10 @@ gpiozero = [{version="^2.0", markers="sys_platform=='linux'"}]
 lgpio = [{version="^0.2.2.0", markers="sys_platform=='linux'"}]
 pillow = "^11.2.1"
 emoji = "^2.14.1"
+pyaudio = "^0.2.14"
+numpy = "^2.2.6"
+sounddevice = "^0.5.2"
+vosk = {url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-macosx_10_6_universal2.whl", markers="sys_platform=='darwin'"}
 
 [tool.poetry.scripts]
 main = "runner:run"
