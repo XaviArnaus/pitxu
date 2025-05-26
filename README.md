@@ -13,7 +13,7 @@ For Debian based linux distros:
 sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev
 ```
 
-## In Mac, for `pyaudio` you need to have first installed `portaudio`
+## In Mac, for `pyaudio` and ` you need to have first installed `portaudio`
 
 ```
 brew install portaudio

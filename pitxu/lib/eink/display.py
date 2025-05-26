@@ -40,6 +40,9 @@ class EinkDisplay:
     DEFAULT_FONT_MEDIUM_SIZE = 14
     DEFAULT_FONT_SMALL_SIZE = 10
 
+    DEFAULT_STORAGE_PATH = "sotrage/"
+    DEFAULT_MOCKED_IMAGES_PATH = "mocked/"
+
     def __init__(self, config: Config, params: Dictionary):
 
         # Possible runtime parameters
@@ -65,7 +68,7 @@ class EinkDisplay:
     
     def display(self):
         if (not self._is_gpio_allowed()):
-            file_path = self._config.get("storage.path") + "mocked/" + time.strftime("%Y%m%d-%H%M%S") + ".png"
+            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self._working_image.save(file_path)
         else:
             self._epd.display(self._epd.getbuffer(self._working_image))

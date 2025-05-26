@@ -56,7 +56,7 @@ class Vosk:
             return result["text"]
         else:
             result = json.loads(self._recognizer.PartialResult())
-            self._logger.info("Recognized partial: " + result["partial"].replace("\n", ""))
+            self._logger.debug("Recognized partial: " + result["partial"].replace("\n", ""))
             return None
     
     def _get_samplerate(self) -> int:
