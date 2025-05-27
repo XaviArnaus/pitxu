@@ -4,7 +4,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
-from pitxu.lib.chatbot.geminai_chatbot import GeminaiChatbot
+from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
 from pitxu.lib.eink.display import EinkDisplay
 from pitxu.lib.eink.macros import Macros
 from pitxu.lib.dto.font_size import FontSize
@@ -42,13 +42,14 @@ class Main:
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
-        chatbot = GeminaiChatbot(config=self._config, params=self._parameters)
+        chatbot = GeminiChatbot(config=self._config, params=self._parameters)
 
         self._logger.debug("Initialising the Speech-to-Text")
         speech.initialize()
 
         try:
             # Read from microphone
+            # Correct format for Vosk is PCM 16khz 16bit mono
             with sounddevice.RawInputStream(samplerate=speech.samplerate,
                                 blocksize = 8000, 
                                 device=speech.device,

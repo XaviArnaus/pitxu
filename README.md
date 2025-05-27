@@ -67,7 +67,7 @@ cp config/main.yaml.dist config/main.yaml
 nano .env
 ```
 
-... and add there your Google Geminai key, that you got for free from https://aistudio.google.com/app/apikey like
+... and add there your Google Gemini key, that you got for free from https://aistudio.google.com/app/apikey like
 
 ```
 API_KEY=abcdefghijkl
@@ -90,3 +90,6 @@ https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/pyth
 
 ### Manual
 https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT_Manual#Demo_code
+
+## Vosk Speech-to-Text recognition
+https://alphacephei.com/vosk/install

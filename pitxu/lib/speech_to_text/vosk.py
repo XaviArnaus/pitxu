@@ -6,7 +6,6 @@ import json
 from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
-from pyxavi.debugger import dd
 
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
@@ -24,7 +23,7 @@ class Vosk:
 
     _model = None
     _queue = None
-    _recognizer = None
+    _recognizer: KaldiRecognizer = None
 
     device = None
     samplerate = None

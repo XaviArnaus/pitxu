@@ -9,7 +9,17 @@ from pyxavi.dictionary import Dictionary
 
 import logging
 
-class GeminaiChatbot(ChatbotProtocol):
+class GeminiChatbot(ChatbotProtocol):
+    """
+    Using the Gemini API to get answers. Require internet connection.
+
+    https://ai.google.dev/gemini-api/docs/rate-limits
+    At the implementation time it uses the Free Tier, Geminii 2.0 Flash.
+
+    - 15 requests per minute
+    - 1000000 tokens per minute
+    - 1500 requests per day
+    """
 
     _client = None
     _parameters: Dictionary = None
@@ -31,7 +41,7 @@ class GeminaiChatbot(ChatbotProtocol):
     def load(self):
         if (self._config.get("chatbot.mock", True)):
             self._logger.warning("Chatbot is mocked, Not initialising it.")
-            return "Chatbot is Mocked. Check the config."
+            return False
         self._client = genai.Client(api_key=self._parameters.get("api_key"))
     
     def ask(self, question: str) -> str:
@@ -39,7 +49,7 @@ class GeminaiChatbot(ChatbotProtocol):
         self._logger.debug("Question: " + question)
 
         if (self._config.get("chatbot.mock", True)):
-            return "Chatbot is Mocked. Check the config."
+            return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
             response = self._client.models.generate_content(
                 model="gemini-2.0-flash",
