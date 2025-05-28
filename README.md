@@ -4,7 +4,12 @@ Chatbot project over Raspberry Pi Zero 2w
 
 # Install
 
-## Make sure that your system has the dependencies to compile Pillow
+This project works with a bunch of system resources. This means that for Python to be able to
+compile the dependecies we need to have some packages in the OS level.
+
+## Linux (Raspberry Pi)
+
+### Dependencies related to `Pillow`
 
 This is needed for the internal Pillow support, for the e-Ink display
 
@@ -13,7 +18,36 @@ For Debian based linux distros:
 sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev
 ```
 
-## In Mac, for `pyaudio` and ` you need to have first installed `portaudio`
+### Dependencies related to `Gemini`
+
+This is needed for the internal Gemini support, for the dication feature
+
+For Debian based linux distros:
+```
+sudo apt install libffi6 libffi-dev
+```
+
+### Dependencies related to `pyaudio`
+
+This is needed for the internal Pyaudio support, for the audio support
+
+For Debian based linux distros:
+```
+sudo apt install portaudio19-dev python3-pyaudio
+```
+
+### ❗️ All Linux/Debian dependencies in one line
+Just make sure that I did not forget to add here anything from above. Just put the all together.
+
+```
+sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev libffi6 libffi-dev portaudio19-dev python3-pyaudio
+```
+
+## Mac OS
+
+### Dependencies related to `pyaudio` and `sounddevice`
+
+This is needed for the internal Pyaudio support, for the audio support
 
 ```
 brew install portaudio
@@ -42,10 +76,19 @@ make init
 
 Some packages are found in the repository but will fail installing, for diverse reasons.
 
-The workaround is to enter into the shell of the Poetry's virtual environment and pip3 install the packages there.
-In general, the idea is that then they don't get compiled byt rather it uses the _wheel_
+The workaround is to enter into the shell of the Poetry's virtual environment and `pip3 install` the packages there.
+In general, the idea is that then they don't get compiled but rather it uses the _wheel_
 
-It affects `gpiozero` (pillow too?) & `vosk`
+ℹ️ It affects `gpiozero` & `vosk`
+
+### ⚠️ Since Poetry (2.0.0), the shell command is not installed by default.
+Then, install the `shell` plugin:
+
+```
+poetry self add poetry-plugin-shell
+```
+
+... and then you can continue as usual:
 
 ```
 poetry shell

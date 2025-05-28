@@ -1,3 +1,12 @@
+# This won't work in a system without a Numpy dependency installed.
+# The main application does not use it.
+#
+# Still, the Numpy here is used to recognise that the user is speaking
+# by calculating the energy of the voice in the environment. May be cool.
+#
+# Tradeoff is that numpy fails to install (smoothly) into the Raspberry Pi OS
+# Did not invest more after discovering that it's only used in this example.
+
 import pyaudio
 import numpy as np
 from vosk import Model, KaldiRecognizer

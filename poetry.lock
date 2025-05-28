@@ -285,7 +285,7 @@ description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and platform_system == \"Windows\""
+markers = "(sys_platform == \"darwin\" or sys_platform == \"linux\") and platform_system == \"Windows\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -1059,15 +1059,15 @@ pyasn1 = ">=0.1.3"
 
 [[package]]
 name = "setuptools"
-version = "80.8.0"
+version = "80.9.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "sys_platform == \"linux\""
 files = [
-    {file = "setuptools-80.8.0-py3-none-any.whl", hash = "sha256:95a60484590d24103af13b686121328cc2736bee85de8936383111e421b9edc0"},
-    {file = "setuptools-80.8.0.tar.gz", hash = "sha256:49f7af965996f26d43c8ae34539c8d99c5042fbff34302ea151eaa9c207cd257"},
+    {file = "setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922"},
+    {file = "setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c"},
 ]
 
 [package.extras]
@@ -1167,7 +1167,7 @@ description = "A tiny library for parsing, modifying, and composing SRT files."
 optional = false
 python-versions = ">=2.7"
 groups = ["main"]
-markers = "sys_platform == \"darwin\""
+markers = "sys_platform == \"darwin\" or sys_platform == \"linux\""
 files = [
     {file = "srt-3.5.3.tar.gz", hash = "sha256:4884315043a4f0740fd1f878ed6caa376ac06d70e135f306a6dc44632eed0cc0"},
 ]
@@ -1191,7 +1191,7 @@ description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "sys_platform == \"darwin\""
+markers = "sys_platform == \"darwin\" or sys_platform == \"linux\""
 files = [
     {file = "tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2"},
     {file = "tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2"},
@@ -1274,6 +1274,28 @@ sast = ["bandit[toml] (>=1.7.5)"]
 testing = ["pytest (>=7.4.0)"]
 tooling = ["black (>=23.7.0)", "pyright (>=1.1.325)", "ruff (>=0.0.287)"]
 tooling-extras = ["pyaml (>=23.7.0)", "pypandoc-binary (>=1.11)", "pytest (>=7.4.0)"]
+
+[[package]]
+name = "vosk"
+version = "0.3.42"
+description = "Offline open source speech recognition API based on Kaldi and Vosk"
+optional = false
+python-versions = ">=3"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "vosk-0.3.42-py3-none-linux_armv7l.whl", hash = "sha256:cb7c157b837d6d09991382045d3d8577eb1a0beb8cf16c6f66a8f3a04ce70a26"},
+]
+
+[package.dependencies]
+cffi = ">=1.0"
+requests = "*"
+srt = "*"
+tqdm = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-linux_armv7l.whl"
 
 [[package]]
 name = "vosk"
@@ -1379,4 +1401,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "f73b7594008f8ebb8936a44a749139bc7fe55a8275167619ade68afcc7cee5e4"
+content-hash = "dcced9057a20c0a2a9b645a98edd2dcd88c8cc2ac04a1088622ffb3a6d834097"
