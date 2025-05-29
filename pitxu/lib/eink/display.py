@@ -62,7 +62,10 @@ class EinkDisplay:
         # Initialise fonts
         self._initialise_fonts()
     
-    def create_canvas(self):
+    def create_canvas(self, reset_base_image = True):
+        if reset_base_image:
+            self._reset_image()
+
         image = self._get_image(True)
         return ImageDraw.Draw(image)
     
@@ -73,7 +76,13 @@ class EinkDisplay:
             file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             self._working_image.save(file_path)
         else:
-            self._epd.display(self._epd.getbuffer(self._working_image))
+            # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
+            # self._epd.display(self._epd.getbuffer(self._working_image))
+            #
+            # Another test is that it seems that the current implementation presents the iamge rotated 90 degrees.
+            # Fix it by rotating the image first. Remember that Image.rotate() uses counter-clockwise
+            self._working_image = self._working_image.rotate(270)
+            self._epd.display_fast(self._epd.getbuffer(self._working_image))
     
     def clear(self):
         if (self._is_gpio_allowed()):
@@ -96,8 +105,8 @@ class EinkDisplay:
         draw.pieslice((55, 60, 95, 100), 270, 360, fill = 0)
         draw.polygon([(110,0),(110,50),(150,25)],outline = 0)
         draw.polygon([(190,0),(190,50),(150,25)],fill = 0)
-        draw.text((120, 60), 'e-Paper demo', font = self._font_small, fill = 0)
-        draw.text((110, 90), u'微雪电子', font = self._font_big, fill = 0)
+        draw.text((120, 60), 'e-Paper demo', font = self.FONT_SMALL, fill = 0)
+        draw.text((110, 90), u'微雪电子', font = self.FONT_BIG, fill = 0)
         # image = image.rotate(180) # rotate
         self.display()
         time.sleep(2)
@@ -111,13 +120,19 @@ class EinkDisplay:
         If does not exists, creates it.
         """
         if self._working_image is None:
-            self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
-            # if (not self._is_gpio_allowed()):
-            #     timestamp = time.strftime("%Y%m%d-%H%M%S")
-            #     self._working_image = Image.open(self._config.get("storage.path") + "mocked/" + timestamp + ".png")
-            # else:
-                
+            # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
+            # if (self._is_gpio_allowed): 
+            #     self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
+            # else:    
+                self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
         return self._working_image
+
+    def _reset_image(self):
+        """
+        The working image is a singleton. This resets it.
+        """
+        if self._working_image is not None:
+            self._working_image = None
     
     def _is_gpio_allowed(self):
         import platform

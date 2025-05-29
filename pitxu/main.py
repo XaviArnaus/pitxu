@@ -42,7 +42,7 @@ class Main:
         #display.test()
 
         # Startup splash
-        canvas = display.create_canvas()
+        canvas = display.create_canvas(reset_base_image=True)
         macros.startup_splash(canvas, display.FONT_BIG, display.FONT_MEDIUM)
         display.display()
         time.sleep(2)
@@ -65,12 +65,10 @@ class Main:
                                 callback=speech.callback):
                 
                 # Ready splash
-                display.clear()
-                canvas = display.create_canvas()
+                canvas = display.create_canvas(reset_base_image=True)
                 macros.ready_splash(canvas, display.FONT_BIG)
                 display.display()
                 time.sleep(2)
-                display.clear()
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
@@ -91,7 +89,7 @@ class Main:
                         answer = chatbot.ask(question)
 
                     # Show the answer
-                    canvas = display.create_canvas()
+                    canvas = display.create_canvas(reset_base_image=True)
                     macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
                     display.display()
 
