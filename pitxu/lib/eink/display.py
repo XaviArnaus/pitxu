@@ -70,6 +70,8 @@ class EinkDisplay:
         if (not self._is_gpio_allowed()):
             file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self._working_image.save(file_path)
+            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
+            self._working_image.save(file_path)
         else:
             self._epd.display(self._epd.getbuffer(self._working_image))
     
@@ -78,6 +80,8 @@ class EinkDisplay:
             self._epd.Clear(0xFF)
         else:
             pass
+        # Needed to clean up the canvas.
+        self._working_image = None
     
     def test(self):
         logging.info("Drawing on the image...")

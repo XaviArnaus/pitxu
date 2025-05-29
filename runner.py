@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import importlib.metadata
 
 import glob
 import logging
@@ -61,7 +62,8 @@ def run():
         logger = load_logger(config=config)
         parameters = Dictionary({
             "base_path": ROOT_DIR,
-            "api_key": os.getenv("API_KEY")
+            "api_key": os.getenv("API_KEY"),
+            "app_version": importlib.metadata.version('pitxu')
         })
 
         # Delegate the run to Main

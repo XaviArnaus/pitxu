@@ -11,6 +11,7 @@ from pitxu.lib.dto.font_size import FontSize
 from pitxu.lib.speech_to_text.vosk import Vosk
 
 import sounddevice
+import time
 
 class Main:
 
@@ -40,6 +41,12 @@ class Main:
         speech = Vosk(self._config, params=self._parameters)
         #display.test()
 
+        # Startup splash
+        canvas = display.create_canvas()
+        macros.startup_splash(canvas, display.FONT_BIG, display.FONT_MEDIUM)
+        display.display()
+        time.sleep(2)
+
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
         chatbot = GeminiChatbot(config=self._config, params=self._parameters)
@@ -56,6 +63,14 @@ class Main:
                                 dtype="int16", 
                                 channels=1, 
                                 callback=speech.callback):
+                
+                # Ready splash
+                display.clear()
+                canvas = display.create_canvas()
+                macros.ready_splash(canvas, display.FONT_BIG)
+                display.display()
+                time.sleep(2)
+                display.clear()
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
@@ -70,7 +85,7 @@ class Main:
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
                         # Just assume a goodbye
-                        answer = "Fins la propera! Adéu! Chúus!"
+                        answer = "Fins la propera! Adéu!"
                     else:
                         # Here we start with the Chatbot
                         answer = chatbot.ask(question)
@@ -82,6 +97,10 @@ class Main:
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")
+        
+        # Final clean
+        time.sleep(5)
+        display.clear()
     
     def _text_has_exit_intention(self, text):
         return text in ["exit", "quit", "sortir", "adéu"]

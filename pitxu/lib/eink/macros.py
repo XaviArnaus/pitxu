@@ -101,6 +101,40 @@ class Macros:
         final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
         self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
         return final_text
+    
+    def startup_splash(self, canvas: ImageDraw, font_title: ImageFont, font_subtitle: ImageFont):
+        # Main title
+        title = self._config.get("app.name")
+        version = self._parameters.get("app_version")
+        canvas.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
+                    text = title + "  v" + version, 
+                    font = font_title, 
+                    fill = self.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Draw a line between the title and the subtitle
+        canvas.line(Rectangle(Point(5, self._display_size.y / 2), Point(self._display_size.x - 5, self._display_size.y / 2)).to_image_rectangle(),
+                    fill = self.COLOR_BLACK,
+                    width = 1)
+        
+        # Subtitle
+        subtitle = "Chatbot: " + ("mocked" if self._config.get("chatbot.mock") else "real") + \
+                    " | Display: " + ("mocked" if self._config.get("display.mock") else "real")
+        canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
+                    text = subtitle, 
+                    font = font_subtitle, 
+                    fill = self.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
+        
+    def ready_splash(self, canvas: ImageDraw, font: ImageFont):
+        canvas.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
+                    text = "Ready", 
+                    font = font, 
+                    fill = self.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
 
     def _get_emoji_regexp(self):
         # Sort emoji by length to make sure multi-character emojis are
