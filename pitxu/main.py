@@ -42,9 +42,7 @@ class Main:
         #display.test()
 
         # Startup splash
-        canvas = display.create_canvas(reset_base_image=True)
-        macros.startup_splash(canvas, display.FONT_BIG, display.FONT_MEDIUM)
-        display.display()
+        macros.startup_splash(display)
         time.sleep(2)
 
         # Initialise Chatbot
@@ -65,9 +63,7 @@ class Main:
                                 callback=speech.callback):
                 
                 # Ready splash
-                canvas = display.create_canvas(reset_base_image=True)
-                macros.ready_splash(canvas, display.FONT_BIG)
-                display.display()
+                macros.ready_splash(display)
                 time.sleep(2)
 
                 question = ""

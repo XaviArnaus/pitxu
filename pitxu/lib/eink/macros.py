@@ -3,6 +3,7 @@ from PIL import Image,ImageDraw,ImageFont
 from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
+from ..eink.display import EinkDisplay
 from ..dto.rectangle import Rectangle
 from ..dto.line import Line
 from ..dto.point import Point
@@ -102,13 +103,17 @@ class Macros:
         self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
         return final_text
     
-    def startup_splash(self, canvas: ImageDraw, font_title: ImageFont, font_subtitle: ImageFont):
+    def startup_splash(self, display: EinkDisplay):
+
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
         # Main title
         title = self._config.get("app.name")
         version = self._parameters.get("app_version")
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
                     text = title + "  v" + version, 
-                    font = font_title, 
+                    font = display.FONT_BIG, 
                     fill = self.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
@@ -123,18 +128,28 @@ class Macros:
                     " | Display: " + ("mocked" if self._config.get("display.mock") else "real")
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
-                    font = font_subtitle, 
+                    font = display.FONT_MEDIUM, 
                     fill = self.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
         
-    def ready_splash(self, canvas: ImageDraw, font: ImageFont):
+        # Now display the canvas
+        display.display()
+        
+    def ready_splash(self, display: EinkDisplay):
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # Show the Ready text
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
                     text = "Ready", 
-                    font = font, 
+                    font = display.FONT_BIG, 
                     fill = self.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
+        
+        # Now display the canvas
+        display.display()
 
     def _get_emoji_regexp(self):
         # Sort emoji by length to make sure multi-character emojis are
