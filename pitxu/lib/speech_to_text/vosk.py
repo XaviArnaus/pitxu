@@ -48,15 +48,18 @@ class Vosk:
         self._recognizer = KaldiRecognizer(self._model, self.samplerate)
     
     def recognize(self) -> str:
-        data = self._queue.get()
-        if self._recognizer.AcceptWaveform(data):
-            result = json.loads(self._recognizer.Result())
-            self._logger.info("Recognized text: " + result["text"].replace("\n", ""))
-            return result["text"]
+        if self._config.get("speech-to-text.mock", True):
+            return input("Type your question: [\"exit\" to leave]: \n")
         else:
-            result = json.loads(self._recognizer.PartialResult())
-            self._logger.debug("Recognized partial: " + result["partial"].replace("\n", ""))
-            return None
+            data = self._queue.get()
+            if self._recognizer.AcceptWaveform(data):
+                result = json.loads(self._recognizer.Result())
+                self._logger.info("Recognized text: " + result["text"].replace("\n", ""))
+                return result["text"]
+            else:
+                result = json.loads(self._recognizer.PartialResult())
+                self._logger.debug("Recognized partial: " + result["partial"].replace("\n", ""))
+                return None
     
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")

@@ -124,8 +124,9 @@ class Macros:
                     width = 1)
         
         # Subtitle
-        subtitle = "Chatbot: " + ("mocked" if self._config.get("chatbot.mock") else "real") + \
-                    " | Display: " + ("mocked" if self._config.get("display.mock") else "real")
+        subtitle = "Chatbot: " + ("mocked" if self._config.get("chatbot.mock", True) else "real") + \
+                    " | Display: " + ("mocked" if self._config.get("display.mock", True) else "real") + \
+                    "\nSTT: " + ("mocked" if self._config.get("speech-to-text.mock", True) else "real")
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = display.FONT_MEDIUM, 

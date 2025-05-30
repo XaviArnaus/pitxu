@@ -32,6 +32,8 @@ display:
 
 # Configurations for the Speech-to-Text
 speech-to-text:
+  # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: True
   # Which language to start with. Possible values "en-us", "ca", "de", "es"
   default_language: "ca"
 
