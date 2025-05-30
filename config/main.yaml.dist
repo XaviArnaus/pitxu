@@ -22,8 +22,8 @@ display:
   size:
     x: 250
     y: 122
-  # [Integer] Rotate the display. Not really tested, is meant to have only 0 or 180
-  rotate: 0
+  # [bool] Rotate the display 180 degrees or not.
+  rotate: True
   # Configuration regarding the fonts
   fonts:
     big: 22

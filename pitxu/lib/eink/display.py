@@ -3,17 +3,6 @@ import os
 import logging
 import time
 
-# # Lib should be in the sys path
-# picdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pic')
-# libdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib')
-# print("Lib dir is " + libdir)
-# if os.path.exists(libdir):
-#     sys.path.append(libdir)
-# else:
-#     print("lib does not exists")
-
-# from ..waveshare_epd import epd2in13_V4
-
 from PIL import Image,ImageDraw,ImageFont
 
 from pyxavi.config import Config
@@ -76,12 +65,11 @@ class EinkDisplay:
             file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             self._working_image.save(file_path)
         else:
+            if self._config.get("display.rotate", False):
+                self._working_image = self._working_image.rotate(180)
+            
             # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
             # self._epd.display(self._epd.getbuffer(self._working_image))
-            #
-            # Another test is that it seems that the current implementation presents the iamge rotated 90 degrees.
-            # Fix it by rotating the image first. Remember that Image.rotate() uses counter-clockwise
-            self._working_image = self._working_image.rotate(270)
             self._epd.display_fast(self._epd.getbuffer(self._working_image))
     
     def clear(self):
@@ -121,9 +109,9 @@ class EinkDisplay:
         """
         if self._working_image is None:
             # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
-            # if (self._is_gpio_allowed): 
-            #     self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
-            # else:    
+            if (self._is_gpio_allowed()): 
+                self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
+            else:    
                 self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
         return self._working_image
 
