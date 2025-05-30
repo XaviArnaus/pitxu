@@ -71,9 +71,6 @@ class Main:
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
-                    # Listen to the input of the user
-                    #question = input("Introdueix la teva pregunta: [\"exit\" to leave]: \n")
-
                     # Recognize what comes from the microphone
                     question = speech.recognize()
                     if (question == None or question.strip() == ""):
