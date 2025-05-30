@@ -36,14 +36,17 @@ class Main:
     def run(self):
 
         # Initialise eInk Display and the helper macros
+        self._logger.debug("Initialising the e-Ink")
         display = EinkDisplay(config=self._config, params=self._parameters)
         macros = Macros(self._config, params=self._parameters)
-        speech = Vosk(self._config, params=self._parameters)
-        #display.test()
 
-        # Startup splash
+        # Startup splash. It should be understood as a "Loading..." screen.
         macros.startup_splash(display)
         time.sleep(2)
+
+        # Initialise Speech-to-text
+        self._logger.debug("Initialising the Speech-to-Text")
+        speech = Vosk(self._config, params=self._parameters)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
@@ -64,7 +67,7 @@ class Main:
                 
                 # Ready splash
                 macros.ready_splash(display)
-                time.sleep(2)
+                time.sleep(1)
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
