@@ -72,6 +72,23 @@ curl -sSL https://install.python-poetry.org | python3 -
 make init
 ```
 
+## Notes regarding the Python dependencies installation
+
+In lot of cases, poetry builds the dependencies and they fail due to diverse issues.
+
+### Numpy
+Numpy is a dependency from Piper. It is also mentioned in one of the Vosk (STT) examples as a tool for calculation.
+I have it as a direct dependency as it gave some headaches. At the end, it gets installed but needs **VERY MUCH TIME**.
+It's installation (isolated back then with `poetry add numpy -vvv`) was monitored with another ssh window running `htop`,
+And it only worked after a reboot and directly install it.
+
+### piper-phonemize
+piper-phonemize is a dependency from Piper. It has well documented issues due to the lack of wheels to a big chunk of
+architectures & python versions. The most suggested fix is to build the package matching your version and architecture needs
+but on Feb 2025 appeared a fix in PyPi from someone that forked and generated installable builds,and also fixing packaging to be able to build on demand.
+My approach has been to add it as a first level dependency and then install `piper-tts`, which should find the dependency and respect it.
+Source: https://github.com/rhasspy/piper/issues/509
+
 ## Install packages that fail with Poetry
 
 Some packages are found in the repository but will fail installing, for diverse reasons.
