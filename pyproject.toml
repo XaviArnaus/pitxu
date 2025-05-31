@@ -22,6 +22,10 @@ vosk = [
     {url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-macosx_10_6_universal2.whl", markers="sys_platform=='darwin'"},
     {url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-linux_armv7l.whl", markers="sys_platform=='linux'"}
 ]
+numpy = "^2.2.6"
+piper-phonemize-fix = "^1.2.1"
+onnxruntime = "^1.22.0"
+piper-tts = "^1.2.0"
 
 [tool.poetry.scripts]
 main = "runner:run"
