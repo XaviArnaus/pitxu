@@ -7,6 +7,8 @@ Chatbot project over Raspberry Pi Zero 2w
 This project works with a bunch of system resources. This means that for Python to be able to
 compile the dependecies we need to have some packages in the OS level.
 
+⚠️ Due to the Text-to-Speech (at least), the linux system must be 64 bits. This is choosen when burning the new Raspberry Pi OS image using the official Imager. Make sure that you choose a 64bit distro.
+
 ## Linux (Raspberry Pi)
 
 ### Dependencies related to `Pillow`
@@ -24,7 +26,7 @@ This is needed for the internal Gemini support, for the dication feature
 
 For Debian based linux distros:
 ```
-sudo apt install libffi6 libffi-dev
+sudo apt install libffi-dev
 ```
 
 ### Dependencies related to `pyaudio`
@@ -40,7 +42,7 @@ sudo apt install portaudio19-dev python3-pyaudio
 Just make sure that I did not forget to add here anything from above. Just put the all together.
 
 ```
-sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev libffi6 libffi-dev portaudio19-dev python3-pyaudio
+sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio
 ```
 
 ## Mac OS
