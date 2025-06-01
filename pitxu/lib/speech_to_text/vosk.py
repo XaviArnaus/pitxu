@@ -69,7 +69,7 @@ class Vosk:
     def callback(self, indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
-            self._logger.debug("Finished audio block, status is + ", status)
+            self._logger.debug("Finished audio block, status is " + status)
             # print(status, file=sys.stderr)
         self._queue.put(bytes(indata))
 
