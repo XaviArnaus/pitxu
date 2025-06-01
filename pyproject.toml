@@ -24,7 +24,7 @@ vosk = [
 ]
 numpy = "^2.2.6"
 piper-phonemize-fix = [
-    {url = "https://files.pythonhosted.org/packages/a9/a9/af72e1f392128485c534a7af535b0ccd4ea4f7c81718a168af6ade0c54b3/piper_phonemize_fix-1.2.1-cp311-cp311-macosx_10_14_x86_64.whl", markers="sys_platform=='darwin'"}
+    {url = "https://files.pythonhosted.org/packages/a9/a9/af72e1f392128485c534a7af535b0ccd4ea4f7c81718a168af6ade0c54b3/piper_phonemize_fix-1.2.1-cp311-cp311-macosx_10_14_x86_64.whl", markers="sys_platform=='darwin'"},
     {url = "https://files.pythonhosted.org/packages/7a/8c/a9cf9b911232ddc1f9ce65f9eb55b82df1fa709da5a0bcae653f78a9f326/piper_phonemize_fix-1.2.1-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", markers="sys_platform=='linux'"}
 ]
 onnxruntime = "^1.22.0"
