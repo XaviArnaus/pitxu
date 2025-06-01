@@ -7,8 +7,8 @@ from pyxavi.dictionary import Dictionary
 from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
 from pitxu.lib.eink.display import EinkDisplay
 from pitxu.lib.eink.macros import Macros
-from pitxu.lib.dto.font_size import FontSize
 from pitxu.lib.speech_to_text.vosk import Vosk
+from pitxu.lib.text_to_speech.piper import Piper
 
 import sounddevice
 import time
@@ -44,35 +44,42 @@ class Main:
         macros.startup_splash(display)
         time.sleep(2)
 
-        # Initialise Speech-to-text
+        # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text")
-        speech = Vosk(self._config, params=self._parameters)
+        dictate = Vosk(self._config, params=self._parameters)
+
+        # Initialise Text-To-Speech
+        self._logger.debug("Initialising the Text-to-Speech")
+        speech = Piper(self._config, params=self._parameters)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
         chatbot = GeminiChatbot(config=self._config, params=self._parameters)
 
         self._logger.debug("Initialising the Speech-to-Text")
-        speech.initialize()
+        dictate.initialize()
 
         try:
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
-            with sounddevice.RawInputStream(samplerate=speech.samplerate,
+            with sounddevice.RawInputStream(samplerate=dictate.samplerate,
                                 blocksize = 8000, 
-                                device=speech.device,
+                                device=dictate.device,
                                 dtype="int16", 
                                 channels=1, 
-                                callback=speech.callback):
+                                callback=dictate.callback):
                 
                 # Ready splash
                 macros.ready_splash(display)
                 time.sleep(1)
 
+                # Welcome speech
+                speech.say("Hola sóc el Pitxu. Diga'm alguna cosa")
+
                 question = ""
                 while(not self._text_has_exit_intention(question)):
                     # Recognize what comes from the microphone
-                    question = speech.recognize()
+                    question = dictate.recognize()
                     if (question == None or question.strip() == ""):
                         continue
 
@@ -88,6 +95,9 @@ class Main:
                     canvas = display.create_canvas(reset_base_image=True)
                     macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
                     display.display()
+
+                    # Say the answer
+                    speech.say(answer)
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")

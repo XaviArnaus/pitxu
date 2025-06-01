@@ -88,6 +88,7 @@ architectures & python versions. The most suggested fix is to build the package 
 but on Feb 2025 appeared a fix in PyPi from someone that forked and generated installable builds,and also fixing packaging to be able to build on demand.
 My approach has been to add it as a first level dependency and then install `piper-tts`, which should find the dependency and respect it.
 Source: https://github.com/rhasspy/piper/issues/509
+It didn't really work like that. They both need to be installed through the `python shell`'s `pip3 install`, as seen below.
 
 ## Install packages that fail with Poetry
 
@@ -96,7 +97,7 @@ Some packages are found in the repository but will fail installing, for diverse 
 The workaround is to enter into the shell of the Poetry's virtual environment and `pip3 install` the packages there.
 In general, the idea is that then they don't get compiled but rather it uses the _wheel_
 
-ℹ️ It affects `gpiozero` & `vosk`
+ℹ️ It affects `gpiozero` & `piper-tts`
 
 ### ⚠️ Since Poetry (2.0.0), the shell command is not installed by default.
 Then, install the `shell` plugin:
@@ -110,7 +111,8 @@ poetry self add poetry-plugin-shell
 ```
 poetry shell
 pip3 install gpiozero
-pip3 install -v https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-macosx_10_6_universal2.whl
+pip3 install piper-phonemize-fix 
+pip3 install pipper-tts --no-deps
 ```
 
 ## Create a config file

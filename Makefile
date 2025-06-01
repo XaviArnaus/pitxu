@@ -9,12 +9,12 @@ endif
 
 .PHONY: init
 init:
-	$(POETRY) install --only-root
+	$(POETRY) install
 
 .PHONY: update
 update:
 	$(POETRY) lock
-	$(POETRY) install --only-root
+	$(POETRY) install
 
 .PHONY: run
 run:
