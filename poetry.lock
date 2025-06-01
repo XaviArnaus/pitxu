@@ -842,46 +842,6 @@ files = [
 ]
 
 [[package]]
-name = "piper-phonemize-fix"
-version = "1.2.1"
-description = "Phonemization library used by Piper text to speech system, fixed for proper wheels"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "piper_phonemize_fix-1.2.1-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:3b2ab7d380b00f1b652e270c226ec782b1ae3b9ec323e3c05e6334170fe35314"},
-    {file = "piper_phonemize_fix-1.2.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:2d19d76e03651d915a56edd93227b27580134f79c907f6a7b864da973c01e228"},
-    {file = "piper_phonemize_fix-1.2.1-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:697a045c6d8bdf3e062d8f388ef17ebf8b61d163f432517f38d4914655add0ce"},
-    {file = "piper_phonemize_fix-1.2.1-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:dc0d2a50c9c2e090ade1ffc129c275a110af619c9d2585519777ea3a3319571a"},
-    {file = "piper_phonemize_fix-1.2.1-cp310-cp310-win_amd64.whl", hash = "sha256:f180ce3801ee0ea86f8d647dad2a7b5e1836bfbe596a87f315fb694864171990"},
-    {file = "piper_phonemize_fix-1.2.1-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:ae08b5326c26018187f66741dfd9bd055f3a802010189ac3781d48b560b52394"},
-    {file = "piper_phonemize_fix-1.2.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:f07756303f26af4c75f46077f63608d47a0bbdd3912329f3ee490e22dc089740"},
-    {file = "piper_phonemize_fix-1.2.1-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2b957a653631f7af4a19f51a61f9d3eec86532f28b4da6117edca8f90315bdad"},
-    {file = "piper_phonemize_fix-1.2.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d64c50079ddd29d6a916b35e44d11af0feaeda81956031a1d688947461141c21"},
-    {file = "piper_phonemize_fix-1.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:5ca1fa6e817993420a440b74b99521bad1004616dade319fc8e59aaecae0bf5b"},
-    {file = "piper_phonemize_fix-1.2.1-cp312-cp312-macosx_10_14_x86_64.whl", hash = "sha256:5b94fa2ab7f14584dfbaa314a150bb84215d7d7805aa0c9ef3201c096874ae9e"},
-    {file = "piper_phonemize_fix-1.2.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:3f94417756767924d114010eee425f20fa76cf801f2570478016215cd5ec6418"},
-    {file = "piper_phonemize_fix-1.2.1-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:919bb32ba2e57fc9315f8ba7729e542575e864d5b862ba0d31e9694f94351bc1"},
-    {file = "piper_phonemize_fix-1.2.1-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:64172f0fce92715fa1cb9be5635d3c95cf592a159efda80127e801d6b586e0c4"},
-    {file = "piper_phonemize_fix-1.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:b30d72143eef905492a87fc2584ee536f2782d65c9d1cff5046aaba29024ae27"},
-    {file = "piper_phonemize_fix-1.2.1-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:f7f80e6dbabc1bb3b7f50cf2ca0586aa686b6c510ef96a52e4a3120daaba83f2"},
-    {file = "piper_phonemize_fix-1.2.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:daa2d250d2c478eb10c273d1e460ba65a8ce7d34bc2bf3acd9f261a878f8a55a"},
-    {file = "piper_phonemize_fix-1.2.1-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:44fc1cca49e5615c430fb826262674ed793610b4b71836e3136664a0ed9c8fc9"},
-    {file = "piper_phonemize_fix-1.2.1-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8583f8b3329c372ca77ee7fc9381ce6c04ccdf460c0fc36b6d49515ee5f714ec"},
-    {file = "piper_phonemize_fix-1.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:b2e390d65612fcb031f6651adeadbdba1b6cbe7fee034c7e0e658c15e60c5923"},
-    {file = "piper_phonemize_fix-1.2.1-pp310-pypy310_pp73-macosx_10_15_x86_64.whl", hash = "sha256:4ae924140bb6d10df69885d7260a57722dcc241cdad5e806c6bfd297b809a351"},
-    {file = "piper_phonemize_fix-1.2.1-pp310-pypy310_pp73-macosx_11_0_arm64.whl", hash = "sha256:85f023af14a3ec07634bf7da4899c4d9f6f50b273c82c50415b0ef82abc99deb"},
-    {file = "piper_phonemize_fix-1.2.1-pp310-pypy310_pp73-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c9b5e689d1217885c343632f8dd22bdaf708f726d44eae5ddceb1ba6c966a797"},
-    {file = "piper_phonemize_fix-1.2.1-pp310-pypy310_pp73-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d31d4642f907484ca5ab90a6a2969a3e9ab25ea39c4ab0a850193dfdf75f2d5d"},
-    {file = "piper_phonemize_fix-1.2.1-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:01c28f710ac6177c4664b6a0ffd9956499b3fa443e0b0b7142955fcb83b11542"},
-    {file = "piper_phonemize_fix-1.2.1.tar.gz", hash = "sha256:24207c480adbc1f63f60c9a3a55e30bb115a3b3149f4f4b8a68331dabf200f0d"},
-]
-
-[package.dependencies]
-setuptools = ">=75.8.0"
-wheel = ">=0.45.1"
-
-[[package]]
 name = "piper-tts"
 version = "1.2.0"
 description = "A fast, local neural text to speech system that sounds great and is optimized for the Raspberry Pi 4."
@@ -1350,6 +1310,7 @@ description = "Easily download, build, install, upgrade, and uninstall Python pa
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "sys_platform == \"linux\""
 files = [
     {file = "setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922"},
     {file = "setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c"},
@@ -1585,28 +1546,6 @@ description = "Offline open source speech recognition API based on Kaldi and Vos
 optional = false
 python-versions = ">=3"
 groups = ["main"]
-markers = "sys_platform == \"linux\""
-files = [
-    {file = "vosk-0.3.42-py3-none-linux_armv7l.whl", hash = "sha256:cb7c157b837d6d09991382045d3d8577eb1a0beb8cf16c6f66a8f3a04ce70a26"},
-]
-
-[package.dependencies]
-cffi = ">=1.0"
-requests = "*"
-srt = "*"
-tqdm = "*"
-
-[package.source]
-type = "url"
-url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-linux_armv7l.whl"
-
-[[package]]
-name = "vosk"
-version = "0.3.42"
-description = "Offline open source speech recognition API based on Kaldi and Vosk"
-optional = false
-python-versions = ">=3"
-groups = ["main"]
 markers = "sys_platform == \"darwin\""
 files = [
     {file = "vosk-0.3.42-py3-none-macosx_10_6_universal2.whl", hash = "sha256:631b9ff6515945f92078c546a60deab2eeb4f63489a24526cc90e3164e415ff7"},
@@ -1621,6 +1560,29 @@ tqdm = "*"
 [package.source]
 type = "url"
 url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-macosx_10_6_universal2.whl"
+
+[[package]]
+name = "vosk"
+version = "0.3.45"
+description = "Offline open source speech recognition API based on Kaldi and Vosk"
+optional = false
+python-versions = ">=3"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "vosk-0.3.45-py3-none-manylinux2014_aarch64.whl", hash = "sha256:54efb47dd890e544e9e20f0316413acec7f8680d04ec095c6140ab4e70262704"},
+]
+
+[package.dependencies]
+cffi = ">=1.0"
+requests = "*"
+srt = "*"
+tqdm = "*"
+websockets = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-0.3.45-py3-none-manylinux2014_aarch64.whl"
 
 [[package]]
 name = "websockets"
@@ -1701,22 +1663,7 @@ files = [
     {file = "websockets-15.0.1.tar.gz", hash = "sha256:82544de02076bafba038ce055ee6412d68da13ab47f0c60cab827346de828dee"},
 ]
 
-[[package]]
-name = "wheel"
-version = "0.45.1"
-description = "A built-package format for Python"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "wheel-0.45.1-py3-none-any.whl", hash = "sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248"},
-    {file = "wheel-0.45.1.tar.gz", hash = "sha256:661e1abd9198507b1409a20c02106d9670b2576e916d58f520316666abca6729"},
-]
-
-[package.extras]
-test = ["pytest (>=6.0.0)", "setuptools (>=65)"]
-
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "c36b6ff1655fae54a8807ba54e9387926d20812d8d8ce0a563da1bcf41ace724"
+content-hash = "ba3837302624a8c578a01f4234eb49a5f27fa61d4928ebf63478086ff6563e44"
