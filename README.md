@@ -11,6 +11,15 @@ compile the dependecies we need to have some packages in the OS level.
 
 ## Linux (Raspberry Pi)
 
+### Dependency in general to build other dependencies: `python3-dev`
+
+Some dependencies ar built at installing time. Please have the `python3-dev` pachage installed beforehand:
+
+For Debian based linux distros:
+```
+sudo apt install python3-dev
+```
+
 ### Dependencies related to `Pillow`
 
 This is needed for the internal Pillow support, for the e-Ink display
@@ -42,7 +51,7 @@ sudo apt install portaudio19-dev python3-pyaudio
 Just make sure that I did not forget to add here anything from above. Just put the all together.
 
 ```
-sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio
 ```
 
 ## Mac OS
