@@ -63,7 +63,7 @@ class Main:
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
             with sounddevice.RawInputStream(samplerate=dictate.samplerate,
-                                blocksize = 2000, 
+                                blocksize = 0, 
                                 device=dictate.device,
                                 dtype="int16", 
                                 channels=1, 
