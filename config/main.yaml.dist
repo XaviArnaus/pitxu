@@ -37,6 +37,17 @@ speech-to-text:
   # Which language to start with. Possible values "en-us", "ca", "de", "es"
   default_language: "ca"
 
+# Configurations for the Text-to-Speech
+text-to-speech:
+  # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: False
+  # Which language to start with. Possible values "en-us", "ca", "de", "es"
+  default_language: "ca"
+  # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
+  per_language:
+    # Catalan
+    ca: ca_ES-upc_pau-x_low
+
 # Filesystem definition
 storage:
   # Where, from the root of the project
