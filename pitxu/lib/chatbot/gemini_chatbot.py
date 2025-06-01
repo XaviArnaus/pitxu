@@ -28,7 +28,7 @@ class GeminiChatbot(ChatbotProtocol):
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         self._parameters = params
-        if not self._parameters.key_exists("api_key"):
+        if not self._parameters.key_exists("api_key") or self._parameters.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
 
         if config is None:
