@@ -57,10 +57,15 @@ class Main:
         self._logger.debug("Initialising the Chatbot Client")
         chatbot = GeminiChatbot(config=self._config, params=self._parameters)
 
-        self._logger.debug("Initialising the Speech-to-Text")
-        dictate.initialize()
-
         try:
+            # Relating the issue that the dictate detects the sound output as something to parse:
+            # Apparently the [with:] block here activates the input stream BEFORE the loop and then
+            # still active during the whole loop time.
+            # Maybe it's better to return the [stream] object and control the dictate with it
+            # stream.start() and stream.stop(), as seen here:
+            # https://stackoverflow.com/a/71524248/1973860
+
+
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
             with sounddevice.RawInputStream(samplerate=dictate.samplerate,
@@ -71,17 +76,22 @@ class Main:
                                 callback=dictate.callback):
                 
                 # Ready splash
+                self._logger.debug(">> Ready Splash")
                 macros.ready_splash(display)
                 time.sleep(1)
 
                 # Welcome speech
+                self._logger.debug(">> Say Greeting")
                 speech.say("Hola sóc el Pitxu. Diga'm alguna cosa")
+                self._logger.debug(">> Finished saying Greeting")
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
                     # Recognize what comes from the microphone
+                    self._logger.debug(">> Recognise dictate")
                     question = dictate.recognize()
                     if (question == None or question.strip() == ""):
+                        self._logger.debug(">> Not recognized anything meaningul")
                         continue
 
                     # Avoid calling the Chatbot when exiting
@@ -96,12 +106,15 @@ class Main:
                     answer = Text.remove_emojis(answer)
 
                     # Show the answer
+                    self._logger.debug(">> Show Answer")
                     canvas = display.create_canvas(reset_base_image=True)
                     macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
                     display.display()
 
                     # Say the answer
+                    self._logger.debug(">> Say Answer")
                     speech.say(answer)
+                    self._logger.debug(">> Finished saying Answer")
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")
