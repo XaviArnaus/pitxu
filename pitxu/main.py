@@ -4,6 +4,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
+from pitxu.lib.utils.text import Text
 from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
 from pitxu.lib.eink.display import EinkDisplay
 from pitxu.lib.eink.macros import Macros
@@ -90,6 +91,9 @@ class Main:
                     else:
                         # Here we start with the Chatbot
                         answer = chatbot.ask(question)
+                    
+                    # Clean the answer first, just in case
+                    answer = Text.remove_emojis(answer)
 
                     # Show the answer
                     canvas = display.create_canvas(reset_base_image=True)

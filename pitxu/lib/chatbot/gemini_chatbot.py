@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from google.genai.errors import ServerError
 
 from pitxu.lib.chatbot.chatbot_protocol import ChatbotProtocol
 
@@ -51,11 +52,14 @@ class GeminiChatbot(ChatbotProtocol):
         if (self._config.get("chatbot.mock", True)):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
-            response = self._client.models.generate_content(
-                model="gemini-2.0-flash",
-                config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
-                contents=question
-            )
+            try:
+                response = self._client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
+                    contents=question
+                )
 
-            self._logger.debug("Received answer: " + response.text)
-            return response.text
+                self._logger.debug("Received answer: " + response.text)
+                return response.text
+            except ServerError as e:
+                return "The server returns an error: " + e.message

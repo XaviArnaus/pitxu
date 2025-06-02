@@ -22,7 +22,7 @@ display:
   size:
     x: 250
     y: 122
-  # [bool] Rotate the display 180 degrees or not.
+  # [bool] Rotate the display 180 degrees or not. This only affects the eInk, not mocked.
   rotate: True
   # Configuration regarding the fonts
   fonts:

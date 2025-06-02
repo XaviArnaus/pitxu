@@ -69,9 +69,6 @@ class Macros:
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 
         self._logger.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
-
-        # Clean the text first, we don't want emojis
-        text = self._get_emoji_regexp().sub(r'', text)
         
         # Split the lines, we need to cover all individually
         lines = text.split("\n")
@@ -152,10 +149,3 @@ class Macros:
         
         # Now display the canvas
         display.display()
-
-    def _get_emoji_regexp(self):
-        # Sort emoji by length to make sure multi-character emojis are
-        # matched first
-        emojis = sorted(emoji.EMOJI_DATA, key=len, reverse=True)
-        pattern = '(' + '|'.join(re.escape(u) for u in emojis) + ')'
-        return re.compile(pattern)

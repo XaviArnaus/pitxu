@@ -108,7 +108,7 @@ Some packages are found in the repository but will fail installing, for diverse 
 The workaround is to enter into the shell of the Poetry's virtual environment and `pip3 install` the packages there.
 In general, the idea is that then they don't get compiled but rather it uses the _wheel_
 
-ℹ️ It affects `gpiozero` & `piper-tts`
+ℹ️ It affects `gpiozero` & `piper-tts`, apparently only with Mac OS.
 
 ### ⚠️ Since Poetry (2.0.0), the shell command is not installed by default.
 Then, install the `shell` plugin:
@@ -123,7 +123,7 @@ poetry self add poetry-plugin-shell
 poetry shell
 pip3 install gpiozero
 pip3 install piper-phonemize-fix 
-pip3 install pipper-tts --no-deps
+pip3 install piper-tts --no-deps
 ```
 
 ## Create a config file
@@ -166,3 +166,4 @@ https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT_Manual#Demo_code
 
 ## Vosk Speech-to-Text recognition
 https://alphacephei.com/vosk/install
+https://alphacephei.com/vosk/models
