@@ -178,3 +178,13 @@ https://alphacephei.com/vosk/models
 
 ## Google Gemini
 https://ai.google.dev/gemini-api/docs/migrate
+
+# 😄 Fun fact
+
+### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]
+
+In Mac OS
+- Dictation is good
+- eInk is mocked
+- Gemini improved very significantly after switching to from single query (without context) to chat (with context)
+- Speech is ok
