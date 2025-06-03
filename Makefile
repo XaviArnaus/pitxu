@@ -20,6 +20,10 @@ update:
 run:
 	@$(POETRY) run main
 
+.PHONY: sounddevices
+sounddevices:
+	@$(POETRY) run sounddevices
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis python3

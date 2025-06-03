@@ -26,6 +26,7 @@ piper-tts = [{version="^1.2.0", markers="sys_platform=='linux'"}]
 
 [tool.poetry.scripts]
 main = "runner:run"
+sounddevices = "runner:query_sound_devices"
 
 [virtualenvs.options]
 system-site-packages = true

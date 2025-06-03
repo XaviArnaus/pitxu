@@ -36,7 +36,7 @@ speech-to-text:
   mock: True
   # Which language to start with. Possible values "en-us", "ca", "de", "es"
   default_language: "ca"
-  # [Integer] Index of the car to use, from the list in `arecord -l`. Set [None] for autodetect
+  # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
   input_device: 0
 
 # Configurations for the Text-to-Speech

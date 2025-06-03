@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import importlib.metadata
+import sounddevice
 
 import glob
 import logging
@@ -77,3 +78,31 @@ def run():
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
     except Exception:
         print(full_stack()) 
+
+def query_sound_devices():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Querying SoundDevice")
+        print(sounddevice.query_devices())
+        logger.info("End of work.")
+
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack()) 
+
+def _initialize():
+    load_environment()
+    config = load_config_files()
+    logger = load_logger(config=config)
+    parameters = Dictionary({
+        "base_path": ROOT_DIR,
+        "api_key": os.getenv("API_KEY", None),
+        "app_version": importlib.metadata.version('pitxu')
+    })
+
+    return config, logger, parameters
