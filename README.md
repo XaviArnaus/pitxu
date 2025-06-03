@@ -14,7 +14,7 @@ compile the dependecies we need to have some packages in the OS level.
 
 ### Dependency in general to build other dependencies: `python3-dev`
 
-Some dependencies ar built at installing time. Please have the `python3-dev` pachage installed beforehand:
+Some dependencies are built at installing time. Please have the `python3-dev` pachage installed beforehand:
 
 For Debian based linux distros:
 ```
@@ -183,8 +183,8 @@ https://ai.google.dev/gemini-api/docs/migrate
 
 ### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]
 
-In Mac OS
+In Mac OS - catalan
 - Dictation is good
 - eInk is mocked
-- Gemini improved very significantly after switching to from single query (without context) to chat (with context)
+- Gemini improved very significantly after switching from single query (without context) to chat (with context)
 - Speech is ok
