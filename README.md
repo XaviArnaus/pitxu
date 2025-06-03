@@ -174,3 +174,6 @@ https://python-sounddevice.readthedocs.io/en/0.5.1/usage.html
 ## Vosk Speech-to-Text recognition
 https://alphacephei.com/vosk/install
 https://alphacephei.com/vosk/models
+
+## Google Gemini
+https://ai.google.dev/gemini-api/docs/migrate

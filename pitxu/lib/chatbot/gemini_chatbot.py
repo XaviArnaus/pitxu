@@ -26,6 +26,7 @@ class GeminiChatbot(ChatbotProtocol):
     _parameters: Dictionary = None
     _config: Config = None
     _logger: logging
+    _chat = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         self._parameters = params
@@ -37,13 +38,18 @@ class GeminiChatbot(ChatbotProtocol):
 
         self._config = config
         self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
-        self.load()
+        self.initialize()
 
-    def load(self):
+    def initialize(self):
         if (self._config.get("chatbot.mock", True)):
             self._logger.warning("Chatbot is mocked, Not initialising it.")
             return False
+        
         self._client = genai.Client(api_key=self._parameters.get("api_key"))
+        self._chat = self._client.chats.create(
+            model='gemini-2.0-flash',
+            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction"))
+        )
     
     def ask(self, question: str) -> str:
 
@@ -53,11 +59,8 @@ class GeminiChatbot(ChatbotProtocol):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
             try:
-                response = self._client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
-                    contents=types.UserContent(question)
-                )
+
+                response = self._chat.send_message(question)
 
                 self._logger.debug("Received answer: " + response.text)
                 return response.text
