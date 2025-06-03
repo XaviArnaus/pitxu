@@ -188,3 +188,11 @@ In Mac OS - catalan
 - eInk is mocked
 - Gemini improved very significantly after switching from single query (without context) to chat (with context)
 - Speech is ok
+- 🙂 Works pretty good
+
+In RPi 02W - catalan
+- Dictation takes ~4s
+- eInk takes ~2s (still fullscan)
+- Gemini takes ~1s (same as above)
+- Speech is ok.
+- 😕 Good quality but pretty slow all in all.
