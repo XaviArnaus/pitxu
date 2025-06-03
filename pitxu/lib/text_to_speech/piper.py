@@ -36,20 +36,23 @@ class Piper:
     
     def say(self, text: str, input_stream_to_pause: sounddevice.RawInputStream = None):
 
-        if input_stream_to_pause is not None:
-            input_stream_to_pause.stop()
+        if self._config.get("text-to-speech.mock", True):
+            self._logger.warning("Mocking TTS by Config. Should have said [" + text + "]")
+        else:
+            if input_stream_to_pause is not None:
+                input_stream_to_pause.stop()
 
-        self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
-        self._output_stream.start()
+            self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
+            self._output_stream.start()
 
-        for audio_bytes in self._voice.synthesize_stream_raw(text):
-            int_data = np.frombuffer(audio_bytes, dtype=np.int16)
-            self._output_stream.write(int_data)
+            for audio_bytes in self._voice.synthesize_stream_raw(text):
+                int_data = np.frombuffer(audio_bytes, dtype=np.int16)
+                self._output_stream.write(int_data)
 
-        self._output_stream.stop()
+            self._output_stream.stop()
 
-        if input_stream_to_pause is not None:
-            input_stream_to_pause.start()
+            if input_stream_to_pause is not None:
+                input_stream_to_pause.start()
     
     def terminate(self):
         self._output_stream.close()

@@ -56,7 +56,7 @@ class GeminiChatbot(ChatbotProtocol):
                 response = self._client.models.generate_content(
                     model="gemini-2.0-flash",
                     config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction")),
-                    contents=question
+                    contents=types.UserContent(question)
                 )
 
                 self._logger.debug("Received answer: " + response.text)
