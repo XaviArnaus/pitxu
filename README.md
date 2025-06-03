@@ -1,6 +1,7 @@
 # pitxu
 Chatbot project over Raspberry Pi Zero 2w
 
+** 🚨 This is a Work in Progress project. Take it or leave it. Suggestions are welcome.
 
 # Install
 
