@@ -73,7 +73,10 @@ class Main:
                                 device=dictate.device,
                                 dtype="int16", 
                                 channels=1, 
-                                callback=dictate.callback):
+                                callback=dictate.callback) as input_stream:
+                
+                # Bring the Input Stream into the TTS so it can pause the micro while talking.
+                # speech.set_input_stream_to_pause(input_stream)
                 
                 # Ready splash
                 self._logger.debug(">> Ready Splash")
@@ -82,17 +85,18 @@ class Main:
 
                 # Welcome speech
                 self._logger.debug(">> Say Greeting")
-                speech.say("Hola sóc el Pitxu. Diga'm alguna cosa")
+                # input_stream.stop()
+                speech.say("Hola sóc el Pitxu. Diga'm alguna cosa", input_stream_to_pause=input_stream)
+                # input_stream.start()
                 self._logger.debug(">> Finished saying Greeting")
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
                     # Recognize what comes from the microphone
-                    self._logger.debug(">> Recognise dictate")
                     question = dictate.recognize()
                     if (question == None or question.strip() == ""):
-                        self._logger.debug(">> Not recognized anything meaningul")
                         continue
+                    self._logger.debug(">> Recognised dictate")
 
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
@@ -113,7 +117,9 @@ class Main:
 
                     # Say the answer
                     self._logger.debug(">> Say Answer")
-                    speech.say(answer)
+                    # input_stream.stop()
+                    speech.say(answer, input_stream_to_pause=input_stream)
+                    # input_stream.start()
                     self._logger.debug(">> Finished saying Answer")
 
         except KeyboardInterrupt:
@@ -122,6 +128,7 @@ class Main:
         # Final clean
         time.sleep(5)
         display.clear()
+        speech.terminate()
     
     def _text_has_exit_intention(self, text):
         return text in ["exit", "quit", "sortir", "adéu"]

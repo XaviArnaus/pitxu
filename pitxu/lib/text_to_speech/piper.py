@@ -18,6 +18,7 @@ class Piper:
 
     _model: None
     _voice: None
+    _output_stream: sounddevice.OutputStream = None
 
     def __init__(self, config: Config, params: Dictionary):
         self._parameters = params
@@ -31,15 +32,24 @@ class Piper:
         model_name = self._config.get("text-to-speech.per_language." + language)
         self._model = self._config.get("storage.path") + "/" + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
+        self._output_stream = sounddevice.OutputStream(samplerate=self._voice.config.sample_rate, channels=1, dtype='int16')
     
-    def say(self, text: str):
+    def say(self, text: str, input_stream_to_pause: sounddevice.RawInputStream = None):
+
+        if input_stream_to_pause is not None:
+            input_stream_to_pause.stop()
+
         self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
-        stream = sounddevice.OutputStream(samplerate=self._voice.config.sample_rate, channels=1, dtype='int16')
-        stream.start()
+        self._output_stream.start()
 
         for audio_bytes in self._voice.synthesize_stream_raw(text):
             int_data = np.frombuffer(audio_bytes, dtype=np.int16)
-            stream.write(int_data)
+            self._output_stream.write(int_data)
 
-        stream.stop()
-        stream.close()
+        self._output_stream.stop()
+
+        if input_stream_to_pause is not None:
+            input_stream_to_pause.start()
+    
+    def terminate(self):
+        self._output_stream.close()

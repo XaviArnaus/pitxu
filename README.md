@@ -155,10 +155,6 @@ make run
 
 # Current issues
 
-## In Mac OS the TTS is captured by the STT
-Because Mac OS is fast, and then it enters into a loop of self listening, Gemini and then talking, and then again. Try this: 
-https://medium.com/@gokcerbelgusen/now-you-can-turn-your-raspberry-pi-into-speech-to-text-and-text-to-speech-machine-without-1318096511be
-
 ## In RPi 02W, is mega slow.
 
 # Resources
