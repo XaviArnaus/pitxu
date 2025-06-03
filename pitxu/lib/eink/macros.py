@@ -32,7 +32,10 @@ class Macros:
         self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
         self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
 
-    def draw_text_bubble(self, canvas: ImageDraw, text: str, font: ImageFont):
+    def draw_text_bubble(self, display: EinkDisplay, text: str, font: ImageFont):
+
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
 
         # Padding of text from bubble frame
         padding = 5
@@ -65,6 +68,9 @@ class Macros:
         canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_WHITE, width=1)
         canvas.line(Line(Point(30,rect_2.y), Point(31, self._display_size.y - 2)).to_image_line(), fill=self.COLOR_BLACK, width=1)
         canvas.line(Line(Point(31, self._display_size.y - 2), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_BLACK, width=1)
+
+        # Now display the canvas
+        display.display()
 
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 

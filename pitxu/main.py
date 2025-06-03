@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 import logging
 
 from pyxavi.config import Config
@@ -19,7 +20,15 @@ class Main:
     _config: Config = None
     _logger: logging = None
 
+    _display: EinkDisplay = None
+    _macros: Macros = None
+    _chatbot: GeminiChatbot = None
+    _dictate: Vosk = None
+    _speech: Piper = None
+
     EXIT_WORDS = ["exit", "quit", "sortir", "adéu"]
+    COMM_DISPLAY = "display"
+    COMM_TTS = "tts"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -38,62 +47,45 @@ class Main:
 
         # Initialise eInk Display and the helper macros
         self._logger.debug("Initialising the e-Ink")
-        display = EinkDisplay(config=self._config, params=self._parameters)
-        macros = Macros(self._config, params=self._parameters)
+        self._display = EinkDisplay(config=self._config, params=self._parameters)
+        self._macros = Macros(self._config, params=self._parameters)
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        macros.startup_splash(display)
+        self._macros.startup_splash(self._display)
         time.sleep(2)
 
         # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text")
-        dictate = Vosk(self._config, params=self._parameters)
+        self._dictate = Vosk(self._config, params=self._parameters)
 
         # Initialise Text-To-Speech
         self._logger.debug("Initialising the Text-to-Speech")
-        speech = Piper(self._config, params=self._parameters)
+        self._speech = Piper(self._config, params=self._parameters)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client")
-        chatbot = GeminiChatbot(config=self._config, params=self._parameters)
+        self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
 
         try:
-            # Relating the issue that the dictate detects the sound output as something to parse:
-            # Apparently the [with:] block here activates the input stream BEFORE the loop and then
-            # still active during the whole loop time.
-            # Maybe it's better to return the [stream] object and control the dictate with it
-            # stream.start() and stream.stop(), as seen here:
-            # https://stackoverflow.com/a/71524248/1973860
-
-
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
-            with sounddevice.RawInputStream(samplerate=dictate.samplerate,
+            with sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
                                 blocksize = 0, 
-                                device=dictate.device,
+                                device=self._dictate.device,
                                 dtype="int16", 
                                 channels=1, 
-                                callback=dictate.callback) as input_stream:
+                                callback=self._dictate.callback) as input_stream:
                 
-                # Bring the Input Stream into the TTS so it can pause the micro while talking.
-                # speech.set_input_stream_to_pause(input_stream)
-                
-                # Ready splash
-                self._logger.debug(">> Ready Splash")
-                macros.ready_splash(display)
-                time.sleep(1)
-
-                # Welcome speech
-                self._logger.debug(">> Say Greeting")
-                # input_stream.stop()
-                speech.say("Hola sóc el Pitxu. Diga'm alguna cosa", input_stream_to_pause=input_stream)
-                # input_stream.start()
-                self._logger.debug(">> Finished saying Greeting")
+                # Welcome greeting
+                self._logger.debug(">> Greetings")
+                self.communicate("Hola sóc el Pitxu. Diga'm alguna cosa",
+                                 [self.COMM_TTS, self.COMM_DISPLAY],
+                                 input_stream)
 
                 question = ""
                 while(not self._text_has_exit_intention(question)):
                     # Recognize what comes from the microphone
-                    question = dictate.recognize()
+                    question = self._dictate.recognize()
                     if (question == None or question.strip() == ""):
                         continue
                     self._logger.debug(">> Recognised dictate")
@@ -104,31 +96,56 @@ class Main:
                         answer = "Fins la propera! Adéu!"
                     else:
                         # Here we start with the Chatbot
-                        answer = chatbot.ask(question)
+                        answer = self._chatbot.ask(question)
                     
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
 
-                    # Show the answer
-                    self._logger.debug(">> Show Answer")
-                    canvas = display.create_canvas(reset_base_image=True)
-                    macros.draw_text_bubble(canvas, answer, display.FONT_MEDIUM)
-                    display.display()
-
-                    # Say the answer
-                    self._logger.debug(">> Say Answer")
-                    # input_stream.stop()
-                    speech.say(answer, input_stream_to_pause=input_stream)
-                    # input_stream.start()
-                    self._logger.debug(">> Finished saying Answer")
+                    # Answer
+                    self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")
         
         # Final clean
         time.sleep(5)
-        display.clear()
-        speech.terminate()
+        self._display.clear()
+        self._speech.terminate()
+    
+    def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
+
+        # We want parallelism. Create a Multiprocessing Pool
+        pool = Pool(processes=2)
+
+        if self.COMM_DISPLAY in channels:
+            # Show the answer
+            self._logger.debug("Show Communication")
+            pool.apply_async(self._macros.draw_text_bubble, args=(self._display, text, self._display.FONT_MEDIUM))
+
+        if self.COMM_TTS in channels:
+            # Say the answer
+            self._logger.debug("Say Communication")
+            # Feels like the object is pickled into the thread, and fails.
+            # see: https://github.com/microsoft/onnxruntime/pull/800
+            # pool.apply(self._speech.say, args=(text, input_stream_to_pause))
+            self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
+
+        # Wait for the processes to end
+        pool.close()
+        pool.join()
+
+        #### Originally was:
+
+        # if self.COMM_DISPLAY in channels:
+        #     # Show the answer
+        #     self._logger.debug("Show Communication")
+        #     self._macros.draw_text_bubble(self._display, text, self._display.FONT_MEDIUM)
+
+        # if self.COMM_TTS in channels:
+        #     # Say the answer
+        #     self._logger.debug("Say Cmmunication")
+        #     self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
+
     
     def _text_has_exit_intention(self, text):
         return text in ["exit", "quit", "sortir", "adéu"]
