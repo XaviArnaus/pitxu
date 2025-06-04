@@ -1,0 +1,151 @@
+xavier@pitxu:~/pitxu $ make run
+[2025-06-04 20:52:14,585] DEBUG    pitxu        Starting Main run
+[2025-06-04 20:52:14,590] DEBUG    pitxu        Initialising the e-Ink
+[2025-06-04 20:52:14,593] DEBUG    pitxu        Trying to load the lib directory at: /home/xavier/pitxu/pitxu/lib
+[2025-06-04 20:52:14,908] DEBUG    pitxu        Initialising eInk controller
+[2025-06-04 20:52:14,909] DEBUG    pitxu        Initialising eInk display
+[2025-06-04 20:52:14,953] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:52:14,953] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:52:14,954] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:52:14,965] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:52:14,968] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:52:14,968] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:52:14,969] DEBUG    pitxu        Cleaning for the first time
+[2025-06-04 20:52:14,978] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:52:17,272] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:52:17,379] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:52:19,670] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:52:21,672] DEBUG    pitxu        Initialising the Speech-to-Text
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=10 max-active=3000 lattice-beam=2
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 1 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 2 orphan components.
+LOG (VoskAPI:Collapse():nnet-utils.cc:1488) Added 1 components, removed 2
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from /home/xavier/.cache/vosk/vosk-model-small-ca-0.4/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from /home/xavier/.cache/vosk/vosk-model-small-ca-0.4/graph/HCLr.fst /home/xavier/.cache/vosk/vosk-model-small-ca-0.4/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo /home/xavier/.cache/vosk/vosk-model-small-ca-0.4/graph/phones/word_boundary.int
+[2025-06-04 20:52:32,244] DEBUG    pitxu        Initialising the Text-to-Speech
+[2025-06-04 20:52:48,884] DEBUG    pitxu        Initialising the Chatbot Client
+[2025-06-04 20:53:01,736] DEBUG    pitxu        ⏱️  Initialisations: 47.145
+[2025-06-04 20:53:01,949] DEBUG    pitxu        >> Greetings
+input overflow
+input overflow
+input overflow
+[2025-06-04 20:53:02,420] DEBUG    pitxu        Show Communication
+[2025-06-04 20:53:02,426] DEBUG    pitxu        Say Communication
+[2025-06-04 20:53:02,475] DEBUG    pitxu        Saying [Hola sóc el Pitxu. Diga'm alguna cosa]
+[2025-06-04 20:53:03,553] DEBUG    pitxu        Boundary left for text is 241
+[2025-06-04 20:53:03,571] DEBUG    pitxu        Line [Hola sóc el Pitxu. Diga'm alguna cosa] has width 237.000000000
+[2025-06-04 20:53:03,572] DEBUG    pitxu        Final text is [Hola sóc el Pitxu. Diga'm alguna cosa\n]
+[2025-06-04 20:53:03,674] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:53:05,969] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:53:08,392] DEBUG    pitxu        ⏱️  Greeting: 6.4389
+[2025-06-04 20:53:22,943] INFO     pitxu        Recognized text: quan a bonanit com estàs
+[2025-06-04 20:53:22,946] DEBUG    pitxu        >> Recognised dictate
+[2025-06-04 20:53:22,947] DEBUG    pitxu        ⏱️  Dictate 0: 14.5525
+[2025-06-04 20:53:22,949] DEBUG    pitxu        Question: quan a bonanit com estàs
+[2025-06-04 20:53:22,997] INFO     google_genai.models AFC is enabled with max remote calls: 10.
+[2025-06-04 20:53:23,168] DEBUG    httpcore.connection connect_tcp.started host='generativelanguage.googleapis.com' port=443 local_address=None timeout=None socket_options=None
+[2025-06-04 20:53:23,271] DEBUG    httpcore.connection connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fa010de10>
+[2025-06-04 20:53:23,274] DEBUG    httpcore.connection start_tls.started ssl_context=<ssl.SSLContext object at 0x7f9dd3bbf0> server_hostname='generativelanguage.googleapis.com' timeout=None
+[2025-06-04 20:53:23,360] DEBUG    httpcore.connection start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fa0189c90>
+[2025-06-04 20:53:23,362] DEBUG    httpcore.http11 send_request_headers.started request=<Request [b'POST']>
+[2025-06-04 20:53:23,365] DEBUG    httpcore.http11 send_request_headers.complete
+[2025-06-04 20:53:23,366] DEBUG    httpcore.http11 send_request_body.started request=<Request [b'POST']>
+[2025-06-04 20:53:23,367] DEBUG    httpcore.http11 send_request_body.complete
+[2025-06-04 20:53:23,368] DEBUG    httpcore.http11 receive_response_headers.started request=<Request [b'POST']>
+[2025-06-04 20:53:23,948] DEBUG    httpcore.http11 receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json; charset=UTF-8'), (b'Vary', b'Origin'), (b'Vary', b'X-Origin'), (b'Vary', b'Referer'), (b'Content-Encoding', b'gzip'), (b'Date', b'Wed, 04 Jun 2025 18:53:23 GMT'), (b'Server', b'scaffolding on HTTPServer2'), (b'X-XSS-Protection', b'0'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Content-Type-Options', b'nosniff'), (b'Server-Timing', b'gfet4t7; dur=565'), (b'Alt-Svc', b'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'), (b'Transfer-Encoding', b'chunked')])
+[2025-06-04 20:53:24,001] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent "HTTP/1.1 200 OK"
+[2025-06-04 20:53:24,015] DEBUG    httpcore.http11 receive_response_body.started request=<Request [b'POST']>
+[2025-06-04 20:53:24,023] DEBUG    httpcore.http11 receive_response_body.complete
+[2025-06-04 20:53:24,027] DEBUG    httpcore.http11 response_closed.started
+[2025-06-04 20:53:24,029] DEBUG    httpcore.http11 response_closed.complete
+input overflow
+[2025-06-04 20:53:24,189] INFO     google_genai.models AFC remote call 1 is done.
+[2025-06-04 20:53:24,206] DEBUG    pitxu        Received answer: Hola! Estic bé, gràcies per preguntar! Tu com estàs?
+
+input overflow
+input overflow
+input overflow
+input overflow
+[2025-06-04 20:53:30,122] DEBUG    pitxu        Show Communication
+[2025-06-04 20:53:30,124] DEBUG    pitxu        Say Communication
+[2025-06-04 20:53:30,133] DEBUG    pitxu        Saying [Hola! Estic bé, gràcies per preguntar! Tu com estàs?\n]
+[2025-06-04 20:53:30,291] DEBUG    pitxu        Boundary left for text is 241
+[2025-06-04 20:53:30,306] DEBUG    pitxu        Line [Hola! Estic bé, gràcies per preguntar! Tu com estàs?] has width 329.000000000
+[2025-06-04 20:53:30,326] DEBUG    pitxu        Line [Tu com estàs? ] has width 95.000000000
+[2025-06-04 20:53:30,332] DEBUG    pitxu        Final text is [Hola! Estic bé, gràcies per preguntar!\nTu com estàs? \n]
+[2025-06-04 20:53:30,659] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:53:32,950] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:53:37,250] DEBUG    pitxu        ⏱️  Answer 0: 7.1911
+[2025-06-04 20:53:40,042] INFO     pitxu        Recognized text:
+[2025-06-04 20:53:42,266] INFO     pitxu        Recognized text:
+[2025-06-04 20:53:45,539] INFO     pitxu        Recognized text: cansat
+[2025-06-04 20:53:45,540] DEBUG    pitxu        >> Recognised dictate
+[2025-06-04 20:53:45,541] DEBUG    pitxu        ⏱️  Dictate 1: 8.2898
+[2025-06-04 20:53:45,548] DEBUG    pitxu        Question: cansat
+[2025-06-04 20:53:45,656] INFO     google_genai.models AFC is enabled with max remote calls: 10.
+input overflow
+[2025-06-04 20:53:45,757] DEBUG    httpcore.connection close.started
+[2025-06-04 20:53:45,907] DEBUG    httpcore.connection close.complete
+[2025-06-04 20:53:45,911] DEBUG    httpcore.connection connect_tcp.started host='generativelanguage.googleapis.com' port=443 local_address=None timeout=None socket_options=None
+input overflow
+[2025-06-04 20:53:45,981] DEBUG    httpcore.connection connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f94255190>
+[2025-06-04 20:53:45,986] DEBUG    httpcore.connection start_tls.started ssl_context=<ssl.SSLContext object at 0x7f9dd3bbf0> server_hostname='generativelanguage.googleapis.com' timeout=None
+[2025-06-04 20:53:46,128] DEBUG    httpcore.connection start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f942556d0>
+[2025-06-04 20:53:46,131] DEBUG    httpcore.http11 send_request_headers.started request=<Request [b'POST']>
+[2025-06-04 20:53:46,136] DEBUG    httpcore.http11 send_request_headers.complete
+[2025-06-04 20:53:46,137] DEBUG    httpcore.http11 send_request_body.started request=<Request [b'POST']>
+[2025-06-04 20:53:46,140] DEBUG    httpcore.http11 send_request_body.complete
+[2025-06-04 20:53:46,141] DEBUG    httpcore.http11 receive_response_headers.started request=<Request [b'POST']>
+[2025-06-04 20:53:46,798] DEBUG    httpcore.http11 receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'application/json; charset=UTF-8'), (b'Vary', b'Origin'), (b'Vary', b'X-Origin'), (b'Vary', b'Referer'), (b'Content-Encoding', b'gzip'), (b'Date', b'Wed, 04 Jun 2025 18:53:46 GMT'), (b'Server', b'scaffolding on HTTPServer2'), (b'X-XSS-Protection', b'0'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Content-Type-Options', b'nosniff'), (b'Server-Timing', b'gfet4t7; dur=641'), (b'Alt-Svc', b'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'), (b'Transfer-Encoding', b'chunked')])
+[2025-06-04 20:53:46,849] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent "HTTP/1.1 200 OK"
+[2025-06-04 20:53:46,867] DEBUG    httpcore.http11 receive_response_body.started request=<Request [b'POST']>
+[2025-06-04 20:53:46,871] DEBUG    httpcore.http11 receive_response_body.complete
+[2025-06-04 20:53:46,887] DEBUG    httpcore.http11 response_closed.started
+[2025-06-04 20:53:46,888] DEBUG    httpcore.http11 response_closed.complete
+[2025-06-04 20:53:46,965] INFO     google_genai.models AFC remote call 1 is done.
+[2025-06-04 20:53:46,968] DEBUG    pitxu        Received answer: Jo també estic una mica cansat. Suposo que ja toca anar a dormir, oi?
+
+input overflow
+[2025-06-04 20:53:47,079] DEBUG    pitxu        Show Communication
+[2025-06-04 20:53:47,081] DEBUG    pitxu        Say Communication
+input overflow
+[2025-06-04 20:53:47,098] DEBUG    pitxu        Saying [Jo també estic una mica cansat. Suposo que ja toca anar a dormir, oi?\n]
+[2025-06-04 20:53:47,119] DEBUG    pitxu        Boundary left for text is 241
+[2025-06-04 20:53:47,137] DEBUG    pitxu        Line [Jo també estic una mica cansat. Suposo que ja toca anar a dormir, oi?] has width 441.000000000
+[2025-06-04 20:53:47,162] DEBUG    pitxu        Line [Suposo que ja toca anar a dormir, oi? ] has width 239.000000000
+[2025-06-04 20:53:47,163] DEBUG    pitxu        Final text is [Jo també estic una mica cansat.\nSuposo que ja toca anar a dormir, oi? \n]
+[2025-06-04 20:53:47,215] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:53:49,508] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:53:56,162] DEBUG    pitxu        ⏱️  Answer 1: 9.1522
+[2025-06-04 20:53:58,553] INFO     pitxu        Recognized text:
+[2025-06-04 20:54:04,480] INFO     pitxu        Recognized text: adéu
+[2025-06-04 20:54:04,481] DEBUG    pitxu        >> Recognised dictate
+[2025-06-04 20:54:04,482] DEBUG    pitxu        ⏱️  Dictate 2: 8.3194
+[2025-06-04 20:54:04,583] DEBUG    pitxu        Show Communication
+[2025-06-04 20:54:04,585] DEBUG    pitxu        Say Communication
+input overflow
+[2025-06-04 20:54:04,601] DEBUG    pitxu        Saying [Fins la propera! Adéu!]
+[2025-06-04 20:54:04,678] DEBUG    pitxu        Boundary left for text is 241
+[2025-06-04 20:54:04,689] DEBUG    pitxu        Line [Fins la propera! Adéu!] has width 139.000000000
+[2025-06-04 20:54:04,692] DEBUG    pitxu        Final text is [Fins la propera! Adéu!\n]
+[2025-06-04 20:54:04,781] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:54:07,072] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:54:07,122] DEBUG    pitxu        ⏱️  Answer 2: 2.6041
+[2025-06-04 20:54:12,161] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy
+[2025-06-04 20:54:14,453] DEBUG    waveshare_epd.epd2in13_V4 e-Paper busy release
+[2025-06-04 20:54:14,469] INFO     pitxu        ⏱️  Final Stopwatch report:
+    init: 47.145
+greeting: 6.4389
+dictate0: 14.5525
+ answer0: 7.1911
+dictate1: 8.2898
+ answer1: 9.1522
+dictate2: 8.3194
+ answer2: 2.6041
+[2025-06-04 20:54:14,473] INFO     pitxu        End of the Main run
+[2025-06-04 20:54:16,614] DEBUG    httpcore.connection close.started
+[2025-06-04 20:54:16,619] DEBUG    httpcore.connection close.complete
