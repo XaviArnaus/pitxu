@@ -131,6 +131,21 @@ class Main:
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
     
     def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
+        """
+        Communicates to the user using the channels defined.
+
+        It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
+        It is a blocking process, but runs every channel in a separate process so they can run in parallel,
+        speeding up the overall run.
+        Current status: TTS can't be added into a separate process due to an issue when pickle it:
+            "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
+        """
+
+        # TODO: Tried to 
+        # In case we want TTS, we need to pause the mic
+        # Has to happen in the main thread, as the RawInputStream can't be pickled to be sent as a param to the Pool
+        # if self.COMM_TTS in channels and input_stream_to_pause is not None:
+        #     input_stream_to_pause.stop()
 
         # We want parallelism. Create a Multiprocessing Pool
         pool = Pool(processes=2)
@@ -145,12 +160,20 @@ class Main:
             self._logger.debug("Say Communication")
             # Feels like the object is pickled into the thread, and fails.
             # see: https://github.com/microsoft/onnxruntime/pull/800
+            # error: "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
             # pool.apply(self._speech.say, args=(text, input_stream_to_pause))
+            # pool.apply(self._speech.say, args=(text))
             self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
 
         # Wait for the processes to end
         pool.close()
         pool.join()
+
+        # In case we want TTS, we need to release the mic
+        # Has to happen in the main thread, as the RawInputStream couldn't be pickled to be sent as a param to the Pool
+
+        # if self.COMM_TTS in channels and input_stream_to_pause is not None:
+        #     input_stream_to_pause.start()
 
         #### Originally was:
 
