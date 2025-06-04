@@ -5,7 +5,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
-from pitxu.lib.utils.text import Text
+from pitxu.lib.utils import Text, Stopwatch
 from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
 from pitxu.lib.eink.display import EinkDisplay
 from pitxu.lib.eink.macros import Macros
@@ -25,6 +25,7 @@ class Main:
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: Piper = None
+    _stopwatch: Stopwatch = None
 
     EXIT_WORDS = ["exit", "quit", "sortir", "adéu"]
     COMM_DISPLAY = "display"
@@ -42,8 +43,12 @@ class Main:
 
         # Common Logger
         self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+
+        self._stopwatch = Stopwatch()
     
     def run(self):
+
+        sw_init = self._stopwatch.start(name="init")
 
         # Initialise eInk Display and the helper macros
         self._logger.debug("Initialising the e-Ink")
@@ -66,6 +71,8 @@ class Main:
         self._logger.debug("Initialising the Chatbot Client")
         self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
 
+        self._logger.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
+
         try:
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
@@ -78,17 +85,24 @@ class Main:
                 
                 # Welcome greeting
                 self._logger.debug(">> Greetings")
+                sw_greeting = self._stopwatch.start(name="greeting")
                 self.communicate("Hola sóc el Pitxu. Diga'm alguna cosa",
                                  [self.COMM_TTS, self.COMM_DISPLAY],
                                  input_stream)
+                self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
+                dictate_count = 0
+                answer_count = 0
                 while(not self._text_has_exit_intention(question)):
                     # Recognize what comes from the microphone
+                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                     question = self._dictate.recognize()
                     if (question == None or question.strip() == ""):
                         continue
                     self._logger.debug(">> Recognised dictate")
+                    self._logger.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    dictate_count += 1
 
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
@@ -102,7 +116,10 @@ class Main:
                     answer = Text.remove_emojis(answer)
 
                     # Answer
+                    sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
                     self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
+                    self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                    answer_count += 1
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")
@@ -111,6 +128,7 @@ class Main:
         time.sleep(5)
         self._display.clear()
         self._speech.terminate()
+        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
     
     def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
 
