@@ -17,7 +17,7 @@ update:
 	$(POETRY) install
 
 .PHONY: pitxu
-make pitxu:
+pitxu:
 	@begin=$$(date +%s); \
 	echo "Starting Pitxu... \n"; \
 	make run; \
