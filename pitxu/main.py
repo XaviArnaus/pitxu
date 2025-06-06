@@ -236,7 +236,7 @@ class Main:
 
         # Load the goodbye sentence
         self._logger.debug("Load Goodbye with language [" + self._parameters.get("language") + "]")
-        self._greeting_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
+        self._goodbye_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
 
         # Compile exit words
         all_possible_exit_words = []

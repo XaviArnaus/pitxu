@@ -16,6 +16,15 @@ update:
 	$(POETRY) lock
 	$(POETRY) install
 
+.PHONY: pitxu
+make pitxu:
+	@begin=$$(date +%s); \
+	echo "Starting Pitxu... \n"; \
+	make run; \
+	echo "\nPitxu Ended...\n"; \
+	end=$$(date +%s); \
+	echo "Total time used: $$((end - begin)) s."
+
 .PHONY: run
 run:
 	@$(POETRY) run main
