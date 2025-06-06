@@ -35,9 +35,8 @@ class Vosk:
 
         self.initialize()
     
-    def initialize(self, language: str = None):
-        if language is None:
-            language = self._config.get("speech-to-text.default_language", self.ENGLISH)
+    def initialize(self):
+        language = self._parameters.get("language")
     
         self._queue = queue.Queue()
         self._model = Model(lang=language)

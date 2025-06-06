@@ -25,11 +25,20 @@ class Main:
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: Piper = None
-    _stopwatch: Stopwatch = None
 
-    EXIT_WORDS = ["exit", "quit", "sortir", "adéu"]
+    _stopwatch: Stopwatch = None
+    _supported_languages: list = []
+    _greeting_sentence: str = None
+    _goodbye_sentence: str = None
+    _exit_words: list = []
+
     COMM_DISPLAY = "display"
     COMM_TTS = "tts"
+
+    ENGLISH: str = "en-us"
+    CATALAN: str = "ca"
+    GERMAN: str = "de"
+    SPANISH: str = "es"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -43,6 +52,12 @@ class Main:
 
         # Common Logger
         self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+
+        # Initial Language
+        self._parameters.set("language", config.get("app.default_language", self.CATALAN))
+
+        # Supported Languages
+        self._supported_languages = config.get("languages.supported_languages")
 
         self._stopwatch = Stopwatch()
     
@@ -59,17 +74,11 @@ class Main:
         self._macros.startup_splash(self._display)
         time.sleep(2)
 
-        # Initialise Speech-to-Text
-        self._logger.debug("Initialising the Speech-to-Text")
-        self._dictate = Vosk(self._config, params=self._parameters)
+        # Initialise all classes that require a model. They go per language, that's why it's abstracted
+        self.load_models()
 
-        # Initialise Text-To-Speech
-        self._logger.debug("Initialising the Text-to-Speech")
-        self._speech = Piper(self._config, params=self._parameters)
-
-        # Initialise Chatbot
-        self._logger.debug("Initialising the Chatbot Client")
-        self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
+        # Reload all language statics, like the exit words and the greeting / goodbye sentences
+        self.load_language_statics()
 
         self._logger.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -86,7 +95,7 @@ class Main:
                 # Welcome greeting
                 self._logger.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self.communicate("Hola sóc el Pitxu. Diga'm alguna cosa",
+                self.communicate(self._greeting_sentence,
                                  [self.COMM_TTS, self.COMM_DISPLAY],
                                  input_stream)
                 self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
@@ -107,7 +116,7 @@ class Main:
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
                         # Just assume a goodbye
-                        answer = "Fins la propera! Adéu!"
+                        answer = self._goodbye_sentence
                     else:
                         # Here we start with the Chatbot
                         answer = self._chatbot.ask(question)
@@ -189,4 +198,51 @@ class Main:
 
     
     def _text_has_exit_intention(self, text):
-        return text in ["exit", "quit", "sortir", "adéu"]
+        return text in self._exit_words
+
+    def load_language(self, new_language: str):
+        # Ensure that the language is supported
+        if new_language not in self._supported_languages:
+            raise RuntimeError("Language [" + new_language + "] is not supported")
+        
+        # Define the language to use
+        self._parameters.set("language", new_language)
+
+        # Reload the models now that we have a new language defined
+        self.load_models()
+
+        # Reload all language statics, like the exit words and the greeting / goodbye sentences
+        self.load_language_statics()
+
+    def load_models(self):
+        
+        # Initialise Speech-to-Text
+        self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
+        self._dictate = Vosk(self._config, params=self._parameters)
+
+        # Initialise Text-To-Speech
+        self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
+        self._speech = Piper(self._config, params=self._parameters)
+
+        # Initialise Chatbot
+        self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
+        self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
+    
+    def load_language_statics(self):
+
+        # Load the greeting sentence
+        self._logger.debug("Load Greeting with language [" + self._parameters.get("language") + "]")
+        self._greeting_sentence = self._config.get("language.greeting." + self._parameters.get("language"))
+
+        # Load the goodbye sentence
+        self._logger.debug("Load Goodbye with language [" + self._parameters.get("language") + "]")
+        self._greeting_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
+
+        # Compile exit words
+        all_possible_exit_words = []
+        for language, exit_words in dict(self._config.get("language.exit_words")).items():
+            for word in exit_words:
+                if word not in all_possible_exit_words:
+                    all_possible_exit_words .append(word)
+        self._logger.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._exit_words = all_possible_exit_words

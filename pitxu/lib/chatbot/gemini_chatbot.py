@@ -48,7 +48,7 @@ class GeminiChatbot(ChatbotProtocol):
         self._client = genai.Client(api_key=self._parameters.get("api_key"))
         self._chat = self._client.chats.create(
             model='gemini-2.0-flash',
-            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction"))
+            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction." + self._parameters.get("language")))
         )
     
     def ask(self, question: str) -> str:

@@ -28,7 +28,7 @@ class Piper:
         self.initialize()
     
     def initialize(self):
-        language = self._config.get("text-to-speech.default_language")
+        language = self._parameters.get("language")
         model_name = self._config.get("text-to-speech.per_language." + language)
         self._model = self._config.get("storage.path") + "/" + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
