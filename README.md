@@ -118,6 +118,8 @@ Then, install the `shell` plugin:
 poetry self add poetry-plugin-shell
 ```
 
+ℹ️ Added the plugin as a requirement in `pyproject.toml`, maybe it's not needed now.
+
 ... and then you can continue as usual:
 
 ```
