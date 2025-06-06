@@ -3,16 +3,10 @@ from PIL import Image,ImageDraw,ImageFont
 from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
-from ..eink.display import EinkDisplay
-from ..dto.rectangle import Rectangle
-from ..dto.line import Line
-from ..dto.point import Point
-from ..dto.font_size import FontSize
+from . import EinkDisplay
+from ..dto import Rectangle, Line, Point
 
 import logging
-import emoji
-import re
-from pyxavi.debugger import dd
 
 class Macros:
 

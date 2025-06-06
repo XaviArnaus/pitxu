@@ -6,11 +6,11 @@ from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
 from pitxu.lib.utils import Text, Stopwatch
-from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
-from pitxu.lib.eink.display import EinkDisplay
-from pitxu.lib.eink.macros import Macros
-from pitxu.lib.speech_to_text.vosk import Vosk
-from pitxu.lib.text_to_speech.piper import Piper
+from pitxu.lib.chatbot import GeminiChatbot
+from pitxu.lib.eink import EinkDisplay, Macros
+from pitxu.lib.speech_to_text import Vosk
+from pitxu.lib.text_to_speech import Piper
+
 
 import sounddevice
 import time

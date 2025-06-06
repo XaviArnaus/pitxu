@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import ServerError
 
-from pitxu.lib.chatbot.chatbot_protocol import ChatbotProtocol
+from . import ChatbotProtocol
 
 from pyxavi.config import Config
 from pyxavi.logger import Logger
