@@ -12,6 +12,21 @@ compile the dependecies we need to have some packages in the OS level.
 
 ## Linux (Raspberry Pi)
 
+### To install dependencies in the OS-bundled python: `python3-pip`
+
+To use Pitxu without Poetry we need to install the dependencies for the Python bundled in the OS (that must already be 3.11 min).
+This is only in case you want to avoid using Poetry, as in the Raspberry Pi we don't need to have virtual environments (because you don't use that RPi for anything else, right?).
+Please have the `python3-pip` pachage installed beforehand:
+
+|⚠️ WARNING! DO NOT USE|
+|--|
+|Modern OS/Python are pointing out the difference between having Python budled to support internal applications, not for the end user. That's why we should always use a Virtual Environment. Keeping it here for knowledge sharing, but should not be used.|
+
+For Debian based linux distros:
+```
+sudo apt install python3-pip
+```
+
 ### Dependency in general to build other dependencies: `python3-dev`
 
 Some dependencies are built at installing time. Please have the `python3-dev` pachage installed beforehand:
@@ -118,7 +133,7 @@ Then, install the `shell` plugin:
 poetry self add poetry-plugin-shell
 ```
 
-ℹ️ Added the plugin as a requirement in `pyproject.toml`, maybe it's not needed now.
+ℹ️ Added the plugin as a requirement in `pyproject.toml`, maybe this manual plugin installation is not needed now.
 
 ... and then you can continue as usual:
 

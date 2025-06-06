@@ -36,6 +36,11 @@ pitxu:
 
 .PHONY: pitxu-rpi
 pitxu-rpi:
+# WARNING! DO NOT USE
+# Modern OS/Python are pointing out the difference between having Python budled to support internal applications,
+#	not for the end user. That's why we should always use a Virtual Environment.
+#	Keeping it here for knowledge sharing, but should not be used.
+#
 # Use this for a run outside Poetry. Raspberry Pi as uses OS-bundled Python. Run `make rpi-install` first!
 	@begin=$$(date +%s); \
 	echo "Starting Pitxu... \n"; \
@@ -58,6 +63,11 @@ where-is-python:
 
 .PHONY: rpi-install
 rpi-install:
+# WARNING! DO NOT USE
+# Modern OS/Python are pointing out the difference between having Python budled to support internal applications,
+#	not for the end user. That's why we should always use a Virtual Environment.
+#	Keeping it here for knowledge sharing, but should not be used.
+#
 # The Python bundled in the system has to have Python 3.11
 # Check it or fail otherwise, stopping the execution.
 ifeq ($(PYTHON_VERSION_OK),0)
