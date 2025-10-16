@@ -5,7 +5,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
-from pitxu.lib.utils import Text, Stopwatch
+from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.speech_to_text import Vosk
@@ -138,6 +138,7 @@ class Main:
         self._display.clear()
         self._speech.terminate()
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
     def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
         """
@@ -236,7 +237,7 @@ class Main:
 
         # Load the goodbye sentence
         self._logger.debug("Load Goodbye with language [" + self._parameters.get("language") + "]")
-        self._greeting_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
+        self._goodbye_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
 
         # Compile exit words
         all_possible_exit_words = []
