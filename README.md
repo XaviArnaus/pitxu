@@ -175,6 +175,17 @@ make run
 
 ## In RPi 02W, is mega slow.
 
+like double.
+
+## eInk: Long text shows wrong
+
+Text was: 
+```
+Mmm... Crec que sí! Hi ha una llegenda d'un tresor amagat al parc a prop de casa meva. Diuen que un pirata el va amagar fa molt temps! Però necessitem un mapa per trobar-lo.\n
+```
+
+![issue](dev/bugs/20251016-210733.png)
+
 # Resources
 
 ## eInk Display
