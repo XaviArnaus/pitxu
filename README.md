@@ -93,6 +93,8 @@ cd pitxu
 curl -sSL https://install.python-poetry.org | python3 -
 ```
 
+Remember that after the installation, most likely you need to add an `export` line in your shell config file (for example `/home/username/.bashrc`). The end of the Poetry installation announces that.
+
 ## Ininitalize the project
 
 ```
