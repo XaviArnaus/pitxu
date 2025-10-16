@@ -3,9 +3,7 @@ import logging
 import sys
 import json
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Config, Logger, Dictionary
 
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd

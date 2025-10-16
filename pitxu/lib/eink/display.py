@@ -5,9 +5,7 @@ import time
 
 from PIL import Image,ImageDraw,ImageFont
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Config, Logger, Dictionary
 
 from ..dto.point import Point
 

@@ -2,9 +2,7 @@ import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Config, Logger, Dictionary
 
 import logging
 

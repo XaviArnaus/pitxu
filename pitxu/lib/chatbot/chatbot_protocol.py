@@ -1,6 +1,5 @@
 from typing import Protocol, runtime_checkable
-from pyxavi.config import Config
-from pyxavi.dictionary import Dictionary
+from pyxavi.config import Config, Dictionary
 
 @runtime_checkable
 class ChatbotProtocol(Protocol):
