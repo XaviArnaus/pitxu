@@ -1,4 +1,4 @@
-from multiprocessing import Pool
+from multiprocessing import set_start_method, Pool, Process
 import logging
 
 from pyxavi.config import Config
@@ -9,7 +9,8 @@ from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.speech_to_text import Vosk
-from pitxu.lib.text_to_speech import Piper
+# from pitxu.lib.text_to_speech import Piper
+from pitxu.lib.text_to_speech import PiperMultiprocess
 
 
 import sounddevice
@@ -24,7 +25,8 @@ class Main:
     _macros: Macros = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
-    _speech: Piper = None
+    # _speech: Piper = None
+    _speech: PiperMultiprocess = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -83,7 +85,8 @@ class Main:
 
         # Initialise Text-To-Speech
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
-        self._speech = Piper(self._config, params=self._parameters)
+        # self._speech = Piper(self._config, params=self._parameters)
+        self._speech = PiperMultiprocess(self._config, params=self._parameters)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
@@ -196,42 +199,46 @@ class Main:
         speeding up the overall run.
         Current status: TTS can't be added into a separate process due to an issue when pickle it:
             "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
+        
+        So, as an idea, what about starting the audio thread from the beginning and just centrally control it
+        by sending what to say, when it needs to talk? From the central thread we can also send an action to 
+        pause the mic, so no need to do it from the audio thread itself.
+        https://stackoverflow.com/questions/65084598/python-multiprocessing-adding-to-queue-within-child-process
         """
 
-        # TODO: Tried to 
         # In case we want TTS, we need to pause the mic
         # Has to happen in the main thread, as the RawInputStream can't be pickled to be sent as a param to the Pool
-        # if self.COMM_TTS in channels and input_stream_to_pause is not None:
-        #     input_stream_to_pause.stop()
+        if self.COMM_TTS in channels and input_stream_to_pause is not None:
+            input_stream_to_pause.stop()
 
-        # We want parallelism. Create a Multiprocessing Pool
-        pool = Pool(processes=2)
-
-        if self.COMM_DISPLAY in channels:
-            # Show the answer
-            self._logger.debug("Show Communication")
-            pool.apply_async(self._macros.draw_text_bubble, args=(self._display, text, self._display.FONT_MEDIUM))
+        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
+        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
+        # available in Mac.
+        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
 
         if self.COMM_TTS in channels:
             # Say the answer
             self._logger.debug("Say Communication")
-            # Feels like the object is pickled into the thread, and fails.
-            # see: https://github.com/microsoft/onnxruntime/pull/800
-            # error: "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
-            # pool.apply(self._speech.say, args=(text, input_stream_to_pause))
-            # pool.apply(self._speech.say, args=(text))
-            # pool.apply(Main._say, args=(self._speech, text))
-            self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
+            p_say = Process(target=self._speech.say, args=(text,))
+            p_say.start()
+
+        if self.COMM_DISPLAY in channels:
+            # Show the answer
+            self._logger.debug("Show Communication")
+            p_display = Process(target=self._macros.draw_text_bubble, args=(self._display, text, self._display.FONT_MEDIUM))
+            p_display.start()
+
 
         # Wait for the processes to end
-        pool.close()
-        pool.join()
+        if self.COMM_TTS in channels:
+            p_say.join()
+        if self.COMM_DISPLAY in channels:
+            p_display.join()
 
         # In case we want TTS, we need to release the mic
         # Has to happen in the main thread, as the RawInputStream couldn't be pickled to be sent as a param to the Pool
-
-        # if self.COMM_TTS in channels and input_stream_to_pause is not None:
-        #     input_stream_to_pause.start()
+        if self.COMM_TTS in channels and input_stream_to_pause is not None:
+            input_stream_to_pause.start()
 
         #### Originally was:
 
@@ -245,7 +252,8 @@ class Main:
         #     self._logger.debug("Say Cmmunication")
         #     self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
 
-    def _say(speech_instance: Piper, text: str):
+    # def _say(speech_instance: Piper, text: str):
+    def _say(speech_instance: PiperMultiprocess, text: str):
         speech_instance.say(text)
         return speech_instance
     

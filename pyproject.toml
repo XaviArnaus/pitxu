@@ -15,7 +15,7 @@ gpiozero = [{version="^2.0", markers="sys_platform=='linux'"}]
 "rpi.gpio" = [{version="^0.7", markers="sys_platform=='linux'"}]
 lgpio = [{version="^0.2.2.0", markers="sys_platform=='linux'"}]
 pillow = "^11.2.1"
-emoji = "^2.14.1"
+emoji = "^2.15.0"
 pyaudio = "^0.2.14"
 sounddevice = "^0.5.2"
 vosk = [
