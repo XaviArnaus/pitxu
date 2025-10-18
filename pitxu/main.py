@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Pool, Process
+from multiprocessing import set_start_method, Process, Queue, Manager
 import logging
 
 from pyxavi.config import Config
@@ -11,6 +11,7 @@ from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.speech_to_text import Vosk
 # from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.text_to_speech import PiperMultiprocess
+from pitxu.lib.dto import QueueItemType, QueueItemAction
 
 
 import sounddevice
@@ -27,6 +28,9 @@ class Main:
     _dictate: Vosk = None
     # _speech: Piper = None
     _speech: PiperMultiprocess = None
+
+    _manager = None
+    _queue: Queue = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -78,15 +82,21 @@ class Main:
         self.load_language_statics()
 
     def load_models(self):
+
+        # Some of the models will be hold in separate processes
+        self._manager = Manager()
+        self._queue = self._manager.Queue()
         
         # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
         self._dictate = Vosk(self._config, params=self._parameters)
 
-        # Initialise Text-To-Speech
+        # Initialise Text-To-Speech. Please note that the object is a child of Process,
+        #   so only communicate with it via the queue.
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
         # self._speech = Piper(self._config, params=self._parameters)
-        self._speech = PiperMultiprocess(self._config, params=self._parameters)
+        self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue)
+        self._speech.start()
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
@@ -179,14 +189,15 @@ class Main:
                     self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
                     self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                     answer_count += 1
+                
+                # We're here if the user said the exit words
+                self.close_nicely()
 
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C")
+            self.close_nicely()
         
-        # Final clean
-        time.sleep(5)
-        self._display.clear()
-        self._speech.terminate()
+        # Here comes anything that we want to do before leaving
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
@@ -219,8 +230,10 @@ class Main:
         if self.COMM_TTS in channels:
             # Say the answer
             self._logger.debug("Say Communication")
-            p_say = Process(target=self._speech.say, args=(text,))
-            p_say.start()
+            # p_say = Process(target=self._speech.say, args=(text,))
+            # p_say.start()
+            # We already have the TTS in a Process, listening for elements in the queue
+            self._queue.put((QueueItemType.MESSAGE, text))
 
         if self.COMM_DISPLAY in channels:
             # Show the answer
@@ -231,7 +244,8 @@ class Main:
 
         # Wait for the processes to end
         if self.COMM_TTS in channels:
-            p_say.join()
+            # p_say.join()
+            pass
         if self.COMM_DISPLAY in channels:
             p_display.join()
 
@@ -259,3 +273,23 @@ class Main:
     
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
+    
+    def close_nicely(self):
+        self._logger.debug("Closing nicely...")
+        # Ensure that everything is waiting for a command
+        time.sleep(2)
+        # Clean the display
+        self._logger.debug("Clearing the display.")
+        self._display.clear()
+        # Tell the Process workers to terminate
+        self._logger.debug("Asking processes to terminate")
+        self._queue.put((QueueItemType.ACTION,QueueItemAction.TERMINATE ))
+        # Join the multiprocess Queue into the main thread.
+        #   This blocks until they finish.
+        self._queue.join_thread()
+        # Send a None to the Process workers so they close themselves.
+        #   This blocks until they join.
+        self._logger.debug("Joining TTS Process")
+        self._speech.join()
+
+        self._logger.debug("We should be now nicely closed")
