@@ -598,6 +598,17 @@ gmpy = ["gmpy2 (>=2.1.0a4) ; platform_python_implementation != \"PyPy\""]
 tests = ["pytest (>=4.6)"]
 
 [[package]]
+name = "multiprocessing-logging"
+version = "0.3.4"
+description = "Logger for multiprocessing applications"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "multiprocessing_logging-0.3.4-py2.py3-none-any.whl", hash = "sha256:8a5be02b02edbd6fa6e3e89499af7680db69db9e2d8707fcd28d445fa248f23e"},
+]
+
+[[package]]
 name = "numpy"
 version = "2.3.4"
 description = "Fundamental package for array computing in Python"
@@ -1182,19 +1193,21 @@ unidecode = ["Unidecode (>=1.1.1)"]
 
 [[package]]
 name = "pyxavi"
-version = "1.0.0"
+version = "1.1.0"
 description = "Set of utilities to assist on simple Python projects"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "pyxavi-1.0.0-py3-none-any.whl", hash = "sha256:12883f7a5ffcea42691ad0482bbe02986d51feba33d5a3fd8f605cf50b67ed92"},
-    {file = "pyxavi-1.0.0.tar.gz", hash = "sha256:ca06ab806c47fa24f067925a9dc44c9d0e3c0efb89cf560ff984c2652ff430df"},
+    {file = "pyxavi-1.1.0-py3-none-any.whl", hash = "sha256:653622ede564ea56a38aec37700aabe86a4ac0b3fa993ef4bd7507575a8b624a"},
+    {file = "pyxavi-1.1.0.tar.gz", hash = "sha256:487a2be4e4f689a3b044f48e06508aebcad8beb56cc04db8fb3071cd884426e3"},
 ]
 
 [package.dependencies]
 beautifulsoup4 = ">=4.11,<5.0"
+emoji = ">=2.14.1,<3.0.0"
 feedparser = ">=6.0.10,<7.0.0"
+multiprocessing-logging = ">=0.3.4,<0.4.0"
 python-slugify = ">=7.0.0,<8.0.0"
 pyyaml = ">=6.0.1,<7.0.0"
 requests = ">=2.28.0,<3.0.0"
@@ -1705,4 +1718,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "95487fbeb7202976efc03c8c16c90d5cc9cf79f948c537f7910fd4a9898df7d5"
+content-hash = "d9e6231a743627789248b1df1857e4bd33806bc09d3e788ee27570b7fcde1219"

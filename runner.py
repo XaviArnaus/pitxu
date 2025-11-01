@@ -12,6 +12,8 @@ from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
+from pitxu.lib.utils.config_loader import ConfigLoader
+
 from definitions import ROOT_DIR, CONFIG_DIR
 
 from pitxu.main import Main
@@ -25,23 +27,6 @@ def load_environment():
     any other parameter related to the environment.
     """
     load_dotenv()
-
-
-def load_config_files() -> Config:
-    """
-    Loads all configs existing in CONFIG_DIR.
-
-    This is a merge-all-to-one approach, so may be the case that later objects
-        overwrite older ones
-    """
-    config_files = glob.glob(os.path.join(CONFIG_DIR, "*.yaml"))
-
-    # Yes, technically we're loading main.yaml twice
-    config = Config(filename=os.path.join(CONFIG_DIR, "main.yaml"))
-    for file in config_files:
-        config.merge_from_file(filename=os.path.join(CONFIG_DIR, file))
-
-    return config
 
 
 def load_logger(config: Config, loglevel: int = None) -> logging:
@@ -59,7 +44,7 @@ def run():
     try:
         # Instantiating
         load_environment()
-        config = load_config_files()
+        config = ConfigLoader.load_config_files()
         logger = load_logger(config=config)
         parameters = Dictionary({
             "base_path": ROOT_DIR,
@@ -97,7 +82,7 @@ def query_sound_devices():
 
 def _initialize():
     load_environment()
-    config = load_config_files()
+    config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)
     parameters = Dictionary({
         "base_path": ROOT_DIR,

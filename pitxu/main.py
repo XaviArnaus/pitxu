@@ -1,9 +1,8 @@
 from multiprocessing import set_start_method, Process, Queue, Manager
-import logging
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Logger, Config, Dictionary
+
+import logging
 
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
@@ -58,6 +57,7 @@ class Main:
 
         # Common Logger
         self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+        self._parameters.set("logger", self._logger)
 
         # Initial Language
         self._parameters.set("language", config.get("app.default_language", self.CATALAN))
@@ -84,19 +84,26 @@ class Main:
     def load_models(self):
 
         # Some of the models will be hold in separate processes
+        # Communication with them is done via a Queue
         self._manager = Manager()
         self._queue = self._manager.Queue()
+
+        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
+        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
+        # available in Mac.
+        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
         
         # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
         self._dictate = Vosk(self._config, params=self._parameters)
 
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
-        #   so only communicate with it via the queue.
+        #   so it only communicate with it via the queue.
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
         # self._speech = Piper(self._config, params=self._parameters)
         self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue)
         self._speech.start()
+        self._queue.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
@@ -164,37 +171,40 @@ class Main:
                 dictate_count = 0
                 answer_count = 0
                 while(not self._text_has_exit_intention(question)):
-                    # Recognize what comes from the microphone
-                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                    question = self._dictate.recognize()
-                    if (question == None or question.strip() == ""):
-                        continue
-                    self._logger.debug(">> Recognised dictate")
-                    self._logger.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                    dictate_count += 1
+                    try:
+                        # Recognize what comes from the microphone
+                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                        question = self._dictate.recognize()
+                        if (question == None or question.strip() == ""):
+                            continue
+                        self._logger.debug(">> Recognised dictate")
+                        self._logger.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                        dictate_count += 1
 
-                    # Avoid calling the Chatbot when exiting
-                    if self._text_has_exit_intention(question):
-                        # Just assume a goodbye
-                        answer = self._goodbye_sentence
-                    else:
-                        # Here we start with the Chatbot
-                        answer = self._chatbot.ask(question)
-                    
-                    # Clean the answer first, just in case
-                    answer = Text.remove_emojis(answer)
+                        # Avoid calling the Chatbot when exiting
+                        if self._text_has_exit_intention(question):
+                            # Just assume a goodbye
+                            answer = self._goodbye_sentence
+                        else:
+                            # Here we start with the Chatbot
+                            answer = self._chatbot.ask(question)
+                        
+                        # Clean the answer first, just in case
+                        answer = Text.remove_emojis(answer)
 
-                    # Answer
-                    sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                    self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
-                    self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                    answer_count += 1
+                        # Answer
+                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
+                        self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                        answer_count += 1
+                    except KeyboardInterrupt:
+                        break
                 
                 # We're here if the user said the exit words
                 self.close_nicely()
 
         except KeyboardInterrupt:
-            self._logger.info("Pressed Control + C")
+            self._logger.info("Pressed Control + C from main")
             self.close_nicely()
         
         # Here comes anything that we want to do before leaving
@@ -221,11 +231,6 @@ class Main:
         # Has to happen in the main thread, as the RawInputStream can't be pickled to be sent as a param to the Pool
         if self.COMM_TTS in channels and input_stream_to_pause is not None:
             input_stream_to_pause.stop()
-
-        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
-        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
-        # available in Mac.
-        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
 
         if self.COMM_TTS in channels:
             # Say the answer
@@ -275,21 +280,21 @@ class Main:
         return text in self._exit_words
     
     def close_nicely(self):
+        sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
         # Ensure that everything is waiting for a command
         time.sleep(2)
         # Clean the display
         self._logger.debug("Clearing the display.")
         self._display.clear()
-        # Tell the Process workers to terminate
-        self._logger.debug("Asking processes to terminate")
-        self._queue.put((QueueItemType.ACTION,QueueItemAction.TERMINATE ))
-        # Join the multiprocess Queue into the main thread.
-        #   This blocks until they finish.
-        self._queue.join_thread()
-        # Send a None to the Process workers so they close themselves.
-        #   This blocks until they join.
-        self._logger.debug("Joining TTS Process")
-        self._speech.join()
+        # We don't need to ask the process to self-terminate. It will when finishes the job.
+        # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
+        self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
+        if self._speech.is_alive():
+            self._logger.debug("Terminating TTS Process")
+            self._speech.terminate()
+            # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
+            # self._speech.kill()
 
         self._logger.debug("We should be now nicely closed")
+        self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))

@@ -5,4 +5,5 @@ class QueueItemType:
 
 class QueueItemAction:
 
-    TERMINATE: str = "terminate"
+    FINISH: str = "finish"
+    INITIALIZE: str = "initialize"
