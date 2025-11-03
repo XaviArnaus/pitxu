@@ -38,13 +38,16 @@ class Vosk:
     def initialize(self):
         language = self._parameters.get("language")
     
-        self._queue = queue.Queue()
-        self._model = Model(lang=language)
+        if self._config.get("speech-to-text.mock", True):
+            self._logger.info("Mocking Speech-to-Text by Config. Model not loaded.")
+        else:
+            self._queue = queue.Queue()
+            self._model = Model(lang=language)
 
-        self.samplerate = self._get_samplerate()
-        self.device = self._config.get("speech-to-text.input_device", None)
-    
-        self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+            self.samplerate = self._get_samplerate()
+            self.device = self._config.get("speech-to-text.input_device", None)
+        
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
     
     def recognize(self) -> str:
         if self._config.get("speech-to-text.mock", True):
