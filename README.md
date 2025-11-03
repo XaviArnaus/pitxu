@@ -63,11 +63,20 @@ For Debian based linux distros:
 sudo apt install portaudio19-dev python3-pyaudio
 ```
 
+### Dependencies related to `lgpio`
+
+This is needed for the internal GPIO support
+
+For Debian based linux distros:
+```
+sudo apt install swig liblgpio-dev
+```
+
 ### ❗️ All Linux/Debian dependencies in one line
-Just make sure that I did not forget to add here anything from above. Just put the all together.
+Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
 ```
 
 ## Mac OS
