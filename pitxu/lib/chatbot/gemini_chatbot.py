@@ -8,6 +8,8 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
+from pitxu.lib.command import CreateNote
+
 import logging
 
 class GeminiChatbot(ChatbotProtocol):
@@ -21,6 +23,33 @@ class GeminiChatbot(ChatbotProtocol):
     - 1000000 tokens per minute
     - 1500 requests per day
     """
+
+    create_note_command = {
+        "name": "self.create_note",
+            "description": "Creates a note file",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the note",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date of the meeting (e.g., '2024-07-29')",
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": "Time of the meeting (e.g., '15:00')",
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "The body of the note",
+                    },
+                },
+                "required": ["title", "body"],
+            },
+        }
 
     _client = None
     _parameters: Dictionary = None
@@ -66,3 +95,48 @@ class GeminiChatbot(ChatbotProtocol):
                 return response.text
             except ServerError as e:
                 return "The server returns an error: " + e.message
+    
+    def response(self, command: str):
+        self._logger.debug("Command: " + command)
+
+        if (self._config.get("chatbot.mock", True)):
+            return "Chatbot is Mocked. Check the config.\Command: " + command
+        else:
+            try:
+
+                tools = types.Tool(function_declarations=[self.create_note_command])
+                config = types.GenerateContentConfig(
+                    tools=[tools],
+                    system_instruction=self._config.get("chatbot.system_instruction." + self._parameters.get("language"))
+                )
+
+                response = self._client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=command,
+                    config=config,
+                )
+
+                self._logger.debug("Received answer: " + response.text)
+
+                # Check for a function call
+                if response.candidates[0].content.parts[0].function_call:
+                    self._logger.debug("Found a command, excecuting...")
+                    function_call = response.candidates[0].content.parts[0].function_call
+                    print(f"Function to call: {function_call.name}")
+                    print(f"Arguments: {function_call.args}")
+                    #  In a real app, you would call your function here:
+                    #  result = schedule_meeting(**function_call.args)
+                    result = self.create_note(**function_call.args)
+                else:
+                    self._logger.debug("Could not find command, forwarding to chat")
+                    return self.ask(command)
+            except ServerError as e:
+                return "The server returns an error: " + e.message
+
+    
+    def load_commands(self):
+        pass
+    
+    def create_note(self):
+        # and here the call to CreateNote.
+        pass
