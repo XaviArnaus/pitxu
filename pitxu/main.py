@@ -1,13 +1,13 @@
 from multiprocessing import set_start_method, Process, Queue, Manager
 
-from pyxavi import Logger, Config, Dictionary
+from pyxavi import Logger, Config, Dictionary, dd
 
 import logging
 
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import EinkDisplay, Macros
-from pitxu.lib.speech_to_text import Vosk
+from pitxu.lib.speech_to_text import Vosk, InputStream
 # from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction
@@ -25,6 +25,7 @@ class Main:
     _macros: Macros = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
+    _microphone: sounddevice.RawInputStream = None
     # _speech: Piper = None
     _speech: PiperMultiprocess = None
 
@@ -97,6 +98,16 @@ class Main:
         self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
         self._dictate = Vosk(self._config, params=self._parameters)
 
+        # Initialise the Microphone, which is kinda tied to the Speech-to-Text
+        self._logger.debug("Initialising the Microphone Input Stream")
+        self._microphone = InputStream(self._config, params=self._parameters,
+                                samplerate=self._dictate.samplerate,
+                                blocksize=0, 
+                                device=self._dictate.device,
+                                dtype="int16", 
+                                channels=1, 
+                                callback=self._dictate.callback)
+
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
         #   so it only communicate with it via the queue.
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
@@ -152,12 +163,7 @@ class Main:
         try:
             # Read from microphone
             # Correct format for Vosk is PCM 16khz 16bit mono
-            with sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
-                                blocksize = 0, 
-                                device=self._dictate.device,
-                                dtype="int16", 
-                                channels=1, 
-                                callback=self._dictate.callback) as input_stream:
+            with self._microphone as input_stream:
                 
                 # Welcome greeting
                 self._logger.debug(">> Greetings")
