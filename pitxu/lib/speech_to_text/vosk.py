@@ -57,6 +57,8 @@ class Vosk:
 
         self._logger.info("Vosk: Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
 
         self._logger.info("Done Initializing Vosk STT")
     
