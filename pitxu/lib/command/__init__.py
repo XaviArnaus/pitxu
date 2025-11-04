@@ -1,1 +1,1 @@
-from .note import CreateNote
+from .note.create import CreateNote

@@ -24,32 +24,7 @@ class GeminiChatbot(ChatbotProtocol):
     - 1500 requests per day
     """
 
-    create_note_command = {
-        "name": "self.create_note",
-            "description": "Creates a note file",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "The title of the note",
-                    },
-                    "date": {
-                        "type": "string",
-                        "description": "Date of the meeting (e.g., '2024-07-29')",
-                    },
-                    "time": {
-                        "type": "string",
-                        "description": "Time of the meeting (e.g., '15:00')",
-                    },
-                    "body": {
-                        "type": "string",
-                        "description": "The body of the note",
-                    },
-                },
-                "required": ["title", "body"],
-            },
-        }
+    create_note_command = CreateNote.generate_gemini_function()
 
     _client = None
     _parameters: Dictionary = None
