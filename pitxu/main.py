@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Process, Queue, Manager
+from multiprocessing import set_start_method, Process, Queue, Manager, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
@@ -8,13 +8,14 @@ from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.speech_to_text import Vosk
-# from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
 
 import sounddevice
 import time
+
+SHARED_MEMORY_NAME = "pitxu_shared_memory"
 
 class Main:
 
@@ -25,11 +26,11 @@ class Main:
     _macros: Macros = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
-    # _speech: Piper = None
     _speech: PiperMultiprocess = None
 
     _manager = None
     _queue: Queue = None
+    _shared_memory: shared_memory.ShareableList = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -64,6 +65,12 @@ class Main:
 
         # Supported Languages
         self._supported_languages = config.get("languages.supported_languages")
+
+        # Initialisating Shared Memory to handle execution flags between processes
+        self._parameters.set("shared_memory_name", SHARED_MEMORY_NAME)
+        self._shared_memory = shared_memory.ShareableList([
+            False  # pause_mic
+        ], name=SHARED_MEMORY_NAME)
 
         self._stopwatch = Stopwatch()
 
@@ -156,7 +163,7 @@ class Main:
                                 blocksize = 0, 
                                 device=self._dictate.device,
                                 dtype="int16", 
-                                channels=1, 
+                                channels=1,
                                 callback=self._dictate.callback) as input_stream:
                 
                 # Welcome greeting
@@ -216,27 +223,20 @@ class Main:
         Communicates to the user using the channels defined.
 
         It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
-        It is a blocking process, but runs every channel in a separate process so they can run in parallel,
+        It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
         speeding up the overall run.
-        Current status: TTS can't be added into a separate process due to an issue when pickle it:
-            "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
         
-        So, as an idea, what about starting the audio thread from the beginning and just centrally control it
-        by sending what to say, when it needs to talk? From the central thread we can also send an action to 
-        pause the mic, so no need to do it from the audio thread itself.
-        https://stackoverflow.com/questions/65084598/python-multiprocessing-adding-to-queue-within-child-process
+        Every Process needs to be managed a bit different:
+        - TTS is an always running Process that listens to a Queue for new messages to say.
+        - Display needs to be created per message to show, as we don't have a persistent process
         """
 
         # In case we want TTS, we need to pause the mic
-        # Has to happen in the main thread, as the RawInputStream can't be pickled to be sent as a param to the Pool
-        if self.COMM_TTS in channels and input_stream_to_pause is not None:
-            input_stream_to_pause.stop()
+        # this is done within the TTS process via a shared memory flag that tells the STT to pause
 
         if self.COMM_TTS in channels:
             # Say the answer
             self._logger.debug("Say Communication")
-            # p_say = Process(target=self._speech.say, args=(text,))
-            # p_say.start()
             # We already have the TTS in a Process, listening for elements in the queue
             self._queue.put((QueueItemType.MESSAGE, text))
 
@@ -249,29 +249,13 @@ class Main:
 
         # Wait for the processes to end
         if self.COMM_TTS in channels:
-            # p_say.join()
+            # We don't wait, just let it talk. We control the mic via shared_memeory flags
             pass
         if self.COMM_DISPLAY in channels:
             p_display.join()
 
-        # In case we want TTS, we need to release the mic
-        # Has to happen in the main thread, as the RawInputStream couldn't be pickled to be sent as a param to the Pool
-        if self.COMM_TTS in channels and input_stream_to_pause is not None:
-            input_stream_to_pause.start()
+        
 
-        #### Originally was:
-
-        # if self.COMM_DISPLAY in channels:
-        #     # Show the answer
-        #     self._logger.debug("Show Communication")
-        #     self._macros.draw_text_bubble(self._display, text, self._display.FONT_MEDIUM)
-
-        # if self.COMM_TTS in channels:
-        #     # Say the answer
-        #     self._logger.debug("Say Cmmunication")
-        #     self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
-
-    # def _say(speech_instance: Piper, text: str):
     def _say(speech_instance: PiperMultiprocess, text: str):
         speech_instance.say(text)
         return speech_instance

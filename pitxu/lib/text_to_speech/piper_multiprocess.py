@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, shared_memory
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
@@ -20,6 +20,7 @@ class PiperMultiprocess(Process):
     _parameters: Dictionary = None
 
     _queue: Queue = None
+    _shared_memory: shared_memory.ShareableList = None
 
     _model: None
     _voice: None
@@ -47,6 +48,10 @@ class PiperMultiprocess(Process):
         self._model = self._config.get("storage.path") + "/" + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
         self._output_stream = sounddevice.OutputStream(samplerate=self._voice.config.sample_rate, channels=1, dtype='int16')
+
+        self._logger.info("Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+
         self._logger.debug("Done Initializing Piper TTS")
     
     def run(self):
@@ -97,6 +102,8 @@ class PiperMultiprocess(Process):
     
     def say(self, text: str):
 
+        self.pause_mic()
+
         if self._config.get("text-to-speech.mock", True):
             self._logger.warning("Mocking TTS by Config. Should have said [" + text + "]")
         else:
@@ -108,6 +115,8 @@ class PiperMultiprocess(Process):
                 self._output_stream.write(int_data)
 
             self._output_stream.stop()
+        
+        self.resume_mic()
     
     def finish(self):
         '''
@@ -118,3 +127,9 @@ class PiperMultiprocess(Process):
         self._logger.debug("Closing output stream")
         self._output_stream.close()
         self._logger.debug("Done finishing Piper Worker")
+    
+    def pause_mic(self):
+        self._shared_memory[0] = True
+
+    def resume_mic(self):
+        self._shared_memory[0] = False
