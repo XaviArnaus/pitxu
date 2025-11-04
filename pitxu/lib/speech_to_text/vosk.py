@@ -7,6 +7,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
+from multiprocessing import shared_memory
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
 
@@ -25,6 +26,8 @@ class Vosk:
     _queue = None
     _recognizer: KaldiRecognizer = None
 
+    _shared_memory: shared_memory.ShareableList = None
+
     device = None
     samplerate = None
 
@@ -36,6 +39,9 @@ class Vosk:
         self.initialize()
     
     def initialize(self):
+
+        self._logger.info("Initializing Vosk STT")
+
         language = self._parameters.get("language")
     
         self._queue = queue.Queue()
@@ -45,6 +51,11 @@ class Vosk:
         self.device = self._config.get("speech-to-text.input_device", None)
     
         self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+
+        self._logger.info("Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+
+        self._logger.info("Done Initializing Vosk STT")
     
     def recognize(self) -> str:
         if self._config.get("speech-to-text.mock", True):
@@ -70,7 +81,9 @@ class Vosk:
         if status:
             # self._logger.debug("Finished audio block, status is " + status)
             print(status, file=sys.stderr)
-        self._queue.put(bytes(indata))
+        
+        if not self.is_mic_paused():
+            self._queue.put(bytes(indata))
 
     def _int_or_str(self, text):
         """Helper function for argument parsing."""
@@ -78,6 +91,15 @@ class Vosk:
             return int(text)
         except ValueError:
             return text
+    
+    def is_mic_paused(self):
+
+        if (not isinstance(self._shared_memory[0], bool)):
+            self._logger.error("Shared Memory flag 0 should be 'pause_mic' but is not a boolean" + self._shared_memory[0])
+            return False
         
+        return self._shared_memory[0]
+        
+
 
         
