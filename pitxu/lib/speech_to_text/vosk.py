@@ -97,6 +97,9 @@ class Vosk:
     
     def is_mic_paused(self):
 
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
+            return False
         if (not isinstance(self._shared_memory[0], bool)):
             self._logger.error("Shared Memory flag 0 should be 'pause_mic' but is not a boolean" + self._shared_memory[0])
             return False

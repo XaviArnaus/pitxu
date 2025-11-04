@@ -79,6 +79,23 @@ Just make sure that I did not forget to add here anything from above. Just put t
 sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
 ```
 
+### Make the f***ing usb soundcard to work in RPi5
+
+With `make sounddevices` seems to see the USB Sound Card in device 0 but comes any other selected.
+To change that, select the USB card in:
+
+```
+sudo raspi-config
+```
+
+then Audio > USB > Select
+It gets changed but still `aplay test.wav` does not output and  `aplay test.wav --device 0` fails with error:
+```
+ALSA lib pcm.c:2722:(snd_pcm_open_noupdate) Unknown PCM 0
+aplay: main:850: audio open error: No such file or directory
+```
+
+
 ## Mac OS
 
 ### Dependencies related to `pyaudio` and `sounddevice`
