@@ -9,6 +9,7 @@ import logging
 
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 from pitxu.lib.utils import ConfigLoader
+from definitions import ROOT_DIR
 
 # Trying here to make a Worker for Multiprocessing.
 class PiperMultiprocess(Process):
@@ -45,7 +46,7 @@ class PiperMultiprocess(Process):
         self._logger.info("Initializing Piper TTS")
         language = self._parameters.get("language")
         model_name = self._config.get("text-to-speech.per_language." + language)
-        self._model = self._config.get("storage.path") + "/" + self.MODELS_PATH + model_name + ".onnx"
+        self._model = ROOT_DIR + "/" + self._config.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
         self._output_stream = sounddevice.OutputStream(samplerate=self._voice.config.sample_rate, channels=1, dtype='int16')
 
