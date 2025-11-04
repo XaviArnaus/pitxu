@@ -106,6 +106,7 @@ class Vosk:
             self._logger.error("Shared Memory flag 0 should be 'pause_mic' but is not a boolean" + self._shared_memory[0])
             return False
         
+        self._logger.debug("'pause_mic' flag in Shared Memory is " + str(self._shared_memory[0]))
         return self._shared_memory[0]
         
 
