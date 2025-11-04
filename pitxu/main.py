@@ -273,8 +273,8 @@ class Main:
         self._display.clear()
         # Close the Shared Memory
         self._logger.debug("Closing Shared Memory")
-        self._shared_memory.close()
-        self._shared_memory.unlink()
+        self._shared_memory.shm.close()
+        self._shared_memory.shm.unlink()
         # We don't need to ask the process to self-terminate. It will when finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
         self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
