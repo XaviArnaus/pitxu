@@ -68,6 +68,11 @@ class PiperMultiprocess(Process):
         '''
         Managed by Process
         Gets called whenever the self._queue.put() is called from the main.py
+
+        Current issue in Raspberry Pi 5:
+        - The subprocess contains an initialised PiperVoice object, but apparently this does not have
+            the synthesize_stream_raw() method, causing an AttributeError when trying to call it.
+        - I really don't want to initialise the Piper every run().
         '''
 
         # Apparently the parent Process class has a run() implementation,
