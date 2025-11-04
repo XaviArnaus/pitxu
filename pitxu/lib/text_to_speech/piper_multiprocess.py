@@ -49,10 +49,10 @@ class PiperMultiprocess(Process):
         self._model = ROOT_DIR + "/" + self._config.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
         self._output_stream = sounddevice.OutputStream(
-            samplerate=self._voice.config.sample_rate,
-            # samplerate=self._get_samplerate(),
-            # blocksize = 0,
-            # device=self._config.get("text-to-speech.output_device", None),
+            # samplerate=self._voice.config.sample_rate,
+            samplerate=self._get_samplerate(),
+            blocksize=0,
+            device=self._config.get("text-to-speech.output_device", None),
             channels=1,
             dtype='int16',
         )
