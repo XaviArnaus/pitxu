@@ -71,6 +71,8 @@ class Main:
         self._shared_memory = shared_memory.ShareableList([
             False  # pause_mic
         ], name=SHARED_MEMORY_NAME)
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot write 'pause_mic' flag")
 
         self._stopwatch = Stopwatch()
 
