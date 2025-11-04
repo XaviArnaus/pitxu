@@ -47,7 +47,6 @@ class Vosk:
         if self._config.get("speech-to-text.mock", True):
             self._logger.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            self._queue = queue.Queue()
             self._model = Model(lang=language)
 
             self.samplerate = self._get_samplerate()
@@ -55,6 +54,8 @@ class Vosk:
         
             self._recognizer = KaldiRecognizer(self._model, self.samplerate)
 
+        self._logger.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
+        self._queue = queue.Queue()
         self._logger.info("Vosk: Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
         if self._shared_memory is None:
