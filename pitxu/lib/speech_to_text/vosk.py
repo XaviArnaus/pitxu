@@ -55,10 +55,10 @@ class Vosk:
         
             self._recognizer = KaldiRecognizer(self._model, self.samplerate)
 
-            self._logger.info("Loading flags from Shared Memory")
-            self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        self._logger.info("Vosk: Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
 
-            self._logger.info("Done Initializing Vosk STT")
+        self._logger.info("Done Initializing Vosk STT")
     
     def recognize(self) -> str:
         if self._config.get("speech-to-text.mock", True):
