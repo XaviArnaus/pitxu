@@ -100,7 +100,7 @@ class Main:
         # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
         # available in Mac.
-        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
+        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility. Works in RPi5
         
         # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
@@ -109,7 +109,6 @@ class Main:
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
         #   so it only communicate with it via the queue.
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
-        # self._speech = Piper(self._config, params=self._parameters)
         self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue)
         self._speech.start()
         self._queue.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
@@ -220,7 +219,7 @@ class Main:
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
-    def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
+    def communicate(self, text: str, channels: list):
         """
         Communicates to the user using the channels defined.
 
@@ -256,8 +255,6 @@ class Main:
         if self.COMM_DISPLAY in channels:
             p_display.join()
 
-        
-
     def _say(speech_instance: PiperMultiprocess, text: str):
         speech_instance.say(text)
         return speech_instance
@@ -277,7 +274,7 @@ class Main:
         self._logger.debug("Closing Shared Memory")
         self._shared_memory.shm.close()
         self._shared_memory.shm.unlink()
-        # We don't need to ask the process to self-terminate. It will when finishes the job.
+        # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
         self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
         if self._speech.is_alive():
