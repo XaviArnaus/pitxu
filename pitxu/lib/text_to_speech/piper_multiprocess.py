@@ -74,6 +74,7 @@ class PiperMultiprocess(Process):
             the synthesize_stream_raw() method, causing an AttributeError when trying to call it.
         - I really don't want to initialise the Piper every run().
         '''
+        self.initialize()
 
         # Apparently the parent Process class has a run() implementation,
         # but I don't see the difference in behaviour.
