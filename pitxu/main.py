@@ -171,8 +171,7 @@ class Main:
                 self._logger.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self.communicate(self._greeting_sentence,
-                                 [self.COMM_TTS, self.COMM_DISPLAY],
-                                 input_stream)
+                                 [self.COMM_TTS, self.COMM_DISPLAY])
                 self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
@@ -199,10 +198,11 @@ class Main:
                         
                         # Clean the answer first, just in case
                         answer = Text.remove_emojis(answer)
+                        answer = Text.remove_markdown(answer)
 
                         # Answer
                         sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
+                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
                         self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                         answer_count += 1
                     except KeyboardInterrupt:
