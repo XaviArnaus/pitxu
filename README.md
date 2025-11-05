@@ -202,6 +202,19 @@ make run
 # Current issues
 
 ## In RPi 02W, is mega slow.
+No more to say. Not usable. Will bring data.
+
+## RPi5 8GB
+Works very decent, no very significant difference with MacOS
+
+### Power
+- Be sure to feed the RPi. Old USB chargers do not work. When charged the Piper model used to die by hunger.
+
+### Sound
+- From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
+- I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time.
+- Volume should be the next thing to polish.
+- Some cricks and noise mostli at the beginning and end of the play
 
 # Resources
 
