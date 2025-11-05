@@ -88,8 +88,6 @@ class PiperMultiprocess(Process):
             # - ONLY THEN we will see logging messages in the main logger.
             self._config = ConfigLoader.load_config_files()
             self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
-            self.initialize()
-
 
             self._logger.debug("Piper Worker runs")
             for queue_item in iter(self._queue.get, None):
