@@ -79,22 +79,6 @@ Just make sure that I did not forget to add here anything from above. Just put t
 sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
 ```
 
-### Make the f***ing usb soundcard to work in RPi5
-
-With `make sounddevices` seems to see the USB Sound Card in device 0 but comes any other selected.
-To change that, select the USB card in:
-
-```
-sudo raspi-config
-```
-
-then Audio > USB > Select
-It gets changed but still `aplay test.wav` does not output and  `aplay test.wav --device 0` fails with error:
-```
-ALSA lib pcm.c:2722:(snd_pcm_open_noupdate) Unknown PCM 0
-aplay: main:850: audio open error: No such file or directory
-```
-
 
 ## Mac OS
 
@@ -212,9 +196,14 @@ Works very decent, no very significant difference with MacOS
 
 ### Sound
 - From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
-- I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time.
+- I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device over the USB Audio.
 - Volume should be the next thing to polish.
 - Some cricks and noise mostli at the beginning and end of the play
+
+### Display
+- Must activate the SPI interface from `sudo raspi-config`
+- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... The HAT was connected with the header in thw wrong way. Didn't help
+
 
 # Resources
 
