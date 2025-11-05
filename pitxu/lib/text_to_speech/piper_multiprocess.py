@@ -124,8 +124,13 @@ class PiperMultiprocess(Process):
             self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
 
-            for audio_bytes in self._voice.synthesize(text):
-                int_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            # Working in my MacOS
+            # for audio_bytes in self._voice.synthesize_stream_raw(text):
+            #     int_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            #     self._output_stream.write(int_data)
+
+            for chunk in self._voice.synthesize_stream_raw(text):
+                int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 self._output_stream.write(int_data)
 
             self._output_stream.stop()
