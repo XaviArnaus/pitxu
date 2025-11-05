@@ -214,10 +214,6 @@ class Main:
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C from main")
             self.close_nicely()
-        
-        # Here comes anything that we want to do before leaving
-        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
     def communicate(self, text: str, channels: list):
         """
@@ -283,5 +279,11 @@ class Main:
             # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
             # self._speech.kill()
 
+        # ------ Final logs ------
+
         self._logger.debug("We should be now nicely closed")
         self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
+
+        # Here comes anything that we want to do before leaving
+        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
