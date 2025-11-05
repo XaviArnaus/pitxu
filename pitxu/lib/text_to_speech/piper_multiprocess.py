@@ -116,7 +116,7 @@ class PiperMultiprocess(Process):
     
     def say(self, text: str):
 
-        # self.pause_mic()
+        self.pause_mic()
 
         if self._config.get("text-to-speech.mock", True):
             self._logger.warning("Mocking TTS by Config. Should have said [" + text + "]")
@@ -130,7 +130,7 @@ class PiperMultiprocess(Process):
 
             self._output_stream.stop()
         
-        # self.resume_mic()
+        self.resume_mic()
     
     def finish(self):
         '''
