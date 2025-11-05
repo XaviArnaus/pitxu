@@ -74,8 +74,7 @@ class PiperMultiprocess(Process):
             the synthesize_stream_raw() method, causing an AttributeError when trying to call it.
         - I really don't want to initialise the Piper every run().
         '''
-        self.initialize()
-
+        
         # Apparently the parent Process class has a run() implementation,
         # but I don't see the difference in behaviour.
         super(PiperMultiprocess, self).run()
@@ -89,6 +88,7 @@ class PiperMultiprocess(Process):
             # - ONLY THEN we will see logging messages in the main logger.
             self._config = ConfigLoader.load_config_files()
             self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
+            self.initialize()
 
 
             self._logger.debug("Piper Worker runs")
