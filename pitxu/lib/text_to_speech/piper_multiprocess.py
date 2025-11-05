@@ -48,14 +48,14 @@ class PiperMultiprocess(Process):
         model_name = self._config.get("text-to-speech.per_language." + language)
         self._model = ROOT_DIR + "/" + self._config.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
-        self._output_stream = sounddevice.OutputStream(
-            # samplerate=self._voice.config.sample_rate,
-            samplerate=self._get_samplerate(),
-            blocksize=0,
-            device=self._config.get("text-to-speech.output_device", None),
-            channels=1,
-            dtype='int16',
-        )
+        # self._output_stream = sounddevice.OutputStream(
+        #     # samplerate=self._voice.config.sample_rate,
+        #     samplerate=self._get_samplerate(),
+        #     blocksize=0,
+        #     device=self._config.get("text-to-speech.output_device", None),
+        #     channels=1,
+        #     dtype='int16',
+        # )
 
         self._logger.info("Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
@@ -130,6 +130,16 @@ class PiperMultiprocess(Process):
             #     self._output_stream.write(int_data)
 
             for chunk in self._voice.synthesize(text):
+                sounddevice.OutputStream(
+                    # samplerate=self._voice.config.sample_rate,
+                    samplerate=chunk.sample_rate,
+                    blocksize=chunk.sample_width,
+                    # device=self._config.get("text-to-speech.output_device", None),
+                    channels=chunk.sample_channels,
+                    dtype='int16',
+                )
+                # set_audio_format(chunk.sample_rate, chunk.sample_width, chunk.sample_channels)
+                # write_raw_data(chunk.audio_int16_bytes)
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 self._output_stream.write(int_data)
 
