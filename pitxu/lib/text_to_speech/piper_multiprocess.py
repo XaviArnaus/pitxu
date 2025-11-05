@@ -122,7 +122,7 @@ class PiperMultiprocess(Process):
             self._logger.warning("Mocking TTS by Config. Should have said [" + text + "]")
         else:
             self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
-            self._output_stream.start()
+            # self._output_stream.start()
 
             # Working in my MacOS
             # for audio_bytes in self._voice.synthesize_stream_raw(text):
@@ -130,7 +130,7 @@ class PiperMultiprocess(Process):
             #     self._output_stream.write(int_data)
 
             for chunk in self._voice.synthesize(text):
-                sounddevice.OutputStream(
+                stream = sounddevice.OutputStream(
                     # samplerate=self._voice.config.sample_rate,
                     samplerate=chunk.sample_rate,
                     blocksize=chunk.sample_width,
@@ -138,10 +138,11 @@ class PiperMultiprocess(Process):
                     channels=chunk.sample_channels,
                     dtype='int16',
                 )
+                stream.start()
                 # set_audio_format(chunk.sample_rate, chunk.sample_width, chunk.sample_channels)
                 # write_raw_data(chunk.audio_int16_bytes)
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
-                self._output_stream.write(int_data)
+                stream.write(int_data)
 
             self._output_stream.stop()
         
