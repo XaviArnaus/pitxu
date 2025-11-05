@@ -144,7 +144,7 @@ class PiperMultiprocess(Process):
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 stream.write(int_data)
 
-            self._output_stream.stop()
+            # self._output_stream.stop()
         
         self.resume_mic()
     
