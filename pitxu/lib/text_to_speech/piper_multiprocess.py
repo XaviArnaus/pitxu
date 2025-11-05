@@ -23,8 +23,8 @@ class PiperMultiprocess(Process):
     _queue: Queue = None
     _shared_memory: shared_memory.ShareableList = None
 
-    _model: None
-    _voice: None
+    _model = None
+    _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
 
     def __init__(self, config: Config, params: Dictionary, queue: Queue):
