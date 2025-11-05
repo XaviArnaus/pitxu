@@ -51,7 +51,6 @@ class PiperMultiprocess(Process):
         self._output_stream = sounddevice.OutputStream(
             samplerate=self._voice.config.sample_rate,
             blocksize=0,
-            device=self._config.get("text-to-speech.output_device", None),
             channels=1,
             dtype='int16',
         )
