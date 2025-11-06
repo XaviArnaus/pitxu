@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue, shared_memory
+from multiprocessing import Process, JoinableQueue, shared_memory
 import logging
 
 from pyxavi import Config, Logger, Dictionary
@@ -19,11 +19,13 @@ class DisplayMultiprocess(Process):
     _macros: Macros = None
     _display_size: Point = None
 
+    _queue: JoinableQueue = None
+
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
 
-    def __init__(self, config: Config, params: Dictionary, queue: Queue):
+    def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
 
         # Possible runtime parameters
         self._parameters = params
@@ -55,6 +57,8 @@ class DisplayMultiprocess(Process):
         '''
         self._logger.debug("Closing eInk display")
         self._display.close()
+        self._logger.debug("Empting queue")
+        self._empty_queue()
         self._logger.debug("Done finishing Display Worker")
     
     def run(self):
@@ -107,6 +111,9 @@ class DisplayMultiprocess(Process):
                 # Still, we leave it so we have the tool for whatever other reason.
                 if (type == QueueItemType.ACTION or type == QueueItemType.DISPLAY) and message == QueueItemAction.FINISH:
                     self.finish()
+                
+                # Finally, we mark this task as done
+                self._queue.task_done()
 
         except KeyboardInterrupt:
             self._logger.debug("Pressed Control + C while running Display subprocess")
@@ -127,3 +134,11 @@ class DisplayMultiprocess(Process):
     def clear(self):
         # Clear the display
         self._display.clear()
+    
+    def _empty_queue(self):
+        if not self._queue.empty():
+            for queue_item in iter(self._queue.get, None):
+                if queue_item is not None:
+                    self._queue.task_done()
+                else:
+                    return

@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue, shared_memory
+from multiprocessing import Process, JoinableQueue, shared_memory
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
@@ -20,14 +20,14 @@ class PiperMultiprocess(Process):
     _logger: logging = None
     _parameters: Dictionary = None
 
-    _queue: Queue = None
+    _queue: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
     _model = None
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
 
-    def __init__(self, config: Config, params: Dictionary, queue: Queue):
+    def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
         '''
         Initialisation of the class, this is called from main.
         After the start(), all triggers come from the queue, being constantly checked by run()
@@ -101,6 +101,9 @@ class PiperMultiprocess(Process):
                 # Still, we leave it so we have the tool for whatever other reason.
                 if (type == QueueItemType.ACTION or type == QueueItemType.SPEECH) and message == QueueItemAction.FINISH:
                     self.finish()
+            
+            # Finally, we mark this task as done
+            self._queue.task_done()
 
         except KeyboardInterrupt:
             self._logger.debug("Pressed Control + C while running Speech subprocess")
@@ -133,6 +136,8 @@ class PiperMultiprocess(Process):
         '''
         self._logger.debug("Closing output stream")
         self._output_stream.close()
+        self._logger.debug("Empting queue")
+        self._empty_queue()
         self._logger.debug("Done finishing Piper Worker")
     
     def pause_mic(self):
@@ -140,3 +145,11 @@ class PiperMultiprocess(Process):
 
     def resume_mic(self):
         self._shared_memory[0] = False
+    
+    def _empty_queue(self):
+        if not self._queue.empty():
+            for queue_item in iter(self._queue.get, None):
+                if queue_item is not None:
+                    self._queue.task_done()
+                else:
+                    return

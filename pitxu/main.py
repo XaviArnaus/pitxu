@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Process, Queue, Manager, shared_memory
+from multiprocessing import set_start_method, Process, JoinableQueue, Manager, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
@@ -28,8 +28,8 @@ class Main:
     _speech: PiperMultiprocess = None
 
     _manager = None
-    _queue_display: Queue = None
-    _queue_speech: Queue = None
+    _queue_display: JoinableQueue = None
+    _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
     _stopwatch: Stopwatch = None
@@ -80,8 +80,8 @@ class Main:
         # Some of the models will be hold in separate processes
         # Communication with them is done via a Queue
         self._manager = Manager()
-        self._queue_display = self._manager.Queue()
-        self._queue_speech = self._manager.Queue()
+        self._queue_display = self._manager.JoinableQueue()
+        self._queue_speech = self._manager.JoinableQueue()
 
         # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
@@ -113,8 +113,7 @@ class Main:
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
         self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue_speech)
         self._speech.start()
-        # self._queue.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
-        self._init(who=QueueItemType.SPEECH)
+        self._init_subprocess(who=QueueItemType.SPEECH)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
@@ -147,7 +146,7 @@ class Main:
         self._logger.debug("Initialising eInk Display and Macros")
         self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
         self._display.start()
-        self._init(who=QueueItemType.DISPLAY)
+        self._init_subprocess(who=QueueItemType.DISPLAY)
     
     def run(self):
 
@@ -274,12 +273,33 @@ class Main:
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
-        # # Ensure that everything is waiting for a command
-        # time.sleep(2)
+
         # Clean the display
         self._logger.debug("Clearing the display.")
         self._clear_display()
-        time.sleep(1)
+        time.sleep(2)
+
+        # Finish all related multiprocess stuff
+        self.finish_leftover_processes()
+
+        # ------ Final logs ------
+
+        self._logger.debug("We should be now nicely closed")
+        self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
+
+        # Here comes anything that we want to do before leaving
+        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+
+    def finish_leftover_processes(self):
+        # We can't join() child processes unless all queues get totally consumed.
+        # That's why we want to empty the queues first, from within the process,
+        # on their way to the controlled terminate()
+        self._finish_subprocess()
+        # ...but I can't manage to empty the queues (maybe), and the join()s fail hanging the execution.
+        # self._queue_display.join()
+        # self._queue_speech.join()
+
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
         self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
@@ -299,16 +319,9 @@ class Main:
         self._shared_memory.shm.close()
         self._shared_memory.shm.unlink()
 
-        # ------ Final logs ------
 
-        self._logger.debug("We should be now nicely closed")
-        self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
-
-        # Here comes anything that we want to do before leaving
-        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
-    def _init(self, who: QueueItemType = QueueItemType.ACTION):
+    def _init_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
 
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.INITIALIZE))
@@ -321,7 +334,7 @@ class Main:
             self._logger.error("I can't understand who should I initialise: " + who)
 
     
-    def _finish(self, who: QueueItemType = QueueItemType.ACTION):
+    def _finish_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
 
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.FINISH))

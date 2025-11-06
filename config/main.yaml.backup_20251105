@@ -1,0 +1,138 @@
+###########################
+#     Pitxu Chatbot       #
+###########################
+
+# App Info
+app:
+  # Application name
+  name: "Pitxu"
+  # Which language to start with. Possible values "en-us", "ca", "de", "es"
+  default_language: "ca"
+  # Defines the supported languages. Must instersect STT, TTS and Gemini, and have definitions in this config.
+  supported_languages: ["en-us", "ca", "de", "es"]
+
+# General settings about language
+language:
+  # Exit words are used to identify the program termination
+  exit_words:
+    ca: ["sortir", "adéu"]
+    es: ["salir", "adiós"]
+    en-us: ["exit", "quit", "bye", "goodbye"]
+    de: ["chus"]
+  # This is the welcome / greeting message
+  greeting:
+    ca: "Hola."
+    es: "Hola soy el Pitxu. Dime algo"
+    en-us: "Hi I'm Pitxu. Tell me anything"
+    de: "Hallo Ich bin Pitxu. Erzähl mir was"
+  # This is the goodbye message
+  goodbye:
+    ca: "Fins la propera!"
+    es: "Hasta la próxima! Adiós"
+    en-us: "See you next time! Goodbye!"
+    de: "Bis zum nächsten Mal! Auf Wiedersehen!"
+  # This is the message after a command was executed
+  command_executed:
+    ca: "Ja ho he fet!"
+    es: "¡Ya lo he hecho!"
+    en-us: "I have done it!"
+    de: "Ich habe es getan!"
+
+# Configuration of the Chatbot
+chatbot:
+  # [Bool] Avoids the communication to the LLM server
+  mock: False
+  # Sets up the context for the interaction. Has a prompt shape.
+  system_instruction: 
+    #ca: "Ets un nen de 10 anys, i parles amb una nena menor de 10 anys. Si us plau fes respostes curtes. El teu nom és Pitxu, però no el mencionis a cada frase. Abans de respondre, recorda les anteriors respostes per mantenir el contexte de la conversa"
+    ca: "Ets un assistent personal, muntat i programat per mi. Jo sóc en Xavier Arnaus, el teu creador.
+          M'ajudes en les tasques diàries i em contestes les preguntes de forma més aviat curtes, vas al gra.
+          Sigues amable i educat. Sigues conscient de les teves limitacions, functionalitats que no pots fer com enviar e-mails.
+          Evita donar informacions incorrectes. Si no saps la resposta, digues-ho clarament.
+          Les informacions tècniques han d'estar ben explicades i sense entrar en detalls si no t'ho demano.
+          Vius a Düsseldorf, Alemanya. Usa aquesta informació per donar context a les teves respostes.
+          Recorda les converses anteriors per mantenir el context de la conversa."
+    es: "Eres un niño de 10 años, y hablas con una niña menor de 10 años. Por favor haz respuestas cortas. Tu nombre es Pitxu, pero no lo menciones a cada frase. Antes de respoder, recuerda las resupestas anteriores para mantener el contexto de la conversación"
+    en-us: "You are a 10 year old boy, and you are talking to a girl under 10. Please give short answers. Your name is Pitxu, but don't mention it in every sentence. Before responding, remember previous responses to maintain the context of the conversation."
+    de: "Du bist ein 10-jähriger Junge und sprichst mit einem Mädchen unter 10 Jahren. Bitte antworte kurz. Dein Name ist Pitxu, aber erwähne ihn nicht in jedem Satz. Denkst du vor dem Antworten an vorherige Antworten, um den Kontext des Gesprächs beizubehalten."
+
+# Configuration fo the eInk Display
+display:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+  # Size of the display
+  size:
+    x: 250
+    y: 122
+  # [bool] Rotate the display 180 degrees or not.
+  rotate: True
+  # Configuration regarding the fonts
+  fonts:
+    big: 22
+    medium: 14
+    small: 10
+
+# Configurations for the Speech-to-Text
+speech-to-text:
+# [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: false
+  # [Integer] Index of the device to use, from the list in `arecord -l`. Use `make sounddevices`
+  input_device: 0 # Default input device fro Mac when not connected to any external support
+  #input_device: 4 # Input device fro Mac when connected to the docking station (Home)
+  #input_device: 3 # Input device fro Mac when connected to the docking station (TRV)
+
+# Configurations for the Text-to-Speech
+text-to-speech:
+  # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: False
+  # [Integer] Index of the device to use, from the list in `make sounddevices` or `aplay -l`. Set [None] for autodetect
+  output_device: 1 # Default output device fro Mac when not connected to any external support
+  # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
+  per_language:
+    # Catalan
+    ca: ca_ES-upc_pau-x_low
+    # Spanish
+    es: es_ES-davefx-medium
+    # English
+    en-us: en_US-joe-medium
+    # German
+    de: de_DE-karlsson-low
+
+# Filesystem definition
+storage:
+  # Where, from the root of the project
+  path: "storage/"
+
+# Logging config
+logger:
+  # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+  loglevel: 10
+  # [String] Name of the logger
+  name: "pitxu"
+  # [String] Format of the log
+  format: "[%(asctime)s] %(levelname)-8s %(name)-12s %(message)s"
+  # File related parameters
+  file:
+    # [Bool] Dump the log into a file
+    active: True
+    # [String] Path and filename of the log file
+    filename: "log/pitxu.log"
+    # [String] The encoding of the log file
+    encoding: "UTF-8"
+    # [Bool] Do we want to rotate the log files? Only will apply if we log to files
+    rotate:
+        active: True
+        # [String] When do we rotate. Accepts "S" | "M" | "H" | "D" | "W0"-"W6" | "midnight"
+        #   See https://docs.python.org/3/library/logging.handlers.html#timedrotatingfilehandler
+        when: "midnight"
+        # [Int] How many rotated old files to keep before it starts to delete the older
+        backup_count: 10
+        # [Bool] Stick to UTC timings when triggering the rotation
+        utc: True
+        # [String] in format "%H:%M:%S". When to trigger THE VERY FIRST rotation.
+        #   Subsequent will attend to when_rotate
+        at_time: "1:00:00"
+  # Standard output related parameters
+  stdout:
+  # [Bool] Dump the log into a stdout
+      active: True
