@@ -131,7 +131,7 @@ class DisplayMultiprocess(Process):
                     self.clear()
                 
                 # Now we're not
-                # self.unset_eink_busy()
+                self.unset_eink_busy()
                 
                 # Initializes the model from within the Process.
                 if (type == QueueItemType.ACTION or type == QueueItemType.DISPLAY) and message == QueueItemAction.INITIALIZE:
@@ -164,9 +164,7 @@ class DisplayMultiprocess(Process):
     
     def clear(self, blocking: bool = False):
         # Clear the display
-        
         self._display.clear()
-        self.unset_eink_busy()
 
     def is_eink_busy(self):
         # Uses the Shared memory flag to answer.
