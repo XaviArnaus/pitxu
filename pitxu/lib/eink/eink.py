@@ -76,9 +76,9 @@ class EinkDisplay:
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
         else:
-            pass
+            self._logger.warning("Did not clear the display. GPIO interaction not allowed.")
         # Needed to clean up the canvas.
-        self._working_image = None
+        self._reset_image()
     
     def test(self):
         logging.info("Drawing on the image...")
