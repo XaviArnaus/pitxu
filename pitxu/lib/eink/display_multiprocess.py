@@ -10,6 +10,11 @@ from pitxu.lib.utils import ConfigLoader
 from definitions import ROOT_DIR
 
 class DisplayMultiprocess(Process):
+    '''
+    Class to control the behaviour of the eInk display inside a sub-process (child)
+
+    The eInk is pretty slow. We need semaphores and that's why we need the shared memory flags.
+    '''
 
     _parameters: Dictionary = None
     _config: Config = None
@@ -20,10 +25,14 @@ class DisplayMultiprocess(Process):
     _display_size: Point = None
 
     _queue: JoinableQueue = None
+    _shared_memory: shared_memory.ShareableList = None
 
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
+
+    # Shared memory flag positions
+    SHARED_EINK_BUSY = 1
 
     def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
 
@@ -48,6 +57,13 @@ class DisplayMultiprocess(Process):
         self._display = EinkDisplay(config=self._config, params=self._parameters)
         self._macros = Macros(config=self._config, params=self._parameters)
         self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._initialize_shared_memory()
+
+    def _initialize_shared_memory(self):
+        self._logger.info("Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read 'e-ink is busy' flag")    
     
     def finish(self):
         '''
@@ -85,11 +101,18 @@ class DisplayMultiprocess(Process):
             # - ONLY THEN we will see logging messages in the main logger.
             self._config = ConfigLoader.load_config_files()
             self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
+            self._initialize_shared_memory()
+
+            if self._shared_memory is None:
+                self._logger.error("Shared Memory is None, cannot read 'e-ink is busy' flag")
 
             self._logger.debug("Display Worker runs")
             for queue_item in iter(self._queue.get, None):
                 type, message = queue_item
                 self._logger.debug("Display Worker received a [" + type + "]: [" + message + "]")
+
+                # We're busy
+                self.set_eink_busy()
 
                 # Says the message received
                 if type == QueueItemType.SHOW and message != "":
@@ -106,6 +129,9 @@ class DisplayMultiprocess(Process):
                 # Clears the screen
                 if type == QueueItemType.DISPLAY and message == QueueItemDisplay.CLEAR:
                     self.clear()
+                
+                # Now we're not
+                # self.unset_eink_busy()
                 
                 # Initializes the model from within the Process.
                 if (type == QueueItemType.ACTION or type == QueueItemType.DISPLAY) and message == QueueItemAction.INITIALIZE:
@@ -136,9 +162,21 @@ class DisplayMultiprocess(Process):
         # Draw the ready splash screen
         self._macros.startup_splash(display=self._display)
     
-    def clear(self):
+    def clear(self, blocking: bool = False):
         # Clear the display
+        
         self._display.clear()
+        self.unset_eink_busy()
+
+    def is_eink_busy(self):
+        # Uses the Shared memory flag to answer.
+        return self._shared_memory[self.SHARED_EINK_BUSY]
+    
+    def set_eink_busy(self):
+        self._shared_memory[self.SHARED_EINK_BUSY] = True
+
+    def unset_eink_busy(self):
+        self._shared_memory[self.SHARED_EINK_BUSY] = False
     
     # def _empty_queue(self):
     #     if not self._queue.empty():

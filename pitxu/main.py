@@ -47,6 +47,9 @@ class Main:
     GERMAN: str = "de"
     SPANISH: str = "es"
 
+    # Shared memory flag positions
+    SHARED_EINK_BUSY = 1
+
     def __init__(self, config: Config = None, params: Dictionary = None):
 
         # Possible runtime parameters
@@ -70,7 +73,8 @@ class Main:
         # Initialisating Shared Memory to handle execution flags between processes
         self._parameters.set("shared_memory_name", SHARED_MEMORY_NAME)
         self._shared_memory = shared_memory.ShareableList([
-            False  # pause_mic
+            False,  # pause_mic
+            False,  # e-ink is busy
         ], name=SHARED_MEMORY_NAME)
         if self._shared_memory is None:
             self._logger.error("Shared Memory is None, cannot write 'pause_mic' flag")
@@ -277,8 +281,13 @@ class Main:
 
         # Clean the display
         self._logger.debug("Clearing the display.")
-        # self._clear_display()
-        self._display.clear()
+        self._clear_display()
+        # self._display.clear()
+        # Now wait until the display finishes being busy
+        self._logger.debug("Waiting for eInk to do the last clear")
+        while self._shared_memory[self.SHARED_EINK_BUSY]:
+            time.sleep(0.5)
+        self._logger.debug("eInk should be clear now")
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()

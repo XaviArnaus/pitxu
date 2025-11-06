@@ -143,11 +143,3 @@ class PiperMultiprocess(Process):
 
     def resume_mic(self):
         self._shared_memory[0] = False
-    
-    def _empty_queue(self):
-        if not self._queue.empty():
-            for queue_item in iter(self._queue.get, None):
-                if queue_item is not None:
-                    self._queue.task_done()
-                else:
-                    return
