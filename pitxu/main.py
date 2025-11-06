@@ -279,6 +279,7 @@ class Main:
         # Clean the display
         self._logger.debug("Clearing the display.")
         self._clear_display()
+        self._finish(QueueItemType.DISPLAY)
         self._display.join()
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
