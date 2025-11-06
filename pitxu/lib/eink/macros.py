@@ -136,6 +136,9 @@ class Macros:
         display.display()
         
     def ready_splash(self, display: EinkDisplay):
+        '''
+        Not used
+        '''
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
 

@@ -210,4 +210,7 @@ class EinkDisplay:
             small_size = self._config.get("display.fonts.small")
         self.FONT_SMALL = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), small_size)
     
+    def close(self):
+        if self._epd is not None:
+            self._epd.sleep()
     

@@ -67,12 +67,12 @@ class PiperMultiprocess(Process):
         Managed by Process
         Gets called whenever the self._queue.put() is called from the main.py
         '''
-        
-        # Apparently the parent Process class has a run() implementation,
-        # but I don't see the difference in behaviour.
-        super(PiperMultiprocess, self).run()
 
         try:
+            # Apparently the parent Process class has a run() implementation,
+            # but I don't see the difference in behaviour.
+            super(PiperMultiprocess, self).run()
+
             # This is needed to have the logging connected:
             # - Create the Config object from scratch
             # - Use the Config object to initialise the Logger. Be sure that the `stdout.multiprocess`
@@ -88,18 +88,18 @@ class PiperMultiprocess(Process):
                 self._logger.debug("Piper Worker received a [" + type + "]: [" + message + "]")
 
                 # Says the message received
-                if type == QueueItemType.MESSAGE and message != "":
+                if type == QueueItemType.SAY and message != "":
                     self.say(message)
                 
                 # Initializes the model from within the Process.
                 # This is the only way to avoid Model Session issues
-                if type == QueueItemType.ACTION and message == QueueItemAction.INITIALIZE:
+                if (type == QueueItemType.ACTION or type == QueueItemType.SPEECH) and message == QueueItemAction.INITIALIZE:
                     self.initialize()
 
                 # We don't need to finish the subprocess from main explicitly, it will end when the job
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
-                if type == QueueItemType.ACTION and message == QueueItemAction.FINISH:
+                if (type == QueueItemType.ACTION or type == QueueItemType.SPEECH) and message == QueueItemAction.FINISH:
                     self.finish()
 
         except KeyboardInterrupt:
