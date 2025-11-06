@@ -274,13 +274,12 @@ class Main:
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
-        # Ensure that everything is waiting for a command
-        time.sleep(2)
+        # # Ensure that everything is waiting for a command
+        # time.sleep(2)
         # Clean the display
         self._logger.debug("Clearing the display.")
         self._clear_display()
-        self._finish(QueueItemType.DISPLAY)
-        self._display.join()
+        time.sleep(1)
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
         self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
