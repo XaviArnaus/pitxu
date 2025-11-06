@@ -62,6 +62,16 @@ class PiperMultiprocess(Process):
 
         self._logger.debug("Done Initializing Piper TTS")
     
+    def finish(self):
+        '''
+        This is called from from run() via KeyboardInterrupt or from outside via Queue,
+        to finish gracefully whatever we have open.
+        Do not try to terminate the process from inside itself.
+        '''
+        self._logger.debug("Closing output stream")
+        self._output_stream.close()
+        self._logger.debug("Done finishing Piper Worker")
+    
     def run(self):
         '''
         Managed by Process
@@ -127,18 +137,6 @@ class PiperMultiprocess(Process):
             self._output_stream.stop()
         
         self.resume_mic()
-    
-    def finish(self):
-        '''
-        This is called from from run() via KeyboardInterrupt or from outside via Queue
-        to finish gracefully whatever we have open.
-        Do not try to terminate the process from inside itself.
-        '''
-        self._logger.debug("Closing output stream")
-        self._output_stream.close()
-        self._logger.debug("Empting queue")
-        self._empty_queue()
-        self._logger.debug("Done finishing Piper Worker")
     
     def pause_mic(self):
         self._shared_memory[0] = True

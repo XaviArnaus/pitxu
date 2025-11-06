@@ -51,14 +51,19 @@ class DisplayMultiprocess(Process):
     
     def finish(self):
         '''
-        This is called from from run() via KeyboardInterrupt or from outside via Queue
+        This is called from:
+        - run() via KeyboardInterrupt
+        - from outside via Queue,
+
+        This is NOT called from
+        - by the Python framework when terminating a process -> 
+
         to finish gracefully whatever we have open.
-        Do not try to terminate the process from inside itself.
+        
+        ! Do not try to terminate the process from inside itself.
         '''
         self._logger.debug("Closing eInk display")
         self._display.close()
-        self._logger.debug("Empting queue")
-        self._empty_queue()
         self._logger.debug("Done finishing Display Worker")
     
     def run(self):
@@ -135,10 +140,10 @@ class DisplayMultiprocess(Process):
         # Clear the display
         self._display.clear()
     
-    def _empty_queue(self):
-        if not self._queue.empty():
-            for queue_item in iter(self._queue.get, None):
-                if queue_item is not None:
-                    self._queue.task_done()
-                else:
-                    return
+    # def _empty_queue(self):
+    #     if not self._queue.empty():
+    #         for queue_item in iter(self._queue.get, None):
+    #             if queue_item is not None:
+    #                 self._queue.task_done()
+    #             else:
+    #                 return

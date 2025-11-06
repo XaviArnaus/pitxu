@@ -14,6 +14,7 @@ from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
 
 import sounddevice
 import time
+from queue import Empty
 
 SHARED_MEMORY_NAME = "pitxu_shared_memory"
 
@@ -293,34 +294,48 @@ class Main:
 
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
-        # That's why we want to empty the queues first, from within the process,
-        # on their way to the controlled terminate()
+
+        # 1. Send a "finish" to the childs. Needs the queue.
+        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the childs
+        #    from the queues. Maybe the main thread empties it before being read. 
+        self._logger.debug("[Main Finish] Send 'finish' to childs")
         self._finish_subprocess()
+        # ...so they can close dependencies.
+
+        # 2. Clean and close the queues, apparently better from the one that put().
+        self._logger.debug("[Main Finish] Empty and close queues")
+        self.clearAndDiscardQueue(self._queue_display)
+        self.clearAndDiscardQueue(self._queue_speech)
+        # At this point the queues should be closed.
+
+        # 3. Joining the queues to the main thread.
         # ...but I can't manage to empty the queues (maybe), and the join()s fail hanging the execution.
-        # self._queue_display.join()
-        # self._queue_speech.join()
+        self._logger.debug("[Main Finish] Joining queues")
+        self._queue_display.join()
+        self._queue_speech.join()
 
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
-        self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
+        self._logger.debug("[Main Finish] Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
         if self._speech.is_alive():
-            self._logger.debug("Terminating TTS Process")
+            self._logger.debug("[Main Finish] Terminating TTS Process")
             self._speech.terminate()
             # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
             # self._speech.kill()
         
-        self._logger.debug("Is the Display subprocess still alive? " + ("Yes" if self._display.is_alive() else "No"))
+        self._logger.debug("[Main Finish] Is the Display subprocess still alive? " + ("Yes" if self._display.is_alive() else "No"))
         if self._display.is_alive():
-            self._logger.debug("Terminating Display Process")
+            self._logger.debug("[Main Finish] Terminating Display Process")
             self._display.terminate()
         
         # Close the Shared Memory
-        self._logger.debug("Closing Shared Memory")
+        self._logger.debug("[Main Finish] Closing Shared Memory")
         self._shared_memory.shm.close()
         self._shared_memory.shm.unlink()
-
-
     
+
+    # ------- Communication with Queues ---------
+
     def _init_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
 
         if who == QueueItemType.ACTION:
@@ -357,3 +372,31 @@ class Main:
     
     def _clear_display(self):
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+
+    def clearAndDiscardQueue(self, queue: JoinableQueue):
+        '''
+        Queue cleanup, preferably in the process that is adding to the queue
+        https://stackoverflow.com/a/69781217/1973860
+        '''
+
+        try:
+            while True:
+                queue.get_nowait()
+        except Empty:
+            pass    
+        except ValueError:  # in case of closed
+            pass
+        # queue.close()
+        # theoretically a new item could be placed by the
+        # other process by the time the interpreter is on this line,
+        # therefore the part above should be run in the process that 
+        # fills (put) the queue when it is in its failure state
+        # (when the main process fails it should communicate to
+        # raise an exception in the child process to run the cleanup
+        # so main process' join will work)
+        try: # could be one of the processes
+            while True:
+                queue.task_done()
+        except ValueError:  # too many times called, do not care
+        #  since all remaining will not be processed due to failure state
+            pass
