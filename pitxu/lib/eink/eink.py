@@ -172,8 +172,8 @@ class EinkDisplay:
         # Initialise the display itself
         self._logger.debug("Initialising eInk display")
         self._epd.init()
-        self._logger.debug("Cleaning for the first time")
         if self._config.get("display.initial_clear"):
+            self._logger.debug("Cleaning for the first time")
             self._epd.Clear(0xFF)
 
         # Setup base data
