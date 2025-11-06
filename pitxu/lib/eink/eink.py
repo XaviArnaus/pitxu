@@ -70,7 +70,8 @@ class EinkDisplay:
             
             # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
             # self._epd.display(self._epd.getbuffer(self._working_image))
-            self._epd.display_fast(self._epd.getbuffer(self._working_image))
+            # self._epd.display_fast(self._epd.getbuffer(self._working_image))
+            self._epd.displayPartial(self._epd.getbuffer(self._working_image))
     
     def clear(self):
         if (self._is_gpio_allowed()):
