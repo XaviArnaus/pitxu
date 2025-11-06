@@ -277,8 +277,8 @@ class Main:
 
         # Clean the display
         self._logger.debug("Clearing the display.")
-        self._clear_display()
-        time.sleep(2)
+        # self._clear_display()
+        self._display.clear()
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
@@ -309,7 +309,6 @@ class Main:
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
-        # ...but I can't manage to empty the queues (maybe), and the join()s fail hanging the execution.
         self._logger.debug("[Main Finish] Joining queues")
         self._queue_display.join()
         self._queue_speech.join()
