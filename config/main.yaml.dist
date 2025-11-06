@@ -47,6 +47,8 @@ chatbot:
 display:
   # [Bool] Generates a PNG instead of outcoming through the eInk Display
   mock: True
+  # [Bool] Do a full clear while initializing
+  initial_clear: False
   # Size of the display
   size:
     x: 250

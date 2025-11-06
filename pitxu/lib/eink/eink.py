@@ -75,6 +75,7 @@ class EinkDisplay:
     def clear(self):
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
+            self._logger.debug("eInk cleaned")
         else:
             self._logger.warning("Did not clear the display. GPIO interaction not allowed.")
         # Needed to clean up the canvas.
@@ -172,7 +173,8 @@ class EinkDisplay:
         self._logger.debug("Initialising eInk display")
         self._epd.init()
         self._logger.debug("Cleaning for the first time")
-        self._epd.Clear(0xFF)
+        if self._config.get("display.initial_clear"):
+            self._epd.Clear(0xFF)
 
         # Setup base data
         self._screen_size = Point(self._epd.width, self._epd.height)
