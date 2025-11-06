@@ -29,6 +29,7 @@ psutil = "^7.0.0"
 [tool.poetry.scripts]
 main = "runner:run"
 sounddevices = "runner:query_sound_devices"
+clear = "runner:clear_eink"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"

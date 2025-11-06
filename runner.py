@@ -13,6 +13,7 @@ from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
 from pitxu.lib.utils.config_loader import ConfigLoader
+from pitxu.lib.eink.eink import EinkDisplay
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -57,6 +58,22 @@ def run():
         main = Main(config=config, params=parameters)
         main.run()
         logger.info("End of the Main run")
+
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack()) 
+
+def clear_eink():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Clearing eInk display")
+        EinkDisplay(config=config, params=parameters).clear()
+        logger.info("End of work.")
 
 
     except RuntimeError as e:
