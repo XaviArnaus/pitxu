@@ -209,6 +209,7 @@ Works very decent, no very significant difference with MacOS
 # Resources
 
 ## eInk Display
+https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT%2B
 
 ### Original example code in Python
 It also explains dependencies from Debian. Useful to deal with PIL. Remember to port to Poetry.
@@ -226,6 +227,13 @@ https://alphacephei.com/vosk/models
 
 ## Google Gemini
 https://ai.google.dev/gemini-api/docs/migrate
+https://ai.google.dev/gemini-api/docs/rate-limits
+
+### Commands 
+https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-function-for-function-calling
+
+### Chat history
+https://stackoverflow.com/questions/78534769/how-to-include-chat-history-when-using-google-geminis-api
 
 # 😄 Fun fact
 

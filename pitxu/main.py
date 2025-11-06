@@ -279,10 +279,6 @@ class Main:
         # Clean the display
         self._logger.debug("Clearing the display.")
         self._clear_display()
-        # Close the Shared Memory
-        self._logger.debug("Closing Shared Memory")
-        self._shared_memory.shm.close()
-        self._shared_memory.shm.unlink()
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
         # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
         self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
@@ -291,6 +287,16 @@ class Main:
             self._speech.terminate()
             # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
             # self._speech.kill()
+        
+        self._logger.debug("Is the Display subprocess still alive? " + ("Yes" if self._display.is_alive() else "No"))
+        if self._display.is_alive():
+            self._logger.debug("Terminating Display Process")
+            self._display.terminate()
+        
+        # Close the Shared Memory
+        self._logger.debug("Closing Shared Memory")
+        self._shared_memory.shm.close()
+        self._shared_memory.shm.unlink()
 
         # ------ Final logs ------
 
