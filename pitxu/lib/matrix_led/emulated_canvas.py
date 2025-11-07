@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw
 
 from pyxavi import Config, Logger, Dictionary
 
+import time
 import logging
 
 
