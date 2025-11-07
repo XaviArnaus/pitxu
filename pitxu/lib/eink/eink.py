@@ -58,7 +58,7 @@ class EinkDisplay:
         image = self._get_image(True)
         return ImageDraw.Draw(image)
     
-    def display(self):
+    def display(self, partial: bool = True):
         if (not self._is_gpio_allowed()):
             file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self._working_image.save(file_path)
@@ -71,7 +71,10 @@ class EinkDisplay:
             # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
             # self._epd.display(self._epd.getbuffer(self._working_image))
             # self._epd.display_fast(self._epd.getbuffer(self._working_image))
-            self._epd.displayPartial(self._epd.getbuffer(self._working_image))
+            if partial:
+                self._epd.displayPartial(self._epd.getbuffer(self._working_image))
+            else:
+                self._epd.display_fast(self._epd.getbuffer(self._working_image))
     
     def clear(self):
         if (self._is_gpio_allowed()):

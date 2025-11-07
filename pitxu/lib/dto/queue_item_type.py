@@ -1,7 +1,10 @@
 class QueueItemType:
 
+    # These expect a message as a parameter
     SAY: str = "say"
     SHOW: str = "show"
+
+    # These expect something to do as a parameter
     ACTION: str = "action"
     DISPLAY: str = "display"
     SPEECH: str = "speech"

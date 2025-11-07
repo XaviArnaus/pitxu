@@ -114,9 +114,9 @@ class DisplayMultiprocess(Process):
                 # We're busy
                 self.set_eink_busy()
 
-                # Says the message received
+                # Shows the message received
                 if type == QueueItemType.SHOW and message != "":
-                    self.say(message)
+                    self.show(message)
                 
                 # Shows the Ready splash screen
                 if type == QueueItemType.DISPLAY and message == QueueItemDisplay.READY:
@@ -150,7 +150,7 @@ class DisplayMultiprocess(Process):
             self._logger.debug("Pressed Control + C while running Display subprocess")
             self.finish()
     
-    def say(self, text: str):
+    def show(self, text: str):
         # Draw the text bubble
         self._macros.draw_text_bubble(display=self._display, text=text, font=self._display.FONT_MEDIUM)
     
