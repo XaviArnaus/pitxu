@@ -44,16 +44,22 @@ class Vosk:
 
         language = self._parameters.get("language")
     
+        if self._config.get("speech-to-text.mock", True):
+            self._logger.info("Mocking Speech-to-Text by Config. Model not loaded.")
+        else:
+            self._model = Model(lang=language)
+
+            self.samplerate = self._get_samplerate()
+            self.device = self._config.get("speech-to-text.input_device", None)
+        
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+
+        self._logger.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
         self._queue = queue.Queue()
-        self._model = Model(lang=language)
-
-        self.samplerate = self._get_samplerate()
-        self.device = self._config.get("speech-to-text.input_device", None)
-    
-        self._recognizer = KaldiRecognizer(self._model, self.samplerate)
-
-        self._logger.info("Loading flags from Shared Memory")
+        self._logger.info("Vosk: Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
 
         self._logger.info("Done Initializing Vosk STT")
     
@@ -94,6 +100,9 @@ class Vosk:
     
     def is_mic_paused(self):
 
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
+            return False
         if (not isinstance(self._shared_memory[0], bool)):
             self._logger.error("Shared Memory flag 0 should be 'pause_mic' but is not a boolean" + self._shared_memory[0])
             return False

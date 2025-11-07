@@ -136,6 +136,9 @@ class Macros:
         display.display()
         
     def ready_splash(self, display: EinkDisplay):
+        '''
+        Not used
+        '''
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
 
@@ -147,5 +150,21 @@ class Macros:
                     anchor = "mm",
                     align = "center")
         
+        # Now display the canvas
+        display.display()
+    
+    def soft_clear(self, display: EinkDisplay):
+
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # Create a white rectancgle with the sizes of the screen
+        rect_1 = Point(0, 0)
+        rect_2 = Point(self._display_size.x, self._display_size.y)
+        canvas.rectangle(
+            Rectangle(rect_1, rect_2).to_image_rectangle(),
+            outline=self.COLOR_WHITE,
+            fill=self.COLOR_WHITE)
+
         # Now display the canvas
         display.display()

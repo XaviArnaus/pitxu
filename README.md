@@ -63,12 +63,22 @@ For Debian based linux distros:
 sudo apt install portaudio19-dev python3-pyaudio
 ```
 
+### Dependencies related to `lgpio`
+
+This is needed for the internal GPIO support
+
+For Debian based linux distros:
+```
+sudo apt install swig liblgpio-dev
+```
+
 ### ❗️ All Linux/Debian dependencies in one line
-Just make sure that I did not forget to add here anything from above. Just put the all together.
+Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
 ```
+
 
 ## Mac OS
 
@@ -176,10 +186,30 @@ make run
 # Current issues
 
 ## In RPi 02W, is mega slow.
+No more to say. Not usable. Will bring data.
+
+## RPi5 8GB
+Works very decent, no very significant difference with MacOS
+
+### Power
+- Be sure to feed the RPi. Old USB chargers do not work. When charged the Piper model used to die by hunger.
+
+### Sound
+- From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
+- I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
+- Volume should be the next thing to polish.
+- Some cricks and noise mostly at the beginning and at the end of the play
+
+### Display
+- Must activate the SPI interface from `sudo raspi-config`. 
+- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... The cable was malfunctioning. With all the tinkering, I2C was also activated but it was not meaningful (the Waveshare docs have mistakes that bring confusion)
+- Complains about the GPIO being in use during the display. I smell it's due to its process not being closed and the next display complains. Maybe moving the Display to an always running process or ensure that the process is closed when I finish displaying and maybe a system of semafores.
+
 
 # Resources
 
 ## eInk Display
+https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT%2B
 
 ### Original example code in Python
 It also explains dependencies from Debian. Useful to deal with PIL. Remember to port to Poetry.
@@ -197,6 +227,13 @@ https://alphacephei.com/vosk/models
 
 ## Google Gemini
 https://ai.google.dev/gemini-api/docs/migrate
+https://ai.google.dev/gemini-api/docs/rate-limits
+
+### Commands 
+https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-function-for-function-calling
+
+### Chat history
+https://stackoverflow.com/questions/78534769/how-to-include-chat-history-when-using-google-geminis-api
 
 # 😄 Fun fact
 

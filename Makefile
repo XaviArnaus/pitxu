@@ -57,6 +57,10 @@ run:
 sounddevices:
 	@$(POETRY) run sounddevices
 
+.PHONY: clear
+clear:
+	@$(POETRY) run clear
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

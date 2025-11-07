@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Process, Queue, Manager, shared_memory
+from multiprocessing import set_start_method, Process, JoinableQueue, Manager, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
@@ -6,14 +6,15 @@ import logging
 
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
-from pitxu.lib.eink import EinkDisplay, Macros
+from pitxu.lib.eink import DisplayMultiprocess
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
 
 
 import sounddevice
 import time
+from queue import Empty
 
 SHARED_MEMORY_NAME = "pitxu_shared_memory"
 
@@ -22,14 +23,14 @@ class Main:
     _config: Config = None
     _logger: logging = None
 
-    _display: EinkDisplay = None
-    _macros: Macros = None
+    _display: DisplayMultiprocess = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: PiperMultiprocess = None
 
     _manager = None
-    _queue: Queue = None
+    _queue_display: JoinableQueue = None
+    _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
     _stopwatch: Stopwatch = None
@@ -45,6 +46,9 @@ class Main:
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
+
+    # Shared memory flag positions
+    SHARED_EINK_BUSY = 1
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -69,10 +73,25 @@ class Main:
         # Initialisating Shared Memory to handle execution flags between processes
         self._parameters.set("shared_memory_name", SHARED_MEMORY_NAME)
         self._shared_memory = shared_memory.ShareableList([
-            False  # pause_mic
+            False,  # pause_mic
+            False,  # e-ink is busy
         ], name=SHARED_MEMORY_NAME)
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot write 'pause_mic' flag")
 
         self._stopwatch = Stopwatch()
+    
+    def _initialize_multiprocess(self):
+        # Some of the models will be hold in separate processes
+        # Communication with them is done via a Queue
+        self._manager = Manager()
+        self._queue_display = self._manager.JoinableQueue()
+        self._queue_speech = self._manager.JoinableQueue()
+
+        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
+        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
+        # available in Mac.
+        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility. Works in RPi5
 
     def load_language(self, new_language: str):
         # Ensure that the language is supported
@@ -83,22 +102,12 @@ class Main:
         self._parameters.set("language", new_language)
 
         # Reload the models now that we have a new language defined
-        self.load_models()
+        self._load_models()
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self.load_language_statics()
+        self._load_language_statics()
 
-    def load_models(self):
-
-        # Some of the models will be hold in separate processes
-        # Communication with them is done via a Queue
-        self._manager = Manager()
-        self._queue = self._manager.Queue()
-
-        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
-        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
-        # available in Mac.
-        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
+    def _load_models(self):
         
         # Initialise Speech-to-Text
         self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
@@ -107,16 +116,15 @@ class Main:
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
         #   so it only communicate with it via the queue.
         self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
-        # self._speech = Piper(self._config, params=self._parameters)
-        self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue)
+        self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue_speech)
         self._speech.start()
-        self._queue.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+        self._init_subprocess(who=QueueItemType.SPEECH)
 
         # Initialise Chatbot
         self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
         self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
     
-    def load_language_statics(self):
+    def _load_language_statics(self):
 
         # Load the greeting sentence
         self._logger.debug("Load Greeting with language [" + self._parameters.get("language") + "]")
@@ -135,24 +143,39 @@ class Main:
         self._logger.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
     
+    def _initialize_display(self):
+        """
+        Initialisation of the e-Ink display and macros
+        """
+
+        self._logger.debug("Initialising eInk Display and Macros")
+        self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
+        self._display.start()
+        self._init_subprocess(who=QueueItemType.DISPLAY)
+    
     def run(self):
 
         sw_init = self._stopwatch.start(name="init")
 
+        # Initialise Multiprocess components
+        self._initialize_multiprocess()
+
         # Initialise eInk Display and the helper macros
         self._logger.debug("Initialising the e-Ink")
-        self._display = EinkDisplay(config=self._config, params=self._parameters)
-        self._macros = Macros(self._config, params=self._parameters)
+        # self._display = EinkDisplay(config=self._config, params=self._parameters)
+        # self._macros = Macros(self._config, params=self._parameters)
+        self._initialize_display()
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        self._macros.startup_splash(self._display)
+        # self._macros.startup_splash(self._display)
+        self._startup_splash()
         time.sleep(2)
 
         # Initialise all classes that require a model. They go per language, that's why it's abstracted
-        self.load_models()
+        self._load_models()
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self.load_language_statics()
+        self._load_language_statics()
 
         self._logger.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -170,8 +193,7 @@ class Main:
                 self._logger.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self.communicate(self._greeting_sentence,
-                                 [self.COMM_TTS, self.COMM_DISPLAY],
-                                 input_stream)
+                                 [self.COMM_TTS, self.COMM_DISPLAY])
                 self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
@@ -198,10 +220,11 @@ class Main:
                         
                         # Clean the answer first, just in case
                         answer = Text.remove_emojis(answer)
+                        answer = Text.remove_markdown(answer)
 
                         # Answer
                         sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
+                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
                         self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                         answer_count += 1
                     except KeyboardInterrupt:
@@ -213,12 +236,8 @@ class Main:
         except KeyboardInterrupt:
             self._logger.info("Pressed Control + C from main")
             self.close_nicely()
-        
-        # Here comes anything that we want to do before leaving
-        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
     
-    def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
+    def communicate(self, text: str, channels: list):
         """
         Communicates to the user using the channels defined.
 
@@ -238,13 +257,12 @@ class Main:
             # Say the answer
             self._logger.debug("Say Communication")
             # We already have the TTS in a Process, listening for elements in the queue
-            self._queue.put((QueueItemType.MESSAGE, text))
+            self._say(text)
 
         if self.COMM_DISPLAY in channels:
             # Show the answer
             self._logger.debug("Show Communication")
-            p_display = Process(target=self._macros.draw_text_bubble, args=(self._display, text, self._display.FONT_MEDIUM))
-            p_display.start()
+            self._show(text)
 
 
         # Wait for the processes to end
@@ -252,13 +270,7 @@ class Main:
             # We don't wait, just let it talk. We control the mic via shared_memeory flags
             pass
         if self.COMM_DISPLAY in channels:
-            p_display.join()
-
-        
-
-    def _say(speech_instance: PiperMultiprocess, text: str):
-        speech_instance.say(text)
-        return speech_instance
+            pass
     
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -266,19 +278,136 @@ class Main:
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
-        # Ensure that everything is waiting for a command
-        time.sleep(2)
+
         # Clean the display
         self._logger.debug("Clearing the display.")
-        self._display.clear()
-        # We don't need to ask the process to self-terminate. It will when finishes the job.
-        # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
-        self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
-        if self._speech.is_alive():
-            self._logger.debug("Terminating TTS Process")
-            self._speech.terminate()
-            # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
-            # self._speech.kill()
+        self._clear_display()
+        # Now wait until the display finishes being busy
+        self._logger.debug("Waiting for eInk to do the last clear")
+        while self._shared_memory[self.SHARED_EINK_BUSY]:
+            time.sleep(0.5)
+        self._logger.debug("eInk should be clear now")
+
+        # Finish all related multiprocess stuff
+        self.finish_leftover_processes()
+
+        # ------ Final logs ------
 
         self._logger.debug("We should be now nicely closed")
         self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
+
+        # Here comes anything that we want to do before leaving
+        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+
+    def finish_leftover_processes(self):
+        # We can't join() child processes unless all queues get totally consumed.
+
+        # 1. Send a "finish" to the childs. Needs the queue.
+        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the childs
+        #    from the queues. Maybe the main thread empties it before being read. 
+        self._logger.debug("[Main Finish] Send 'finish' to childs")
+        self._finish_subprocess()
+        # ...so they can close dependencies.
+
+        # 2. Clean and close the queues, apparently better from the one that put().
+        self._logger.debug("[Main Finish] Empty and close queues")
+        self.clearAndDiscardQueue(self._queue_display)
+        self.clearAndDiscardQueue(self._queue_speech)
+        # At this point the queues should be closed.
+
+        # 3. Joining the queues to the main thread.
+        self._logger.debug("[Main Finish] Joining queues")
+        self._queue_display.join()
+        self._queue_speech.join()
+
+        # We don't need to ask the process to self-terminate. It will when it finishes the job.
+        # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
+        self._logger.debug("[Main Finish] Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
+        if self._speech.is_alive():
+            self._logger.debug("[Main Finish] Terminating TTS Process")
+            self._speech.terminate()
+            # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
+            # self._speech.kill()
+        
+        self._logger.debug("[Main Finish] Is the Display subprocess still alive? " + ("Yes" if self._display.is_alive() else "No"))
+        if self._display.is_alive():
+            self._logger.debug("[Main Finish] Terminating Display Process")
+            self._display.terminate()
+        
+        # Close the Shared Memory
+        self._logger.debug("[Main Finish] Closing Shared Memory")
+        self._shared_memory.shm.close()
+        self._shared_memory.shm.unlink()
+    
+
+    # ------- Communication with Queues ---------
+
+    def _init_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
+
+        if who == QueueItemType.ACTION:
+            self._queue_speech.put((who, QueueItemAction.INITIALIZE))
+            self._queue_display.put((who, QueueItemAction.INITIALIZE))
+        elif who == QueueItemType.DISPLAY:
+            self._queue_display.put((who, QueueItemAction.INITIALIZE))
+        elif who == QueueItemType.SPEECH:
+            self._queue_speech.put((who, QueueItemAction.INITIALIZE))
+        else:
+            self._logger.error("I can't understand who should I initialise: " + who)
+
+    
+    def _finish_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
+
+        if who == QueueItemType.ACTION:
+            self._queue_speech.put((who, QueueItemAction.FINISH))
+            self._queue_display.put((who, QueueItemAction.FINISH))
+        elif who == QueueItemType.DISPLAY:
+            self._queue_display.put((who, QueueItemAction.FINISH))
+        elif who == QueueItemType.SPEECH:
+            self._queue_speech.put((who, QueueItemAction.FINISH))
+        else:
+            self._logger.error("I can't understand who should I finish: " + who)
+    
+    def _say(self, message: str):
+        self._queue_speech.put((QueueItemType.SAY, message))
+    
+    def _show(self, message: str):
+        self._queue_display.put((QueueItemType.SHOW, message))
+    
+    def _startup_splash(self):
+        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
+    
+    def _clear_display(self):
+        # First a soft clear, so the screen is white
+        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
+        # Full clear, to ensure a reset.
+        # Initially was only this one, but after the partials the Clear do not really
+        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+
+    def clearAndDiscardQueue(self, queue: JoinableQueue):
+        '''
+        Queue cleanup, preferably in the process that is adding to the queue
+        https://stackoverflow.com/a/69781217/1973860
+        '''
+
+        try:
+            while True:
+                queue.get_nowait()
+        except Empty:
+            pass    
+        except ValueError:  # in case of closed
+            pass
+        # queue.close()
+        # theoretically a new item could be placed by the
+        # other process by the time the interpreter is on this line,
+        # therefore the part above should be run in the process that 
+        # fills (put) the queue when it is in its failure state
+        # (when the main process fails it should communicate to
+        # raise an exception in the child process to run the cleanup
+        # so main process' join will work)
+        try: # could be one of the processes
+            while True:
+                queue.task_done()
+        except ValueError:  # too many times called, do not care
+        #  since all remaining will not be processed due to failure state
+            pass

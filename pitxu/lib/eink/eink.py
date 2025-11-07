@@ -58,7 +58,7 @@ class EinkDisplay:
         image = self._get_image(True)
         return ImageDraw.Draw(image)
     
-    def display(self):
+    def display(self, partial: bool = True):
         if (not self._is_gpio_allowed()):
             file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self._working_image.save(file_path)
@@ -70,15 +70,20 @@ class EinkDisplay:
             
             # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
             # self._epd.display(self._epd.getbuffer(self._working_image))
-            self._epd.display_fast(self._epd.getbuffer(self._working_image))
+            # self._epd.display_fast(self._epd.getbuffer(self._working_image))
+            if partial:
+                self._epd.displayPartial(self._epd.getbuffer(self._working_image))
+            else:
+                self._epd.display_fast(self._epd.getbuffer(self._working_image))
     
     def clear(self):
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
+            self._logger.debug("eInk cleaned")
         else:
-            pass
+            self._logger.warning("Did not clear the display. GPIO interaction not allowed.")
         # Needed to clean up the canvas.
-        self._working_image = None
+        self._reset_image()
     
     def test(self):
         logging.info("Drawing on the image...")
@@ -171,8 +176,9 @@ class EinkDisplay:
         # Initialise the display itself
         self._logger.debug("Initialising eInk display")
         self._epd.init()
-        self._logger.debug("Cleaning for the first time")
-        self._epd.Clear(0xFF)
+        if self._config.get("display.initial_clear"):
+            self._logger.debug("Cleaning for the first time")
+            self._epd.Clear(0xFF)
 
         # Setup base data
         self._screen_size = Point(self._epd.width, self._epd.height)
@@ -210,4 +216,7 @@ class EinkDisplay:
             small_size = self._config.get("display.fonts.small")
         self.FONT_SMALL = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), small_size)
     
+    def close(self):
+        if self._epd is not None:
+            self._epd.sleep()
     
