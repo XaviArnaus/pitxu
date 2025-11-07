@@ -133,7 +133,7 @@ class Macros:
                     align = "center")
         
         # Now display the canvas
-        display.display(partial=False)
+        display.display()
         
     def ready_splash(self, display: EinkDisplay):
         '''
