@@ -7,6 +7,7 @@ import logging
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import DisplayMultiprocess
+from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
@@ -24,12 +25,14 @@ class Main:
     _logger: logging = None
 
     _display: DisplayMultiprocess = None
+    _matrix: Matrix = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: PiperMultiprocess = None
 
     _manager = None
     _queue_display: JoinableQueue = None
+    _queue_matrix: JoinableQueue = None
     _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
@@ -40,6 +43,7 @@ class Main:
     _exit_words: list = []
 
     COMM_DISPLAY = "display"
+    COMM_MATRIX = "matrix"
     COMM_TTS = "tts"
 
     ENGLISH: str = "en-us"
@@ -87,6 +91,7 @@ class Main:
         self._manager = Manager()
         self._queue_display = self._manager.JoinableQueue()
         self._queue_speech = self._manager.JoinableQueue()
+        self._queue_matrix = self._manager.JoinableQueue()
 
         # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
@@ -145,12 +150,17 @@ class Main:
     
     def _initialize_display(self):
         """
-        Initialisation of the e-Ink display and macros
+        Initialisation of the displays and macros
         """
 
         self._logger.debug("Initialising eInk Display and Macros")
         self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
         self._display.start()
+        self._init_subprocess(who=QueueItemType.DISPLAY)
+
+        self._logger.debug("Initialising Matrix LED Display and Macros")
+        self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_display)
+        self._matrix.start()
         self._init_subprocess(who=QueueItemType.DISPLAY)
     
     def run(self):
@@ -161,9 +171,6 @@ class Main:
         self._initialize_multiprocess()
 
         # Initialise eInk Display and the helper macros
-        self._logger.debug("Initialising the e-Ink")
-        # self._display = EinkDisplay(config=self._config, params=self._parameters)
-        # self._macros = Macros(self._config, params=self._parameters)
         self._initialize_display()
 
         # Startup splash. It should be understood as a "Loading..." screen.

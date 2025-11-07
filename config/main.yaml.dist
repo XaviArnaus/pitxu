@@ -62,6 +62,11 @@ display:
     medium: 14
     small: 10
 
+# Configuration fo the Max7219 matrix led
+matrix_led:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+
 # Configurations for the Speech-to-Text
 speech-to-text:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.

@@ -56,7 +56,7 @@ class Macros:
         text = self.break_line_in_text_if_needed(canvas, text, textbox_boundaries, font)
 
         # Draw the text
-        bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
+        _bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
 
         # The pick of the speach bubble
         canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_WHITE, width=1)

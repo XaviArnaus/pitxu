@@ -18,7 +18,7 @@ class EinkDisplay:
     _config: Config = None
     _logger: logging = None
     _pic_dir: str = None
-    _working_image = None
+    _working_image: Image.Image = None
     _screen_size: Point = None
 
     FONT_SMALL: ImageFont = None
@@ -29,8 +29,8 @@ class EinkDisplay:
     DEFAULT_FONT_MEDIUM_SIZE = 14
     DEFAULT_FONT_SMALL_SIZE = 10
 
-    DEFAULT_STORAGE_PATH = "sotrage/"
-    DEFAULT_MOCKED_IMAGES_PATH = "mocked/"
+    DEFAULT_STORAGE_PATH = "storage/"
+    DEFAULT_MOCKED_IMAGES_PATH = "mocked/eink/"
 
     def __init__(self, config: Config, params: Dictionary):
 
