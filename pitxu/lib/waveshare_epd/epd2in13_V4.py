@@ -334,8 +334,8 @@ class EPD:
         
         self.send_command(0x24)
         self.send_data2([color] * int(self.height * linewidth))  
-        self.TurnOnDisplay()
-        # self.TurnOnDisplay_Fast()
+        # self.TurnOnDisplay()
+        self.TurnOnDisplay_Fast()
 
     '''
     function : Enter sleep mode

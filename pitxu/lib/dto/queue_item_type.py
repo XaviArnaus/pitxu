@@ -17,5 +17,6 @@ class QueueItemAction:
 class QueueItemDisplay:
 
     CLEAR: str = "clear"
+    SOFT_CLEAR: str = "soft_clear"
     STARTUP: str = "startup"
     READY: str = "ready"

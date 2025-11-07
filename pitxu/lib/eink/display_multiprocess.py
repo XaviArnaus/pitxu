@@ -130,6 +130,10 @@ class DisplayMultiprocess(Process):
                 if type == QueueItemType.DISPLAY and message == QueueItemDisplay.CLEAR:
                     self.clear()
                 
+                # Clears the screen using a partial white
+                if type == QueueItemType.DISPLAY and message == QueueItemDisplay.SOFT_CLEAR:
+                    self.clear()
+                
                 # Now we're not
                 self.unset_eink_busy()
                 
@@ -162,9 +166,13 @@ class DisplayMultiprocess(Process):
         # Draw the ready splash screen
         self._macros.startup_splash(display=self._display)
     
-    def clear(self, blocking: bool = False):
+    def clear(self):
         # Clear the display
         self._display.clear()
+    
+    def soft_clear(self):
+        # Clear the display using a white rectangle as a partial
+        self._macros.soft_clear()
 
     def is_eink_busy(self):
         # Uses the Shared memory flag to answer.

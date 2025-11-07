@@ -281,8 +281,8 @@ class Main:
 
         # Clean the display
         self._logger.debug("Clearing the display.")
+        self.
         self._clear_display()
-        # self._display.clear()
         # Now wait until the display finishes being busy
         self._logger.debug("Waiting for eInk to do the last clear")
         while self._shared_memory[self.SHARED_EINK_BUSY]:
@@ -379,6 +379,10 @@ class Main:
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
     
     def _clear_display(self):
+        # First a soft clear, so the screen is white
+        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
+        # Full clear, to ensure a reset.
+        # Initially was only this one, but after the partials the Clear do not really clear.
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
 
     def clearAndDiscardQueue(self, queue: JoinableQueue):
