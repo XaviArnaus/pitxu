@@ -48,7 +48,8 @@ display:
   # [Bool] Generates a PNG instead of outcoming through the eInk Display
   mock: True
   # [Bool] Do a full clear while initializing
-  initial_clear: False
+  # KEEP AS TRUE. Seems like the eInk needs a full Clear on init to be able to show afterwards.
+  initial_clear: True
   # Size of the display
   size:
     x: 250
