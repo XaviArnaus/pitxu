@@ -319,7 +319,6 @@ class EPD:
         self.send_command(0x26)
         self.send_data2(image)  
         self.TurnOnDisplay()
-        # self.TurnOnDisplay_Fast()
     
     '''
     function : Clear screen
@@ -334,8 +333,7 @@ class EPD:
         
         self.send_command(0x24)
         self.send_data2([color] * int(self.height * linewidth))  
-        # self.TurnOnDisplay()
-        self.TurnOnDisplay_Fast()
+        self.TurnOnDisplay()
 
     '''
     function : Enter sleep mode

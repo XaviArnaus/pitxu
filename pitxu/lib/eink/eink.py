@@ -79,7 +79,7 @@ class EinkDisplay:
     def clear(self):
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
-            self._logger.debug("eInk cleaned")
+            self._logger.debug("eInk cleared")
         else:
             self._logger.warning("Did not clear the display. GPIO interaction not allowed.")
         # Needed to clean up the canvas.
