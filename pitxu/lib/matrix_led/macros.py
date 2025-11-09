@@ -5,7 +5,7 @@ from ..dto import Rectangle, Line, Point, Matrix
 
 from PIL import Image,ImageDraw,ImageFont
 
-import logging
+import logging, time
 
 class Macros:
 
@@ -37,4 +37,6 @@ class Macros:
             ]).get_points()
             for point in matrix:
                 draw.point(point.to_image_point(), self.ON)
+        
+        time.sleep(2)
     
