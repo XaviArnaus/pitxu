@@ -11,7 +11,7 @@ from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
-from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY
+from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
 
 
 import sounddevice
@@ -277,6 +277,9 @@ class Main:
         # We want that the main thread waits until some of the actions finished in the subprocesses
         self.wait_for_queue_to_empty(self._queue_display)
         self.wait_for_queue_to_empty(self._queue_speech)
+        # Yeah, but still there is job to be done (speaking, for example)
+        self.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+        self.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -288,8 +291,9 @@ class Main:
         # Clean the displays
         self.clear_displays()
 
-        # Wait for all the queues to get empty
+        # Wait for all the queues and processes to get empty
         self.wait_for_all_queues_to_empty()
+        self.wait_for_all_busy_processes_to_idle()
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
@@ -335,6 +339,33 @@ class Main:
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
         self._logger.debug("The queue is empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_all_busy_processes_to_idle(self):
+        # Now wait until the displays finish being busy
+        self._logger.debug("Waiting for all processes to get idle")
+        self._logger.debug("Current queues size: \n" +
+                            "- eInk: " + str(self._shared_memory[SHARED_EINK_BUSY]) + "\n" +
+                            "- Matrix: " + str(self._shared_memory[SHARED_MATRIX_BUSY]) + "\n" +
+                            "- Speech: " + str(self._shared_memory[SHARED_SPEAKER_BUSY]))
+        # while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._shared_memory[SHARED_EINK_BUSY]\
+            or self._shared_memory[SHARED_MATRIX_BUSY]\
+            or self._shared_memory[SHARED_SPEAKER_BUSY] > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+
+        self._logger.debug("All processes are idle now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_busy_process_to_idle(self, memory_position: int):
+        self._logger.debug("Waiting for a process to idle. It's now: " + str(self._shared_memory[memory_position]) + " elements.")
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._shared_memory[memory_position]:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+        self._logger.debug("The process is idle now. I've sleept " + str(total_sleeping) + "s.")
 
 
 
