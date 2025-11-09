@@ -202,8 +202,7 @@ class Main:
                 # Welcome greeting
                 self._logger.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self.communicate(self._greeting_sentence,
-                                 [self.COMM_TTS, self.COMM_DISPLAY])
+                self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
                 self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
@@ -254,10 +253,6 @@ class Main:
         It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
         It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
         speeding up the overall run.
-        
-        Every Process needs to be managed a bit different:
-        - TTS is an always running Process that listens to a Queue for new messages to say.
-        - Display needs to be created per message to show, as we don't have a persistent process
         """
 
         # In case we want TTS, we need to pause the mic
@@ -343,10 +338,10 @@ class Main:
     def wait_for_all_busy_processes_to_idle(self):
         # Now wait until the displays finish being busy
         self._logger.debug("Waiting for all processes to get idle")
-        self._logger.debug("Current queues size: \n" +
-                            "- eInk: " + str(self._shared_memory[SHARED_EINK_BUSY]) + "\n" +
-                            "- Matrix: " + str(self._shared_memory[SHARED_MATRIX_BUSY]) + "\n" +
-                            "- Speech: " + str(self._shared_memory[SHARED_SPEAKER_BUSY]))
+        self._logger.debug("Current busy flags: \n" +
+                            "- eInk: " + ("BUSY" if self._shared_memory[SHARED_EINK_BUSY] else "IDLE") + "\n" +
+                            "- Matrix: " + ("BUSY" if self._shared_memory[SHARED_MATRIX_BUSY] else "IDLE") + "\n" +
+                            "- Speech: " + ("BUSY" if self._shared_memory[SHARED_SPEAKER_BUSY] else "IDLE"))
         # while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
         sleep_seconds = 0.5
         total_sleeping = 0
@@ -359,7 +354,7 @@ class Main:
         self._logger.debug("All processes are idle now. I've sleept " + str(total_sleeping) + "s.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int):
-        self._logger.debug("Waiting for a process to idle. It's now: " + str(self._shared_memory[memory_position]) + " elements.")
+        self._logger.debug("Waiting for a process to idle. It's now: " + ("BUSY" if self._shared_memory[memory_position] else "IDLE") + ".")
         sleep_seconds = 0.5
         total_sleeping = 0
         while self._shared_memory[memory_position]:

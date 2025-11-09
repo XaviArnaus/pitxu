@@ -193,13 +193,19 @@ Works very decent, no very significant difference with MacOS
 ### Sound
 - From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
-- Volume should be the next thing to polish.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
-- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... The cable was malfunctioning. With all the tinkering, I2C was also activated but it was not meaningful (the Waveshare docs have mistakes that bring confusion)
-- Complains about the GPIO being in use during the display. I smell it's due to its process not being closed and the next display complains. Maybe moving the Display to an always running process or ensure that the process is closed when I finish displaying and maybe a system of semafores.
+- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
+    - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
+    - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
+
+### Led Matrix
+- Works good as a test in the main thread, I can't make it work properly in a subprocess:
+    - Initialisation presents random (always the same) led on.
+    - Flush to the device does not seem to work (it works when all is in the main thread, check test)
+    - Only got to get flasshing random leds and bars.
 
 
 # Resources
