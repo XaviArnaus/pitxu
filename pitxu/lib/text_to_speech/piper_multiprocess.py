@@ -9,7 +9,7 @@ import logging
 
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 from pitxu.lib.utils import ConfigLoader
-from definitions import ROOT_DIR
+from definitions import ROOT_DIR, SHARED_SPEAKER_BUSY
 
 # Trying here to make a Worker for Multiprocessing.
 class PiperMultiprocess(Process):
@@ -58,7 +58,7 @@ class PiperMultiprocess(Process):
         self._logger.info("Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
+            self._logger.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
 
         self._logger.debug("Done Initializing Piper TTS")
     
@@ -139,7 +139,7 @@ class PiperMultiprocess(Process):
         self.resume_mic()
     
     def pause_mic(self):
-        self._shared_memory[0] = True
+        self._shared_memory[SHARED_SPEAKER_BUSY] = True
 
     def resume_mic(self):
-        self._shared_memory[0] = False
+        self._shared_memory[SHARED_SPEAKER_BUSY] = False

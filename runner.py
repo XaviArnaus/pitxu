@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import importlib.metadata
 import sounddevice
 
-import glob
 import logging
 
 from pyxavi.terminal_color import TerminalColor
@@ -108,3 +107,6 @@ def _initialize():
     })
 
     return config, logger, parameters
+
+if __name__ == '__main__':
+    run()

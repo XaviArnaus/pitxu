@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Process, JoinableQueue, Manager, shared_memory
+from multiprocessing import set_start_method, JoinableQueue, Manager, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
@@ -11,13 +11,12 @@ from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
+from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY
 
 
 import sounddevice
 import time
 from queue import Empty
-
-SHARED_MEMORY_NAME = "pitxu_shared_memory"
 
 class Main:
 
@@ -52,7 +51,9 @@ class Main:
     SPANISH: str = "es"
 
     # Shared memory flag positions
+    SHARED_SPEAKER_BUSY = 0
     SHARED_EINK_BUSY = 1
+    SHARED_MATRIX_BUSY = 2
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -77,11 +78,12 @@ class Main:
         # Initialisating Shared Memory to handle execution flags between processes
         self._parameters.set("shared_memory_name", SHARED_MEMORY_NAME)
         self._shared_memory = shared_memory.ShareableList([
-            False,  # pause_mic
+            False,  # speaker is busy (pause mic)
             False,  # e-ink is busy
+            False,  # matrix is busy
         ], name=SHARED_MEMORY_NAME)
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot write 'pause_mic' flag")
+            self._logger.error("Shared Memory is None, cannot write flags")
 
         self._stopwatch = Stopwatch()
     
@@ -148,7 +150,7 @@ class Main:
         self._logger.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
     
-    def _initialize_display(self):
+    def _initialize_displays(self):
         """
         Initialisation of the displays and macros
         """
@@ -159,9 +161,9 @@ class Main:
         self._init_subprocess(who=QueueItemType.DISPLAY)
 
         self._logger.debug("Initialising Matrix LED Display and Macros")
-        self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_display)
+        self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_matrix)
         self._matrix.start()
-        self._init_subprocess(who=QueueItemType.DISPLAY)
+        self._init_subprocess(who=QueueItemType.MATRIX)
     
     def run(self):
 
@@ -171,10 +173,9 @@ class Main:
         self._initialize_multiprocess()
 
         # Initialise eInk Display and the helper macros
-        self._initialize_display()
+        self._initialize_displays()
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        # self._macros.startup_splash(self._display)
         self._startup_splash()
         time.sleep(2)
 
@@ -286,14 +287,8 @@ class Main:
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
 
-        # Clean the display
-        self._logger.debug("Clearing the display.")
-        self._clear_display()
-        # Now wait until the display finishes being busy
-        self._logger.debug("Waiting for eInk to do the last clear")
-        while self._shared_memory[self.SHARED_EINK_BUSY]:
-            time.sleep(0.5)
-        self._logger.debug("eInk should be clear now")
+        # Clean the displays
+        self.clear_displays()
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
@@ -306,6 +301,17 @@ class Main:
         # Here comes anything that we want to do before leaving
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+    
+    def clear_displays(self):
+        self._logger.debug("Clearing the eInk.")
+        self._clear_display()
+        self._logger.debug("Clearing the LED Matrix.")
+        self._clear_matrix()
+        # Now wait until the displays finish being busy
+        self._logger.debug("Waiting for display devices to do the last clear")
+        while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
+            time.sleep(0.5)
+        self._logger.debug("Display devices should be clear now")
 
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
@@ -320,12 +326,14 @@ class Main:
         # 2. Clean and close the queues, apparently better from the one that put().
         self._logger.debug("[Main Finish] Empty and close queues")
         self.clearAndDiscardQueue(self._queue_display)
+        self.clearAndDiscardQueue(self._queue_matrix)
         self.clearAndDiscardQueue(self._queue_speech)
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
         self._logger.debug("[Main Finish] Joining queues")
         self._queue_display.join()
+        self._queue_matrix.join()
         self._queue_speech.join()
 
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
@@ -342,6 +350,11 @@ class Main:
             self._logger.debug("[Main Finish] Terminating Display Process")
             self._display.terminate()
         
+        self._logger.debug("[Main Finish] Is the Matrix subprocess still alive? " + ("Yes" if self._matrix.is_alive() else "No"))
+        if self._matrix.is_alive():
+            self._logger.debug("[Main Finish] Terminating Matrix Process")
+            self._matrix.terminate()
+        
         # Close the Shared Memory
         self._logger.debug("[Main Finish] Closing Shared Memory")
         self._shared_memory.shm.close()
@@ -355,10 +368,13 @@ class Main:
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.INITIALIZE))
             self._queue_display.put((who, QueueItemAction.INITIALIZE))
+            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.DISPLAY:
             self._queue_display.put((who, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.SPEECH:
             self._queue_speech.put((who, QueueItemAction.INITIALIZE))
+        elif who == QueueItemType.MATRIX:
+            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
         else:
             self._logger.error("I can't understand who should I initialise: " + who)
 
@@ -368,10 +384,13 @@ class Main:
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.FINISH))
             self._queue_display.put((who, QueueItemAction.FINISH))
+            self._queue_matrix.put((who, QueueItemAction.FINISH))
         elif who == QueueItemType.DISPLAY:
             self._queue_display.put((who, QueueItemAction.FINISH))
         elif who == QueueItemType.SPEECH:
             self._queue_speech.put((who, QueueItemAction.FINISH))
+        elif who == QueueItemType.MATRIX:
+            self._queue_matrix.put((who, QueueItemAction.FINISH))
         else:
             self._logger.error("I can't understand who should I finish: " + who)
     
@@ -380,16 +399,19 @@ class Main:
     
     def _show(self, message: str):
         self._queue_display.put((QueueItemType.SHOW, message))
+        self._queue_matrix.put((QueueItemType.SHOW, message))
     
     def _startup_splash(self):
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
     
     def _clear_display(self):
         # First a soft clear, so the screen is white
-        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
+        # self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
         # Full clear, to ensure a reset.
-        # Initially was only this one, but after the partials the Clear do not really
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+    
+    def _clear_matrix(self):
+        self._queue_matrix.put((QueueItemType.MATRIX, QueueItemDisplay.CLEAR))
 
     def clearAndDiscardQueue(self, queue: JoinableQueue):
         '''

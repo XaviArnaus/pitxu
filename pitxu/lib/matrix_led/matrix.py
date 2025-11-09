@@ -7,7 +7,7 @@ from pitxu.lib.matrix_led import Max7219, Macros
 from pitxu.lib.dto.point import Point
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
 from pitxu.lib.utils import ConfigLoader
-from definitions import ROOT_DIR
+from definitions import SHARED_MATRIX_BUSY
 
 class Matrix(Process):
     '''
@@ -24,9 +24,6 @@ class Matrix(Process):
 
     _queue: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
-
-    # Shared memory flag positions
-    SHARED_EINK_BUSY = 1
 
     def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
 
@@ -50,7 +47,7 @@ class Matrix(Process):
         self._logger.info("Initializing Matrix Worker")
         self._matrix = Max7219(config=self._config, params=self._parameters)
         self._macros = Macros(config=self._config, params=self._parameters)
-        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._display_size = Point(self._config.get("matrix_led.size.x"), self._config.get("matrix_led.size.y"))
         self._initialize_shared_memory()
 
     def _initialize_shared_memory(self):
@@ -96,6 +93,7 @@ class Matrix(Process):
             self._config = ConfigLoader.load_config_files()
             self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
             self._initialize_shared_memory()
+            # self._macros = Macros(config=self._config, params=self._parameters)
 
             if self._shared_memory is None:
                 self._logger.error("Shared Memory is None, cannot read 'e-ink is busy' flag")
@@ -106,31 +104,27 @@ class Matrix(Process):
                 self._logger.debug("Matrix Worker received a [" + type + "]: [" + message + "]")
 
                 # We're busy
-                # self.set_eink_busy()
+                self.set_matrix_busy()
 
                 # Shows the message received
                 if type == QueueItemType.SHOW and message != "":
                     self.show(message)
                 
                 # Clears the screen
-                if type == QueueItemType.DISPLAY and message == QueueItemDisplay.CLEAR:
+                if type == QueueItemType.MATRIX and message == QueueItemDisplay.CLEAR:
                     self.clear()
                 
-                # Clears the screen using a partial white
-                if type == QueueItemType.DISPLAY and message == QueueItemDisplay.SOFT_CLEAR:
-                    self.soft_clear()
-                
                 # Now we're not
-                # self.unset_eink_busy()
+                self.unset_matrix_busy()
                 
                 # Initializes the model from within the Process.
-                if (type == QueueItemType.ACTION or type == QueueItemType.DISPLAY) and message == QueueItemAction.INITIALIZE:
+                if (type == QueueItemType.ACTION or type == QueueItemType.MATRIX) and message == QueueItemAction.INITIALIZE:
                     self.initialize()
 
                 # We don't need to finish the subprocess from main explicitly, it will end when the job
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
-                if (type == QueueItemType.ACTION or type == QueueItemType.DISPLAY) and message == QueueItemAction.FINISH:
+                if (type == QueueItemType.ACTION or type == QueueItemType.MATRIX) and message == QueueItemAction.FINISH:
                     self.finish()
                 
                 # Finally, we mark this task as done
@@ -146,21 +140,15 @@ class Matrix(Process):
         self._macros.draw_something()
     
     def clear(self):
-        # Clear the display
-        # self._display.clear()
-        pass
-    
-    def soft_clear(self):
-        # Clear the display using a white rectangle as a partial
-        # self._macros.soft_clear()
+        self._matrix.clear()
         pass
 
-    # def is_eink_busy(self):
-    #     # Uses the Shared memory flag to answer.
-    #     return self._shared_memory[self.SHARED_EINK_BUSY]
+    def is_matrix_busy(self):
+        # Uses the Shared memory flag to answer.
+        return self._shared_memory[SHARED_MATRIX_BUSY]
     
-    # def set_eink_busy(self):
-    #     self._shared_memory[self.SHARED_EINK_BUSY] = True
+    def set_matrix_busy(self):
+        self._shared_memory[SHARED_MATRIX_BUSY] = True
 
-    # def unset_eink_busy(self):
-    #     self._shared_memory[self.SHARED_EINK_BUSY] = False
+    def unset_matrix_busy(self):
+        self._shared_memory[SHARED_MATRIX_BUSY] = False

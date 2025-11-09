@@ -7,7 +7,7 @@ from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.dto.point import Point
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
 from pitxu.lib.utils import ConfigLoader
-from definitions import ROOT_DIR
+from definitions import ROOT_DIR, SHARED_EINK_BUSY
 
 class DisplayMultiprocess(Process):
     '''
@@ -30,9 +30,6 @@ class DisplayMultiprocess(Process):
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
-
-    # Shared memory flag positions
-    SHARED_EINK_BUSY = 1
 
     def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
 
@@ -176,10 +173,10 @@ class DisplayMultiprocess(Process):
 
     def is_eink_busy(self):
         # Uses the Shared memory flag to answer.
-        return self._shared_memory[self.SHARED_EINK_BUSY]
+        return self._shared_memory[SHARED_EINK_BUSY]
     
     def set_eink_busy(self):
-        self._shared_memory[self.SHARED_EINK_BUSY] = True
+        self._shared_memory[SHARED_EINK_BUSY] = True
 
     def unset_eink_busy(self):
-        self._shared_memory[self.SHARED_EINK_BUSY] = False
+        self._shared_memory[SHARED_EINK_BUSY] = False

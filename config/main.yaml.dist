@@ -71,13 +71,15 @@ matrix_led:
 speech-to-text:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: True
-  # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   input_device: 0
 
 # Configurations for the Text-to-Speech
 text-to-speech:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: False
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
+  output_device: 0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan

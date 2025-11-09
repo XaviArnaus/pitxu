@@ -6,6 +6,7 @@ import json
 from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
+from definitions import SHARED_SPEAKER_BUSY
 
 from multiprocessing import shared_memory
 from vosk import Model, KaldiRecognizer
@@ -59,7 +60,7 @@ class Vosk:
         self._logger.info("Vosk: Loading flags from Shared Memory")
         self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
+            self._logger.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
 
         self._logger.info("Done Initializing Vosk STT")
     
@@ -101,13 +102,13 @@ class Vosk:
     def is_mic_paused(self):
 
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read 'pause_mic' flag")
+            self._logger.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
             return False
-        if (not isinstance(self._shared_memory[0], bool)):
-            self._logger.error("Shared Memory flag 0 should be 'pause_mic' but is not a boolean" + self._shared_memory[0])
+        if (not isinstance(self._shared_memory[SHARED_SPEAKER_BUSY], bool)):
+            self._logger.error("Shared Memory flag 0 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + self._shared_memory[SHARED_SPEAKER_BUSY])
             return False
         
-        return self._shared_memory[0]
+        return self._shared_memory[SHARED_SPEAKER_BUSY]
         
 
 

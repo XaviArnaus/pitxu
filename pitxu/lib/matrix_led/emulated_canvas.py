@@ -22,7 +22,11 @@ class EmulatedCanvas(object):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
-    def __init__(self, config: Config, mode: str, size: tuple):
+    def __init__(self, config: Config, params: Dictionary, mode: str, size: tuple):
+        self._config = config
+        self._parameters = params
+        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+
         self.draw = None
         self.image = Image.new(mode, size)
 

@@ -26,11 +26,12 @@ class DeviceWrapper(max7219):
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
     def __init__(self, config: Config, params: Dictionary, **kwargs):
-        super(DeviceWrapper, self).__init__(kwargs=kwargs)
-
         self._config = config
         self._parameters = params
         self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+
+        if self.is_spi_allowed():
+            super(DeviceWrapper, self).__init__(kwargs=kwargs)
     
     @property
     def bounding_box(self):
@@ -79,6 +80,8 @@ class Max7219:
     EMULATION_MODE: str = None
     EMULATION_SIZE: tuple = None
 
+    WHITE: str = "white"
+
     def __init__(self, config: Config, params: Dictionary):
 
         # Possible runtime parameters
@@ -95,9 +98,12 @@ class Max7219:
         # Max7219
         if (not self._config.get("matrix_led.mock", True)):
             self._serial = spi(port=0, device=0, gpio=noop())
-            self._device = DeviceWrapper(self._serial)
+        self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self.EMULATION_MODE = "1"
-        self.EMULATION_SIZE = Point(8,8).to_image_point()
+        self.EMULATION_SIZE = Point(
+            self._config.get("matrix_led.size.x", 8),
+            self._config.get("matrix_led.size.y", 8)
+        ).to_image_point()
 
         font_path = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'lib', 'fonts', 'matrix')
         self.FONT = ImageFont.truetype(os.path.join(font_path, 'pixelmix.ttf'), 8)
@@ -111,8 +117,25 @@ class Max7219:
     def create_canvas(self) -> canvas:
         if (self._config.get("matrix_led.mock", True)):
             self._logger.debug("Creating Matrix Emulation Canvas")
-            return EmulatedCanvas(self._config, self.EMULATION_MODE, self.EMULATION_SIZE)
+            return EmulatedCanvas(self._config, self._parameters, self.EMULATION_MODE, self.EMULATION_SIZE)
         else:
             self._logger.debug("Creating Matrix Canvas")
             return canvas(self._device)
+    
+    def clear(self, draw: ImageDraw = None) -> None:
+        self._logger.debug("Clearing Matrix.")
+        if draw:
+            draw.rectangle(self.get_device().bounding_box, outline=self.WHITE, fill=self.WHITE)
+        else:
+            with self.create_canvas() as draw:
+                draw.rectangle(self.get_device().bounding_box, outline=self.WHITE, fill=self.WHITE)
+    
+    def draw(self, list_of_activated_leds: list[Point] = []) -> None:        
+        with self.create_canvas() as draw:
+            # First we clear the matrix
+            self.clear(draw=draw)
+            # Now we just activate all leds via the given Points
+            for point in list_of_activated_leds:
+                draw.point(point.to_image_point, fill=self.WHITE)
+
             
