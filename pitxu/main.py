@@ -311,7 +311,7 @@ class Main:
         self._logger.debug("Clearing the LED Matrix.")
         self._clear_matrix()
     
-    def wait_for_all_queues_to_finish(self):
+    def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy
         self._logger.debug("Waiting for all queues to get empty")
         self._logger.debug("Current queues size: \n" +
@@ -328,6 +328,17 @@ class Main:
             time.sleep(sleep_seconds)
 
         self._logger.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_queue_to_empty(self, queue: JoinableQueue):
+        self._logger.debug("Waiting for a queue to empty. Has now: " + str(queue.qsize()) + " elements.")
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while queue.qsize() > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+        self._logger.debug("The queue is empty now. I've sleept " + str(total_sleeping) + "s.")
+
+
 
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
@@ -419,6 +430,7 @@ class Main:
     
     def _startup_splash(self):
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
+        self.wait_for_queue_to_empty(self._queue_display)
     
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.
