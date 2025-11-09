@@ -421,8 +421,10 @@ class Main:
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
     
     def _clear_display(self):
+        # Now that we use partial refresh, the clear needs a previous white rectangle.
+        
         # First a soft clear, so the screen is white
-        # self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
+        self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
         # Full clear, to ensure a reset.
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
     
