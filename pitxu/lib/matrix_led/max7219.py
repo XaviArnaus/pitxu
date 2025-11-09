@@ -47,7 +47,7 @@ class DeviceWrapper(max7219):
     @bounding_box.setter
     def bounding_box(self, value: tuple):
         if (self.is_spi_allowed()):
-            super(DeviceWrapper, self).bounding_box = value
+            self.bounding_box = value
         else:
             self._local_bounding_box = value
 
