@@ -53,14 +53,14 @@ class Max7219:
         self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self.EMULATION_MODE = "1"
         self.EMULATION_SIZE = Point(
-            self._config.get("matrix_led.size.x", 8),
-            self._config.get("matrix_led.size.y", 8)
+            self._config.get("matrix_led.size.x", 7),
+            self._config.get("matrix_led.size.y", 7)
         ).to_image_point()
         self.BOUNDING_BOX = Rectangle(
             Point(0,0),
             Point(
-                self._config.get("matrix_led.size.x", 8),
-                self._config.get("matrix_led.size.y", 8)
+                self._config.get("matrix_led.size.x", 7),
+                self._config.get("matrix_led.size.y", 7)
             )
         ).to_image_rectangle()
 
