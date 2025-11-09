@@ -169,7 +169,7 @@ class DisplayMultiprocess(Process):
     
     def soft_clear(self):
         # Clear the display using a white rectangle as a partial
-        self._macros.soft_clear()
+        self._macros.soft_clear(display=self._display)
 
     def is_eink_busy(self):
         # Uses the Shared memory flag to answer.
