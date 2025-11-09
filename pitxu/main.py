@@ -155,17 +155,17 @@ class Main:
         Initialisation of the displays and macros
         """
 
-        self._logger.debug("Initialising eInk Display and Macros")
-        self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
-        self._display.start()
-        self._init_subprocess(who=QueueItemType.DISPLAY)
-
         self._logger.debug("Initialising Matrix LED Display and Macros")
         self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_matrix)
         self._matrix.start()
         self._init_subprocess(who=QueueItemType.MATRIX)
         # Needs an initial clear
         self._clear_matrix()
+
+        self._logger.debug("Initialising eInk Display and Macros")
+        self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
+        self._display.start()
+        self._init_subprocess(who=QueueItemType.DISPLAY)
     
     def run(self):
 
