@@ -4,7 +4,7 @@ import time
 import logging
 
 from pyxavi import Config, Logger, Dictionary
-from pitxu.lib.dto import Point
+from pitxu.lib.dto import Point, Rectangle
 from . import EmulatedCanvas
 
 from luma.core.interface.serial import spi, noop
@@ -37,19 +37,19 @@ class DeviceWrapper(max7219):
         else:
             self._local_bounding_box = (0, 0, 7, 7)
     
-    @property
-    def bounding_box(self):
-        if (self.is_spi_allowed()):
-            return super(DeviceWrapper, self).bounding_box
-        else:
-            return self._local_bounding_box
+    # @property
+    # def bounding_box(self):
+    #     if (self.is_spi_allowed()):
+    #         return super(DeviceWrapper, self).bounding_box
+    #     else:
+    #         return self._local_bounding_box
     
-    @bounding_box.setter
-    def bounding_box(self, value: tuple):
-        if (self.is_spi_allowed()):
-            self.bounding_box = value
-        else:
-            self._local_bounding_box = value
+    # @bounding_box.setter
+    # def bounding_box(self, value: tuple):
+    #     if (self.is_spi_allowed()):
+    #         super(DeviceWrapper, self).bounding_box = value
+    #     else:
+    #         self._local_bounding_box = value
 
     def display(self, image):
         if (self.is_spi_allowed()):
@@ -90,10 +90,13 @@ class Max7219:
     EMULATION_MODE: str = None
     EMULATION_SIZE: tuple = None
 
+    BOUNDING_BOX: tuple = None
+
     WHITE: str = "white"
     BLACK: str = "black"
 
     def __init__(self, config: Config, params: Dictionary):
+        # Never use the property `.bounding_box` from the emulated canvas
 
         # Possible runtime parameters
         self._parameters = params
@@ -115,6 +118,13 @@ class Max7219:
             self._config.get("matrix_led.size.x", 8),
             self._config.get("matrix_led.size.y", 8)
         ).to_image_point()
+        self.BOUNDING_BOX = Rectangle(
+            Point(0,0),
+            Point(
+                self._config.get("matrix_led.size.x", 8),
+                self._config.get("matrix_led.size.y", 8)
+            )
+        ).to_image_rectangle()
 
         font_path = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'lib', 'fonts', 'matrix')
         self.FONT = ImageFont.truetype(os.path.join(font_path, 'pixelmix.ttf'), 8)
@@ -136,10 +146,11 @@ class Max7219:
     def clear(self, draw: ImageDraw = None) -> None:
         self._logger.debug("Clearing Matrix.")
         if draw:
-            draw.rectangle(self.get_device().bounding_box, outline=self.WHITE, fill=self.WHITE)
+            draw.rectangle(self.BOUNDING_BOX, outline=self.WHITE, fill=self.WHITE)
         else:
             with self.create_canvas() as draw:
-                draw.rectangle(self.get_device().bounding_box, outline=self.WHITE, fill=self.WHITE)
+                self._logger.debug("The rectangle size is " + str(self.BOUNDING_BOX))
+                draw.rectangle(self.BOUNDING_BOX, outline=self.WHITE, fill=self.WHITE)
     
     def draw(self, list_of_activated_leds: list[Point] = []) -> None:        
         with self.create_canvas() as draw:

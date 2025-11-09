@@ -29,6 +29,9 @@ class Macros:
         # At the end of this context. No more worries.
         # TODO: Maybe we'd like to bring the eInk to this approach
         with self._max7219.create_canvas() as draw:
-            # draw.rectangle(self._max7219.get_device().bounding_box, outline="white", fill="black")
+            # draw.rectangle(Point(
+            #     self._config.get("matrix_led.size.x", 8),
+            #     self._config.get("matrix_led.size.y", 8)
+            # ).to_image_point(), outline="white", fill="black")
             draw.point(Point(0,0).to_image_point(), self.BLACK)
     
