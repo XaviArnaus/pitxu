@@ -30,8 +30,8 @@ class Max7219:
 
     BOUNDING_BOX: tuple = None
 
-    WHITE: str = "white"
-    BLACK: str = "black"
+    ON: str = "white"    # This is an LED ON
+    OFF: str = "black"    # This is an LED OFF
 
     def __init__(self, config: Config, params: Dictionary):
         # Never use the property `.bounding_box` from the emulated canvas
@@ -84,11 +84,11 @@ class Max7219:
     def clear(self, draw: ImageDraw = None) -> None:
         self._logger.debug("Clearing Matrix.")
         if draw:
-            draw.rectangle(self.BOUNDING_BOX, outline=self.WHITE, fill=self.WHITE)
+            draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
         else:
             with self.create_canvas() as draw:
                 self._logger.debug("The rectangle size is " + str(self.BOUNDING_BOX))
-                draw.rectangle(self.BOUNDING_BOX, outline=self.WHITE, fill=self.WHITE)
+                draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
     
     def draw(self, list_of_activated_leds: list[Point] = []) -> None:        
         with self.create_canvas() as draw:
@@ -97,30 +97,30 @@ class Max7219:
             # Now we just activate leds via the given Points
             self._logger.debug("Drawing arbitrary points: " + str(list_of_activated_leds))
             for point in list_of_activated_leds:
-                draw.point(point.to_image_point(), fill=self.BLACK)
+                draw.point(point.to_image_point(), fill=self.ON)
     
     def test(self):
         # Manually define the leds to light up
         self._logger.debug("Showing a test matrix")
-        # self.draw([
-        #     Point(1,1),
-        #     Point(3,1),
-        #     Point(5,1),
-        #     Point(7,1),
-        #     Point(1,3),
-        #     Point(3,3),
-        #     Point(5,3),
-        #     Point(7,3),
-        #     Point(1,5),
-        #     Point(3,5),
-        #     Point(5,5),
-        #     Point(7,5),
-        #     Point(1,7),
-        #     Point(3,7),
-        #     Point(5,7),
-        #     Point(7,7),
-        # ])
-        self.draw([Point(0,0), Point(0,7), Point(7,0), Point(7,7)])
+        self.draw([
+            Point(1,1),
+            Point(3,1),
+            Point(5,1),
+            Point(7,1),
+            Point(1,3),
+            Point(3,3),
+            Point(5,3),
+            Point(7,3),
+            Point(1,5),
+            Point(3,5),
+            Point(5,5),
+            Point(7,5),
+            Point(1,7),
+            Point(3,7),
+            Point(5,7),
+            Point(7,7),
+        ])
+        # self.draw([Point(0,0), Point(0,7), Point(7,0), Point(7,7)])
 
 
             
