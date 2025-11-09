@@ -291,7 +291,7 @@ class Main:
         self.clear_displays()
 
         # Wait for all the queues to get empty
-        self.wait_for_all_queues_to_finish()
+        self.wait_for_all_queues_to_empty()
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
