@@ -141,7 +141,6 @@ class Matrix(Process):
     
     def clear(self):
         self._matrix.clear()
-        pass
 
     def is_matrix_busy(self):
         # Uses the Shared memory flag to answer.
