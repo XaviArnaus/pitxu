@@ -81,6 +81,7 @@ class Max7219:
     EMULATION_SIZE: tuple = None
 
     WHITE: str = "white"
+    BLACK: str = "black"
 
     def __init__(self, config: Config, params: Dictionary):
 
@@ -136,6 +137,28 @@ class Max7219:
             self.clear(draw=draw)
             # Now we just activate all leds via the given Points
             for point in list_of_activated_leds:
-                draw.point(point.to_image_point, fill=self.WHITE)
+                draw.point(point.to_image_point(), fill=self.BLACK)
+    
+    def test(self):
+        # Manually define the leds to light up
+        self.draw([
+            Point(1,1),
+            Point(3,1),
+            Point(5,1),
+            Point(7,1),
+            Point(1,3),
+            Point(3,3),
+            Point(5,3),
+            Point(7,3),
+            Point(1,5),
+            Point(3,5),
+            Point(5,5),
+            Point(7,5),
+            Point(1,7),
+            Point(3,7),
+            Point(5,7),
+            Point(7,7),
+        ])
+
 
             
