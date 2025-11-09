@@ -22,6 +22,8 @@ class DeviceWrapper(max7219):
     _config: Config = None
     _logger: logging = None
 
+    _local_bounding_box: tuple = None
+
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
@@ -32,14 +34,22 @@ class DeviceWrapper(max7219):
 
         if self.is_spi_allowed():
             super(DeviceWrapper, self).__init__(kwargs=kwargs)
+        else:
+            self._local_bounding_box = (0, 0, 7, 7)
     
     @property
     def bounding_box(self):
         if (self.is_spi_allowed()):
             return super(DeviceWrapper, self).bounding_box
         else:
-            # return (0, 0, self.width - 1, self.height - 1)
-            return (0, 0, 7, 7)
+            return self._local_bounding_box
+    
+    @bounding_box.setter
+    def set_local_bounding_box(self, new_bounding_box: tuple):
+        if (self.is_spi_allowed()):
+            super(DeviceWrapper, self).bounding_box = new_bounding_box
+        else:
+            self._local_bounding_box = new_bounding_box
 
     def display(self, image):
         if (self.is_spi_allowed()):
