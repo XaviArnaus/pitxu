@@ -30,5 +30,5 @@ class Macros:
         # TODO: Maybe we'd like to bring the eInk to this approach
         with self._max7219.create_canvas() as draw:
             # draw.rectangle(self._max7219.get_device().bounding_box, outline="white", fill="black")
-            draw.point(Point(0,0), self.BLACK)
+            draw.point(Point(0,0).to_image_point(), self.BLACK)
     
