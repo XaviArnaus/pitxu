@@ -290,6 +290,9 @@ class Main:
         # Clean the displays
         self.clear_displays()
 
+        # Wait for all the queues to get empty
+        self.wait_for_all_queues_to_finish()
+
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
 
@@ -307,19 +310,32 @@ class Main:
         self._clear_display()
         self._logger.debug("Clearing the LED Matrix.")
         self._clear_matrix()
+    
+    def wait_for_all_queues_to_finish(self):
         # Now wait until the displays finish being busy
-        self._logger.debug("Waiting for display devices to do the last clear")
-        while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
-            time.sleep(0.5)
-        self._logger.debug("Display devices should be clear now")
+        self._logger.debug("Waiting for all queues to get empty")
+        self._logger.debug("Current queues size: \n" +
+                            "- eInk: " + str(self._queue_display.qsize()) + "\n" +
+                            "- Matrix: " + str(self._queue_matrix.qsize()) + "\n" +
+                            "- Speech: " + str(self._queue_speech.qsize()))
+        # while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._queue_display.qsize() > 0\
+            or self._queue_matrix.qsize() > 0\
+            or self._queue_speech.qsize() > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+
+        self._logger.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
 
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
 
-        # 1. Send a "finish" to the childs. Needs the queue.
-        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the childs
+        # 1. Send a "finish" to the children. Needs the queue.
+        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the children
         #    from the queues. Maybe the main thread empties it before being read. 
-        self._logger.debug("[Main Finish] Send 'finish' to childs")
+        self._logger.debug("[Main Finish] Send 'finish' to children")
         self._finish_subprocess()
         # ...so they can close dependencies.
 
