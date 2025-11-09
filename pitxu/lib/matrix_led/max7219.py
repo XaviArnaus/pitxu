@@ -27,13 +27,13 @@ class DeviceWrapper(max7219):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
-    def __init__(self, config: Config, params: Dictionary, **kwargs):
+    def __init__(self, config: Config, params: Dictionary, serial_interface = None):
         self._config = config
         self._parameters = params
         self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
 
         if self.is_spi_allowed():
-            super(DeviceWrapper, self).__init__(kwargs=kwargs)
+            super(DeviceWrapper, self).__init__(serial_interface=serial_interface)
         else:
             self._local_bounding_box = (0, 0, 7, 7)
     
