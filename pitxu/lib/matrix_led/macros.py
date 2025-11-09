@@ -28,6 +28,7 @@ class Macros:
         # The resources needed to draw and print into the led matrix will self close
         # At the end of this context. No more worries.
         # TODO: Maybe we'd like to bring the eInk to this approach
+        self._logger.debug("Starting the drawing")
         with self._max7219.create_canvas() as draw:
             matrix = Matrix(points=[
                 Point(1,1),
@@ -36,6 +37,7 @@ class Macros:
                 Point(6,6),
             ]).get_points()
             for point in matrix:
+                self._logger.debug("Drawing point: " + str(point))
                 draw.point(point.to_image_point(), self.ON)
         
         time.sleep(2)

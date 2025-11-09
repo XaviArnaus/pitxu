@@ -273,14 +273,10 @@ class Main:
             # Show the answer
             self._logger.debug("Show Communication")
             self._show(text)
-
-
-        # Wait for the processes to end
-        if self.COMM_TTS in channels:
-            # We don't wait, just let it talk. We control the mic via shared_memeory flags
-            pass
-        if self.COMM_DISPLAY in channels:
-            pass
+        
+        # We want that the main thread waits until some of the actions finished in the subprocesses
+        self.wait_for_queue_to_empty(self._queue_display)
+        self.wait_for_queue_to_empty(self._queue_speech)
     
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
