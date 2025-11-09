@@ -22,7 +22,8 @@ class Macros:
         self._parameters = params
         self._config = config
         self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
-        self._max7219 = Max7219(config=config, params=params)
+        # self._max7219 = Max7219(config=config, params=params)
+        self._max7219 = params.get("matrix_device")
     
     def draw_something(self):
         # The resources needed to draw and print into the led matrix will self close

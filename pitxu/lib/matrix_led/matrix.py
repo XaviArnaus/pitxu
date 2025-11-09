@@ -46,6 +46,7 @@ class Matrix(Process):
     def initialize(self):
         self._logger.info("Initializing Matrix Worker")
         self._matrix = Max7219(config=self._config, params=self._parameters)
+        self._parameters.set("matrix_device", self._matrix)
         self._macros = Macros(config=self._config, params=self._parameters)
         self._display_size = Point(self._config.get("matrix_led.size.x"), self._config.get("matrix_led.size.y"))
         self._initialize_shared_memory()
