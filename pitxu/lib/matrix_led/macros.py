@@ -1,7 +1,7 @@
 from pyxavi import Config, Logger, Dictionary
 
 from pitxu.lib.matrix_led import Max7219
-from ..dto import Rectangle, Line, Point
+from ..dto import Rectangle, Line, Point, Matrix
 
 from PIL import Image,ImageDraw,ImageFont
 
@@ -15,8 +15,8 @@ class Macros:
 
     _max7219: Max7219 = None
 
-    WHITE: str = "white"
-    BLACK: str = "black"
+    ON: str = "white"
+    OFF: str = "black"
 
     def __init__(self, config: Config, params: Dictionary):
         self._parameters = params
@@ -29,9 +29,12 @@ class Macros:
         # At the end of this context. No more worries.
         # TODO: Maybe we'd like to bring the eInk to this approach
         with self._max7219.create_canvas() as draw:
-            # draw.rectangle(Point(
-            #     self._config.get("matrix_led.size.x", 8),
-            #     self._config.get("matrix_led.size.y", 8)
-            # ).to_image_point(), outline="white", fill="black")
-            draw.point(Point(0,0).to_image_point(), self.BLACK)
+            matrix = Matrix(points=[
+                Point(1,1),
+                Point(6,1),
+                Point(1,6),
+                Point(6,6),
+            ]).get_points()
+            for point in matrix:
+                draw.point(point, self.ON)
     
