@@ -36,5 +36,5 @@ class Macros:
                 Point(6,6),
             ]).get_points()
             for point in matrix:
-                draw.point(point, self.ON)
+                draw.point(point.to_image_point(), self.ON)
     

@@ -164,6 +164,8 @@ class Main:
         self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_matrix)
         self._matrix.start()
         self._init_subprocess(who=QueueItemType.MATRIX)
+        # Needs an initial clear
+        self._clear_matrix()
     
     def run(self):
 
