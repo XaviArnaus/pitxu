@@ -156,7 +156,8 @@ class Max7219:
         with self.create_canvas() as draw:
             # First we clear the matrix
             self.clear(draw=draw)
-            # Now we just activate all leds via the given Points
+            # Now we just activate leds via the given Points
+            self._logger.debug("Drawing arbitrary points: " + str(list_of_activated_leds))
             for point in list_of_activated_leds:
                 draw.point(point.to_image_point(), fill=self.BLACK)
     
