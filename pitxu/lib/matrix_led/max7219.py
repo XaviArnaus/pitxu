@@ -1,6 +1,4 @@
-
 import os
-import time
 import logging
 
 from pyxavi import Config, Logger, Dictionary
@@ -122,7 +120,6 @@ class Max7219:
             Point(5,7),
             Point(7,7),
         ])
-        time.sleep(2)
 
 
             

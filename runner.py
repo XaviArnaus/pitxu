@@ -1,4 +1,4 @@
-import os
+import os, time
 from dotenv import load_dotenv
 import importlib.metadata
 import sounddevice
@@ -90,6 +90,8 @@ def test_matrix():
         # Delegate the run to Main
         logger.debug("Testing LED Matrix display")
         Max7219(config=config, params=parameters).test()
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
         logger.info("End of work.")
 
     except RuntimeError as e:
