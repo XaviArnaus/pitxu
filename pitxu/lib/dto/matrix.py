@@ -29,6 +29,9 @@ class Matrix:
         for point in self.points:
             points.append(point.to_image_point())
         return points
+
+    def get_points(self) -> list[Point]:
+        return self.points
     
     def is_valid(self, config: Config) -> bool:
 

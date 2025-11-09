@@ -108,7 +108,7 @@ class Max7219:
             Point(1,6),
             Point(6,6),
         ])
-        self.draw(matrix.to_list_of_image_points())
+        self.draw(matrix.get_points())
         # self.draw([Point(0,0), Point(0,7), Point(7,0), Point(7,7)])
 
 
