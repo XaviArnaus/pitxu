@@ -45,11 +45,11 @@ class DeviceWrapper(max7219):
             return self._local_bounding_box
     
     @bounding_box.setter
-    def set_local_bounding_box(self, new_bounding_box: tuple):
+    def bounding_box(self, value: tuple):
         if (self.is_spi_allowed()):
-            super(DeviceWrapper, self).bounding_box = new_bounding_box
+            super(DeviceWrapper, self).bounding_box = value
         else:
-            self._local_bounding_box = new_bounding_box
+            self._local_bounding_box = value
 
     def display(self, image):
         if (self.is_spi_allowed()):
