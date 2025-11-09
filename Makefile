@@ -61,6 +61,10 @@ sounddevices:
 clear:
 	@$(POETRY) run clear
 
+.PHONY: test_matrix
+test_matrix:
+	@$(POETRY) run test_matrix
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)
