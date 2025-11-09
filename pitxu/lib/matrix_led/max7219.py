@@ -102,25 +102,25 @@ class Max7219:
     def test(self):
         # Manually define the leds to light up
         self._logger.debug("Showing a test matrix")
-        self.draw([
-            Point(1,1),
-            Point(3,1),
-            Point(5,1),
-            Point(7,1),
-            Point(1,3),
-            Point(3,3),
-            Point(5,3),
-            Point(7,3),
-            Point(1,5),
-            Point(3,5),
-            Point(5,5),
-            Point(7,5),
-            Point(1,7),
-            Point(3,7),
-            Point(5,7),
-            Point(7,7),
-        ])
-        # self.draw([Point(0,0), Point(0,7), Point(7,0), Point(7,7)])
+        # self.draw([
+        #     Point(1,1),
+        #     Point(3,1),
+        #     Point(5,1),
+        #     Point(7,1),
+        #     Point(1,3),
+        #     Point(3,3),
+        #     Point(5,3),
+        #     Point(7,3),
+        #     Point(1,5),
+        #     Point(3,5),
+        #     Point(5,5),
+        #     Point(7,5),
+        #     Point(1,7),
+        #     Point(3,7),
+        #     Point(5,7),
+        #     Point(7,7),
+        # ])
+        self.draw([Point(0,0), Point(0,7), Point(7,0), Point(7,7)])
 
 
             
