@@ -123,7 +123,7 @@ And it only worked after a reboot and directly install it.
 
 ### Onnxruntime
 Onnxruntime is a dependency from Piper. It is needed for the TTS as controlls the model. It simply does not get installed
-due to the `--no-deps` param in the section below. Needs to be installed by `poetry add numpy -vvv`.
+due to the `--no-deps` param in the section below. Needs to be installed by `poetry add onnxruntime -vvv`.
 
 
 ## Install packages that fail with Poetry
