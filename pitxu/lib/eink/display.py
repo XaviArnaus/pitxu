@@ -20,8 +20,6 @@ class Display(Xprocess):
     _macros: Macros = None
     _display_size: Point = None
 
-    _shared_memory: shared_memory.ShareableList = None
-
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
@@ -34,7 +32,6 @@ class Display(Xprocess):
         self._display = EinkDisplay(config=self._config, params=self._parameters)
         self._macros = Macros(config=self._config, params=self._parameters)
         self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
-        self._initialize_shared_memory()
     
     def finish(self):
         self._logger.debug("Closing eInk display")
