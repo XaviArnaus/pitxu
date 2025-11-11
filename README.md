@@ -115,6 +115,15 @@ make init
 
 In lot of cases, poetry builds the dependencies and they fail due to diverse issues.
 
+Warning: Apparently I could evolve all of this to leave the 2 packages below inside the `pyproject.toml`, so maybe try first to do the normal install and then jump directly to the 
+installing packages in the shell. `Numpy` and `Onnxruntime` should be installed:
+```
+numpy = [{version="^2.3.4", markers="sys_platform=='darwin'"}]
+onnxruntime = [{version="^1.23.2", markers="sys_platform=='darwin'"}]
+piper-tts = [{version="^1.3.0", markers="sys_platform=='linux'"}]
+```
+... because would be very great to know a way to force "--no-deps" for a darwing marker there inside.
+
 ### Numpy
 Numpy is a dependency from Piper. It is also mentioned in one of the Vosk (STT) examples as a tool for calculation.
 I have it as a direct dependency as it gave some headaches. At the end, it gets installed but needs **VERY MUCH TIME**.
