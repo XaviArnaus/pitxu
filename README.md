@@ -1,5 +1,5 @@
 # pitxu
-Chatbot project over Raspberry Pi Zero 2w
+Chatbot project over Raspberry Pi (5 / Zero 2w)
 
 🚨 **This is a Work in Progress project. Take it or leave it. Suggestions are welcome.**
 
@@ -115,19 +115,25 @@ make init
 
 In lot of cases, poetry builds the dependencies and they fail due to diverse issues.
 
+Warning: Apparently I could evolve all of this to leave the 2 packages below inside the `pyproject.toml`, so maybe try first to do the normal install and then jump directly to the 
+installing packages in the shell. `Numpy` and `Onnxruntime` should be installed:
+```
+numpy = [{version="^2.3.4", markers="sys_platform=='darwin'"}]
+onnxruntime = [{version="^1.23.2", markers="sys_platform=='darwin'"}]
+piper-tts = [{version="^1.3.0", markers="sys_platform=='linux'"}]
+```
+... because would be very great to know a way to force "--no-deps" for a darwing marker there inside.
+
 ### Numpy
 Numpy is a dependency from Piper. It is also mentioned in one of the Vosk (STT) examples as a tool for calculation.
 I have it as a direct dependency as it gave some headaches. At the end, it gets installed but needs **VERY MUCH TIME**.
 It's installation (isolated back then with `poetry add numpy -vvv`) was monitored with another ssh window running `htop`,
 And it only worked after a reboot and directly install it.
 
-### piper-phonemize
-piper-phonemize is a dependency from Piper. It has well documented issues due to the lack of wheels to a big chunk of
-architectures & python versions. The most suggested fix is to build the package matching your version and architecture needs
-but on Feb 2025 appeared a fix in PyPi from someone that forked and generated installable builds,and also fixing packaging to be able to build on demand.
-My approach has been to add it as a first level dependency and then install `piper-tts`, which should find the dependency and respect it.
-Source: https://github.com/rhasspy/piper/issues/509
-It didn't really work like that. They both need to be installed through the `python shell`'s `pip3 install`, as seen below.
+### Onnxruntime
+Onnxruntime is a dependency from Piper. It is needed for the TTS as controlls the model. It simply does not get installed
+due to the `--no-deps` param in the section below. Needs to be installed by `poetry add onnxruntime -vvv`.
+
 
 ## Install packages that fail with Poetry
 
@@ -151,8 +157,7 @@ poetry self add poetry-plugin-shell
 
 ```
 poetry shell
-pip3 install gpiozero
-pip3 install piper-phonemize-fix 
+pip3 install gpiozero 
 pip3 install piper-tts --no-deps
 ```
 
@@ -197,13 +202,19 @@ Works very decent, no very significant difference with MacOS
 ### Sound
 - From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
-- Volume should be the next thing to polish.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
-- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... The cable was malfunctioning. With all the tinkering, I2C was also activated but it was not meaningful (the Waveshare docs have mistakes that bring confusion)
-- Complains about the GPIO being in use during the display. I smell it's due to its process not being closed and the next display complains. Maybe moving the Display to an always running process or ensure that the process is closed when I finish displaying and maybe a system of semafores.
+- Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
+    - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
+    - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
+
+### Led Matrix
+- Works good as a test in the main thread, I can't make it work properly in a subprocess:
+    - Initialisation presents random (always the same) led on.
+    - Flush to the device does not seem to work (it works when all is in the main thread, check test)
+    - Only got to get flasshing random leds and bars.
 
 
 # Resources

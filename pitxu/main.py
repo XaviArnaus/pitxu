@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, Process, JoinableQueue, Manager, shared_memory
+from multiprocessing import set_start_method, JoinableQueue, Manager, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
@@ -7,16 +7,16 @@ import logging
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import DisplayMultiprocess
+from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
+from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
 
 
 import sounddevice
 import time
 from queue import Empty
-
-SHARED_MEMORY_NAME = "pitxu_shared_memory"
 
 class Main:
 
@@ -24,12 +24,14 @@ class Main:
     _logger: logging = None
 
     _display: DisplayMultiprocess = None
+    _matrix: Matrix = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: PiperMultiprocess = None
 
     _manager = None
     _queue_display: JoinableQueue = None
+    _queue_matrix: JoinableQueue = None
     _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
@@ -40,6 +42,7 @@ class Main:
     _exit_words: list = []
 
     COMM_DISPLAY = "display"
+    COMM_MATRIX = "matrix"
     COMM_TTS = "tts"
 
     ENGLISH: str = "en-us"
@@ -48,7 +51,9 @@ class Main:
     SPANISH: str = "es"
 
     # Shared memory flag positions
+    SHARED_SPEAKER_BUSY = 0
     SHARED_EINK_BUSY = 1
+    SHARED_MATRIX_BUSY = 2
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -73,11 +78,12 @@ class Main:
         # Initialisating Shared Memory to handle execution flags between processes
         self._parameters.set("shared_memory_name", SHARED_MEMORY_NAME)
         self._shared_memory = shared_memory.ShareableList([
-            False,  # pause_mic
+            False,  # speaker is busy (pause mic)
             False,  # e-ink is busy
+            False,  # matrix is busy
         ], name=SHARED_MEMORY_NAME)
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot write 'pause_mic' flag")
+            self._logger.error("Shared Memory is None, cannot write flags")
 
         self._stopwatch = Stopwatch()
     
@@ -87,6 +93,7 @@ class Main:
         self._manager = Manager()
         self._queue_display = self._manager.JoinableQueue()
         self._queue_speech = self._manager.JoinableQueue()
+        self._queue_matrix = self._manager.JoinableQueue()
 
         # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
@@ -143,10 +150,17 @@ class Main:
         self._logger.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
     
-    def _initialize_display(self):
+    def _initialize_displays(self):
         """
-        Initialisation of the e-Ink display and macros
+        Initialisation of the displays and macros
         """
+
+        self._logger.debug("Initialising Matrix LED Display and Macros")
+        self._matrix = Matrix(config=self._config, params=self._parameters, queue=self._queue_matrix)
+        self._matrix.start()
+        self._init_subprocess(who=QueueItemType.MATRIX)
+        # Needs an initial clear
+        self._clear_matrix()
 
         self._logger.debug("Initialising eInk Display and Macros")
         self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
@@ -161,13 +175,9 @@ class Main:
         self._initialize_multiprocess()
 
         # Initialise eInk Display and the helper macros
-        self._logger.debug("Initialising the e-Ink")
-        # self._display = EinkDisplay(config=self._config, params=self._parameters)
-        # self._macros = Macros(self._config, params=self._parameters)
-        self._initialize_display()
+        self._initialize_displays()
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        # self._macros.startup_splash(self._display)
         self._startup_splash()
         time.sleep(2)
 
@@ -192,8 +202,7 @@ class Main:
                 # Welcome greeting
                 self._logger.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self.communicate(self._greeting_sentence,
-                                 [self.COMM_TTS, self.COMM_DISPLAY])
+                self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
                 self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
@@ -244,10 +253,6 @@ class Main:
         It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
         It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
         speeding up the overall run.
-        
-        Every Process needs to be managed a bit different:
-        - TTS is an always running Process that listens to a Queue for new messages to say.
-        - Display needs to be created per message to show, as we don't have a persistent process
         """
 
         # In case we want TTS, we need to pause the mic
@@ -263,14 +268,13 @@ class Main:
             # Show the answer
             self._logger.debug("Show Communication")
             self._show(text)
-
-
-        # Wait for the processes to end
-        if self.COMM_TTS in channels:
-            # We don't wait, just let it talk. We control the mic via shared_memeory flags
-            pass
-        if self.COMM_DISPLAY in channels:
-            pass
+        
+        # We want that the main thread waits until some of the actions finished in the subprocesses
+        self.wait_for_queue_to_empty(self._queue_display)
+        self.wait_for_queue_to_empty(self._queue_speech)
+        # Yeah, but still there is job to be done (speaking, for example)
+        self.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+        self.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -279,14 +283,12 @@ class Main:
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._logger.debug("Closing nicely...")
 
-        # Clean the display
-        self._logger.debug("Clearing the display.")
-        self._clear_display()
-        # Now wait until the display finishes being busy
-        self._logger.debug("Waiting for eInk to do the last clear")
-        while self._shared_memory[self.SHARED_EINK_BUSY]:
-            time.sleep(0.5)
-        self._logger.debug("eInk should be clear now")
+        # Clean the displays
+        self.clear_displays()
+
+        # Wait for all the queues and processes to get empty
+        self.wait_for_all_queues_to_empty()
+        self.wait_for_all_busy_processes_to_idle()
 
         # Finish all related multiprocess stuff
         self.finish_leftover_processes()
@@ -299,26 +301,90 @@ class Main:
         # Here comes anything that we want to do before leaving
         self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+    
+    def clear_displays(self):
+        self._logger.debug("Clearing the eInk.")
+        self._clear_display()
+        self._logger.debug("Clearing the LED Matrix.")
+        self._clear_matrix()
+    
+    def wait_for_all_queues_to_empty(self):
+        # Now wait until the displays finish being busy
+        self._logger.debug("Waiting for all queues to get empty")
+        self._logger.debug("Current queues size: \n" +
+                            "- eInk: " + str(self._queue_display.qsize()) + "\n" +
+                            "- Matrix: " + str(self._queue_matrix.qsize()) + "\n" +
+                            "- Speech: " + str(self._queue_speech.qsize()))
+        # while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._queue_display.qsize() > 0\
+            or self._queue_matrix.qsize() > 0\
+            or self._queue_speech.qsize() > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+
+        self._logger.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_queue_to_empty(self, queue: JoinableQueue):
+        self._logger.debug("Waiting for a queue to empty. Has now: " + str(queue.qsize()) + " elements.")
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while queue.qsize() > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+        self._logger.debug("The queue is empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_all_busy_processes_to_idle(self):
+        # Now wait until the displays finish being busy
+        self._logger.debug("Waiting for all processes to get idle")
+        self._logger.debug("Current busy flags: \n" +
+                            "- eInk: " + ("BUSY" if self._shared_memory[SHARED_EINK_BUSY] else "IDLE") + "\n" +
+                            "- Matrix: " + ("BUSY" if self._shared_memory[SHARED_MATRIX_BUSY] else "IDLE") + "\n" +
+                            "- Speech: " + ("BUSY" if self._shared_memory[SHARED_SPEAKER_BUSY] else "IDLE"))
+        # while self._shared_memory[SHARED_EINK_BUSY] and self._shared_memory[SHARED_MATRIX_BUSY]:
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._shared_memory[SHARED_EINK_BUSY]\
+            or self._shared_memory[SHARED_MATRIX_BUSY]\
+            or self._shared_memory[SHARED_SPEAKER_BUSY] > 0:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+
+        self._logger.debug("All processes are idle now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def wait_for_busy_process_to_idle(self, memory_position: int):
+        self._logger.debug("Waiting for a process to idle. It's now: " + ("BUSY" if self._shared_memory[memory_position] else "IDLE") + ".")
+        sleep_seconds = 0.5
+        total_sleeping = 0
+        while self._shared_memory[memory_position]:
+            total_sleeping += sleep_seconds
+            time.sleep(sleep_seconds)
+        self._logger.debug("The process is idle now. I've sleept " + str(total_sleeping) + "s.")
+
+
 
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
 
-        # 1. Send a "finish" to the childs. Needs the queue.
-        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the childs
+        # 1. Send a "finish" to the children. Needs the queue.
+        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the children
         #    from the queues. Maybe the main thread empties it before being read. 
-        self._logger.debug("[Main Finish] Send 'finish' to childs")
+        self._logger.debug("[Main Finish] Send 'finish' to children")
         self._finish_subprocess()
         # ...so they can close dependencies.
 
         # 2. Clean and close the queues, apparently better from the one that put().
         self._logger.debug("[Main Finish] Empty and close queues")
         self.clearAndDiscardQueue(self._queue_display)
+        self.clearAndDiscardQueue(self._queue_matrix)
         self.clearAndDiscardQueue(self._queue_speech)
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
         self._logger.debug("[Main Finish] Joining queues")
         self._queue_display.join()
+        self._queue_matrix.join()
         self._queue_speech.join()
 
         # We don't need to ask the process to self-terminate. It will when it finishes the job.
@@ -335,6 +401,11 @@ class Main:
             self._logger.debug("[Main Finish] Terminating Display Process")
             self._display.terminate()
         
+        self._logger.debug("[Main Finish] Is the Matrix subprocess still alive? " + ("Yes" if self._matrix.is_alive() else "No"))
+        if self._matrix.is_alive():
+            self._logger.debug("[Main Finish] Terminating Matrix Process")
+            self._matrix.terminate()
+        
         # Close the Shared Memory
         self._logger.debug("[Main Finish] Closing Shared Memory")
         self._shared_memory.shm.close()
@@ -348,10 +419,13 @@ class Main:
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.INITIALIZE))
             self._queue_display.put((who, QueueItemAction.INITIALIZE))
+            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.DISPLAY:
             self._queue_display.put((who, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.SPEECH:
             self._queue_speech.put((who, QueueItemAction.INITIALIZE))
+        elif who == QueueItemType.MATRIX:
+            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
         else:
             self._logger.error("I can't understand who should I initialise: " + who)
 
@@ -361,10 +435,13 @@ class Main:
         if who == QueueItemType.ACTION:
             self._queue_speech.put((who, QueueItemAction.FINISH))
             self._queue_display.put((who, QueueItemAction.FINISH))
+            self._queue_matrix.put((who, QueueItemAction.FINISH))
         elif who == QueueItemType.DISPLAY:
             self._queue_display.put((who, QueueItemAction.FINISH))
         elif who == QueueItemType.SPEECH:
             self._queue_speech.put((who, QueueItemAction.FINISH))
+        elif who == QueueItemType.MATRIX:
+            self._queue_matrix.put((who, QueueItemAction.FINISH))
         else:
             self._logger.error("I can't understand who should I finish: " + who)
     
@@ -373,16 +450,21 @@ class Main:
     
     def _show(self, message: str):
         self._queue_display.put((QueueItemType.SHOW, message))
+        self._queue_matrix.put((QueueItemType.SHOW, message))
     
     def _startup_splash(self):
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
+        self.wait_for_queue_to_empty(self._queue_display)
     
     def _clear_display(self):
+        # Now that we use partial refresh, the clear needs a previous white rectangle.
         # First a soft clear, so the screen is white
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
         # Full clear, to ensure a reset.
-        # Initially was only this one, but after the partials the Clear do not really
         self._queue_display.put((QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+    
+    def _clear_matrix(self):
+        self._queue_matrix.put((QueueItemType.MATRIX, QueueItemDisplay.CLEAR))
 
     def clearAndDiscardQueue(self, queue: JoinableQueue):
         '''

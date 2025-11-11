@@ -7,6 +7,7 @@ class QueueItemType:
     # These expect something to do as a parameter
     ACTION: str = "action"
     DISPLAY: str = "display"
+    MATRIX: str = "matrix"
     SPEECH: str = "speech"
 
 class QueueItemAction:

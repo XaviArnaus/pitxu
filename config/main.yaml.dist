@@ -62,17 +62,30 @@ display:
     medium: 14
     small: 10
 
+# Configuration fo the Max7219 matrix led
+matrix_led:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+  # [Integer] The intensity of the leds, from 0 to 255
+  intensity: 40
+  # Size of the display
+  size:
+    x: 8
+    y: 8
+
 # Configurations for the Speech-to-Text
 speech-to-text:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: True
-  # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   input_device: 0
 
 # Configurations for the Text-to-Speech
 text-to-speech:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: False
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
+  output_device: 0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan

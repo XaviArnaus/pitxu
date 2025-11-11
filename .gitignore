@@ -13,7 +13,8 @@ log/*
 
 # No user files
 storage/*.yaml
-storage/mocked/*
+storage/mocked/eink/*
+storage/mocked/matrix/*
 !**/.keep
 
 # No user config files

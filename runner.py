@@ -1,9 +1,8 @@
-import os
+import os, time
 from dotenv import load_dotenv
 import importlib.metadata
 import sounddevice
 
-import glob
 import logging
 
 from pyxavi.terminal_color import TerminalColor
@@ -13,7 +12,8 @@ from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
 from pitxu.lib.utils.config_loader import ConfigLoader
-from pitxu.lib.eink.eink import EinkDisplay
+from pitxu.lib.eink import EinkDisplay
+from pitxu.lib.matrix_led import Max7219
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -65,7 +65,7 @@ def run():
     except Exception:
         print(full_stack()) 
 
-def clear_eink():
+def clear_displays():
     try:
         # Instantiating
         config, logger, parameters = _initialize()
@@ -73,8 +73,26 @@ def clear_eink():
         # Delegate the run to Main
         logger.debug("Clearing eInk display")
         EinkDisplay(config=config, params=parameters).clear()
+        logger.debug("Clearing LED Matrix display")
+        Max7219(config=config, params=parameters).clear()
         logger.info("End of work.")
 
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
+def test_matrix():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Testing LED Matrix display")
+        Max7219(config=config, params=parameters).test()
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
+        logger.info("End of work.")
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
@@ -108,3 +126,6 @@ def _initialize():
     })
 
     return config, logger, parameters
+
+if __name__ == '__main__':
+    run()

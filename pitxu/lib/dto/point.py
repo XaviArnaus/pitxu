@@ -28,3 +28,6 @@ class Point:
                         self.y >= min_y and \
                         self.y <= max_y \
                     else False
+    
+    def __repr__(self):
+        return "(" + str(self.x) + "," + str(self.y) + ")"
