@@ -1,0 +1,99 @@
+from multiprocessing import JoinableQueue, shared_memory
+import logging
+
+from pyxavi import Config, Dictionary
+
+from pitxu.lib.abstract import Xprocess
+from pitxu.lib.eink import EinkDisplay, Macros
+from pitxu.lib.dto.point import Point
+from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
+from definitions import SHARED_EINK_BUSY
+
+class Display(Xprocess):
+    '''
+    Class to control the behaviour of the eInk display inside a sub-process (child)
+
+    The eInk is pretty slow. We need semaphores and that's why we need the shared memory flags.
+    '''
+
+    _display: EinkDisplay = None
+    _macros: Macros = None
+    _display_size: Point = None
+
+    _shared_memory: shared_memory.ShareableList = None
+
+    DEFAULT_STROKE: int = 1
+    COLOR_BLACK: int = 0
+    COLOR_WHITE: int = 1
+
+    def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
+        super(Display, self).__init__(config=config, params=params, queue=queue)
+
+    def initialize(self):
+        self._logger.info("Initializing Display Worker")
+        self._display = EinkDisplay(config=self._config, params=self._parameters)
+        self._macros = Macros(config=self._config, params=self._parameters)
+        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._initialize_shared_memory()
+    
+    def finish(self):
+        self._logger.debug("Closing eInk display")
+        self._display.close()
+        self._logger.debug("Done finishing Display Worker")
+    
+    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
+        # We're busy
+        self.set_eink_busy()
+
+        # Shows the message received
+        if type == QueueItemType.SHOW and message != "":
+            self.show(message)
+        
+        # Shows the Ready splash screen
+        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.READY:
+            self.splash_ready()
+        
+        # Shows the Startup splash screen
+        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.STARTUP:
+            self.splash_startup()
+        
+        # Clears the screen
+        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.CLEAR:
+            self.clear()
+        
+        # Clears the screen using a partial white
+        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.SOFT_CLEAR:
+            self.soft_clear()
+        
+        # Now we're not
+        self.unset_eink_busy()
+    
+    def show(self, text: str):
+        # Draw the text bubble
+        self._macros.draw_text_bubble(display=self._display, text=text, font=self._display.FONT_MEDIUM)
+    
+    def splash_ready(self):
+        # Draw the ready splash screen
+        self._macros.ready_splash(display=self._display)
+    
+    def splash_startup(self):
+        # Draw the ready splash screen
+        self._macros.startup_splash(display=self._display)
+    
+    def clear(self):
+        # Clear the display
+        self._display.clear()
+    
+    def soft_clear(self):
+        # Clear the display using a white rectangle as a partial
+        self._macros.soft_clear(display=self._display)
+
+    def is_eink_busy(self):
+        # Uses the Shared memory flag to answer.
+        return self.read_shared_memory_flag(SHARED_EINK_BUSY)
+    
+    def set_eink_busy(self):
+        self.write_shared_memory_flag(SHARED_EINK_BUSY, True)
+
+    def unset_eink_busy(self):
+        self.write_shared_memory_flag(SHARED_EINK_BUSY, False)

@@ -3,10 +3,11 @@ from multiprocessing import set_start_method, JoinableQueue, Manager, shared_mem
 from pyxavi import Logger, Config, Dictionary
 
 import logging
+import copy
 
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
-from pitxu.lib.eink import DisplayMultiprocess
+from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import PiperMultiprocess
@@ -23,7 +24,7 @@ class Main:
     _config: Config = None
     _logger: logging = None
 
-    _display: DisplayMultiprocess = None
+    _display: Display = None
     _matrix: Matrix = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -163,7 +164,9 @@ class Main:
         self._clear_matrix()
 
         self._logger.debug("Initialising eInk Display and Macros")
-        self._display = DisplayMultiprocess(config=self._config, params=self._parameters, queue=self._queue_display)
+        display_params = copy.deepcopy(self._parameters)
+        display_params.set("process_name", "Display")
+        self._display = Display(config=self._config, params=display_params, queue=self._queue_display)
         self._display.start()
         self._init_subprocess(who=QueueItemType.DISPLAY)
     
@@ -415,33 +418,37 @@ class Main:
     # ------- Communication with Queues ---------
 
     def _init_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
+        # Be aware that INITIALIZE and FINISH are managed within the subprocess itself,
+        #   so who is always QueueItemType.ACTION to trigger them.
 
         if who == QueueItemType.ACTION:
-            self._queue_speech.put((who, QueueItemAction.INITIALIZE))
-            self._queue_display.put((who, QueueItemAction.INITIALIZE))
-            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
+            self._queue_speech.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+            self._queue_display.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+            self._queue_matrix.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.DISPLAY:
-            self._queue_display.put((who, QueueItemAction.INITIALIZE))
+            self._queue_display.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.SPEECH:
-            self._queue_speech.put((who, QueueItemAction.INITIALIZE))
+            self._queue_speech.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
         elif who == QueueItemType.MATRIX:
-            self._queue_matrix.put((who, QueueItemAction.INITIALIZE))
+            self._queue_matrix.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
         else:
             self._logger.error("I can't understand who should I initialise: " + who)
 
     
     def _finish_subprocess(self, who: QueueItemType = QueueItemType.ACTION):
+        # Be aware that INITIALIZE and FINISH are managed within the subprocess itself,
+        #   so who is always QueueItemType.ACTION to trigger them.
 
         if who == QueueItemType.ACTION:
-            self._queue_speech.put((who, QueueItemAction.FINISH))
-            self._queue_display.put((who, QueueItemAction.FINISH))
-            self._queue_matrix.put((who, QueueItemAction.FINISH))
+            self._queue_speech.put((QueueItemType.ACTION, QueueItemAction.FINISH))
+            self._queue_display.put((QueueItemType.ACTION, QueueItemAction.FINISH))
+            self._queue_matrix.put((QueueItemType.ACTION, QueueItemAction.FINISH))
         elif who == QueueItemType.DISPLAY:
-            self._queue_display.put((who, QueueItemAction.FINISH))
+            self._queue_display.put((QueueItemType.ACTION, QueueItemAction.FINISH))
         elif who == QueueItemType.SPEECH:
-            self._queue_speech.put((who, QueueItemAction.FINISH))
+            self._queue_speech.put((QueueItemType.ACTION, QueueItemAction.FINISH))
         elif who == QueueItemType.MATRIX:
-            self._queue_matrix.put((who, QueueItemAction.FINISH))
+            self._queue_matrix.put((QueueItemType.ACTION, QueueItemAction.FINISH))
         else:
             self._logger.error("I can't understand who should I finish: " + who)
     

@@ -1,20 +1,29 @@
 from pyxavi import Logger, Config, Dictionary
 
+from multiprocessing import Process
 import logging
 
-class PyXavi:
+class PyXavi(Process):
 
     _config: Config = None
     _logger: logging = None
     _parameters: Dictionary = None
 
-    def __init__(self, config: Config, params: Dictionary):
-        self._parameters = params
-        self._config = config
-        # self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+    def __init__(self, config: Config, params: Dictionary, **kwargs):
+
+        # First of all, call the Process __init__
+        super(PyXavi, self).__init__()
+
+        # Get the config from args or kwargs
+        self._config = config if config else kwargs.get("config", None)
+        if self._config is None:
+            raise RuntimeError("Config can not be None")
+        # Get the params from args or kwargs
+        self._parameters = params if params else kwargs.get("params", Dictionary())
+        # Initialise the logger
         self._init_logger()
 
-        if (params.get("init", True)):
+        if (self._parameters.get("init", True)):
             self.initialise()
     
     def _init_logger(self, config: Config = None):

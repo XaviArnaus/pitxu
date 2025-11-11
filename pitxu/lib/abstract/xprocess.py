@@ -1,21 +1,26 @@
 from . import PyXavi
-from pyxavi import Config
+from pyxavi import Config, Dictionary
 from pitxu.lib.utils import ConfigLoader
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
-from multiprocessing import Process, Queue
+from multiprocessing import JoinableQueue, shared_memory
+from definitions import SHARED_MEMORY_NAME
 import logging
 
-class Xprocess(PyXavi, Process):
+class Xprocess(PyXavi):
 
-    _queue: Queue = None
+    _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
-    def __init__(self, queue: Queue, *kargs):
+    _queue: JoinableQueue = None
+    _shared_memory: shared_memory.ShareableList = None
 
-        self._queue = queue
+    def __init__(self, **kwargs):
+        self._queue = kwargs.get("queue", None)
+        params: Dictionary = kwargs.get("params", Dictionary())
+        self._PROCESS_NAME = params.get("process_name", "UNDEFINED_XPROCESS")
 
-        # Calls the PyXavi.__init__(self,whatever,params,we,send)
-        super(Xprocess, self).__init__(*kargs)
+        # Calls the PyXavi.__init__(self,whatever=params,we=send)
+        super(Xprocess, self).__init__(**kwargs)
     
     def run(self):
         '''
@@ -23,25 +28,21 @@ class Xprocess(PyXavi, Process):
         Gets called whenever the self._queue.put() is called from the main.py
         '''
 
-        # Apparently the parent Process class has a run() implementation,
-        # but I don't see the difference in behaviour.
-        super(Xprocess, self).run()
-
         try:
-            # This is needed to have the logging connected:
-            # - Create the Config object from scratch
-            # - Use the Config object to initialise the Logger. Be sure that the `stdout.multiprocess`
-            #       or `file.multiprocess` is True. Each activate their respective multiproces support.
-            #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
-            # - ONLY THEN we will see logging messages in the main logger.
-            self._config = ConfigLoader.load_config_files()
-            self._init_logger(config=self._config)
+            # Apparently the parent Process class has a run() implementation,
+            # but I don't see the difference in behaviour.
+            super(Xprocess, self).run()
 
+            # Initialisations needed on every run
+            self._initialize_on_every_run()
 
-            self._logger.debug("Xprocess run()")
+            self._logger.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
                 type, message = queue_item
-                self._logger.debug("Xprocess run() received a [" + type + "]: [" + message + "]")
+                self._logger.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + type + "]: [" + message + "]")
+
+                # This is the old way, to be deprecated
+                self.run_with_context(self._config, self._logger, type, message)
 
                 # Executes the own do() passing the context.
                 if type == QueueItemType.DO:
@@ -57,6 +58,9 @@ class Xprocess(PyXavi, Process):
                 # Still, we leave it so we have the tool for whatever other reason.
                 if type == QueueItemType.ACTION and message == QueueItemAction.FINISH:
                     self.finish()
+                
+                # Finally, we mark this task as done
+                self._queue.task_done()
 
         except KeyboardInterrupt:
             self._logger.debug("Pressed Control + C while running Xprocess run()")
@@ -64,13 +68,13 @@ class Xprocess(PyXavi, Process):
     
     def initialize(self):
         '''
-        This is called from from __init__() when instantiated (can be avoided) or from 
-        outside via QueueItemAction.INITIALIZE to init itself anything, 
+        This is called from outside via QueueItemAction.INITIALIZE to init itself anything, 
         it won't be triggered in every run(). 
         Most likely you want to initiate here the models within the Process, avoiding
         issues with session serialisation (I look at you, PiperSession)
         '''
-        super(Xprocess, self).__init__()
+        # super(Xprocess, self).__init__()
+        pass
     
     def do(self, config: Config, logger: logging):
         '''
@@ -78,12 +82,66 @@ class Xprocess(PyXavi, Process):
         Called from run() with the initialised basic framework.
         '''
         pass
+
+    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
+        '''
+        This is what you want to implement in your child class as the actual work.
+        Called from run() with the initialised basic framework.
+        It is meant to be reworked and use do() instead.
+        '''
+        pass
     
     def finish(self):
         '''
-        This is called from from run() via KeyboardInterrupt or from outside via 
-        QueueItemAction.FINISH to finish gracefully whatever we have open.
-        Do not try to terminate the process from inside itself.
+        This is called from:
+        - run() via KeyboardInterrupt
+        - from outside via Queue,
+
+        This is NOT called from
+        - by the Python framework when terminating a process -> 
+
+        to finish gracefully whatever we have open.
+        
+        ! Do not try to terminate the process from inside itself.
         '''
         pass
-        
+
+    def _initialize_on_every_run(self):
+        '''
+        Initialise something on every run() call.
+        Called from run() before do()
+        '''
+        # This is needed to have the logging connected:
+        # - Create the Config object from scratch
+        # - Use the Config object to initialise the Logger. Be sure that the `stdout.multiprocess`
+        #       or `file.multiprocess` is True. Each activate their respective multiproces support.
+        #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
+        # - ONLY THEN we will see logging messages in the main logger.
+        self._config = ConfigLoader.load_config_files()
+        self._init_logger(config=self._config)
+        # Initialize shared memory
+        self._initialize_shared_memory()
+
+    def _initialize_shared_memory(self):
+        self._logger.info("Loading flags from Shared Memory in [" + self._PROCESS_NAME + "]")
+        self._shared_memory = shared_memory.ShareableList(name=SHARED_MEMORY_NAME)
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read flags")
+
+    def read_shared_memory_flag(self, index: int) -> bool:
+        '''
+        Reads a flag from shared memory at the given index
+        '''
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot read flag at index " + str(index))
+            return None
+        return self._shared_memory[index]
+    
+    def write_shared_memory_flag(self, index: int, value: bool):
+        '''
+        Writes a flag to shared memory at the given index
+        '''
+        if self._shared_memory is None:
+            self._logger.error("Shared Memory is None, cannot write flag at index " + str(index))
+            return
+        self._shared_memory[index] = value
