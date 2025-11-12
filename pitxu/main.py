@@ -10,7 +10,7 @@ from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import Matrix
 from pitxu.lib.speech_to_text import Vosk
-from pitxu.lib.text_to_speech import PiperMultiprocess
+from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
 from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
 
@@ -28,7 +28,7 @@ class Main:
     _matrix: Matrix = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
-    _speech: PiperMultiprocess = None
+    _speech: Piper = None
 
     _manager = None
     _queue_display: JoinableQueue = None
@@ -119,12 +119,14 @@ class Main:
         
         # Initialise Speech-to-Text
         self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
-        self._dictate = Vosk(self._xconfig, params=self._xparams)
+        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
 
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
         #   so it only communicate with it via the queue.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        self._speech = PiperMultiprocess(self._xconfig, params=self._xparams, queue=self._queue_speech)
+        tts_params = copy.deepcopy(self._xparams)
+        tts_params.set("process_name", "TTS")
+        self._speech = Piper(config=self._xconfig, params=tts_params, queue=self._queue_speech)
         self._speech.start()
         self._init_subprocess(who=QueueItemType.SPEECH)
 

@@ -1,56 +1,64 @@
-from multiprocessing import JoinableQueue, shared_memory
 import logging
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config
 
 from pitxu.lib.abstract import Xprocess
-from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
-from definitions import SHARED_SPEAKER_BUSY
+from pitxu.lib.dto import QueueItemType, QueueItemAction
+from definitions import ROOT_DIR, SHARED_SPEAKER_BUSY
 
 class Piper(Xprocess):
 
     MODELS_PATH = "tts_models/"
 
-    _model: None
-    _voice: None
+    _model = None
+    _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
-
-    def __init__(self, config: Config, params: Dictionary):
-        self._xparams = params
-        self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
-
-        self.initialize()
     
     def initialize(self):
+        self._xlog.info("Initializing Piper Worker")
         language = self._xparams.get("language")
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
-        self._model = self._xconfig.get("storage.path") + "/" + self.MODELS_PATH + model_name + ".onnx"
+        self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
-        self._output_stream = sounddevice.OutputStream(samplerate=self._voice.config.sample_rate, channels=1, dtype='int16')
+        self._output_stream = sounddevice.OutputStream(
+            samplerate=self._voice.config.sample_rate,
+            blocksize=0,
+            channels=1,
+            dtype='int16',
+        )
     
-    def say(self, text: str, input_stream_to_pause: sounddevice.RawInputStream = None):
+    def finish(self):
+        self._xlog.debug("Closing output stream")
+        self._output_stream.close()
+        self._xlog.debug("Done finishing Piper Worker")
+    
+    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
+        if type == QueueItemType.SAY and message != "":
+            self.say(message)
+    
+    def say(self, text: str):
+
+        self.pause_mic()
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
         else:
-            if input_stream_to_pause is not None:
-                input_stream_to_pause.stop()
-
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
 
-            for audio_bytes in self._voice.synthesize_stream_raw(text):
-                int_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            for chunk in self._voice.synthesize(text):
+                int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 self._output_stream.write(int_data)
 
             self._output_stream.stop()
-
-            if input_stream_to_pause is not None:
-                input_stream_to_pause.start()
+        
+        self.resume_mic()
     
-    def terminate(self):
-        self._output_stream.close()
+    def pause_mic(self):
+        self._shared_memory[SHARED_SPEAKER_BUSY] = True
+
+    def resume_mic(self):
+        self._shared_memory[SHARED_SPEAKER_BUSY] = False
