@@ -9,9 +9,9 @@ import logging, time
 
 class Macros:
 
-    _config: Config = None
-    _logger: logging = None
-    _parameters: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _max7219: Max7219 = None
 
@@ -19,9 +19,9 @@ class Macros:
     OFF: str = "black"
 
     def __init__(self, config: Config, params: Dictionary):
-        self._parameters = params
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xparams = params
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         # self._max7219 = Max7219(config=config, params=params)
         self._max7219 = params.get("matrix_device")
     
@@ -29,7 +29,7 @@ class Macros:
         # The resources needed to draw and print into the led matrix will self close
         # At the end of this context. No more worries.
         # TODO: Maybe we'd like to bring the eInk to this approach
-        self._logger.debug("Starting the drawing")
+        self._xlog.debug("Starting the drawing")
         with self._max7219.create_canvas() as draw:
             matrix = Matrix(points=[
                 Point(1,1),
@@ -38,7 +38,7 @@ class Macros:
                 Point(6,6),
             ]).get_points()
             for point in matrix:
-                self._logger.debug("Drawing point: " + str(point))
+                self._xlog.debug("Drawing point: " + str(point))
                 draw.point(point.to_image_point(), self.ON)
 
             # Script of points
@@ -47,7 +47,7 @@ class Macros:
             #     for j in range(0,7,1):
             #         do_something.append(Point(i,j))
             # for point in do_something:
-            #     self._logger.debug("Drawing point: " + str(point))
+            #     self._xlog.debug("Drawing point: " + str(point))
             #     draw.point(point.to_image_point(), self.ON)
             #     time.sleep(0.1)
     

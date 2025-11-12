@@ -1,18 +1,20 @@
-from multiprocessing import JoinableQueue, shared_memory
-import logging
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
 
-from pyxavi import Config, Dictionary
+from pyxavi.config import Config
+from pyxavi.logger import Logger
+from pyxavi.dictionary import Dictionary
 
-from pitxu.lib.abstract import Xprocess
-from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
-from definitions import SHARED_SPEAKER_BUSY
+import logging
 
-class Piper(Xprocess):
+class Piper:
 
     MODELS_PATH = "tts_models/"
+
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _model: None
     _voice: None

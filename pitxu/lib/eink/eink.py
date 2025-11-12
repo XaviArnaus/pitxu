@@ -14,9 +14,9 @@ from ..dto.point import Point
 class EinkDisplay:
 
     _epd = None
-    _parameters: Dictionary = None
-    _config: Config = None
-    _logger: logging = None
+    _xparams: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
     _pic_dir: str = None
     _working_image: Image.Image = None
     _screen_size: Point = None
@@ -35,15 +35,15 @@ class EinkDisplay:
     def __init__(self, config: Config, params: Dictionary):
 
         # Possible runtime parameters
-        self._parameters = params
+        self._xparams = params
 
         # Config is mandatory
         if config is None:
             raise RuntimeError("Config can not be None")
-        self._config = config
+        self._xconfig = config
 
         # Common Logger
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         
         # Initialise the display
         self._initialise_display()
@@ -60,12 +60,12 @@ class EinkDisplay:
     
     def display(self, partial: bool = True):
         if (not self._is_gpio_allowed()):
-            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self._working_image.save(file_path)
-            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             self._working_image.save(file_path)
         else:
-            if self._config.get("display.rotate", False):
+            if self._xconfig.get("display.rotate", False):
                 self._working_image = self._working_image.rotate(180)
             
             # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
@@ -79,9 +79,9 @@ class EinkDisplay:
     def clear(self):
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
-            self._logger.debug("eInk cleared")
+            self._xlog.debug("eInk cleared")
         else:
-            self._logger.warning("Did not clear the display. GPIO interaction not allowed.")
+            self._xlog.warning("Did not clear the display. GPIO interaction not allowed.")
         # Needed to clean up the canvas.
         self._reset_image()
     
@@ -132,10 +132,10 @@ class EinkDisplay:
 
         os = platform.system()        
         if (os.lower() != "linux"):
-            self._logger.warning("OS is not Linux, auto mocking eInk")
+            self._xlog.warning("OS is not Linux, auto mocking eInk")
             return False
-        if (self._config.get("display.mock", True)):
-            self._logger.warning("Mocking eInk by Config")
+        if (self._xconfig.get("display.mock", True)):
+            self._xlog.warning("Mocking eInk by Config")
             return False
         return True
         
@@ -150,34 +150,34 @@ class EinkDisplay:
         """
 
         # Initialise the paths
-        self._pic_dir = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'pic')
-        libdir = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'lib')
+        self._pic_dir = os.path.join(self._xparams.get("base_path", ""), 'pitxu', 'pic')
+        libdir = os.path.join(self._xparams.get("base_path", ""), 'pitxu', 'lib')
 
         # Don't initialise if not allowed
         if (not self._is_gpio_allowed()):
             # Setup base data
-            self._screen_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
-            self._logger.warning("GPIO is not allowed, avoiding initializing eInk")
+            self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+            self._xlog.warning("GPIO is not allowed, avoiding initializing eInk")
             return
 
         # Lib should be in the sys path
-        self._logger.debug("Trying to load the lib directory at: " + libdir)
+        self._xlog.debug("Trying to load the lib directory at: " + libdir)
         if os.path.exists(libdir):
             sys.path.append(libdir)
         else:
-            self._logger.warning("Could not find the lib directory at: " + libdir)
+            self._xlog.warning("Could not find the lib directory at: " + libdir)
             print("lib does not exists")
         from waveshare_epd.epd2in13_V4 import EPD
 
         # Initialise the display controller
-        self._logger.debug("Initialising eInk controller")
+        self._xlog.debug("Initialising eInk controller")
         self._epd = EPD()
 
         # Initialise the display itself
-        self._logger.debug("Initialising eInk display")
+        self._xlog.debug("Initialising eInk display")
         self._epd.init()
-        if self._config.get("display.initial_clear"):
-            self._logger.debug("Cleaning for the first time")
+        if self._xconfig.get("display.initial_clear"):
+            self._xlog.debug("Cleaning for the first time")
             self._epd.Clear(0xFF)
 
         # Setup base data
@@ -196,24 +196,24 @@ class EinkDisplay:
         small_size = self.DEFAULT_FONT_SMALL_SIZE
 
         # Big size
-        if (self._parameters.key_exists("display.fonts.big")):
-            big_size = self._parameters.get("display.fonts.big")
-        elif (self._config.key_exists("display.fonts.big")):
-            big_size = self._config.get("display.fonts.big")
+        if (self._xparams.key_exists("display.fonts.big")):
+            big_size = self._xparams.get("display.fonts.big")
+        elif (self._xconfig.key_exists("display.fonts.big")):
+            big_size = self._xconfig.get("display.fonts.big")
         self.FONT_BIG = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), big_size)
 
         # Medium size
-        if (self._parameters.key_exists("display.fonts.medium")):
-            medium_size = self._parameters.get("display.fonts.medium")
-        elif (self._config.key_exists("display.fonts.medium")):
-            medium_size = self._config.get("display.fonts.medium")
+        if (self._xparams.key_exists("display.fonts.medium")):
+            medium_size = self._xparams.get("display.fonts.medium")
+        elif (self._xconfig.key_exists("display.fonts.medium")):
+            medium_size = self._xconfig.get("display.fonts.medium")
         self.FONT_MEDIUM = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), medium_size)
 
         # Small size
-        if (self._parameters.key_exists("display.fonts.small")):
-            small_size = self._parameters.get("display.fonts.small")
-        elif (self._config.key_exists("display.fonts.small")):
-            small_size = self._config.get("display.fonts.small")
+        if (self._xparams.key_exists("display.fonts.small")):
+            small_size = self._xparams.get("display.fonts.small")
+        elif (self._xconfig.key_exists("display.fonts.small")):
+            small_size = self._xconfig.get("display.fonts.small")
         self.FONT_SMALL = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), small_size)
     
     def close(self):

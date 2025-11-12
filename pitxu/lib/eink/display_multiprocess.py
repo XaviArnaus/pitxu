@@ -16,9 +16,9 @@ class DisplayMultiprocess(Process):
     The eInk is pretty slow. We need semaphores and that's why we need the shared memory flags.
     '''
 
-    _parameters: Dictionary = None
-    _config: Config = None
-    _logger: logging = None
+    _xparams: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
 
     _display: EinkDisplay = None
     _macros: Macros = None
@@ -34,15 +34,15 @@ class DisplayMultiprocess(Process):
     def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
 
         # Possible runtime parameters
-        self._parameters = params
+        self._xparams = params
 
         # Config is mandatory
         if config is None:
             raise RuntimeError("Config can not be None")
-        self._config = config
+        self._xconfig = config
 
         # Common Logger
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         self._queue = queue
 
@@ -50,17 +50,17 @@ class DisplayMultiprocess(Process):
         
     
     def initialize(self):
-        self._logger.info("Initializing Display Worker")
-        self._display = EinkDisplay(config=self._config, params=self._parameters)
-        self._macros = Macros(config=self._config, params=self._parameters)
-        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._xlog.info("Initializing Display Worker")
+        self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
+        self._macros = Macros(config=self._xconfig, params=self._xparams)
+        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
         self._initialize_shared_memory()
 
     def _initialize_shared_memory(self):
-        self._logger.info("Loading flags from Shared Memory")
-        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        self._xlog.info("Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._xparams.get("shared_memory_name"))
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read 'e-ink is busy' flag")    
+            self._xlog.error("Shared Memory is None, cannot read 'e-ink is busy' flag")    
     
     def finish(self):
         '''
@@ -75,9 +75,9 @@ class DisplayMultiprocess(Process):
         
         ! Do not try to terminate the process from inside itself.
         '''
-        self._logger.debug("Closing eInk display")
+        self._xlog.debug("Closing eInk display")
         self._display.close()
-        self._logger.debug("Done finishing Display Worker")
+        self._xlog.debug("Done finishing Display Worker")
     
     def run(self):
         '''
@@ -96,17 +96,17 @@ class DisplayMultiprocess(Process):
             #       or `file.multiprocess` is True. Each activate their respective multiproces support.
             #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
             # - ONLY THEN we will see logging messages in the main logger.
-            self._config = ConfigLoader.load_config_files()
-            self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
+            self._xconfig = ConfigLoader.load_config_files()
+            self._xlog = Logger(config=self._xconfig, base_path=self._xparams.get("base_path", "")).get_logger()
             self._initialize_shared_memory()
 
             if self._shared_memory is None:
-                self._logger.error("Shared Memory is None, cannot read 'e-ink is busy' flag")
+                self._xlog.error("Shared Memory is None, cannot read 'e-ink is busy' flag")
 
-            self._logger.debug("Display Worker runs")
+            self._xlog.debug("Display Worker runs")
             for queue_item in iter(self._queue.get, None):
                 type, message = queue_item
-                self._logger.debug("Display Worker received a [" + type + "]: [" + message + "]")
+                self._xlog.debug("Display Worker received a [" + type + "]: [" + message + "]")
 
                 # We're busy
                 self.set_eink_busy()
@@ -148,7 +148,7 @@ class DisplayMultiprocess(Process):
                 self._queue.task_done()
 
         except KeyboardInterrupt:
-            self._logger.debug("Pressed Control + C while running Display subprocess")
+            self._xlog.debug("Pressed Control + C while running Display subprocess")
             self.finish()
     
     def show(self, text: str):

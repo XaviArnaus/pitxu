@@ -1,13 +1,12 @@
 from . import PyXavi
 from pyxavi import Config, Dictionary
-from pitxu.lib.utils import ConfigLoader
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
-from multiprocessing import JoinableQueue, shared_memory
+from multiprocessing import JoinableQueue, shared_memory, Process
 from definitions import SHARED_MEMORY_NAME
 import logging
 
-class Xprocess(PyXavi):
+class Xprocess(PyXavi, Process):
 
     _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
@@ -19,15 +18,14 @@ class Xprocess(PyXavi):
         params: Dictionary = kwargs.get("params", Dictionary())
         self._PROCESS_NAME = params.get("process_name", "UNDEFINED_XPROCESS")
 
-        # Calls the PyXavi.__init__(self,whatever=params,we=send)
-        super(Xprocess, self).__init__(**kwargs)
+        self.init_pyxavi(config=kwargs.get("config", None), params=params)
+        super(Xprocess, self).__init__()
     
     def run(self):
         '''
         Managed by Process
         Gets called whenever the self._queue.put() is called from the main.py
         '''
-
         try:
             # Apparently the parent Process class has a run() implementation,
             # but I don't see the difference in behaviour.
@@ -36,17 +34,17 @@ class Xprocess(PyXavi):
             # Initialisations needed on every run
             self._initialize_on_every_run()
 
-            self._logger.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
+            self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
                 type, message = queue_item
-                self._logger.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + type + "]: [" + message + "]")
+                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + type + "]: [" + message + "]")
 
                 # This is the old way, to be deprecated
-                self.run_with_context(self._config, self._logger, type, message)
+                self.run_with_context(self._xconfig, self._xlog, type, message)
 
                 # Executes the own do() passing the context.
                 if type == QueueItemType.DO:
-                    self.do(self._config, self._logger, message)
+                    self.do(self._xconfig, self._xlog, message)
                 
                 # Initializes the model from within the Process.
                 # This is the only way to avoid Model Session issues
@@ -63,7 +61,7 @@ class Xprocess(PyXavi):
                 self._queue.task_done()
 
         except KeyboardInterrupt:
-            self._logger.debug("Pressed Control + C while running Xprocess run()")
+            self._xlog.debug("Pressed Control + C while running Xprocess run()")
             self.finish()
     
     def initialize(self):
@@ -111,29 +109,23 @@ class Xprocess(PyXavi):
         Initialise something on every run() call.
         Called from run() before do()
         '''
-        # This is needed to have the logging connected:
-        # - Create the Config object from scratch
-        # - Use the Config object to initialise the Logger. Be sure that the `stdout.multiprocess`
-        #       or `file.multiprocess` is True. Each activate their respective multiproces support.
-        #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
-        # - ONLY THEN we will see logging messages in the main logger.
-        self._config = ConfigLoader.load_config_files()
-        self._init_logger(config=self._config)
+        # Initialise config, logger, params
+        self.init_pyxavi(self._xconfig, self._xparams)
         # Initialize shared memory
         self._initialize_shared_memory()
 
     def _initialize_shared_memory(self):
-        self._logger.info("Loading flags from Shared Memory in [" + self._PROCESS_NAME + "]")
+        self._xlog.info("Loading flags from Shared Memory in [" + self._PROCESS_NAME + "]")
         self._shared_memory = shared_memory.ShareableList(name=SHARED_MEMORY_NAME)
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read flags")
+            self._xlog.error("Shared Memory is None, cannot read flags")
 
     def read_shared_memory_flag(self, index: int) -> bool:
         '''
         Reads a flag from shared memory at the given index
         '''
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read flag at index " + str(index))
+            self._xlog.error("Shared Memory is None, cannot read flag at index " + str(index))
             return None
         return self._shared_memory[index]
     
@@ -142,6 +134,6 @@ class Xprocess(PyXavi):
         Writes a flag to shared memory at the given index
         '''
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot write flag at index " + str(index))
+            self._xlog.error("Shared Memory is None, cannot write flag at index " + str(index))
             return
         self._shared_memory[index] = value

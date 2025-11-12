@@ -3,7 +3,7 @@ import logging
 
 from pyxavi import Config, Dictionary
 
-from pitxu.lib.abstract import Xprocess
+from pitxu.lib.abstract import Xprocess, PyXavi
 from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.dto.point import Point
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
@@ -28,15 +28,15 @@ class Display(Xprocess):
         super(Display, self).__init__(config=config, params=params, queue=queue)
 
     def initialize(self):
-        self._logger.info("Initializing Display Worker")
-        self._display = EinkDisplay(config=self._config, params=self._parameters)
-        self._macros = Macros(config=self._config, params=self._parameters)
-        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._xlog.info("Initializing Display Worker")
+        self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
+        self._macros = Macros(config=self._xconfig, params=self._xparams)
+        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
     
     def finish(self):
-        self._logger.debug("Closing eInk display")
+        self._xlog.debug("Closing eInk display")
         self._display.close()
-        self._logger.debug("Done finishing Display Worker")
+        self._xlog.debug("Done finishing Display Worker")
     
     def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
         # We're busy

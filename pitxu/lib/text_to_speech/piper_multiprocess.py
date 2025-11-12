@@ -16,9 +16,9 @@ class PiperMultiprocess(Process):
 
     MODELS_PATH = "tts_models/"
 
-    _config: Config = None
-    _logger: logging = None
-    _parameters: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _queue: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
@@ -32,21 +32,21 @@ class PiperMultiprocess(Process):
         Initialisation of the class, this is called from main.
         After the start(), all triggers come from the queue, being constantly checked by run()
         '''
-        self._parameters = params
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xparams = params
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         # Need all previous to start logging :-)
-        self._logger.debug("Instantiating Piper TTS")
+        self._xlog.debug("Instantiating Piper TTS")
 
         self._queue = queue
 
         super(PiperMultiprocess, self).__init__()
     
     def initialize(self):
-        self._logger.info("Initializing Piper TTS")
-        language = self._parameters.get("language")
-        model_name = self._config.get("text-to-speech.per_language." + language)
-        self._model = ROOT_DIR + "/" + self._config.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
+        self._xlog.info("Initializing Piper TTS")
+        language = self._xparams.get("language")
+        model_name = self._xconfig.get("text-to-speech.per_language." + language)
+        self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
         self._output_stream = sounddevice.OutputStream(
             samplerate=self._voice.config.sample_rate,
@@ -55,12 +55,12 @@ class PiperMultiprocess(Process):
             dtype='int16',
         )
 
-        self._logger.info("Loading flags from Shared Memory")
-        self._shared_memory = shared_memory.ShareableList(name=self._parameters.get("shared_memory_name"))
+        self._xlog.info("Loading flags from Shared Memory")
+        self._shared_memory = shared_memory.ShareableList(name=self._xparams.get("shared_memory_name"))
         if self._shared_memory is None:
-            self._logger.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
+            self._xlog.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
 
-        self._logger.debug("Done Initializing Piper TTS")
+        self._xlog.debug("Done Initializing Piper TTS")
     
     def finish(self):
         '''
@@ -68,9 +68,9 @@ class PiperMultiprocess(Process):
         to finish gracefully whatever we have open.
         Do not try to terminate the process from inside itself.
         '''
-        self._logger.debug("Closing output stream")
+        self._xlog.debug("Closing output stream")
         self._output_stream.close()
-        self._logger.debug("Done finishing Piper Worker")
+        self._xlog.debug("Done finishing Piper Worker")
     
     def run(self):
         '''
@@ -89,13 +89,13 @@ class PiperMultiprocess(Process):
             #       or `file.multiprocess` is True. Each activate their respective multiproces support.
             #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
             # - ONLY THEN we will see logging messages in the main logger.
-            self._config = ConfigLoader.load_config_files()
-            self._logger = Logger(config=self._config, base_path=self._parameters.get("base_path", "")).get_logger()
+            self._xconfig = ConfigLoader.load_config_files()
+            self._xlog = Logger(config=self._xconfig, base_path=self._xparams.get("base_path", "")).get_logger()
 
-            self._logger.debug("Piper Worker runs")
+            self._xlog.debug("Piper Worker runs")
             for queue_item in iter(self._queue.get, None):
                 type, message = queue_item
-                self._logger.debug("Piper Worker received a [" + type + "]: [" + message + "]")
+                self._xlog.debug("Piper Worker received a [" + type + "]: [" + message + "]")
 
                 # Says the message received
                 if type == QueueItemType.SAY and message != "":
@@ -116,7 +116,7 @@ class PiperMultiprocess(Process):
             self._queue.task_done()
 
         except KeyboardInterrupt:
-            self._logger.debug("Pressed Control + C while running Speech subprocess")
+            self._xlog.debug("Pressed Control + C while running Speech subprocess")
             self.finish()
                 
     
@@ -124,10 +124,10 @@ class PiperMultiprocess(Process):
 
         self.pause_mic()
 
-        if self._config.get("text-to-speech.mock", True):
-            self._logger.warning("Mocking TTS by Config. Should have said [" + text + "]")
+        if self._xconfig.get("text-to-speech.mock", True):
+            self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
         else:
-            self._logger.debug("Saying [" + text.replace("\n", "\\n") + "]")
+            self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
 
             for chunk in self._voice.synthesize(text):
