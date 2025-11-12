@@ -1,12 +1,11 @@
-from . import PyXavi
-from pyxavi import Config, Dictionary
+from . import PyXavi, XprocessProtocol
+from pyxavi import Dictionary
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
 from multiprocessing import JoinableQueue, shared_memory, Process
 from definitions import SHARED_MEMORY_NAME
-import logging
 
-class Xprocess(PyXavi, Process):
+class Xprocess(PyXavi, Process, XprocessProtocol):
 
     _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
@@ -63,46 +62,6 @@ class Xprocess(PyXavi, Process):
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess run()")
             self.finish()
-    
-    def initialize(self):
-        '''
-        This is called from outside via QueueItemAction.INITIALIZE to init itself anything, 
-        it won't be triggered in every run(). 
-        Most likely you want to initiate here the models within the Process, avoiding
-        issues with session serialisation (I look at you, PiperSession)
-        '''
-        # super(Xprocess, self).__init__()
-        pass
-    
-    def do(self, config: Config, logger: logging):
-        '''
-        This is what you want to implement in your child class as the actual work.
-        Called from run() with the initialised basic framework.
-        '''
-        pass
-
-    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
-        '''
-        This is what you want to implement in your child class as the actual work.
-        Called from run() with the initialised basic framework.
-        It is meant to be reworked and use do() instead.
-        '''
-        pass
-    
-    def finish(self):
-        '''
-        This is called from:
-        - run() via KeyboardInterrupt
-        - from outside via Queue,
-
-        This is NOT called from
-        - by the Python framework when terminating a process -> 
-
-        to finish gracefully whatever we have open.
-        
-        ! Do not try to terminate the process from inside itself.
-        '''
-        pass
 
     def _initialize_on_every_run(self):
         '''

@@ -1,9 +1,8 @@
-from multiprocessing import JoinableQueue, shared_memory
 import logging
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config
 
-from pitxu.lib.abstract import Xprocess, PyXavi
+from pitxu.lib.abstract import Xprocess
 from pitxu.lib.eink import EinkDisplay, Macros
 from pitxu.lib.dto.point import Point
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
@@ -23,9 +22,6 @@ class Display(Xprocess):
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
-
-    def __init__(self, config: Config, params: Dictionary, queue: JoinableQueue):
-        super(Display, self).__init__(config=config, params=params, queue=queue)
 
     def initialize(self):
         self._xlog.info("Initializing Display Worker")
