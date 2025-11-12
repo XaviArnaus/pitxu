@@ -2,7 +2,7 @@ import logging
 
 from pyxavi import Config
 
-from pitxu.lib.abstract import Xprocess
+from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.matrix_led import Max7219, Macros
 from pitxu.lib.dto.point import Point
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay

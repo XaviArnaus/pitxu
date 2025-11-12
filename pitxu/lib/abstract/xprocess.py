@@ -1,9 +1,10 @@
-from . import PyXavi, XprocessProtocol
-from pyxavi import Dictionary
+from pyxavi import Dictionary, Config
+from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
 from multiprocessing import JoinableQueue, shared_memory, Process
-from definitions import SHARED_MEMORY_NAME
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
@@ -12,13 +13,19 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     _queue: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
-    def __init__(self, **kwargs):
-        self._queue = kwargs.get("queue", None)
-        self._PROCESS_NAME = self.get_process_name()
+    def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
+        self.init_pyxavi(config=config, params=params, **kwargs)
 
-        self.init_pyxavi(config=kwargs.get("config", None), params=kwargs.get("params", Dictionary()))
+        self._PROCESS_NAME = self.get_process_name()
+        self._xlog.debug("Initializing Xprocess [" + self._PROCESS_NAME + "]")
+
+        self._queue = queue
+
         super(Xprocess, self).__init__()
-    
+
+    def get_queue(self) -> JoinableQueue:
+        return self._queue
+
     def run(self):
         '''
         Managed by Process
@@ -68,30 +75,13 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         Called from run() before do()
         '''
         # Initialise config, logger, params
-        self.init_pyxavi(self._xconfig, self._xparams)
+        self.init_pyxavi(config=self._xconfig, params=self._xparams)
         # Initialize shared memory
-        self._initialize_shared_memory()
-
-    def _initialize_shared_memory(self):
-        self._xlog.info("Loading flags from Shared Memory in [" + self._PROCESS_NAME + "]")
-        self._shared_memory = shared_memory.ShareableList(name=SHARED_MEMORY_NAME)
-        if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot read flags")
+        self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory.initialize_existing_shared_memory()
 
     def read_shared_memory_flag(self, index: int) -> bool:
-        '''
-        Reads a flag from shared memory at the given index
-        '''
-        if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot read flag at index " + str(index))
-            return None
-        return self._shared_memory[index]
-    
+        return self._shared_memory.read_shared_memory_flag(index)
+
     def write_shared_memory_flag(self, index: int, value: bool):
-        '''
-        Writes a flag to shared memory at the given index
-        '''
-        if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot write flag at index " + str(index))
-            return
-        self._shared_memory[index] = value
+        self._shared_memory.write_shared_memory_flag(index, value)

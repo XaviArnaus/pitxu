@@ -5,7 +5,7 @@ from piper.voice import PiperVoice
 
 from pyxavi import Config
 
-from pitxu.lib.abstract import Xprocess
+from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 from definitions import ROOT_DIR, SHARED_SPEAKER_BUSY
 
@@ -61,7 +61,7 @@ class Piper(Xprocess):
         self.resume_mic()
     
     def pause_mic(self):
-        self._shared_memory[SHARED_SPEAKER_BUSY] = True
+        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
 
     def resume_mic(self):
-        self._shared_memory[SHARED_SPEAKER_BUSY] = False
+        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)

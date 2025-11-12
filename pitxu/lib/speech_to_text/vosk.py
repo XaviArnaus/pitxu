@@ -3,9 +3,8 @@ import logging
 import sys
 import json
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Dictionary, Config, Logger
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_SPEAKER_BUSY
 
 from multiprocessing import shared_memory
@@ -58,9 +57,8 @@ class Vosk:
         self._xlog.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
         self._queue = queue.Queue()
         self._xlog.info("Vosk: Loading flags from Shared Memory")
-        self._shared_memory = shared_memory.ShareableList(name=self._xparams.get("shared_memory_name"))
-        if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
+        self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory.initialize_existing_shared_memory()
 
         self._xlog.info("Done Initializing Vosk STT")
     
@@ -75,7 +73,6 @@ class Vosk:
                 return result["text"]
             else:
                 result = json.loads(self._recognizer.PartialResult())
-                # self._xlog.debug("Recognized partial: " + result["partial"].replace("\n", ""))
                 return None
     
     def _get_samplerate(self) -> int:
@@ -86,7 +83,6 @@ class Vosk:
     def callback(self, indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
-            # self._xlog.debug("Finished audio block, status is " + status)
             print(status, file=sys.stderr)
         
         if not self.is_mic_paused():
@@ -104,12 +100,12 @@ class Vosk:
         if self._shared_memory is None:
             self._xlog.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
             return False
-        if (not isinstance(self._shared_memory[SHARED_SPEAKER_BUSY], bool)):
-            self._xlog.error("Shared Memory flag 0 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + self._shared_memory[SHARED_SPEAKER_BUSY])
+        if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
+            self._xlog.error("Shared Memory flag 0 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
             return False
-        
-        return self._shared_memory[SHARED_SPEAKER_BUSY]
-        
+
+        return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
+
 
 
         

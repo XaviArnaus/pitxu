@@ -1,6 +1,6 @@
-from pyxavi import Logger, Config, Dictionary, dd
+from pyxavi import Logger, Config, Dictionary
 
-from pitxu.lib.utils import ConfigLoader
+from pitxu.lib.utils.config_loader import ConfigLoader
 
 import logging
 
@@ -36,9 +36,6 @@ class PyXavi:
 
         # Now, if we have config, initialise the logger
         self._init_logger()
-        # And if we have params and we received the request to call initialise(), do it
-        if (bool(self._xparams.get("run_initialize", False))):
-            self.initialise()
     
     def _init_logger(self, config: Config = None):
         '''
@@ -46,6 +43,3 @@ class PyXavi:
         '''
         config = config if config is not None else self._xconfig
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
-
-    def initialise(self):
-        pass
