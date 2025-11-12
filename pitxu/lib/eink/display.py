@@ -82,7 +82,6 @@ class Display(Xprocess):
         self._macros.soft_clear(display=self._display)
 
     def is_eink_busy(self):
-        # Uses the Shared memory flag to answer.
         return self.read_shared_memory_flag(SHARED_EINK_BUSY)
     
     def set_eink_busy(self):

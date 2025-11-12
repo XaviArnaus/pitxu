@@ -8,7 +8,7 @@ import copy
 from pitxu.lib.utils import Text, Stopwatch, Memory
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display
-from pitxu.lib.matrix_led import Matrix
+from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
@@ -25,7 +25,7 @@ class Main:
     _xlog: logging = None
 
     _display: Display = None
-    _matrix: Matrix = None
+    _matrix: MatrixLed = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: Piper = None
@@ -159,7 +159,9 @@ class Main:
         """
 
         self._xlog.debug("Initialising Matrix LED Display and Macros")
-        self._matrix = Matrix(config=self._xconfig, params=self._xparams, queue=self._queue_matrix)
+        matrix_params = copy.deepcopy(self._xparams)
+        matrix_params.set("process_name", "Matrix")
+        self._matrix = MatrixLed(config=self._xconfig, params=matrix_params, queue=self._queue_matrix)
         self._matrix.start()
         self._init_subprocess(who=QueueItemType.MATRIX)
         # Needs an initial clear
