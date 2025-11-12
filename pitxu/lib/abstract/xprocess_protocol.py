@@ -8,6 +8,13 @@ from pitxu.lib.dto import QueueItemType, QueueItemAction
 @runtime_checkable
 class XprocessProtocol(Protocol):
 
+    @abstractmethod
+    def get_process_name(self) -> str:
+        '''
+        Return the name of the process.
+        '''
+        raise NotImplementedError
+
     def initialize(self) -> None:
         '''
         This is called from outside via QueueItemAction.INITIALIZE to init itself anything, 

@@ -16,7 +16,10 @@ class Piper(Xprocess):
     _model = None
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
-    
+
+    def get_process_name(self) -> str:
+        return "Piper"
+
     def initialize(self):
         self._xlog.info("Initializing Piper Worker")
         language = self._xparams.get("language")

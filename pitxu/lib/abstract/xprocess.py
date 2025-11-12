@@ -14,10 +14,9 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def __init__(self, **kwargs):
         self._queue = kwargs.get("queue", None)
-        params: Dictionary = kwargs.get("params", Dictionary())
-        self._PROCESS_NAME = params.get("process_name", "UNDEFINED_XPROCESS")
+        self._PROCESS_NAME = self.get_process_name()
 
-        self.init_pyxavi(config=kwargs.get("config", None), params=params)
+        self.init_pyxavi(config=kwargs.get("config", None), params=kwargs.get("params", Dictionary()))
         super(Xprocess, self).__init__()
     
     def run(self):

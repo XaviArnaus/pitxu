@@ -23,6 +23,9 @@ class Display(Xprocess):
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
 
+    def get_process_name(self) -> str:
+        return "Display"
+
     def initialize(self):
         self._xlog.info("Initializing Display Worker")
         self._display = EinkDisplay(config=self._xconfig, params=self._xparams)

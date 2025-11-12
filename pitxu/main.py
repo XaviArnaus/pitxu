@@ -124,9 +124,7 @@ class Main:
         # Initialise Text-To-Speech. Please note that the object is a child of Process,
         #   so it only communicate with it via the queue.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        tts_params = copy.deepcopy(self._xparams)
-        tts_params.set("process_name", "TTS")
-        self._speech = Piper(config=self._xconfig, params=tts_params, queue=self._queue_speech)
+        self._speech = Piper(config=self._xconfig, params=self._xparams, queue=self._queue_speech)
         self._speech.start()
         self._init_subprocess(who=QueueItemType.SPEECH)
 
@@ -159,18 +157,14 @@ class Main:
         """
 
         self._xlog.debug("Initialising Matrix LED Display and Macros")
-        matrix_params = copy.deepcopy(self._xparams)
-        matrix_params.set("process_name", "Matrix")
-        self._matrix = MatrixLed(config=self._xconfig, params=matrix_params, queue=self._queue_matrix)
+        self._matrix = MatrixLed(config=self._xconfig, params=self._xparams, queue=self._queue_matrix)
         self._matrix.start()
         self._init_subprocess(who=QueueItemType.MATRIX)
         # Needs an initial clear
         self._clear_matrix()
 
         self._xlog.debug("Initialising eInk Display and Macros")
-        display_params = copy.deepcopy(self._xparams)
-        display_params.set("process_name", "Display")
-        self._display = Display(config=self._xconfig, params=display_params, queue=self._queue_display)
+        self._display = Display(config=self._xconfig, params=self._xparams, queue=self._queue_display)
         self._display.start()
         self._init_subprocess(who=QueueItemType.DISPLAY)
     

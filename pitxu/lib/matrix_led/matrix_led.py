@@ -16,7 +16,10 @@ class MatrixLed(Xprocess):
     _matrix: Max7219 = None
     _macros: Macros = None
     _display_size: Point = None
-    
+
+    def get_process_name(self) -> str:
+        return "Matrix"
+
     def initialize(self):
         self._xlog.info("Initializing Matrix Worker")
         self._matrix = Max7219(config=self._xconfig, params=self._xparams)
