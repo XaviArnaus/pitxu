@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pyxavi = "^1.1.0"
+pyxavi = "^1.2.0"
 google-genai = "^1.16"
 python-dotenv = "^1.1"
 spidev = [{version="^3.7", markers="sys_platform=='linux'"}]

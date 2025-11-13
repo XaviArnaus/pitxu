@@ -1,0 +1,29 @@
+# Configuration fo the eInk Display
+display:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+  # [Bool] Do a full clear while initializing
+  # KEEP AS TRUE. Seems like the eInk needs a full Clear on init to be able to show afterwards.
+  initial_clear: True
+  # Size of the display
+  size:
+    x: 250
+    y: 122
+  # [bool] Rotate the display 180 degrees or not. This only affects the eInk, not mocked.
+  rotate: True
+  # Configuration regarding the fonts
+  fonts:
+    big: 22
+    medium: 14
+    small: 10
+
+# Configuration fo the Max7219 matrix led
+matrix_led:
+  # [Bool] Generates a PNG instead of outcoming through the eInk Display
+  mock: True
+  # [Integer] The intensity of the leds, from 0 to 255
+  intensity: 40
+  # Size of the display
+  size:
+    x: 8
+    y: 8

@@ -1,0 +1,86 @@
+# Logging config
+logger:
+  # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+  loglevel: 10
+  # [String] Name of the logger
+  name: "pitxu"
+  # [String] Format of the log
+  format: "%(asctime)s [%(processName)-12s] %(levelname)-8s %(name)-12s %(message)s"
+  # File related parameters
+  file:
+    # [Bool] Dump the log into a file
+    active: True
+    # [String] Path and filename of the log file
+    filename: "log/pitxu.log"
+    # [String] The encoding of the log file
+    encoding: "UTF-8"
+    # [Bool] Do we want to rotate the log files? Only will apply if we log to files
+    rotate:
+        active: True
+        # [String] When do we rotate. Accepts "S" | "M" | "H" | "D" | "W0"-"W6" | "midnight"
+        #   See https://docs.python.org/3/library/logging.handlers.html#timedrotatingfilehandler
+        when: "midnight"
+        # [Int] How many rotated old files to keep before it starts to delete the older
+        backup_count: 10
+        # [Bool] Stick to UTC timings when triggering the rotation
+        utc: True
+        # [String] in format "%H:%M:%S". When to trigger THE VERY FIRST rotation.
+        #   Subsequent will attend to when_rotate
+        at_time: "1:00:00"
+  # Standard output related parameters
+  stdout:
+      # [Bool] Dump the log into a stdout
+      active: True
+      colorize: 
+        active: True
+        only_the_field: False
+        profile: by_process
+        by_level: 
+            DEBUG: WHITE
+            INFO: BLUE
+            WARNING: ORANGE
+            ERROR: RED
+            CRITICAL: RED_BRIGHT
+        by_process:
+            MainProcess: GREEN_BRIGHT
+            Display: CYAN_BRIGHT
+            MatrixLed: MAGENTA_BRIGHT
+            Piper: YELLOW_BRIGHT
+        by_thread:
+            MainThread: GREEN_BRIGHT
+            Thread-1: CYAN_BRIGHT
+            Thread-2: MAGENTA_BRIGHT
+            Thread-3: YELLOW_BRIGHT
+            Thread-4: BLUE_BRIGHT
+        support:
+            END: END
+            UNKNOWN: BOLD
+        colors:
+            # Normal colors
+            BLACK:  '\033[0;30m'
+            RED:  '\033[0;31m'
+            GREEN:  '\033[0;32m'
+            YELLOW:  '\033[0;33m'
+            BLUE:  '\033[0;34m'
+            MAGENTA:  '\033[0;35m'
+            CYAN:  '\033[0;36m'
+            WHITE:  '\033[0;37m'
+            ORANGE:  '\033[38;5;166m'
+
+            # Bright colors
+            BLACK_BRIGHT:  '\033[1;30m'
+            RED_BRIGHT:  '\033[1;31m'
+            GREEN_BRIGHT:  '\033[1;32m'
+            YELLOW_BRIGHT:  '\033[1;33m'
+            BLUE_BRIGHT:  '\033[1;34m'
+            MAGENTA_BRIGHT:  '\033[1;35m'
+            CYAN_BRIGHT:  '\033[1;36m'
+            WHITE_BRIGHT:  '\033[1;37m'
+            ORANGE_BRIGHT:  '\033[38;5;208m'
+
+            # Style
+            BOLD:  '\033[1m'
+            UNDERLINE:  '\033[4m'
+
+            # To terminate the style in the string. Mandatory!
+            END:  '\033[0m'
