@@ -10,9 +10,9 @@ import logging
 
 class Macros:
 
-    _config: Config = None
-    _logger: logging = None
-    _parameters: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _display_size: Point = None
 
@@ -21,10 +21,10 @@ class Macros:
     COLOR_WHITE: int = 1
 
     def __init__(self, config: Config, params: Dictionary):
-        self._parameters = params
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
-        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._xparams = params
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
     def draw_text_bubble(self, display: EinkDisplay, text: str, font: ImageFont):
 
@@ -68,7 +68,7 @@ class Macros:
 
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 
-        self._logger.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
+        self._xlog.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
         
         # Split the lines, we need to cover all individually
         lines = text.split("\n")
@@ -81,7 +81,7 @@ class Macros:
             words_to_add__to_next_line = []
             # What's the current size
             width_text = canvas.textlength(working_line, font)
-            self._logger.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
+            self._xlog.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
             # Loop while  the text is still bigger
             while(width_text > boundaries.point_2.x):
                 # Split by words
@@ -97,7 +97,7 @@ class Macros:
         
         words_to_add__to_next_line.reverse()
         final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
-        self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
+        self._xlog.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
         return final_text
     
     def startup_splash(self, display: EinkDisplay):
@@ -106,8 +106,8 @@ class Macros:
         canvas = display.create_canvas(reset_base_image=True)
 
         # Main title
-        title = self._config.get("app.name")
-        version = self._parameters.get("app_version")
+        title = self._xconfig.get("app.name")
+        version = self._xparams.get("app_version")
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
                     text = title + "  v" + version, 
                     font = display.FONT_BIG, 
@@ -121,10 +121,10 @@ class Macros:
                     width = 1)
         
         # Subtitle
-        subtitle = "Chatbot: " + ("mocked" if self._config.get("chatbot.mock", True) else "real") + \
-                    " | Display: " + ("mocked" if self._config.get("display.mock", True) else "real") + \
-                    "\nSTT: " + ("mocked" if self._config.get("speech-to-text.mock", True) else "real") + \
-                    " | TTS: " + ("mocked" if self._config.get("text-to-speech.mock", True) else "real")
+        subtitle = "Chatbot: " + ("mocked" if self._xconfig.get("chatbot.mock", True) else "real") + \
+                    " | Display: " + ("mocked" if self._xconfig.get("display.mock", True) else "real") + \
+                    "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
+                    " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real")
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = display.FONT_MEDIUM, 

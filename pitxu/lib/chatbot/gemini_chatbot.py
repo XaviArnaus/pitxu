@@ -23,46 +23,46 @@ class GeminiChatbot(ChatbotProtocol):
     """
 
     _client = None
-    _parameters: Dictionary = None
-    _config: Config = None
-    _logger: logging
+    _xparams: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging
     _chat = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        self._parameters = params
-        if not self._parameters.key_exists("api_key") or self._parameters.get("api_key", None) is None:
+        self._xparams = params
+        if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
 
         if config is None:
             raise RuntimeError("Config can not be None")
 
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         self.initialize()
 
     def initialize(self):
-        if (self._config.get("chatbot.mock", True)):
-            self._logger.warning("Chatbot is mocked, Not initialising it.")
+        if (self._xconfig.get("chatbot.mock", True)):
+            self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
         
-        self._client = genai.Client(api_key=self._parameters.get("api_key"))
+        self._client = genai.Client(api_key=self._xparams.get("api_key"))
         self._chat = self._client.chats.create(
             model='gemini-2.0-flash',
-            config=types.GenerateContentConfig(system_instruction=self._config.get("chatbot.system_instruction." + self._parameters.get("language")))
+            config=types.GenerateContentConfig(system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")))
         )
     
     def ask(self, question: str) -> str:
 
-        self._logger.debug("Question: " + question)
+        self._xlog.debug("Question: " + question)
 
-        if (self._config.get("chatbot.mock", True)):
+        if (self._xconfig.get("chatbot.mock", True)):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
             try:
 
                 response = self._chat.send_message(question)
 
-                self._logger.debug("Received answer: " + response.text)
+                self._xlog.debug("Received answer: " + response.text)
                 return response.text
             except ServerError as e:
                 return "The server returns an error: " + e.message

@@ -4,14 +4,14 @@ import logging
 
 class Stopwatch():
 
-    _logger: logging
+    _xlog: logging
     _stopwatches_running: dict = {}
     _stopwatches_stopped: dict = {}
 
     FLOAT_ROUND_DECIMALS = 4
 
     def __init__(self):
-        self._logger = logging.getLogger()
+        self._xlog = logging.getLogger()
 
     def start(self, name: str = None) -> str:
         if name is None:
@@ -35,7 +35,7 @@ class Stopwatch():
             del self._stopwatches_running[name]
             return self.get(name)
         else:
-            self._logger.warning("[Stopwatch] No stopwatch named [" + name + "] to stop.")
+            self._xlog.warning("[Stopwatch] No stopwatch named [" + name + "] to stop.")
             return None
     
     def stop_all(self):
@@ -46,7 +46,7 @@ class Stopwatch():
         if name in self._stopwatches_stopped:
             return round(self._stopwatches_stopped[name], self.FLOAT_ROUND_DECIMALS)
         else:
-            self._logger.warning("[Stopwatch] No stopwatch named [" + name + "] to get.")
+            self._xlog.warning("[Stopwatch] No stopwatch named [" + name + "] to get.")
             return None
     
     def reset(self, name: str):

@@ -10,6 +10,9 @@ class QueueItemType:
     MATRIX: str = "matrix"
     SPEECH: str = "speech"
 
+    # This is meant to be the real work defined in subclasses
+    DO: str = "do"
+
 class QueueItemAction:
 
     FINISH: str = "finish"

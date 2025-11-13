@@ -15,17 +15,17 @@ class EmulatedCanvas(object):
     This is an emulation to mimic `luma.core.render.canvas`
     """
 
-    _parameters: Dictionary = None
-    _config: Config = None
-    _logger: logging = None
+    _xparams: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
 
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
     def __init__(self, config: Config, params: Dictionary, mode: str, size: tuple):
-        self._config = config
-        self._parameters = params
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xconfig = config
+        self._xparams = params
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         self.draw = None
         self.image = Image.new(mode, size)
@@ -37,9 +37,9 @@ class EmulatedCanvas(object):
     def __exit__(self, type, value, traceback):
         if type is None:
             # Save the image
-            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
             self.image.save(file_path)
-            file_path = self._config.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             self.image.save(file_path)
 
         del self.draw   # Tidy up the resources

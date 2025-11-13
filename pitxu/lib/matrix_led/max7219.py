@@ -16,9 +16,9 @@ class Max7219:
     https://luma-led-matrix.readthedocs.io/en/latest/python-usage.html
     '''
 
-    _parameters: Dictionary = None
-    _config: Config = None
-    _logger: logging = None
+    _xparams: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
 
     _serial: spi = None
     _device: DeviceWrapper = None
@@ -37,36 +37,36 @@ class Max7219:
         # Never use the property `.bounding_box` from the emulated canvas
 
         # Possible runtime parameters
-        self._parameters = params
+        self._xparams = params
 
         # Config is mandatory
         if config is None:
             raise RuntimeError("Config can not be None")
-        self._config = config
+        self._xconfig = config
 
         # Common Logger
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         # Max7219
-        if (not self._config.get("matrix_led.mock", True)):
+        if (not self._xconfig.get("matrix_led.mock", True)):
             self._serial = spi(port=0, device=0, gpio=noop())
         self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self._device.clear()
         self._device.contrast(int(config.get("matrix_led.intensity", 100)))
         self.EMULATION_MODE = "1"
         self.EMULATION_SIZE = Point(
-            self._config.get("matrix_led.size.x", 8) - 1,
-            self._config.get("matrix_led.size.y", 8) - 1
+            self._xconfig.get("matrix_led.size.x", 8) - 1,
+            self._xconfig.get("matrix_led.size.y", 8) - 1
         ).to_image_point()
         self.BOUNDING_BOX = Rectangle(
             Point(0,0),
             Point(
-                self._config.get("matrix_led.size.x", 8) - 1,
-                self._config.get("matrix_led.size.y", 8) - 1
+                self._xconfig.get("matrix_led.size.x", 8) - 1,
+                self._xconfig.get("matrix_led.size.y", 8) - 1
             )
         ).to_image_rectangle()
 
-        font_path = os.path.join(self._parameters.get("base_path", ""), 'pitxu', 'lib', 'fonts', 'matrix')
+        font_path = os.path.join(self._xparams.get("base_path", ""), 'pitxu', 'lib', 'fonts', 'matrix')
         self.FONT = ImageFont.truetype(os.path.join(font_path, 'pixelmix.ttf'), 8)
     
     def get_device(self) -> DeviceWrapper:
@@ -76,20 +76,20 @@ class Max7219:
             raise RuntimeError("The LED Matrix device is not initialised")
     
     def create_canvas(self) -> canvas:
-        if (self._config.get("matrix_led.mock", True)):
-            self._logger.debug("Creating Matrix Emulation Canvas")
-            return EmulatedCanvas(self._config, self._parameters, self.EMULATION_MODE, self.EMULATION_SIZE)
+        if (self._xconfig.get("matrix_led.mock", True)):
+            self._xlog.debug("Creating Matrix Emulation Canvas")
+            return EmulatedCanvas(self._xconfig, self._xparams, self.EMULATION_MODE, self.EMULATION_SIZE)
         else:
-            self._logger.debug("Creating Matrix Canvas")
+            self._xlog.debug("Creating Matrix Canvas")
             return canvas(self._device)
     
     def clear(self, draw: ImageDraw = None) -> None:
-        self._logger.debug("Clearing Matrix.")
+        self._xlog.debug("Clearing Matrix.")
         if draw:
             draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
         else:
             with self.create_canvas() as draw:
-                self._logger.debug("The rectangle size is " + str(self.BOUNDING_BOX))
+                self._xlog.debug("The rectangle size is " + str(self.BOUNDING_BOX))
                 draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
     
     def draw(self, list_of_activated_leds: list[Point] = []) -> None:        
@@ -97,13 +97,13 @@ class Max7219:
             # First we clear the matrix
             self.clear(draw=draw)
             # Now we just activate leds via the given Points
-            self._logger.debug("Drawing arbitrary points: " + str(list_of_activated_leds))
+            self._xlog.debug("Drawing arbitrary points: " + str(list_of_activated_leds))
             for point in list_of_activated_leds:
                 draw.point(point.to_image_point(), fill=self.ON)
     
     def test(self):
         # Manually define the leds to light up
-        self._logger.debug("Showing a test matrix")
+        self._xlog.debug("Showing a test matrix")
         matrix = Matrix(points=[
             Point(1,1),
             Point(6,1),
