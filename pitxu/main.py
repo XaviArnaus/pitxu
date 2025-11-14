@@ -185,42 +185,39 @@ class Main:
                 dictate_count = 0
                 answer_count = 0
                 while(not self._text_has_exit_intention(question)):
-                    try:
-                        # Recognize what comes from the microphone
-                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                        question = self._dictate.recognize()
-                        if (question == None or question.strip() == ""):
-                            continue
-                        self._xlog.debug(">> Recognised dictate")
-                        self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                        dictate_count += 1
 
-                        # Avoid calling the Chatbot when exiting
-                        if self._text_has_exit_intention(question):
-                            # Just assume a goodbye
-                            answer = self._goodbye_sentence
-                        else:
-                            # Here we start with the Chatbot
-                            answer = self._chatbot.ask(question)
-                        
-                        # Clean the answer first, just in case
-                        answer = Text.remove_emojis(answer)
-                        answer = Text.remove_markdown(answer)
+                    # Recognize what comes from the microphone
+                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                    question = self._dictate.recognize()
+                    if (question == None or question.strip() == ""):
+                        continue
+                    self._xlog.debug(">> Recognised dictate")
+                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    dictate_count += 1
 
-                        # Answer
-                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
-                        self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                        answer_count += 1
-                    except KeyboardInterrupt:
-                        break
-                
-                # We're here if the user said the exit words
-                self.close_nicely()
+                    # Avoid calling the Chatbot when exiting
+                    if self._text_has_exit_intention(question):
+                        # Just assume a goodbye
+                        answer = self._goodbye_sentence
+                    else:
+                        # Here we start with the Chatbot
+                        answer = self._chatbot.ask(question)
+                    
+                    # Clean the answer first, just in case
+                    answer = Text.remove_emojis(answer)
+                    answer = Text.remove_markdown(answer)
+
+                    # Answer
+                    sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                    self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
+                    self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                    answer_count += 1
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-            self.close_nicely()
+        
+        # However it happened, just close nicely.
+        self.close_nicely()
     
     def communicate(self, text: str, channels: list):
         """
