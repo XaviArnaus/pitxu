@@ -7,7 +7,6 @@ from pyxavi import Dictionary, Config, Logger
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_SPEAKER_BUSY
 
-from multiprocessing import shared_memory
 from vosk import Model, KaldiRecognizer
 import sounddevice as sd
 
@@ -26,7 +25,7 @@ class Vosk:
     _queue = None
     _recognizer: KaldiRecognizer = None
 
-    _shared_memory: shared_memory.ShareableList = None
+    _shared_memory: SharedMemoryManager = None
 
     device = None
     samplerate = None

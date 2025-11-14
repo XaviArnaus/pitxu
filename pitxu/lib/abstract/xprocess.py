@@ -4,14 +4,14 @@ from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.dto import QueueItemType, QueueItemAction
 
-from multiprocessing import JoinableQueue, shared_memory, Process
+from multiprocessing import JoinableQueue, Process
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
     _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
     _queue: JoinableQueue = None
-    _shared_memory: shared_memory.ShareableList = None
+    _shared_memory: SharedMemoryManager = None
 
     def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
