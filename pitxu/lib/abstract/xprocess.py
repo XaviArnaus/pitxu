@@ -63,7 +63,10 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                     self.finish()
                 
                 # Finally, we mark this task as done
-                self._queue.task_done()
+                try:
+                    self._queue.task_done()
+                except ValueError:
+                    pass
 
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess run()")
