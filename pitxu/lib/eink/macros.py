@@ -4,7 +4,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from . import EinkDisplay
-from ..dto import Rectangle, Line, Point
+from ..objects import Rectangle, Line, Point
 
 import logging
 

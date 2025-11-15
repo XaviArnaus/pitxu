@@ -2,7 +2,7 @@ import os
 import logging
 
 from pyxavi import Config, Logger, Dictionary
-from pitxu.lib.dto import Point, Rectangle, Matrix
+from pitxu.lib.objects import Point, Rectangle, Matrix
 from . import EmulatedCanvas, DeviceWrapper
 
 from luma.core.interface.serial import spi, noop

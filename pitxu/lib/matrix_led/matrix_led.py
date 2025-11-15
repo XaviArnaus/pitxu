@@ -4,8 +4,8 @@ from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.matrix_led import Max7219, Macros
-from pitxu.lib.dto.point import Point
-from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
+from pitxu.lib.objects.point import Point
+from pitxu.lib.objects import XprocAction
 from definitions import SHARED_MATRIX_BUSY
 
 class MatrixLed(Xprocess):
@@ -27,16 +27,16 @@ class MatrixLed(Xprocess):
         self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
     
-    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
         # We're busy
         self.set_matrix_busy()
 
         # Shows the message received
-        if type == QueueItemType.SHOW and message != "":
-            self.show(message)
+        if action == XprocAction.LED and param != "":
+            self.show(param)
         
         # Clears the screen
-        if type == QueueItemType.MATRIX and message == QueueItemDisplay.CLEAR:
+        if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             self.clear()
         
         # Now we're not

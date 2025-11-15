@@ -3,7 +3,7 @@ from abc import abstractmethod
 import logging
 
 from pyxavi import Config
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.objects import XprocAction
 
 @runtime_checkable
 class XprocessProtocol(Protocol):
@@ -17,7 +17,7 @@ class XprocessProtocol(Protocol):
 
     def initialize(self) -> None:
         '''
-        This is called from outside via QueueItemAction.INITIALIZE to init itself anything, 
+        This is called from outside via XprocAction.INITIALIZE to init itself anything, 
         it won't be triggered in every run(). 
         Most likely you want to initiate here the models within the Process, avoiding
         issues with session serialisation (I look at you, PiperSession)
@@ -32,7 +32,7 @@ class XprocessProtocol(Protocol):
         pass
 
     @abstractmethod
-    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction) -> None:
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str) -> None:
         '''
         This is what you want to implement in your child class as the actual work.
         Called from run() with the initialised basic framework.

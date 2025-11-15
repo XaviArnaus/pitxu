@@ -4,8 +4,8 @@ from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.eink import EinkDisplay, Macros
-from pitxu.lib.dto.point import Point
-from pitxu.lib.dto import QueueItemType, QueueItemAction, QueueItemDisplay
+from pitxu.lib.objects.point import Point
+from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY
 
 class Display(Xprocess):
@@ -37,28 +37,28 @@ class Display(Xprocess):
         self._display.close()
         self._xlog.debug("Done finishing Display Worker")
     
-    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
         # We're busy
         self.set_eink_busy()
 
         # Shows the message received
-        if type == QueueItemType.SHOW and message != "":
-            self.show(message)
+        if action == XprocAction.SHOW and param != "":
+            self.show(param)
         
         # Shows the Ready splash screen
-        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.READY:
+        if action == XprocAction.READY:
             self.splash_ready()
         
         # Shows the Startup splash screen
-        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.STARTUP:
+        if action == XprocAction.STARTUP:
             self.splash_startup()
         
         # Clears the screen
-        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.CLEAR:
+        if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
             self.clear()
         
         # Clears the screen using a partial white
-        if type == QueueItemType.DISPLAY and message == QueueItemDisplay.SOFT_CLEAR:
+        if action == XprocAction.SOFT_CLEAR:
             self.soft_clear()
         
         # Now we're not

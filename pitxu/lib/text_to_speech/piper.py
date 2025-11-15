@@ -6,7 +6,7 @@ from piper.voice import PiperVoice
 from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.objects import XprocAction
 from definitions import ROOT_DIR, SHARED_SPEAKER_BUSY
 
 class Piper(Xprocess):
@@ -38,9 +38,9 @@ class Piper(Xprocess):
         self._output_stream.close()
         self._xlog.debug("Done finishing Piper Worker")
     
-    def run_with_context(self, config: Config, logger: logging, type: QueueItemType, message: str | QueueItemAction):
-        if type == QueueItemType.SAY and message != "":
-            self.say(message)
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
+        if action == XprocAction.SAY and param != "":
+            self.say(param)
     
     def say(self, text: str):
 

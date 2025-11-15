@@ -1,7 +1,7 @@
 from pyxavi import Config, Logger, Dictionary
 
 from pitxu.lib.matrix_led import Max7219
-from ..dto import Rectangle, Line, Point, Matrix
+from ..objects import Rectangle, Line, Point, Matrix
 
 from PIL import Image,ImageDraw,ImageFont
 

@@ -1,8 +1,8 @@
-from pyxavi import Dictionary, Config
+from pyxavi import Dictionary, Config, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
 
@@ -29,7 +29,6 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     def run(self):
         '''
         Managed by Process
-        Gets called whenever the self._queue.put() is called from the main.py
         '''
         try:
             # Apparently the parent Process class has a run() implementation,
@@ -41,25 +40,25 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
             self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
-                type, message = queue_item
-                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + type + "]: [" + message + "]")
+                action, param = queue_item
+                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + param + "]" if param is not None else "]"))
 
                 # This is the old way, to be deprecated
-                self.run_with_context(self._xconfig, self._xlog, type, message)
+                self.run_with_context(self._xconfig, self._xlog, action, param)
 
                 # Executes the own do() passing the context.
-                if type == QueueItemType.DO:
-                    self.do(self._xconfig, self._xlog, message)
+                if action == XprocAction.DO:
+                    self.do(self._xconfig, self._xlog, param)
                 
                 # Initializes the model from within the Process.
                 # This is the only way to avoid Model Session issues
-                if type == QueueItemType.ACTION and message == QueueItemAction.INITIALIZE:
+                if action == XprocAction.INITIALIZE:
                     self.initialize()
 
                 # We don't need to finish the subprocess from main explicitly, it will end when the job
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
-                if type == QueueItemType.ACTION and message == QueueItemAction.FINISH:
+                if action == XprocAction.FINISH:
                     self.finish()
                 
                 # Finally, we mark this task as done
@@ -69,7 +68,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                     pass
 
         except KeyboardInterrupt:
-            self._xlog.debug("Pressed Control + C while running Xprocess run()")
+            self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
             self.finish()
 
     def _initialize_on_every_run(self):

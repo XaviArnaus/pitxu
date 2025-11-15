@@ -9,7 +9,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
-from ..dto.point import Point
+from ..objects.point import Point
 
 class EinkDisplay:
 

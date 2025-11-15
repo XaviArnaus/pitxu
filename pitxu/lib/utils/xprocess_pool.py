@@ -8,7 +8,7 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUS
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.objects import XprocAction
 
 
 class XprocessPool(PyXavi):
@@ -55,7 +55,7 @@ class XprocessPool(PyXavi):
         self.add(name, process)
         self._xlog.debug("Starting process [" + name + "] from the pool")
         self._process[name].start()
-        self.send(name, (QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+        self.send(name, XprocAction.INITIALIZE)
     
     def new(self, name: str, target):
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
@@ -70,7 +70,7 @@ class XprocessPool(PyXavi):
         self.new(name, target)
         self._xlog.debug("Starting process [" + name + "] from the pool")
         self._process[name].start()
-        self.send(name, (QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+        self.send(name, XprocAction.INITIALIZE)
 
     def get_process(self, name: str):
         if name in self._process:
@@ -97,15 +97,15 @@ class XprocessPool(PyXavi):
     def list(self) -> list[str]:
         return list(self._process.keys())
     
-    def send(self, queue_name: str, message: tuple):
+    def send(self, queue_name: str, action: XprocAction, param: str = None):
         if queue_name in self._queue:
-            self._queue[queue_name].put((message))
+            self._queue[queue_name].put((action, param))
         else:
             self._xlog.error("queue [" + queue_name + "] does not exist in the pool.")
 
-    def broadcast(self, message: tuple):
+    def broadcast(self, action: XprocAction, param: str = None):
         for queue_name in self._queue.keys():
-            self.send(queue_name, message)
+            self.send(queue_name, action, param)
     
     def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy
@@ -137,7 +137,7 @@ class XprocessPool(PyXavi):
         # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the children
         #    from the queues. Maybe the main thread empties it before being read. 
         self._xlog.debug("Send 'finish' to children")
-        self.broadcast((QueueItemType.ACTION, QueueItemAction.FINISH))
+        self.broadcast(XprocAction.FINISH)
         # ...so they can close dependencies.
 
         # 2. Clean and close the queues, apparently better from the one that put().

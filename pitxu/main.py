@@ -13,7 +13,7 @@ from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
-from pitxu.lib.dto import QueueItemType, QueueItemDisplay
+from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY,\
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
@@ -284,22 +284,22 @@ class Main:
     # ------- Communication with Queues ---------
     
     def _say(self, message: str):
-        self._process_pool.send(PROCESS_SPEAKER,(QueueItemType.SAY, message))
+        self._process_pool.send(PROCESS_SPEAKER, XprocAction.SAY, message)
     
     def _show(self, message: str):
-        self._process_pool.send(PROCESS_EINK,(QueueItemType.SHOW, message))
-        self._process_pool.send(PROCESS_MATRIX,(QueueItemType.SHOW, message))
+        self._process_pool.send(PROCESS_EINK, XprocAction.SHOW, message)
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.SHOW, message)
     
     def _startup_splash(self):
-        self._process_pool.send(PROCESS_EINK,(QueueItemType.DISPLAY, QueueItemDisplay.STARTUP))
+        self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
         self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
     
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.
         # First a soft clear, so the screen is white
-        self._process_pool.send(PROCESS_EINK,(QueueItemType.DISPLAY, QueueItemDisplay.SOFT_CLEAR))
+        self._process_pool.send(PROCESS_EINK, XprocAction.SOFT_CLEAR)
         # Full clear, to ensure a reset.
-        self._process_pool.send(PROCESS_EINK,(QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+        self._process_pool.send(PROCESS_EINK, XprocAction.CLEAR)
 
     def _clear_matrix(self):
-        self._process_pool.send(PROCESS_MATRIX,(QueueItemType.MATRIX, QueueItemDisplay.CLEAR))
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.CLEAR)
