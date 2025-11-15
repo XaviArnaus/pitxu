@@ -39,7 +39,7 @@ class GeminiChatbot(ChatbotProtocol):
             raise RuntimeError("Config can not be None")
 
         self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_xlog()
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         self.initialize()
 
     def initialize(self):
@@ -54,7 +54,7 @@ class GeminiChatbot(ChatbotProtocol):
             config=types.GenerateContentConfig(
                 system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                tool_xconfig=types.ToolConfig(function_calling_xconfig=types.FunctionCallingConfig(mode="NONE"))
+                tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="NONE"))
             )
         )
     
