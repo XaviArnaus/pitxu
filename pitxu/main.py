@@ -1,35 +1,45 @@
-from multiprocessing import set_start_method, Process, Queue, Manager
+from multiprocessing import JoinableQueue, shared_memory
 
 from pyxavi import Logger, Config, Dictionary
 
 import logging
 
-from pitxu.lib.utils import Text, Stopwatch, Memory
+from pitxu.lib.utils.text import Text
+from pitxu.lib.utils.stopwatch import Stopwatch
+from pitxu.lib.utils.memory import Memory
+from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.chatbot import GeminiChatbot
-from pitxu.lib.eink import EinkDisplay, Macros
+from pitxu.lib.eink import Display
+from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
-# from pitxu.lib.text_to_speech import Piper
-from pitxu.lib.text_to_speech import PiperMultiprocess
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pitxu.lib.text_to_speech import Piper
+from pitxu.lib.objects import XprocAction
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY,\
+                        PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
 import sounddevice
 import time
+from queue import Empty
 
 class Main:
 
-    _config: Config = None
-    _logger: logging = None
+    _xconfig: Config = None
+    _xlog: logging = None
 
-    _display: EinkDisplay = None
-    _macros: Macros = None
+    _display: Display = None
+    _matrix: MatrixLed = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
-    # _speech: Piper = None
-    _speech: PiperMultiprocess = None
+    _speech: Piper = None
+
+    _process_pool: XprocessPool = None
 
     _manager = None
-    _queue: Queue = None
+    _queue_display: JoinableQueue = None
+    _queue_matrix: JoinableQueue = None
+    _queue_speech: JoinableQueue = None
+    _shared_memory: shared_memory.ShareableList = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -38,6 +48,7 @@ class Main:
     _exit_words: list = []
 
     COMM_DISPLAY = "display"
+    COMM_MATRIX = "matrix"
     COMM_TTS = "tts"
 
     ENGLISH: str = "en-us"
@@ -45,25 +56,33 @@ class Main:
     GERMAN: str = "de"
     SPANISH: str = "es"
 
+    # Shared memory flag positions
+    SHARED_SPEAKER_BUSY = 0
+    SHARED_EINK_BUSY = 1
+    SHARED_MATRIX_BUSY = 2
+
     def __init__(self, config: Config = None, params: Dictionary = None):
 
         # Possible runtime parameters
-        self._parameters = params
+        self._xparams = params
 
         # Config is mandatory
         if config is None:
             raise RuntimeError("Config can not be None")
-        self._config = config
+        self._xconfig = config
 
         # Common Logger
-        self._logger = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
-        self._parameters.set("logger", self._logger)
+        self._xlog = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+        self._xparams.set("logger", self._xlog)
 
         # Initial Language
-        self._parameters.set("language", config.get("app.default_language", self.CATALAN))
+        self._xparams.set("language", config.get("app.default_language", self.CATALAN))
 
         # Supported Languages
         self._supported_languages = config.get("languages.supported_languages")
+
+        # Process Pool (initialisation of process handling)
+        self._process_pool = XprocessPool(config=self._xconfig, params=self._xparams)
 
         self._stopwatch = Stopwatch()
 
@@ -73,81 +92,78 @@ class Main:
             raise RuntimeError("Language [" + new_language + "] is not supported")
         
         # Define the language to use
-        self._parameters.set("language", new_language)
+        self._xparams.set("language", new_language)
 
         # Reload the models now that we have a new language defined
-        self.load_models()
+        self._load_models()
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self.load_language_statics()
+        self._load_language_statics()
 
-    def load_models(self):
-
-        # Some of the models will be hold in separate processes
-        # Communication with them is done via a Queue
-        self._manager = Manager()
-        self._queue = self._manager.Queue()
-
-        # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
-        # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
-        # available in Mac.
-        set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility
+    def _load_models(self):
         
-        # Initialise Speech-to-Text
-        self._logger.debug("Initialising the Speech-to-Text with language [" + self._parameters.get("language") + "]")
-        self._dictate = Vosk(self._config, params=self._parameters)
+        # Initialise Speech-to-Text. This runs in the main process
+        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
 
-        # Initialise Text-To-Speech. Please note that the object is a child of Process,
-        #   so it only communicate with it via the queue.
-        self._logger.debug("Initialising the Text-to-Speech with language [" + self._parameters.get("language") + "]")
-        # self._speech = Piper(self._config, params=self._parameters)
-        self._speech = PiperMultiprocess(self._config, params=self._parameters, queue=self._queue)
-        self._speech.start()
-        self._queue.put((QueueItemType.ACTION, QueueItemAction.INITIALIZE))
+        # Initialise Text-To-Speech.
+        self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
+        self._process_pool.new_and_start(PROCESS_SPEAKER, target=Piper)
 
         # Initialise Chatbot
-        self._logger.debug("Initialising the Chatbot Client with language [" + self._parameters.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._config, params=self._parameters)
+        self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
+        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
     
-    def load_language_statics(self):
+    def _load_language_statics(self):
 
         # Load the greeting sentence
-        self._logger.debug("Load Greeting with language [" + self._parameters.get("language") + "]")
-        self._greeting_sentence = self._config.get("language.greeting." + self._parameters.get("language"))
+        self._xlog.debug("Load Greeting with language [" + self._xparams.get("language") + "]")
+        self._greeting_sentence = self._xconfig.get("language.greeting." + self._xparams.get("language"))
 
         # Load the goodbye sentence
-        self._logger.debug("Load Goodbye with language [" + self._parameters.get("language") + "]")
-        self._goodbye_sentence = self._config.get("language.goodbye." + self._parameters.get("language"))
+        self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
+        self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
 
         # Compile exit words
         all_possible_exit_words = []
-        for language, exit_words in dict(self._config.get("language.exit_words")).items():
+        for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
             for word in exit_words:
                 if word not in all_possible_exit_words:
                     all_possible_exit_words .append(word)
-        self._logger.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
     
+    def _initialize_displays(self):
+        """
+        Initialisation of the displays and macros
+        """
+
+        self._xlog.debug("Initialising Matrix LED Display and Macros")
+        self._process_pool.new_and_start(PROCESS_MATRIX, target=MatrixLed)
+        # Needs an initial clear
+        self._clear_matrix()
+
+        self._xlog.debug("Initialising eInk Display and Macros")
+        self._process_pool.new_and_start(PROCESS_EINK, target=Display)
+
     def run(self):
 
         sw_init = self._stopwatch.start(name="init")
 
         # Initialise eInk Display and the helper macros
-        self._logger.debug("Initialising the e-Ink")
-        self._display = EinkDisplay(config=self._config, params=self._parameters)
-        self._macros = Macros(self._config, params=self._parameters)
+        self._initialize_displays()
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        self._macros.startup_splash(self._display)
+        self._startup_splash()
         time.sleep(2)
 
         # Initialise all classes that require a model. They go per language, that's why it's abstracted
-        self.load_models()
+        self._load_models()
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self.load_language_statics()
+        self._load_language_statics()
 
-        self._logger.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
+        self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
         try:
             # Read from microphone
@@ -156,145 +172,134 @@ class Main:
                                 blocksize = 0, 
                                 device=self._dictate.device,
                                 dtype="int16", 
-                                channels=1, 
+                                channels=1,
                                 callback=self._dictate.callback) as input_stream:
                 
                 # Welcome greeting
-                self._logger.debug(">> Greetings")
+                self._xlog.debug(">> Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self.communicate(self._greeting_sentence,
-                                 [self.COMM_TTS, self.COMM_DISPLAY],
-                                 input_stream)
-                self._logger.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
+                self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
+                self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 question = ""
                 dictate_count = 0
                 answer_count = 0
                 while(not self._text_has_exit_intention(question)):
-                    try:
-                        # Recognize what comes from the microphone
-                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                        question = self._dictate.recognize()
-                        if (question == None or question.strip() == ""):
-                            continue
-                        self._logger.debug(">> Recognised dictate")
-                        self._logger.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                        dictate_count += 1
 
-                        # Avoid calling the Chatbot when exiting
-                        if self._text_has_exit_intention(question):
-                            # Just assume a goodbye
-                            answer = self._goodbye_sentence
-                        else:
-                            # Here we start with the Chatbot
-                            answer = self._chatbot.ask(question)
-                        
-                        # Clean the answer first, just in case
-                        answer = Text.remove_emojis(answer)
+                    # Recognize what comes from the microphone
+                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                    question = self._dictate.recognize()
+                    if (question == None or question.strip() == ""):
+                        continue
+                    self._xlog.debug(">> Recognised dictate")
+                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    dictate_count += 1
 
-                        # Answer
-                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY], input_stream)
-                        self._logger.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                        answer_count += 1
-                    except KeyboardInterrupt:
-                        break
-                
-                # We're here if the user said the exit words
-                self.close_nicely()
+                    # Avoid calling the Chatbot when exiting
+                    if self._text_has_exit_intention(question):
+                        # Just assume a goodbye
+                        answer = self._goodbye_sentence
+                    else:
+                        # Here we start with the Chatbot
+                        answer = self._chatbot.ask(question)
+                    
+                    # Clean the answer first, just in case
+                    answer = Text.remove_emojis(answer)
+                    answer = Text.remove_markdown(answer)
+
+                    # Answer
+                    sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                    self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
+                    self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                    answer_count += 1
 
         except KeyboardInterrupt:
-            self._logger.info("Pressed Control + C from main")
-            self.close_nicely()
+            self._xlog.info("Pressed Control + C from main")
         
-        # Here comes anything that we want to do before leaving
-        self._logger.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._logger.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+        # However it happened, just close nicely.
+        self.close_nicely()
     
-    def communicate(self, text: str, channels: list, input_stream_to_pause: sounddevice.RawInputStream = None):
+    def communicate(self, text: str, channels: list):
         """
         Communicates to the user using the channels defined.
 
         It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
-        It is a blocking process, but runs every channel in a separate process so they can run in parallel,
+        It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
         speeding up the overall run.
-        Current status: TTS can't be added into a separate process due to an issue when pickle it:
-            "TypeError: cannot pickle 'onnxruntime.capi.onnxruntime_pybind11_state.InferenceSession' object"
-        
-        So, as an idea, what about starting the audio thread from the beginning and just centrally control it
-        by sending what to say, when it needs to talk? From the central thread we can also send an action to 
-        pause the mic, so no need to do it from the audio thread itself.
-        https://stackoverflow.com/questions/65084598/python-multiprocessing-adding-to-queue-within-child-process
         """
 
         # In case we want TTS, we need to pause the mic
-        # Has to happen in the main thread, as the RawInputStream can't be pickled to be sent as a param to the Pool
-        if self.COMM_TTS in channels and input_stream_to_pause is not None:
-            input_stream_to_pause.stop()
+        # this is done within the TTS process via a shared memory flag that tells the STT to pause
 
         if self.COMM_TTS in channels:
             # Say the answer
-            self._logger.debug("Say Communication")
-            # p_say = Process(target=self._speech.say, args=(text,))
-            # p_say.start()
+            self._xlog.debug("Say Communication")
             # We already have the TTS in a Process, listening for elements in the queue
-            self._queue.put((QueueItemType.MESSAGE, text))
+            self._say(text)
 
         if self.COMM_DISPLAY in channels:
             # Show the answer
-            self._logger.debug("Show Communication")
-            p_display = Process(target=self._macros.draw_text_bubble, args=(self._display, text, self._display.FONT_MEDIUM))
-            p_display.start()
+            self._xlog.debug("Show Communication")
+            self._show(text)
+        
+        # We want that the main thread waits until some of the actions finished in the subprocesses
+        self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
+        self._process_pool.wait_for_queue_to_empty(PROCESS_SPEAKER)
+        # Yeah, but still there is job to be done (speaking, for example)
+        self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+        self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
 
-
-        # Wait for the processes to end
-        if self.COMM_TTS in channels:
-            # p_say.join()
-            pass
-        if self.COMM_DISPLAY in channels:
-            p_display.join()
-
-        # In case we want TTS, we need to release the mic
-        # Has to happen in the main thread, as the RawInputStream couldn't be pickled to be sent as a param to the Pool
-        if self.COMM_TTS in channels and input_stream_to_pause is not None:
-            input_stream_to_pause.start()
-
-        #### Originally was:
-
-        # if self.COMM_DISPLAY in channels:
-        #     # Show the answer
-        #     self._logger.debug("Show Communication")
-        #     self._macros.draw_text_bubble(self._display, text, self._display.FONT_MEDIUM)
-
-        # if self.COMM_TTS in channels:
-        #     # Say the answer
-        #     self._logger.debug("Say Cmmunication")
-        #     self._speech.say(text, input_stream_to_pause=input_stream_to_pause)
-
-    # def _say(speech_instance: Piper, text: str):
-    def _say(speech_instance: PiperMultiprocess, text: str):
-        speech_instance.say(text)
-        return speech_instance
-    
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
-        self._logger.debug("Closing nicely...")
-        # Ensure that everything is waiting for a command
-        time.sleep(2)
-        # Clean the display
-        self._logger.debug("Clearing the display.")
-        self._display.clear()
-        # We don't need to ask the process to self-terminate. It will when finishes the job.
-        # self._queue.put((QueueItemType.ACTION,QueueItemAction.FINISH))
-        self._logger.debug("Is the Speech subprocess still alive? " + ("Yes" if self._speech.is_alive() else "No"))
-        if self._speech.is_alive():
-            self._logger.debug("Terminating TTS Process")
-            self._speech.terminate()
-            # kill() does not fail (terminate() sometimes does), but appears to me pretty hardcode.
-            # self._speech.kill()
+        self._xlog.debug("Closing nicely...")
 
-        self._logger.debug("We should be now nicely closed")
-        self._logger.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
+        # Clean the displays
+        self.clear_displays()
+
+        # Wait for all the queues and processes to get empty
+        self._process_pool.wait_for_all_queues_to_empty()
+        self._process_pool._shared_memory.wait_for_all_busy_process_to_idle()
+
+        # Finish all related multiprocess stuff
+        self._process_pool.finish_leftover_processes()
+
+        # ------ Final logs ------
+
+        self._xlog.debug("We should be now nicely closed")
+        self._xlog.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
+
+        # Here comes anything that we want to do before leaving
+        self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+        self._xlog.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+    
+    def clear_displays(self):
+        self._xlog.debug("Clearing the eInk.")
+        self._clear_display()
+        self._xlog.debug("Clearing the LED Matrix.")
+        self._clear_matrix()
+
+    # ------- Communication with Queues ---------
+    
+    def _say(self, message: str):
+        self._process_pool.send(PROCESS_SPEAKER, XprocAction.SAY, message)
+    
+    def _show(self, message: str):
+        self._process_pool.send(PROCESS_EINK, XprocAction.SHOW, message)
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED, message)
+    
+    def _startup_splash(self):
+        self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
+        self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
+    
+    def _clear_display(self):
+        # Now that we use partial refresh, the clear needs a previous white rectangle.
+        # First a soft clear, so the screen is white
+        self._process_pool.send(PROCESS_EINK, XprocAction.SOFT_CLEAR)
+        # Full clear, to ensure a reset.
+        self._process_pool.send(PROCESS_EINK, XprocAction.CLEAR)
+
+    def _clear_matrix(self):
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED_CLEAR)

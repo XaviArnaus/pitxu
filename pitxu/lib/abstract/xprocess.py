@@ -1,89 +1,89 @@
-from . import PyXavi
-from pyxavi import Config
-from pitxu.lib.utils import ConfigLoader
-from pitxu.lib.dto import QueueItemType, QueueItemAction
+from pyxavi import Dictionary, Config, dd
+from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.objects import XprocAction
 
-from multiprocessing import Process, Queue
-import logging
+from multiprocessing import JoinableQueue, Process
 
-class Xprocess(PyXavi, Process):
+class Xprocess(PyXavi, Process, XprocessProtocol):
 
-    _queue: Queue = None
+    _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
-    def __init__(self, queue: Queue, *kargs):
+    _queue: JoinableQueue = None
+    _shared_memory: SharedMemoryManager = None
+
+    def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
+        self.init_pyxavi(config=config, params=params, **kwargs)
+
+        self._PROCESS_NAME = self.get_process_name()
+        self._xlog.debug("Initializing Xprocess [" + self._PROCESS_NAME + "]")
 
         self._queue = queue
 
-        # Calls the PyXavi.__init__(self,whatever,params,we,send)
-        super(Xprocess, self).__init__(*kargs)
-    
+        super(Xprocess, self).__init__()
+
+    def get_queue(self) -> JoinableQueue:
+        return self._queue
+
     def run(self):
         '''
         Managed by Process
-        Gets called whenever the self._queue.put() is called from the main.py
         '''
-
-        # Apparently the parent Process class has a run() implementation,
-        # but I don't see the difference in behaviour.
-        super(Xprocess, self).run()
-
         try:
-            # This is needed to have the logging connected:
-            # - Create the Config object from scratch
-            # - Use the Config object to initialise the Logger. Be sure that the `stdout.multiprocess`
-            #       or `file.multiprocess` is True. Each activate their respective multiproces support.
-            #       WARNING: Unintentionally, stdout works multiprocess without activating! Bug!
-            # - ONLY THEN we will see logging messages in the main logger.
-            self._config = ConfigLoader.load_config_files()
-            self._init_logger(config=self._config)
+            # Apparently the parent Process class has a run() implementation,
+            # but I don't see the difference in behaviour.
+            super(Xprocess, self).run()
 
+            # Initialisations needed on every run
+            self._initialize_on_every_run()
 
-            self._logger.debug("Xprocess run()")
+            self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
-                type, message = queue_item
-                self._logger.debug("Xprocess run() received a [" + type + "]: [" + message + "]")
+                action, param = queue_item
+                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + param + "]" if param is not None else "]"))
+
+                # This is the old way, to be deprecated
+                self.run_with_context(self._xconfig, self._xlog, action, param)
 
                 # Executes the own do() passing the context.
-                if type == QueueItemType.DO:
-                    self.do(self._config, self._logger, message)
+                if action == XprocAction.DO:
+                    self.do(self._xconfig, self._xlog, param)
                 
                 # Initializes the model from within the Process.
                 # This is the only way to avoid Model Session issues
-                if type == QueueItemType.ACTION and message == QueueItemAction.INITIALIZE:
+                if action == XprocAction.INITIALIZE:
                     self.initialize()
 
                 # We don't need to finish the subprocess from main explicitly, it will end when the job
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
-                if type == QueueItemType.ACTION and message == QueueItemAction.FINISH:
+                if action == XprocAction.FINISH:
                     self.finish()
+                
+                # Finally, we mark this task as done
+                try:
+                    self._queue.task_done()
+                except ValueError:
+                    pass
 
         except KeyboardInterrupt:
-            self._logger.debug("Pressed Control + C while running Xprocess run()")
+            self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
             self.finish()
-    
-    def initialize(self):
+
+    def _initialize_on_every_run(self):
         '''
-        This is called from from __init__() when instantiated (can be avoided) or from 
-        outside via QueueItemAction.INITIALIZE to init itself anything, 
-        it won't be triggered in every run(). 
-        Most likely you want to initiate here the models within the Process, avoiding
-        issues with session serialisation (I look at you, PiperSession)
+        Initialise something on every run() call.
+        Called from run() before do()
         '''
-        super(Xprocess, self).__init__()
-    
-    def do(self, config: Config, logger: logging):
-        '''
-        This is what you want to implement in your child class as the actual work.
-        Called from run() with the initialised basic framework.
-        '''
-        pass
-    
-    def finish(self):
-        '''
-        This is called from from run() via KeyboardInterrupt or from outside via 
-        QueueItemAction.FINISH to finish gracefully whatever we have open.
-        Do not try to terminate the process from inside itself.
-        '''
-        pass
-        
+        # Initialise config, logger, params
+        self.init_pyxavi(config=self._xconfig, params=self._xparams)
+        # Initialize shared memory
+        self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory.initialize_existing_shared_memory()
+
+    def read_shared_memory_flag(self, index: int) -> bool:
+        return self._shared_memory.read_shared_memory_flag(index)
+
+    def write_shared_memory_flag(self, index: int, value: bool):
+        self._shared_memory.write_shared_memory_flag(index, value)

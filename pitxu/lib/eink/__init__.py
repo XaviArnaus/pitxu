@@ -1,2 +1,3 @@
-from .display import EinkDisplay
+from .eink import EinkDisplay
 from .macros import Macros
+from .display import Display

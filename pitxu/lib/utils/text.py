@@ -12,3 +12,19 @@ class Text:
         emojis = sorted(emoji.EMOJI_DATA, key=len, reverse=True)
         pattern = '(' + '|'.join(re.escape(u) for u in emojis) + ')'
         return re.compile(pattern)
+    
+    def remove_markdown(text:str) -> str:
+        '''
+        Removes basic markdown syntax from text.
+        '''
+        # Remove headings
+        text = re.sub(r'#+ ', '', text)
+        # Remove bold and italics
+        text = re.sub(r'\*\*|__|\*|_', '', text)
+        # Remove inline code
+        text = re.sub(r'`', '', text)
+        # Remove links but keep the link text
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+        # Remove images
+        text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'\1', text)
+        return text

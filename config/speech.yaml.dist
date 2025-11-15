@@ -1,0 +1,25 @@
+# Configurations for the Speech-to-Text
+speech-to-text:
+  # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: True
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
+  input_device: 0
+  # [Integer] Vosk internal log level. -1 to disable.
+  internal_logging: -1
+
+# Configurations for the Text-to-Speech
+text-to-speech:
+  # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
+  mock: False
+  # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
+  output_device: 0
+  # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
+  per_language:
+    # Catalan
+    ca: ca_ES-upc_pau-x_low
+    # Spanish
+    es: es_ES-davefx-medium
+    # English
+    en-us: en_US-joe-medium
+    # German
+    de: de_DE-karlsson-low

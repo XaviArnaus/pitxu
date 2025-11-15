@@ -1,0 +1,15 @@
+#
+
+if [[ $# -eq 0 ]] ; then
+    pactl get-source-volume @DEFAULT_SOURCE@
+    pactl get-source-mute @DEFAULT_SOURCE@
+    exit 0
+fi
+
+case "$1" in
+    "up") pactl set-source-volume @DEFAULT_SOURCE@ +10% ;;
+    "down") pactl set-source-volume @DEFAULT_SOURCE@ -10% ;;
+    "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;
+    *) echo "Command unknown" ;;
+esac
+

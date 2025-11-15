@@ -44,7 +44,7 @@ pitxu-rpi:
 # Use this for a run outside Poetry. Raspberry Pi as uses OS-bundled Python. Run `make rpi-install` first!
 	@begin=$$(date +%s); \
 	echo "Starting Pitxu... \n"; \
-	make run; \
+	$(PYTHON) runner.py; \
 	echo "\nPitxu Ended...\n"; \
 	end=$$(date +%s); \
 	echo "Total time used: $$((end - begin)) s."
@@ -56,6 +56,14 @@ run:
 .PHONY: sounddevices
 sounddevices:
 	@$(POETRY) run sounddevices
+
+.PHONY: clear
+clear:
+	@$(POETRY) run clear
+
+.PHONY: test_matrix
+test_matrix:
+	@$(POETRY) run test_matrix
 
 .PHONY: where-is-python
 where-is-python:

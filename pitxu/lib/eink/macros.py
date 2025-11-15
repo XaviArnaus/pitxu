@@ -4,15 +4,15 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from . import EinkDisplay
-from ..dto import Rectangle, Line, Point
+from ..objects import Rectangle, Line, Point
 
 import logging
 
 class Macros:
 
-    _config: Config = None
-    _logger: logging = None
-    _parameters: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _display_size: Point = None
 
@@ -21,10 +21,10 @@ class Macros:
     COLOR_WHITE: int = 1
 
     def __init__(self, config: Config, params: Dictionary):
-        self._parameters = params
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
-        self._display_size = Point(self._config.get("display.size.x"), self._config.get("display.size.y"))
+        self._xparams = params
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
     def draw_text_bubble(self, display: EinkDisplay, text: str, font: ImageFont):
 
@@ -56,7 +56,7 @@ class Macros:
         text = self.break_line_in_text_if_needed(canvas, text, textbox_boundaries, font)
 
         # Draw the text
-        bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
+        _bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
 
         # The pick of the speach bubble
         canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_WHITE, width=1)
@@ -68,7 +68,7 @@ class Macros:
 
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 
-        self._logger.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
+        self._xlog.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
         
         # Split the lines, we need to cover all individually
         lines = text.split("\n")
@@ -81,7 +81,7 @@ class Macros:
             words_to_add__to_next_line = []
             # What's the current size
             width_text = canvas.textlength(working_line, font)
-            self._logger.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
+            self._xlog.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
             # Loop while  the text is still bigger
             while(width_text > boundaries.point_2.x):
                 # Split by words
@@ -97,7 +97,7 @@ class Macros:
         
         words_to_add__to_next_line.reverse()
         final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
-        self._logger.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
+        self._xlog.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
         return final_text
     
     def startup_splash(self, display: EinkDisplay):
@@ -106,8 +106,8 @@ class Macros:
         canvas = display.create_canvas(reset_base_image=True)
 
         # Main title
-        title = self._config.get("app.name")
-        version = self._parameters.get("app_version")
+        title = self._xconfig.get("app.name")
+        version = self._xparams.get("app_version")
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
                     text = title + "  v" + version, 
                     font = display.FONT_BIG, 
@@ -121,10 +121,10 @@ class Macros:
                     width = 1)
         
         # Subtitle
-        subtitle = "Chatbot: " + ("mocked" if self._config.get("chatbot.mock", True) else "real") + \
-                    " | Display: " + ("mocked" if self._config.get("display.mock", True) else "real") + \
-                    "\nSTT: " + ("mocked" if self._config.get("speech-to-text.mock", True) else "real") + \
-                    " | TTS: " + ("mocked" if self._config.get("text-to-speech.mock", True) else "real")
+        subtitle = "Chatbot: " + ("mocked" if self._xconfig.get("chatbot.mock", True) else "real") + \
+                    " | Display: " + ("mocked" if self._xconfig.get("display.mock", True) else "real") + \
+                    "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
+                    " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real")
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = display.FONT_MEDIUM, 
@@ -136,6 +136,9 @@ class Macros:
         display.display()
         
     def ready_splash(self, display: EinkDisplay):
+        '''
+        Not used
+        '''
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
 
@@ -147,5 +150,21 @@ class Macros:
                     anchor = "mm",
                     align = "center")
         
+        # Now display the canvas
+        display.display()
+    
+    def soft_clear(self, display: EinkDisplay):
+
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # Create a white rectancgle with the sizes of the screen
+        rect_1 = Point(0, 0)
+        rect_2 = Point(self._display_size.x, self._display_size.y)
+        canvas.rectangle(
+            Rectangle(rect_1, rect_2).to_image_rectangle(),
+            outline=self.COLOR_WHITE,
+            fill=self.COLOR_WHITE)
+
         # Now display the canvas
         display.display()

@@ -1,0 +1,15 @@
+#
+
+if [[ $# -eq 0 ]] ; then
+    pactl get-sink-volume @DEFAULT_SINK@
+    pactl get-sink-mute @DEFAULT_SINK@
+    exit 0
+fi
+
+case "$1" in
+    "up") pactl set-sink-volume @DEFAULT_SINK@ +10% ;;
+    "down") pactl set-sink-volume @DEFAULT_SINK@ -10% ;;
+    "mute") pactl set-sink-mute @DEFAULT_SINK@ toggle ;;
+    *) echo "Command unknown" ;;
+esac
+

@@ -3,11 +3,11 @@ import logging
 import sys
 import json
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Dictionary, Config, Logger
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from definitions import SHARED_SPEAKER_BUSY
 
-from vosk import Model, KaldiRecognizer
+from vosk import Model, KaldiRecognizer, SetLogLevel
 import sounddevice as sd
 
 class Vosk:
@@ -17,47 +17,63 @@ class Vosk:
     GERMAN: str = "de"
     SPANISH: str = "es"
 
-    _config: Config = None
-    _logger: logging = None
-    _parameters: Dictionary = None
+    _xconfig: Config = None
+    _xlog: logging = None
+    _xparams: Dictionary = None
 
     _model = None
     _queue = None
     _recognizer: KaldiRecognizer = None
 
+    _shared_memory: SharedMemoryManager = None
+
     device = None
     samplerate = None
 
     def __init__(self, config: Config, params: Dictionary):
-        self._parameters = params
-        self._config = config
-        self._logger = Logger(config=config, base_path=self._parameters.get("base_path", "")).get_logger()
+        self._xparams = params
+        self._xconfig = config
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         self.initialize()
     
     def initialize(self):
-        language = self._parameters.get("language")
-    
-        self._queue = queue.Queue()
-        self._model = Model(lang=language)
 
-        self.samplerate = self._get_samplerate()
-        self.device = self._config.get("speech-to-text.input_device", None)
+        self._xlog.info("Initializing Vosk STT")
+
+        language = self._xparams.get("language")
     
-        self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+        if self._xconfig.get("speech-to-text.mock", True):
+            self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
+        else:
+            SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", 0))
+
+            self._model = Model(lang=language)
+
+            self.samplerate = self._get_samplerate()
+            self.device = self._xconfig.get("speech-to-text.input_device", None)
+        
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+
+        self._xlog.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
+        self._queue = queue.Queue()
+        self._xlog.info("Vosk: Loading flags from Shared Memory")
+        self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory.initialize_existing_shared_memory()
+
+        self._xlog.info("Done Initializing Vosk STT")
     
     def recognize(self) -> str:
-        if self._config.get("speech-to-text.mock", True):
+        if self._xconfig.get("speech-to-text.mock", True):
             return input("Type your question: [\"exit\" to leave]: \n")
         else:
             data = self._queue.get()
             if self._recognizer.AcceptWaveform(data):
                 result = json.loads(self._recognizer.Result())
-                self._logger.info("Recognized text: " + result["text"].replace("\n", ""))
+                self._xlog.info("Recognized text: " + result["text"].replace("\n", ""))
                 return result["text"]
             else:
                 result = json.loads(self._recognizer.PartialResult())
-                # self._logger.debug("Recognized partial: " + result["partial"].replace("\n", ""))
                 return None
     
     def _get_samplerate(self) -> int:
@@ -68,9 +84,10 @@ class Vosk:
     def callback(self, indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
-            # self._logger.debug("Finished audio block, status is " + status)
             print(status, file=sys.stderr)
-        self._queue.put(bytes(indata))
+        
+        if not self.is_mic_paused():
+            self._queue.put(bytes(indata))
 
     def _int_or_str(self, text):
         """Helper function for argument parsing."""
@@ -78,6 +95,18 @@ class Vosk:
             return int(text)
         except ValueError:
             return text
-        
+    
+    def is_mic_paused(self):
+
+        if self._shared_memory is None:
+            self._xlog.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
+            return False
+        if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
+            self._xlog.error("Shared Memory flag 0 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
+            return False
+
+        return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
+
+
 
         
