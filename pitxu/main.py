@@ -288,7 +288,7 @@ class Main:
     
     def _show(self, message: str):
         self._process_pool.send(PROCESS_EINK, XprocAction.SHOW, message)
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.SHOW, message)
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED, message)
     
     def _startup_splash(self):
         self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
@@ -302,4 +302,4 @@ class Main:
         self._process_pool.send(PROCESS_EINK, XprocAction.CLEAR)
 
     def _clear_matrix(self):
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.CLEAR)
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED_CLEAR)
