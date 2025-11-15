@@ -96,11 +96,11 @@ class CreateNote(Xprocess):
                     },
                     "date": {
                         "type": "string",
-                        "description": "Date of the meeting (e.g., '2024-07-29')",
+                        "description": "Date of the note (e.g., '2024-07-29')",
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time of the meeting (e.g., '15:00')",
+                        "description": "Time of the note (e.g., '15:00')",
                     },
                     "body": {
                         "type": "string",

@@ -4,9 +4,7 @@ from google.genai.errors import ServerError
 
 from . import ChatbotProtocol
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
+from pyxavi import Logger, Config, Dictionary, dd
 
 from pitxu.lib.command import CreateNote
 
@@ -17,39 +15,14 @@ class GeminiChatbot(ChatbotProtocol):
     Using the Gemini API to get answers. Require internet connection.
 
     https://ai.google.dev/gemini-api/docs/rate-limits
-    At the implementation time it uses the Free Tier, Geminii 2.0 Flash.
+    At the implementation time it uses the Free Tier, Gemini 2.0 Flash.
 
     - 15 requests per minute
     - 1000000 tokens per minute
     - 1500 requests per day
     """
 
-    create_note_command = {
-        "name": "self.create_note",
-            "description": "Creates a note file",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "The title of the note",
-                    },
-                    "date": {
-                        "type": "string",
-                        "description": "Date of the meeting (e.g., '2024-07-29')",
-                    },
-                    "time": {
-                        "type": "string",
-                        "description": "Time of the meeting (e.g., '15:00')",
-                    },
-                    "body": {
-                        "type": "string",
-                        "description": "The body of the note",
-                    },
-                },
-                "required": ["title", "body"],
-            },
-        }
+    create_note_command = CreateNote.generate_gemini_function()
 
     _client = None
     _xparams: Dictionary = None
@@ -66,7 +39,7 @@ class GeminiChatbot(ChatbotProtocol):
             raise RuntimeError("Config can not be None")
 
         self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_xlog()
         self.initialize()
 
     def initialize(self):
@@ -75,63 +48,80 @@ class GeminiChatbot(ChatbotProtocol):
             return False
         
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
+        # This setup is focusing into a chat with no commands.
         self._chat = self._client.chats.create(
-            model='gemini-2.0-flash',
-            config=types.GenerateContentConfig(system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")))
+            model='gemini-2.5-flash',
+            config=types.GenerateContentConfig(
+                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                tool_xconfig=types.ToolConfig(function_calling_xconfig=types.FunctionCallingConfig(mode="NONE"))
+            )
         )
     
     def ask(self, question: str) -> str:
 
-        self._xlog.debug("Question: " + question)
+        self._xlog.debug("Question or possible command: " + question)
 
         if (self._xconfig.get("chatbot.mock", True)):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
             try:
-
-                response = self._chat.send_message(question)
-
-                self._xlog.debug("Received answer: " + response.text)
-                return response.text
+                # return self.parse_command_or_chat(question)
+                return self.chat_question(question)
             except ServerError as e:
                 return "The server returns an error: " + e.message
-    
-    def response(self, command: str):
-        self._logger.debug("Command: " + command)
 
-        if (self._config.get("chatbot.mock", True)):
-            return "Chatbot is Mocked. Check the config.\Command: " + command
+            
+    def parse_command_or_chat(self, command: str):
+
+        tools = types.Tool(function_declarations=[self.create_note_command])
+        config = types.GenerateContentConfig(
+            tools=[tools],
+            system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))
+        )
+
+        response = self._client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=command,
+            config=config,
+        )
+
+        self._xlog.debug("Received answer: " + response.text)
+
+        # So, how it seems to work:
+        #   - You ask to do something
+        #   - Most likely, you miss some information, so it returns a chat message asking for that information
+        #   - You provide the information
+        #   - Then, it returns the function call with all the arguments filled
+        #
+        # The issue is that I don't know how to enter into this chatty mode of getting parameters and distinguish it from
+        #   a normal chat question.
+
+        # Check for a function call
+        # dd(response.candidates[0].content.parts[0])
+        if response.candidates[0].content.parts[0].function_call:
+            self._xlog.debug("Found a command, excecuting...")
+            function_call = response.candidates[0].content.parts[0].function_call
+
+            self._xlog.debug(f"Function to call: {function_call.name}")
+            self._xlog.debug(f"Arguments: {function_call.args}")
+
+            result = self.create_note(**function_call.args)
+
+            self._xlog.debug("Command executed, returning result: " + result)
+
+            return result
         else:
-            try:
+            self._xlog.debug("Could not find command, forwarding to chat")
+            return self.chat_question(command)
+            # return response.text
+    
+    def chat_question(self, question: str) -> str:
+        
+        response = self._chat.send_message(question)
 
-                tools = types.Tool(function_declarations=[self.create_note_command])
-                config = types.GenerateContentConfig(
-                    tools=[tools],
-                    system_instruction=self._config.get("chatbot.system_instruction." + self._parameters.get("language"))
-                )
-
-                response = self._client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=command,
-                    config=config,
-                )
-
-                self._logger.debug("Received answer: " + response.text)
-
-                # Check for a function call
-                if response.candidates[0].content.parts[0].function_call:
-                    self._logger.debug("Found a command, excecuting...")
-                    function_call = response.candidates[0].content.parts[0].function_call
-                    print(f"Function to call: {function_call.name}")
-                    print(f"Arguments: {function_call.args}")
-                    #  In a real app, you would call your function here:
-                    #  result = schedule_meeting(**function_call.args)
-                    result = self.create_note(**function_call.args)
-                else:
-                    self._logger.debug("Could not find command, forwarding to chat")
-                    return self.ask(command)
-            except ServerError as e:
-                return "The server returns an error: " + e.message
+        self._xlog.debug("Received answer: " + response.text)
+        return response.text
 
     
     def load_commands(self):
