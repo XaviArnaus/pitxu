@@ -6,7 +6,7 @@ from . import ChatbotProtocol
 
 from pyxavi import Logger, Config, Dictionary
 
-from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather
+from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia
 
 import logging
 
@@ -51,7 +51,8 @@ class GeminiChatbot(ChatbotProtocol):
             SystemDate.get_current_date,
             SystemTime.get_current_time,
             WorldPosition.get_geo_coordinates_from_location,
-            WorldWeather.get_weather_forecast
+            WorldWeather.get_weather_forecast,
+            WorldWikipedia.get_summary_from_wikipedia_by_term,
         ]
         self._chat = self._client.chats.create(
             model='gemini-2.5-flash',
