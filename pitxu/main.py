@@ -206,6 +206,7 @@ class Main:
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
                     answer = Text.remove_markdown(answer)
+                    answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language")))
 
                     # Answer
                     sw_answer = self._stopwatch.start(name="answer" + str(answer_count))

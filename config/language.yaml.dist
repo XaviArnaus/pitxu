@@ -1,0 +1,58 @@
+# General settings about language
+language:
+  # Exit words are used to identify the program termination
+  exit_words:
+    ca: ["sortir", "adéu"]
+    es: ["salir", "adiós"]
+    en-us: ["exit", "quit", "bye", "goodbye"]
+    de: ["chus"]
+  # This is the welcome / greeting message
+  greeting:
+    ca: "Hola sóc el Pitxu. Diga'm alguna cosa"
+    es: "Hola soy el Pitxu. Dime algo"
+    en-us: "Hi I'm Pitxu. Tell me anything"
+    de: "Hallo Ich bin Pitxu. Erzähl mir was"
+  # This is the goodbye message
+  goodbye:
+    ca: "Fins la propera! Adéu!"
+    es: "Hasta la próxima! Adiós"
+    en-us: "See you next time! Goodbye!"
+    de: "Bis zum nächsten Mal! Auf Wiedersehen!"
+  # Common text replacements to normalize output
+  text_replacements:
+    ca:
+      "&amp;": "i"
+      "&lt;": "menor que"
+      "&gt;": "major que"
+      "&quot;": ""
+      "&#39;": ""
+      "etc.": "etcètera"
+      "°C": "graus"
+      "km/h": "quilòmetres per hora"
+    es:
+      "&amp;": "y"
+      "&lt;": "menor que"
+      "&gt;": "mayor que"
+      "&quot;": ""
+      "&#39;": ""
+      "etc.": "etcétera"
+      "°C": "grados"
+      "km/h": "kilómetros por hora"
+    en-us:
+      "&amp;": "and"
+      "&lt;": "less than"
+      "&gt;": "greater than"
+      "&quot;": ""
+      "&#39;": ""
+      "etc.": "etcetera."
+      "°C": "degrees"
+      "km/h": "kilometers per hour"
+    de:
+      "&amp;": "und"
+      "&lt;": "kleiner als"
+      "&gt;": "größer als"
+      "&quot;": ""
+      "&#39;": ""
+      "etc.": "etcetera."
+      "°C": "Grad"
+      "km/h": "Kilometer pro Stunde"
