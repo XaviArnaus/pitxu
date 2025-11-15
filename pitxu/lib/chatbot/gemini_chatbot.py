@@ -58,7 +58,8 @@ class GeminiChatbot(ChatbotProtocol):
             # # Custom Commands
             SystemDate.get_current_date,
             SystemTime.get_current_time,
-            WorldPosition.get_geo_coordinates_from_location,
+            WorldPosition.get_latitude_and_longitude_from_location,
+            WorldPosition.get_latitude_and_longitude_from_current_location,
             WorldWeather.get_weather_forecast,
             WorldWikipedia.get_summary_from_wikipedia_by_term,
         ]
@@ -82,12 +83,14 @@ class GeminiChatbot(ChatbotProtocol):
                 return self.chat_question(question)
             except ServerError as e:
                 return "The server returns an error: " + e.message
+            except Exception as e:
+                return "The server returns an unexpected error: " + e.message
     
     def chat_question(self, question: str) -> str:
         
         response = self._chat.send_message(question)
 
-        self._xlog.debug("Received answer: " + response.text)
+        self._xlog.debug("Received answer: " + str(response.text))
         if len(response.candidates) > 1:
             self._xlog.debug("Discarded other candidates to the answer:" + "\n\n>".join(response.candidates))
         return response.text

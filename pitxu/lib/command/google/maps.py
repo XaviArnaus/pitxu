@@ -1,5 +1,4 @@
 from pyxavi import Config
-from pitxu.lib.utils.api_request import ApiRequest
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from google import genai
@@ -8,7 +7,7 @@ from google.genai import types
 class GoogleMaps(PyXavi):
 
     def __init__(self, config: Config = None, params: dict = None):
-        super().init_pyxavi(config=config, params=params)
+        super(GoogleMaps, self).init_pyxavi(config=config, params=params)
 
     def get_google_maps_response_to_a_prompt(self, prompt: str) -> str:
         '''
@@ -22,7 +21,7 @@ class GoogleMaps(PyXavi):
         self._xlog.debug(f"Getting Google Maps response for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
 
         instructions = {
-            "ca": f"Usa Google Maps per obtenir la resposta. Sigues curt i precís.",
+            "ca": f"Usa Google Maps per obtenir la resposta. Sigues curt i precís. Si necessites rebre una ubicació, demana les coordenades geogràfiques al usuari.",
             "es": f"Usa Google Maps para obtener la respuesta. Sé breve y preciso.",
             "en-us": f"Use Google Maps to obtain the answer. Be brief and precise.",
             "de": f"Verwenden Sie Google Maps, um die Antwort zu erhalten. Seien Sie kurz und präzise.",
