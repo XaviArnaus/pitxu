@@ -302,4 +302,4 @@ class Main:
         self._process_pool.send(PROCESS_EINK,(QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
 
     def _clear_matrix(self):
-        self._process_pool.send(PROCESS_MATRIX,(QueueItemType.DISPLAY, QueueItemDisplay.CLEAR))
+        self._process_pool.send(PROCESS_MATRIX,(QueueItemType.MATRIX, QueueItemDisplay.CLEAR))

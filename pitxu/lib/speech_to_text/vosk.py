@@ -7,7 +7,7 @@ from pyxavi import Dictionary, Config, Logger
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_SPEAKER_BUSY
 
-from vosk import Model, KaldiRecognizer
+from vosk import Model, KaldiRecognizer, SetLogLevel
 import sounddevice as sd
 
 class Vosk:
@@ -46,6 +46,8 @@ class Vosk:
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
+            SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", 0))
+
             self._model = Model(lang=language)
 
             self.samplerate = self._get_samplerate()

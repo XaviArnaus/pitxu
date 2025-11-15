@@ -4,6 +4,8 @@ speech-to-text:
   mock: True
   # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   input_device: 0
+  # [Integer] Vosk internal log level. -1 to disable.
+  internal_logging: -1
 
 # Configurations for the Text-to-Speech
 text-to-speech:
