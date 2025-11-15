@@ -4,3 +4,5 @@ from .system.time import SystemTime
 from .world.position import WorldPosition
 from .world.weather import WorldWeather
 from .world.wikipedia import WorldWikipedia
+from .google.maps import GoogleMaps
+from .google.search import GoogleSearch

@@ -6,7 +6,7 @@ from . import ChatbotProtocol
 
 from pyxavi import Logger, Config, Dictionary
 
-from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia
+from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch
 
 import logging
 
@@ -47,7 +47,15 @@ class GeminiChatbot(ChatbotProtocol):
         
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
 
+        google_maps_command = GoogleMaps(config=self._xconfig, params=self._xparams)
+        google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
+
         tools = [
+            # Grounding workaround so it can use Google Search
+            google_search_command.get_google_search_response_to_a_prompt,
+            # Grounding workaround so it can use Google Maps
+            google_maps_command.get_google_maps_response_to_a_prompt,
+            # # Custom Commands
             SystemDate.get_current_date,
             SystemTime.get_current_time,
             WorldPosition.get_geo_coordinates_from_location,
@@ -64,7 +72,7 @@ class GeminiChatbot(ChatbotProtocol):
     
     def ask(self, question: str) -> str:
 
-        self._xlog.debug("Question or possible command: " + question)
+        self._xlog.debug("Question: " + question)
 
         if (self._xconfig.get("chatbot.mock", True)):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
@@ -80,6 +88,8 @@ class GeminiChatbot(ChatbotProtocol):
         response = self._chat.send_message(question)
 
         self._xlog.debug("Received answer: " + response.text)
+        if len(response.candidates) > 1:
+            self._xlog.debug("Discarded other candidates to the answer:" + "\n\n>".join(response.candidates))
         return response.text
 
     
