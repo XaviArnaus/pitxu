@@ -4,7 +4,7 @@ from pitxu.lib.utils.api_request import ApiRequest
 
 class WorldWeather:
 
-    URL = f"https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m&forecast_days=7"
+    URL = f"https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,weathercode&forecast_days=7"
 
     @staticmethod
     def get_weather_forecast(latitude: float, longitude: float) -> str:

@@ -49,6 +49,7 @@ class GeminiChatbot(ChatbotProtocol):
 
         google_maps_command = GoogleMaps(config=self._xconfig, params=self._xparams)
         google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
+        world_position_command = WorldPosition(config=self._xconfig, params=self._xparams)
 
         tools = [
             # Grounding workaround so it can use Google Search
@@ -58,8 +59,9 @@ class GeminiChatbot(ChatbotProtocol):
             # # Custom Commands
             SystemDate.get_current_date,
             SystemTime.get_current_time,
-            WorldPosition.get_latitude_and_longitude_from_location,
-            WorldPosition.get_latitude_and_longitude_from_current_location,
+            world_position_command.get_latitude_and_longitude_from_location,
+            world_position_command.get_latitude_and_longitude_from_current_location,
+            world_position_command.get_latitude_and_longitude_from_address,
             WorldWeather.get_weather_forecast,
             WorldWikipedia.get_summary_from_wikipedia_by_term,
         ]
@@ -84,7 +86,7 @@ class GeminiChatbot(ChatbotProtocol):
             except ServerError as e:
                 return "The server returns an error: " + e.message
             except Exception as e:
-                return "The server returns an unexpected error: " + e.message
+                return "The server returns an unexpected error: " + e
     
     def chat_question(self, question: str) -> str:
         
