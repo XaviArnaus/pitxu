@@ -1,5 +1,4 @@
-from pyxavi import Config, Logger
-from pitxu.lib.utils.config_loader import ConfigLoader
+from pyxavi import Config, Dictionary
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -8,7 +7,7 @@ class WorldPosition(PyXavi):
 
     URL = f"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1"
 
-    def __init__(self, config: Config = None, params: dict = None):
+    def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
     def get_latitude_and_longitude_from_location(self, location: str) -> str:
