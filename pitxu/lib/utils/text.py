@@ -28,3 +28,11 @@ class Text:
         # Remove images
         text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'\1', text)
         return text
+
+    def replace_known_text(text: str, replacements: dict) -> str:
+        '''
+        Replaces known text patterns with their corresponding characters.
+        '''
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        return text
