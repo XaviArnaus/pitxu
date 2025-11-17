@@ -246,6 +246,21 @@ https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-functio
 ### Chat history
 https://stackoverflow.com/questions/78534769/how-to-include-chat-history-when-using-google-geminis-api
 
+## Ollama
+
+### Needs to be installed in the system first
+https://github.com/ollama/ollama
+
+### Python SDK
+https://github.com/ollama/ollama-python
+
+### Possible models to use. Which one?
+https://ollama.com/library
+
+### Explicit Catalan model (based on Gemma3)
+https://ollama.com/jobautomation/OpenEuroLLM-Catalan:latest
+
+
 # 😄 Fun fact
 
 ### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]

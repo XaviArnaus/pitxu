@@ -8,7 +8,8 @@ from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.xprocess_pool import XprocessPool
-from pitxu.lib.chatbot import GeminiChatbot
+# from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
+from pitxu.lib.chatbot.ollama_chatbot import OllamaChatbot
 from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
@@ -29,7 +30,7 @@ class Main:
 
     _display: Display = None
     _matrix: MatrixLed = None
-    _chatbot: GeminiChatbot = None
+    _chatbot: OllamaChatbot = None
     _dictate: Vosk = None
     _speech: Piper = None
 
@@ -112,7 +113,8 @@ class Main:
 
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        # self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot = OllamaChatbot(config=self._xconfig, params=self._xparams)
     
     def _load_language_statics(self):
 
@@ -184,6 +186,7 @@ class Main:
                 question = ""
                 dictate_count = 0
                 answer_count = 0
+                chatbot_count = 0
                 while(not self._text_has_exit_intention(question)):
 
                     # Recognize what comes from the microphone
@@ -201,7 +204,10 @@ class Main:
                         answer = self._goodbye_sentence
                     else:
                         # Here we start with the Chatbot
+                        sw_chatbot = self._stopwatch.continue_or_start(name="chatbot" + str(chatbot_count))
                         answer = self._chatbot.ask(question)
+                        self._xlog.debug("⏱️  Chatbot " + str(chatbot_count) + ": " + str(self._stopwatch.stop(sw_chatbot)))
+                        chatbot_count += 1
                     
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
