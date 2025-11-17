@@ -217,6 +217,13 @@ Works very decent, no very significant difference with MacOS
     - Only got to get flasshing random leds and bars.
 
 
+# Ideas
+
+- API public transport
+- Button to mute, so it does not attend what is spoken in front
+- Button to skip what is being TTS, so user can discard the explanation (can be anoyingly long)
+
+
 # Resources
 
 ## eInk Display

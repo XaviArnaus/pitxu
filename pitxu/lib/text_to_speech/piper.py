@@ -39,12 +39,14 @@ class Piper(Xprocess):
         self._xlog.debug("Done finishing Piper Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
+        self.pause_mic()
+
         if action == XprocAction.SAY and param != "":
             self.say(param)
-    
-    def say(self, text: str):
 
-        self.pause_mic()
+        self.resume_mic()
+
+    def say(self, text: str):
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
@@ -57,8 +59,6 @@ class Piper(Xprocess):
                 self._output_stream.write(int_data)
 
             self._output_stream.stop()
-        
-        self.resume_mic()
     
     def pause_mic(self):
         self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)

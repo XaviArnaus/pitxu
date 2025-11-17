@@ -5,13 +5,13 @@ language:
     ca: ["sortir", "adéu"]
     es: ["salir", "adiós"]
     en-us: ["exit", "quit", "bye", "goodbye"]
-    de: ["chus"]
+    de: ["tschüss", "beenden", "ende"]
   # This is the welcome / greeting message
   greeting:
-    ca: "Hola sóc el Pitxu. Diga'm alguna cosa"
-    es: "Hola soy el Pitxu. Dime algo"
-    en-us: "Hi I'm Pitxu. Tell me anything"
-    de: "Hallo Ich bin Pitxu. Erzähl mir was"
+    ca: "Hola"
+    es: "Hola"
+    en-us: "Hello"
+    de: "Hallo"
   # This is the goodbye message
   goodbye:
     ca: "Fins la propera! Adéu!"
