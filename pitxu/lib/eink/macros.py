@@ -151,7 +151,7 @@ class Macros:
                     align = "center")
         
         # Now display the canvas
-        display.display()
+        display.display(partial=False)
     
     def soft_clear(self, display: EinkDisplay):
 
