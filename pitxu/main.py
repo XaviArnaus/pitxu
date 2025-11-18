@@ -14,7 +14,7 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY,\
+from definitions import SHARED_EINK_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY,\
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
@@ -195,6 +195,9 @@ class Main:
                     self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
                     dictate_count += 1
 
+                    # Mute microphone to avoid self-looping
+                    self.mute_microphone()
+
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
                         # Just assume a goodbye
@@ -206,13 +209,16 @@ class Main:
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
                     answer = Text.remove_markdown(answer)
-                    answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language")))
+                    answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
 
                     # Answer
                     sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
                     self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
                     self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                     answer_count += 1
+
+                    # Unmute microphone to continue listening
+                    self.unmute_microphone()
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
@@ -304,3 +310,13 @@ class Main:
 
     def _clear_matrix(self):
         self._process_pool.send(PROCESS_MATRIX, XprocAction.LED_CLEAR)
+    
+    # ------- Communication with Queues ---------
+    
+    def mute_microphone(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
+        self._xlog.debug("🔇 Muting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+    
+    def unmute_microphone(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
+        self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")

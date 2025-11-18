@@ -7,7 +7,7 @@ from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
-from definitions import ROOT_DIR, SHARED_SPEAKER_BUSY
+from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 class Piper(Xprocess):
 
@@ -39,14 +39,17 @@ class Piper(Xprocess):
         self._xlog.debug("Done finishing Piper Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
-        self.pause_mic()
-
+        
         if action == XprocAction.SAY and param != "":
             self.say(param)
 
-        self.resume_mic()
-
     def say(self, text: str):
+
+        # While talking we set the speaker busy flag and mute the microphone, keeping track of its previous state
+        # So taht we can restore it to what it was before
+        # previous_mic_state = self.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+        # self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
+        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
@@ -59,9 +62,13 @@ class Piper(Xprocess):
                 self._output_stream.write(int_data)
 
             self._output_stream.stop()
+            
+        # Restore the speaker and microphone states
+        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        # self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, previous_mic_state)
     
     def pause_mic(self):
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
+        self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
 
     def resume_mic(self):
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)

@@ -18,6 +18,16 @@ language:
     es: "Hasta la próxima! Adiós"
     en-us: "See you next time! Goodbye!"
     de: "Bis zum nächsten Mal! Auf Wiedersehen!"
+  general_error:
+    ca: "Ho sento, ha hagut un error inesperat."
+    es: "Lo siento, ha habido un error inesperado."
+    en-us: "I'm sorry, there was an unexpected error."
+    de: "Es tut mir leid, es gab einen unerwarteten Fehler."
+  server_error:
+    ca: "Ho sento, el servidor retorna error."
+    es: "Lo siento, el servidor devuelve un error."
+    en-us: "I'm sorry, the server returned an error."
+    de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben."
   # Common text replacements to normalize output
   text_replacements:
     ca:

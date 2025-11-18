@@ -3,7 +3,7 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
+from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -13,6 +13,8 @@ class SharedMemoryManager(PyXavi):
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
+        # On purpose not including Microphone in the busy waiters, as it does not block other processes
+        # "microphone_muted": SHARED_MICROPHONE_MUTED,
     }
 
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
@@ -33,6 +35,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # speaker is busy (pause mic)
                 False,  # e-ink is busy
                 False,  # matrix is busy
+                False   # microphone is muted
             ], name=SHARED_MEMORY_NAME)
             if self._shared_memory is None:
                 self._xlog.error("Shared Memory is None, cannot write flags")

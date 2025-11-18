@@ -5,7 +5,7 @@ import json
 
 from pyxavi import Dictionary, Config, Logger
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_SPEAKER_BUSY
+from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
 import sounddevice as sd
@@ -86,7 +86,7 @@ class Vosk:
         if status:
             print(status, file=sys.stderr)
         
-        if not self.is_mic_paused():
+        if not self.should_skip_audio_input():
             self._queue.put(bytes(indata))
 
     def _int_or_str(self, text):
@@ -96,17 +96,27 @@ class Vosk:
         except ValueError:
             return text
     
-    def is_mic_paused(self):
+    def should_skip_audio_input(self):
+        '''
+        Checks if the microphone is muted by reading AND if the speaker is talking via the shared memory flags
+        '''
+
+        speaker_is_busy = False
+        mic_is_muted = False
 
         if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot read 'SHARED_SPEAKER_BUSY' flag")
+            self._xlog.error("Shared Memory is None, cannot read 'SHARED_MICROPHONE_MUTED' flag")
+            return False
+        if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED), bool)):
+            self._xlog.error("Shared Memory flag 3 should be 'SHARED_MICROPHONE_MUTED' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)))
             return False
         if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
-            self._xlog.error("Shared Memory flag 0 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
+            self._xlog.error("Shared Memory flag 4 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
             return False
+        mic_is_muted = self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+        speaker_is_busy = self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
 
-        return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
-
+        return mic_is_muted or speaker_is_busy
 
 
         

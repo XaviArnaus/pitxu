@@ -106,6 +106,9 @@ class XprocessPool(PyXavi):
     def broadcast(self, action: XprocAction, param: str = None):
         for queue_name in self._queue.keys():
             self.send(queue_name, action, param)
+
+    def get_memory_manager(self) -> SharedMemoryManager:
+        return self._shared_memory
     
     def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy
