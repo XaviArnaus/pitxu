@@ -138,13 +138,13 @@ class Main:
         Initialisation of the displays and macros
         """
 
+        self._xlog.debug("Initialising eInk Display and Macros")
+        self._process_pool.new_and_start(PROCESS_EINK, target=Display)
+
         self._xlog.debug("Initialising Matrix LED Display and Macros")
         self._process_pool.new_and_start(PROCESS_MATRIX, target=MatrixLed)
         # Needs an initial clear
         self._clear_matrix()
-
-        self._xlog.debug("Initialising eInk Display and Macros")
-        self._process_pool.new_and_start(PROCESS_EINK, target=Display)
 
     def run(self):
 

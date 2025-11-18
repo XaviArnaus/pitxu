@@ -49,7 +49,7 @@ class Max7219:
 
         # Max7219
         if (not self._xconfig.get("matrix_led.mock", True)):
-            self._serial = spi(port=0, device=0, gpio=noop())
+            self._serial = spi(port=0, device=1, gpio=noop())
         self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self._device.clear()
         self._device.contrast(int(config.get("matrix_led.intensity", 100)))
