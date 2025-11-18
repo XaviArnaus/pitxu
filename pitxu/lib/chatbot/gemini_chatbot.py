@@ -50,6 +50,7 @@ class GeminiChatbot(ChatbotProtocol):
         google_maps_command = GoogleMaps(config=self._xconfig, params=self._xparams)
         google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
         world_position_command = WorldPosition(config=self._xconfig, params=self._xparams)
+        world_weather_command = WorldWeather(config=self._xconfig, params=self._xparams)
 
         tools = [
             # Grounding workaround so it can use Google Search
@@ -62,7 +63,8 @@ class GeminiChatbot(ChatbotProtocol):
             world_position_command.get_latitude_and_longitude_from_location,
             world_position_command.get_latitude_and_longitude_from_current_location,
             world_position_command.get_latitude_and_longitude_from_address,
-            WorldWeather.get_weather_forecast,
+            world_weather_command.get_weather_forecast_for_today,
+            world_weather_command.get_weather_forecast_for_next_days,
             WorldWikipedia.get_summary_from_wikipedia_by_term,
         ]
         self._chat = self._client.chats.create(
@@ -91,11 +93,11 @@ class GeminiChatbot(ChatbotProtocol):
                         time.sleep(delay_between_retries * retries)
                     return self.chat_question(question)
                 except ServerError as e:
-                    self._xlog.error("Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
+                    self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                     outcome = self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message)
                     retries += 1
                 except Exception as e:
-                    self._xlog.error("Unexpected exception when asking question to Gemini(" + str(retries) + "/" + str(max_retries) + "): " + str(e))
+                    self._xlog.error("🛑 Unexpected exception when asking question to Gemini(" + str(retries) + "/" + str(max_retries) + "): " + str(e))
                     outcome = self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
                     retries += 1
             return outcome

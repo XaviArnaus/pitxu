@@ -60,7 +60,7 @@ class WorldPosition(PyXavi):
                 "country": country
             }
         except Exception as e:
-            self._xlog.error(f"Error getting geo coordinates for current location: {e}")
+            self._xlog.error(f"🛑 Error getting geo coordinates for current location: {e}")
             return f"Error getting geo coordinates for current location: {e}"
 
     def get_latitude_and_longitude_from_address(self, address: str) -> str:
@@ -92,5 +92,5 @@ class WorldPosition(PyXavi):
                 "longitude": longitude
             }
         except Exception as e:
-            self._xlog.error(f"Error getting geo coordinates for address {address}: {e}")
+            self._xlog.error(f"🛑 Error getting geo coordinates for address {address}: {e}")
             return f"Error getting geo coordinates for address {address}: {e}"
