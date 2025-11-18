@@ -87,8 +87,8 @@ class GeminiChatbot(ChatbotProtocol):
             while retries < max_retries:
                 try:
                     if retries > 0:
-                        self._xlog.debug("Waiting " + str(delay_between_retries) + " seconds before retrying...")
-                        time.sleep(delay_between_retries)
+                        self._xlog.debug("Waiting " + str(delay_between_retries * retries) + " seconds (" + str(retries) + "/" + str(max_retries) + ") before retrying...")
+                        time.sleep(delay_between_retries * retries)
                     return self.chat_question(question)
                 except ServerError as e:
                     self._xlog.error("Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
