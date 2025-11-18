@@ -8,7 +8,7 @@ from pyxavi import Logger, Config, Dictionary
 
 from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch
 
-import logging
+import logging, time
 
 class GeminiChatbot(ChatbotProtocol):
     """
@@ -80,20 +80,32 @@ class GeminiChatbot(ChatbotProtocol):
         if (self._xconfig.get("chatbot.mock", True)):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
-            try:
-                # return self.parse_command_or_chat(question)
-                return self.chat_question(question)
-            except ServerError as e:
-                return "The server returns an error: " + e.message
-            except Exception as e:
-                return "The server returns an unexpected error: " + e
+            retries = 0
+            max_retries = 5
+            delay_between_retries = 3  # seconds
+            outcome = ""
+            while retries < max_retries:
+                try:
+                    if retries > 0:
+                        self._xlog.debug("Waiting " + str(delay_between_retries) + " seconds before retrying...")
+                        time.sleep(delay_between_retries)
+                    return self.chat_question(question)
+                except ServerError as e:
+                    self._xlog.error("Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
+                    outcome = self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message)
+                    retries += 1
+                except Exception as e:
+                    self._xlog.error("Unexpected exception when asking question to Gemini(" + str(retries) + "/" + str(max_retries) + "): " + str(e))
+                    outcome = self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
+                    retries += 1
+            return outcome
     
     def chat_question(self, question: str) -> str:
         
         response = self._chat.send_message(question)
 
-        self._xlog.debug("Received answer: " + str(response.text))
-        if len(response.candidates) > 1:
+        self._xlog.debug("🗣️ Received answer: " + str(response.text))
+        if len(response.candidates) > 1 and len(response.candidates) > 1:
             self._xlog.debug("Discarded other candidates to the answer:" + "\n\n>".join(response.candidates))
         return response.text
 
