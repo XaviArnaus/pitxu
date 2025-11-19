@@ -292,10 +292,11 @@ class Main:
     
     def _say(self, message: str):
         self._process_pool.send(PROCESS_SPEAKER, XprocAction.SAY, message)
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.SAY, message)
     
     def _show(self, message: str):
         self._process_pool.send(PROCESS_EINK, XprocAction.SHOW, message)
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED, message)
+        # self._process_pool.send(PROCESS_MATRIX, XprocAction.LED, message)
     
     def _startup_splash(self):
         self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
@@ -311,7 +312,7 @@ class Main:
     def _clear_matrix(self):
         self._process_pool.send(PROCESS_MATRIX, XprocAction.LED_CLEAR)
     
-    # ------- Communication with Queues ---------
+    # ------- Communication with Flags ---------
     
     def mute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)

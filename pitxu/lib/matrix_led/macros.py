@@ -51,3 +51,33 @@ class Macros:
             #     draw.point(point.to_image_point(), self.ON)
             #     time.sleep(0.1)
     
+    def kitt_horizontal_effect(self, iterations: int = 5, delay: float = 0.1):
+        self._xlog.debug("Starting KITT effect")
+        with self._max7219.create_canvas() as draw:
+            for _ in range(iterations):
+                # Move right
+                for x in range(8):
+                    draw.rectangle((0,0,7,7), self.OFF)
+                    draw.point((x,3), self.ON)
+                    time.sleep(delay)
+                # Move left
+                for x in range(6,-1,-1):
+                    draw.rectangle((0,0,7,7), self.OFF)
+                    draw.point((x,3), self.ON)
+                    time.sleep(delay)
+    
+    def kitt_speaking_effect(self, delay: float = 0.1):
+        self._xlog.debug("Starting KITT speaking effect")
+        with self._max7219.create_canvas() as draw:
+            mid_y = 3
+            # Move up
+            for y in range(mid_y, -1, -1):
+                draw.rectangle((0,0,7,7), self.OFF)
+                draw.line((0, y, 7, y), self.ON)
+                time.sleep(delay)
+            # Move down
+            for y in range(1, mid_y + 1):
+                draw.rectangle((0,0,7,7), self.OFF)
+                draw.line((0, y, 7, y), self.ON)
+                time.sleep(delay)
+    
