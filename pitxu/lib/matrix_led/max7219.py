@@ -3,7 +3,7 @@ import logging
 
 from pyxavi import Config, Logger, Dictionary
 from pitxu.lib.objects import Point, Rectangle, Matrix
-from . import EmulatedCanvas, DeviceWrapper
+from . import EmulatedCanvas, DeviceWrapper, HandableEmulatedCanvas, HandableCanvas
 
 from luma.core.interface.serial import spi, noop
 from luma.core.render import canvas
@@ -82,6 +82,14 @@ class Max7219:
         else:
             self._xlog.debug("Creating Matrix Canvas")
             return canvas(self._device)
+    
+    def create_handable_canvas(self) -> HandableCanvas | HandableEmulatedCanvas:
+        if (self._xconfig.get("matrix_led.mock", True)):
+            self._xlog.debug("Creating Matrix Emulation Handable Canvas")
+            return HandableEmulatedCanvas(self._xconfig, self._xparams, self.EMULATION_MODE, self.EMULATION_SIZE)
+        else:
+            self._xlog.debug("Creating Matrix Handable Canvas")
+            return HandableCanvas(self._device)
     
     def clear(self, draw: ImageDraw = None) -> None:
         self._xlog.debug("Clearing Matrix.")

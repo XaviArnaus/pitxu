@@ -44,3 +44,20 @@ class EmulatedCanvas(object):
 
         del self.draw   # Tidy up the resources
         return False    # Never suppress exceptions
+
+class HandableEmulatedCanvas(EmulatedCanvas):
+    '''
+    Extends luma.core.render.canvas to add handable features
+    '''
+    def get(self) -> ImageDraw.ImageDraw:
+        return self.__enter__()
+
+    def send_to_device(self):
+        # Save the image
+        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
+        self.image.save(file_path)
+        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
+        self.image.save(file_path)
+
+    def close(self):
+        return False

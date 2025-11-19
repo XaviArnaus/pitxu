@@ -1,6 +1,6 @@
 from pyxavi import Config, Logger, Dictionary
 
-from pitxu.lib.matrix_led import Max7219
+from pitxu.lib.matrix_led import Max7219, HandableCanvas, HandableEmulatedCanvas
 from ..objects import Rectangle, Line, Point, Matrix
 
 from PIL import Image,ImageDraw,ImageFont
@@ -14,6 +14,8 @@ class Macros:
     _xparams: Dictionary = None
 
     _max7219: Max7219 = None
+
+    _handable_canvas: HandableCanvas | HandableEmulatedCanvas = None
 
     ON: str = "white"
     OFF: str = "black"
@@ -67,17 +69,39 @@ class Macros:
                     time.sleep(delay)
     
     def kitt_speaking_effect(self, delay: float = 0.1):
+        '''
+        KITT speaking effect: a line moving up and down in the middle of the matrix
+
+        Be careful, it relies on having a HandableCanvas instance opened previously, and
+        needs to be closed afterwards.
+        '''
         self._xlog.debug("Starting KITT speaking effect")
-        with self._max7219.create_canvas() as draw:
-            mid_y = 3
-            # Move up
-            for y in range(mid_y, -1, -1):
-                draw.rectangle((0,0,7,7), self.OFF)
-                draw.line((0, y, 7, y), self.ON)
-                time.sleep(delay)
-            # Move down
-            for y in range(1, mid_y + 1):
-                draw.rectangle((0,0,7,7), self.OFF)
-                draw.line((0, y, 7, y), self.ON)
-                time.sleep(delay)
+
+        canvas = self._handable_canvas.get()
+        mid_y = 3
+        # Move up
+        for y in range(mid_y, -1, -1):
+            canvas.rectangle((0,0,7,7), self.OFF)
+            canvas.line((0, y, 7, y), self.ON)
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)
+        # Move down
+        for y in range(1, mid_y + 1):
+            canvas.rectangle((0,0,7,7), self.OFF)
+            canvas.line((0, y, 7, y), self.ON)
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)
+    
+    def open_canvas(self) -> HandableCanvas:
+        if self._handable_canvas is None:
+            self._xlog.debug("Opening Handable Canvas")
+            self._handable_canvas = self._max7219.create_handable_canvas()
+        return self._handable_canvas
+    
+    def close_canvas(self):
+        if self._handable_canvas is not None:
+            self._handable_canvas.close()
+            self._handable_canvas = None
+
+    
     

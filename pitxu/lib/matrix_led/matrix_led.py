@@ -58,11 +58,13 @@ class MatrixLed(Xprocess):
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on Matrix LED.")
+        self._macros.open_canvas()
         while True:
             if not self.is_speaker_busy():
                 self._xlog.info(f"👄 Stopping KITT mouth on Matrix LED.")
                 break
             self._macros.kitt_speaking_effect()
+        self._macros.close_canvas()
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on Matrix LED: {text}")
