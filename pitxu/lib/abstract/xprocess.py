@@ -80,7 +80,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         self.init_pyxavi(config=self._xconfig, params=self._xparams)
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
-        self._shared_memory.initialize_existing_shared_memory()
+        self._shared_memory.initialize_existing_shared_memory_flags()
 
     def read_shared_memory_flag(self, index: int) -> bool:
         return self._shared_memory.read_shared_memory_flag(index)
