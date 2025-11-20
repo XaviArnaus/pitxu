@@ -55,8 +55,8 @@ class Max7219:
         self._device.contrast(int(config.get("matrix_led.intensity", 100)))
         self.EMULATION_MODE = "1"
         self.EMULATION_SIZE = Point(
-            self._xconfig.get("matrix_led.size.x", 8) - 1,
-            self._xconfig.get("matrix_led.size.y", 8) - 1
+            self._xconfig.get("matrix_led.size.x", 8),
+            self._xconfig.get("matrix_led.size.y", 8)
         ).to_image_point()
         self.BOUNDING_BOX = Rectangle(
             Point(0,0),

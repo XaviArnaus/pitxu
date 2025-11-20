@@ -36,7 +36,7 @@ class Piper(Xprocess):
             samplerate=self._voice.config.sample_rate,
             blocksize=0,
             channels=1,
-            dtype='int16',
+            dtype='int16'
         )
     
     def finish(self):
@@ -63,6 +63,8 @@ class Piper(Xprocess):
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
 
+            # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
+            # which represent sentences.
             for chunk in self._voice.synthesize(text):
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 

@@ -2,7 +2,7 @@ from PIL import Image, ImageDraw
 
 from pyxavi import Config, Logger, Dictionary
 
-import time
+from datetime import datetime
 import logging
 
 
@@ -40,7 +40,7 @@ class EmulatedCanvas(object):
         if type is None:
             # Save the image
             image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
-            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
             image.save(file_path)
             file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             image.save(file_path)
@@ -58,7 +58,7 @@ class HandableEmulatedCanvas(EmulatedCanvas):
     def send_to_device(self):
         # Save the image
         image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
-        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
+        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
         image.save(file_path)
         file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
         image.save(file_path)
