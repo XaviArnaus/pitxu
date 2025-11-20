@@ -22,13 +22,15 @@ class EmulatedCanvas(object):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
+    MULTIPLIER_FACTOR = 10   # To have a bigger image for better visualization
+
     def __init__(self, config: Config, params: Dictionary, mode: str, size: tuple):
         self._xconfig = config
         self._xparams = params
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         self.draw = None
-        self.image = Image.new(mode, size)
+        self.image = Image.new(mode, (size[0] * self.MULTIPLIER_FACTOR, size[1] * self.MULTIPLIER_FACTOR))
 
     def __enter__(self) -> ImageDraw:
         self.draw = ImageDraw.Draw(self.image)
