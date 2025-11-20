@@ -102,6 +102,57 @@ class Macros:
         if self._handable_canvas is not None:
             self._handable_canvas.close()
             self._handable_canvas = None
+    
+    def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.1):
+        '''
+        KITT speaking effect using VU Meter columns
+
+        Be careful, it relies on having a HandableCanvas instance opened previously, and
+        needs to be closed afterwards.
+        '''
+        self._xlog.debug("Starting KITT speaking effect VU Meter")
+
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+
+        # Column 1 and 7
+        for y in range(0, col_1):
+            # North rows
+            canvas.point((0, 3 - y), self.ON)
+            canvas.point((7, 3 - y), self.ON)
+            # South rows
+            canvas.point((0, 4 + y), self.ON)
+            canvas.point((7, 4 + y), self.ON)
+        
+        # Column 2 and 6
+        for y in range(0, col_2):
+            # North rows
+            canvas.point((1, 3 - y), self.ON)
+            canvas.point((6, 3 - y), self.ON)
+            # South rows
+            canvas.point((1, 4 + y), self.ON)
+            canvas.point((6, 4 + y), self.ON)
+        
+        # Column 3 and 5
+        for y in range(0, col_3):
+            # North rows
+            canvas.point((2, 3 - y), self.ON)
+            canvas.point((5, 3 - y), self.ON)
+            # South rows
+            canvas.point((2, 4 + y), self.ON)
+            canvas.point((5, 4 + y), self.ON)
+        
+        # Column 4 and 4
+        for y in range(0, col_4):
+            # North rows
+            canvas.point((3, 3 - y), self.ON)
+            canvas.point((4, 3 - y), self.ON)
+            # South rows
+            canvas.point((3, 4 + y), self.ON)
+            canvas.point((4, 4 + y), self.ON)
+        
+        self._handable_canvas.send_to_device()
+        time.sleep(delay)
 
     
     

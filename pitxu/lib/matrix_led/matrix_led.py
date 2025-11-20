@@ -6,7 +6,8 @@ from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.matrix_led import Max7219, Macros
 from pitxu.lib.objects.point import Point
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
+from definitions import SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY,\
+    SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4
 
 class MatrixLed(Xprocess):
     '''
@@ -63,7 +64,14 @@ class MatrixLed(Xprocess):
             if not self.is_speaker_busy():
                 self._xlog.info(f"👄 Stopping KITT mouth on Matrix LED.")
                 break
-            self._macros.kitt_speaking_effect()
+            # self._macros.kitt_speaking_effect()
+
+            # New way: we use the VU Meter columns to show the mouth
+            col_1_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_1)
+            col_2_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_2)
+            col_3_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_3)
+            col_4_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_4)
+            self._macros.kitt_speaking_effect_vu_meter(col_1_value, col_2_value, col_3_value, col_4_value)
         self._macros.close_canvas()
     
     def show(self, text: str):
