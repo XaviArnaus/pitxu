@@ -3,7 +3,7 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_MEMORY_NAME, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED
+from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -29,14 +29,14 @@ class SharedMemoryManager(PyXavi):
         Initializes the shared memory for inter-process communication.
         '''
         try:
-            self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_NAME)
+            self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_FLAGS)
             # Initialisating Shared Memory to handle execution flags between processes
             self._shared_memory = shared_memory.ShareableList([
                 False,  # speaker is busy (pause mic)
                 False,  # e-ink is busy
                 False,  # matrix is busy
                 False   # microphone is muted
-            ], name=SHARED_MEMORY_NAME)
+            ], name=SHARED_MEMORY_FLAGS)
             if self._shared_memory is None:
                 self._xlog.error("Shared Memory is None, cannot write flags")
         except Exception as e:
@@ -44,7 +44,7 @@ class SharedMemoryManager(PyXavi):
     
     def initialize_existing_shared_memory(self):
         self._xlog.info("Loading flags from Shared Memory")
-        self._shared_memory = shared_memory.ShareableList(name=SHARED_MEMORY_NAME)
+        self._shared_memory = shared_memory.ShareableList(name=SHARED_MEMORY_FLAGS)
         if self._shared_memory is None:
             self._xlog.error("Shared Memory is None, cannot read flags")
 
