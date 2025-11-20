@@ -103,56 +103,100 @@ class Macros:
             self._handable_canvas.close()
             self._handable_canvas = None
     
-    def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.1):
+    def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.01):
         '''
         KITT speaking effect using VU Meter columns
 
         Be careful, it relies on having a HandableCanvas instance opened previously, and
         needs to be closed afterwards.
         '''
-        self._xlog.debug("Starting KITT speaking effect VU Meter")
-
         canvas = self._handable_canvas.get()
         canvas.rectangle((0,0,7,7), self.OFF)
 
-        # Column 1 and 7
-        for y in range(0, col_1):
-            # North rows
-            canvas.point((0, 3 - y), self.ON)
-            canvas.point((7, 3 - y), self.ON)
-            # South rows
-            canvas.point((0, 4 + y), self.ON)
-            canvas.point((7, 4 + y), self.ON)
-        
-        # Column 2 and 6
-        for y in range(0, col_2):
-            # North rows
-            canvas.point((1, 3 - y), self.ON)
-            canvas.point((6, 3 - y), self.ON)
-            # South rows
-            canvas.point((1, 4 + y), self.ON)
-            canvas.point((6, 4 + y), self.ON)
-        
-        # Column 3 and 5
-        for y in range(0, col_3):
-            # North rows
-            canvas.point((2, 3 - y), self.ON)
-            canvas.point((5, 3 - y), self.ON)
-            # South rows
-            canvas.point((2, 4 + y), self.ON)
-            canvas.point((5, 4 + y), self.ON)
-        
-        # Column 4 and 4
-        for y in range(0, col_4):
-            # North rows
-            canvas.point((3, 3 - y), self.ON)
-            canvas.point((4, 3 - y), self.ON)
-            # South rows
-            canvas.point((3, 4 + y), self.ON)
-            canvas.point((4, 4 + y), self.ON)
-        
-        self._handable_canvas.send_to_device()
-        time.sleep(delay)
+        max_values = {
+            # "col_1": col_1,
+            "col_2": col_2,
+            "col_3": col_3,
+            "col_4": col_4,
+        }
 
-    
-    
+        # We go row by row from the middle point to the top and bottom extremes
+        for y in range(0, 4):
+
+            # We go through each column to see if we need to light it at this row
+            for col_key, col_value in max_values.items():
+                if col_value > y:
+                    # We just skip the lowest one
+                    # if col_key == "col_1":
+                    #     # Column 1 and 7
+                    #     canvas.point((0, 3 - y), self.ON)
+                    #     canvas.point((0, 4 + y), self.ON)
+                    #     canvas.point((7, 3 - y), self.ON)
+                    #     canvas.point((7, 4 + y), self.ON)
+                    if col_key == "col_2":
+                        # Column 1 and 8
+                        canvas.point((0, 3 - y), self.ON)
+                        canvas.point((0, 4 + y), self.ON)
+                        canvas.point((7, 3 - y), self.ON)
+                        canvas.point((7, 4 + y), self.ON)
+                    elif col_key == "col_3":
+                        # Column 2, 3, 6 and 7
+                        canvas.point((1, 3 - y), self.ON)
+                        canvas.point((1, 4 + y), self.ON)
+                        canvas.point((2, 3 - y), self.ON)
+                        canvas.point((2, 4 + y), self.ON)
+                        canvas.point((5, 3 - y), self.ON)
+                        canvas.point((5, 4 + y), self.ON)
+                        canvas.point((6, 3 - y), self.ON)
+                        canvas.point((6, 4 + y), self.ON)
+                    elif col_key == "col_4":
+                        # Column 4 and 5
+                        canvas.point((3, 3 - y), self.ON)
+                        canvas.point((3, 4 + y), self.ON)
+                        canvas.point((4, 3 - y), self.ON)
+                        canvas.point((4, 4 + y), self.ON)
+            
+            # We show this row to the device
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)
+        
+        # And now we move the bars down again to zero
+        for y in range(3, -1, -1):
+
+            # We go through each column to see if we need to turn off at this row
+            for col_key, col_value in max_values.items():
+                if col_value > y:
+
+                    # We just skip the lowest one
+                    # if col_key == "col_1":
+                    #     # Column 1 and 7
+                    #     canvas.point((0, 3 - y), self.OFF)
+                    #     canvas.point((0, 4 + y), self.OFF)
+                    #     canvas.point((7, 3 - y), self.OFF)
+                    #     canvas.point((7, 4 + y), self.OFF)
+                    if col_key == "col_2":
+                        # Column 1 and 8
+                        canvas.point((0, 3 - y), self.OFF)
+                        canvas.point((0, 4 + y), self.OFF)
+                        canvas.point((7, 3 - y), self.OFF)
+                        canvas.point((7, 4 + y), self.OFF)
+                    elif col_key == "col_3":
+                        # Column 2, 3, 6 and 7
+                        canvas.point((1, 3 - y), self.OFF)
+                        canvas.point((1, 4 + y), self.OFF)
+                        canvas.point((2, 3 - y), self.OFF)
+                        canvas.point((2, 4 + y), self.OFF)
+                        canvas.point((5, 3 - y), self.OFF)
+                        canvas.point((5, 4 + y), self.OFF)
+                        canvas.point((6, 3 - y), self.OFF)
+                        canvas.point((6, 4 + y), self.OFF)
+                    elif col_key == "col_4":
+                        # Column 4 and 5
+                        canvas.point((3, 3 - y), self.OFF)
+                        canvas.point((3, 4 + y), self.OFF)
+                        canvas.point((4, 3 - y), self.OFF)
+                        canvas.point((4, 4 + y), self.OFF)
+            
+            # We show this row to the device
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)

@@ -7,6 +7,7 @@ https://github.com/kmein/vu-meter/
 
 import math
 import struct
+from decimal import Decimal
 
 # RATE = 44100
 # INPUT_BLOCK_TIME = 0.05
@@ -35,9 +36,10 @@ class Amplitude(object):
     def __eq__(self, other):
         return self.value == other.value
 
-    def to_int(self, scale=1):
+    def to_int(self, scale=8):
         ''' convert an amplitude to an integer given a scale such that one can
         choose the precision of the resulting integer '''
+        # return int(round(Decimal(self.value * scale), 0))
         return int(self.value * scale)
 
     def __int__(self):
@@ -50,8 +52,11 @@ class Amplitude(object):
     def from_data(block):
         ''' generate an Amplitude object based on a block of audio input data '''
         count = len(block) / 2
+        # print(count)
         shorts = struct.unpack("%dh" % count, block)
         sum_squares = sum(s**2 * SHORT_NORMALIZE**2 for s in shorts)
+        # print(sum_squares)
+        # print(math.sqrt(sum_squares / count))
         return Amplitude(math.sqrt(sum_squares / count))
     
     def get_values(self, maximal, scale=8):
@@ -62,7 +67,7 @@ class Amplitude(object):
         delta = abs(int_val - maximal_val)
         return (int_val, maximal_val, delta)
 
-    def display(self, maximal, scale=50):
+    def display(self, maximal, scale=8):
         ''' display an amplitude and another (marked) maximal Amplitude
         graphically '''
         int_val, maximal_val, delta = self.get_values(maximal, scale)

@@ -67,10 +67,14 @@ class MatrixLed(Xprocess):
             # self._macros.kitt_speaking_effect()
 
             # New way: we use the VU Meter columns to show the mouth
-            col_1_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_1)
-            col_2_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_2)
-            col_3_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_3)
-            col_4_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_4)
+            # col_1_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_1)
+            # col_2_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_2)
+            # col_3_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_3)
+            # col_4_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_4)
+            col_1_value = 0
+            col_2_value = 0
+            col_3_value = 2
+            col_4_value = 4
             self._macros.kitt_speaking_effect_vu_meter(col_1_value, col_2_value, col_3_value, col_4_value)
         self._macros.close_canvas()
     
