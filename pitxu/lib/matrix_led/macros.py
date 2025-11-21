@@ -182,15 +182,12 @@ class Macros:
             time.sleep(delay)
 
     def show_init_step(self, step):
-        
-        canvas = self._handable_canvas.get()
-        canvas.rectangle((0,0,7,7), self.OFF)
 
-        for point in range(0, step):
-            if point > 0:
-                y = math.floor(point / 8)
-            else:
-                y = 0
-            x = step % 7
-            canvas.point((x, y), self.ON)
-            self._handable_canvas.send_to_device()
+        with self._max7219.create_canvas() as canvas:
+            for point in range(0, step):
+                if point > 0:
+                    y = math.floor(point / 8)
+                else:
+                    y = 0
+                x = step % 7
+                canvas.point((x, y), self.ON)
