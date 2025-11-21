@@ -14,7 +14,7 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
@@ -209,11 +209,13 @@ class Main:
                         # Just assume a goodbye
                         answer = self._goodbye_sentence
                     else:
-                        # Here we start with the Chatbot
+                        # Here we start with the Chatbot.
+                        # We set it as busy in shared memory, so the Matrix can show the thinking effect
                         self.set_chatbot_busy()
                         self._show_thinking()
                         answer = self._chatbot.ask(question)
                         self.unset_chatbot_busy()
+                        self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                     
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
