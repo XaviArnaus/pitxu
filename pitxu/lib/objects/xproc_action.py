@@ -33,4 +33,5 @@ class XprocAction:
     LED: str = "LED"
     LED_CLEAR: str = "LED_CLEAR"
     INIT_STEP: str = "INIT_STEP"
+    THINKING: str = "THINKING"
 

@@ -15,6 +15,7 @@ SHARED_SPEAKER_BUSY = 0
 SHARED_EINK_BUSY = 1
 SHARED_MATRIX_BUSY = 2
 SHARED_MICROPHONE_MUTED = 3
+SHARED_CHATBOT_BUSY = 4
 
 # Shared memory vu meter positions
 SHARED_MEMORY_VU_METER = "pitxu_shared_memory_vu_meter"

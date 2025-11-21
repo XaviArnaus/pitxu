@@ -58,20 +58,26 @@ class Macros:
             #     draw.point(point.to_image_point(), self.ON)
             #     time.sleep(0.1)
     
-    def kitt_horizontal_effect(self, iterations: int = 5, delay: float = 0.1):
+    def kitt_horizontal_effect(self, delay: float = 0.1):
         self._xlog.debug("Starting KITT effect")
-        with self._max7219.create_canvas() as draw:
-            for _ in range(iterations):
-                # Move right
-                for x in range(8):
-                    draw.rectangle((0,0,7,7), self.OFF)
-                    draw.point((x,3), self.ON)
-                    time.sleep(delay)
-                # Move left
-                for x in range(6,-1,-1):
-                    draw.rectangle((0,0,7,7), self.OFF)
-                    draw.point((x,3), self.ON)
-                    time.sleep(delay)
+
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+
+        # Move right
+        for x in range(8):
+            canvas.rectangle((0,0,7,7), self.OFF)
+            canvas.point((x,3), self.ON)
+            canvas.point((x,4), self.ON)
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)
+        # Move left
+        for x in range(6,-1,-1):
+            canvas.rectangle((0,0,7,7), self.OFF)
+            canvas.point((x,3), self.ON)
+            canvas.point((x,4), self.ON)
+            self._handable_canvas.send_to_device()
+            time.sleep(delay)
     
     def open_canvas(self) -> HandableCanvas:
         if self._handable_canvas is None:

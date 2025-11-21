@@ -14,7 +14,7 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY,\
+from definitions import SHARED_EINK_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
@@ -210,7 +210,10 @@ class Main:
                         answer = self._goodbye_sentence
                     else:
                         # Here we start with the Chatbot
+                        self.set_chatbot_busy()
+                        self._show_thinking()
                         answer = self._chatbot.ask(question)
+                        self.unset_chatbot_busy()
                     
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
@@ -311,6 +314,9 @@ class Main:
     def _show_init_phases(self, step: int):
         self._process_pool.send(PROCESS_MATRIX, XprocAction.INIT_STEP, str(step))
     
+    def _show_thinking(self):
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.THINKING)
+    
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.
         # First a soft clear, so the screen is white
@@ -330,3 +336,11 @@ class Main:
     def unmute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+    
+    def set_chatbot_busy(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
+        self._xlog.debug("🤖 Setting Chatbot as busy.")
+    
+    def unset_chatbot_busy(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
+        self._xlog.debug("🤖 Unsetting Chatbot as busy.")
