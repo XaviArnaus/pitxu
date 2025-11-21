@@ -118,22 +118,23 @@ class Macros:
                     #     canvas.point((0, 4 + y), self.ON)
                     #     canvas.point((7, 3 - y), self.ON)
                     #     canvas.point((7, 4 + y), self.ON)
-                    if col_key == "col_2":
-                        # Column 1 and 8
+                    # Removing the second lowest to give a separation space betweem 3 and 4
+                    # if col_key == "col_2":
+                    #     # Column 1 and 8
+                    #     canvas.point((0, 3 - y), self.ON)
+                    #     canvas.point((0, 4 + y), self.ON)
+                    #     canvas.point((7, 3 - y), self.ON)
+                    #     canvas.point((7, 4 + y), self.ON)
+                    if col_key == "col_3":
+                        # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
                         canvas.point((0, 3 - y), self.ON)
                         canvas.point((0, 4 + y), self.ON)
-                        canvas.point((7, 3 - y), self.ON)
-                        canvas.point((7, 4 + y), self.ON)
-                    elif col_key == "col_3":
-                        # Column 2, 3, 6 and 7
                         canvas.point((1, 3 - y), self.ON)
                         canvas.point((1, 4 + y), self.ON)
-                        canvas.point((2, 3 - y), self.ON)
-                        canvas.point((2, 4 + y), self.ON)
-                        canvas.point((5, 3 - y), self.ON)
-                        canvas.point((5, 4 + y), self.ON)
                         canvas.point((6, 3 - y), self.ON)
                         canvas.point((6, 4 + y), self.ON)
+                        canvas.point((7, 3 - y), self.ON)
+                        canvas.point((7, 4 + y), self.ON)
                     elif col_key == "col_4":
                         # Column 4 and 5
                         canvas.point((3, 3 - y), self.ON)
@@ -159,22 +160,23 @@ class Macros:
                     #     canvas.point((0, 4 + y), self.OFF)
                     #     canvas.point((7, 3 - y), self.OFF)
                     #     canvas.point((7, 4 + y), self.OFF)
-                    if col_key == "col_2":
-                        # Column 1 and 8
+                    # Removing the second lowest to give a separation space betweem 3 and 4
+                    # if col_key == "col_2":
+                    #     # Column 1 and 8
+                    #     canvas.point((0, 3 - y), self.OFF)
+                    #     canvas.point((0, 4 + y), self.OFF)
+                    #     canvas.point((7, 3 - y), self.OFF)
+                    #     canvas.point((7, 4 + y), self.OFF)
+                    if col_key == "col_3":
+                        # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
                         canvas.point((0, 3 - y), self.OFF)
                         canvas.point((0, 4 + y), self.OFF)
-                        canvas.point((7, 3 - y), self.OFF)
-                        canvas.point((7, 4 + y), self.OFF)
-                    elif col_key == "col_3":
-                        # Column 2, 3, 6 and 7
                         canvas.point((1, 3 - y), self.OFF)
                         canvas.point((1, 4 + y), self.OFF)
-                        canvas.point((2, 3 - y), self.OFF)
-                        canvas.point((2, 4 + y), self.OFF)
-                        canvas.point((5, 3 - y), self.OFF)
-                        canvas.point((5, 4 + y), self.OFF)
                         canvas.point((6, 3 - y), self.OFF)
                         canvas.point((6, 4 + y), self.OFF)
+                        canvas.point((7, 3 - y), self.OFF)
+                        canvas.point((7, 4 + y), self.OFF)
                     elif col_key == "col_4":
                         # Column 4 and 5
                         canvas.point((3, 3 - y), self.OFF)
