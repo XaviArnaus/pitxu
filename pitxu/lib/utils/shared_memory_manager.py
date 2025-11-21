@@ -141,7 +141,7 @@ class SharedMemoryManager(PyXavi):
     
     def close(self):
         if self._shared_memory_flags is not None:
-            self._xlog.debug("Closing Shared Memory")
+            self._xlog.debug("Closing Shared Memory Flags")
             self._shared_memory_flags.shm.close()
             self._shared_memory_flags.shm.unlink()
         

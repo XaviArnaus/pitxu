@@ -31,8 +31,9 @@ class MatrixLed(Xprocess):
         self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
     
     def finish(self):
-        self._xlog.info("Finalizing Matrix Worker")
+        self._xlog.info("Closing possible open canvas")
         self._macros.close_canvas()
+        self._xlog.info("Finalizing Matrix Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
         # We're busy

@@ -157,13 +157,13 @@ class XprocessPool(PyXavi):
 
         # 4. Terminate any leftover processes
         for name, process in self._process.items():
-            self._xlog.debug("[Main Finish] Is the subprocess [" + name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
+            self._xlog.debug("Is the subprocess [" + name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
             if process.is_alive():
-                self._xlog.debug("[Main Finish] Terminating Process [" + name + "]")
+                self._xlog.debug("Terminating Process [" + name + "]")
                 process.terminate()
         
-        # Close the Shared Memory
-        self._xlog.debug("[Main Finish] Closing Shared Memory")
+        # Close the Shared Memory Manager
+        self._xlog.debug("Closing Shared Memory Manager")
         self._shared_memory.close()
     
     def _clearAndDiscardQueue(self, queue: JoinableQueue):
