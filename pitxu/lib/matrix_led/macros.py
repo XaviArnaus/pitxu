@@ -184,10 +184,9 @@ class Macros:
     def show_init_step(self, step):
 
         with self._max7219.create_canvas() as canvas:
-            for point in range(0, step):
-                if point > 0:
-                    y = math.floor(point / 8)
-                else:
-                    y = 0
-                x = step % 7
-                canvas.point((x, y), self.ON)
+            rows = math.floor(step / 8)
+            rows = rows if rows > 0 else 0
+            for y in range(0, rows + 1):
+                for x in range(0, step % 7 + 1):
+                    self._xlog.debug(f"Showing init step point at ({x},{y})")
+                    canvas.point((x, y), self.ON)
