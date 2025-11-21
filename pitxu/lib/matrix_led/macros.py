@@ -76,6 +76,10 @@ class Macros:
     
     def close_canvas(self):
         if self._handable_canvas is not None:
+            # Most likely we don't want to show anything else
+            # So we simply set up a black image
+            if self._handable_canvas.draw is not None:
+                self._handable_canvas.draw.rectangle((0,0,7,7), self.OFF)
             self._handable_canvas.close()
             self._handable_canvas = None
     
@@ -178,11 +182,15 @@ class Macros:
             time.sleep(delay)
 
     def show_init_step(self, step):
-        with self._max7219.create_canvas() as draw:
-            for point in range(0, step):
-                if point > 0:
-                    x = math.floor(point / 8)
-                else:
-                    x = 0
-                y = step % 7
-                draw.point((x, y), self.ON)
+        
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+
+        for point in range(0, step):
+            if point > 0:
+                y = math.floor(point / 8)
+            else:
+                y = 0
+            x = step % 7
+            canvas.point((x, y), self.ON)
+            self._handable_canvas.send_to_device()

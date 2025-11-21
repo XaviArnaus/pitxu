@@ -7,7 +7,10 @@ class HandableCanvas(canvas):
     '''
 
     def get(self) -> ImageDraw.ImageDraw:
-        return self.__enter__()
+        if self.draw is None:
+            return self.__enter__()
+        else:
+            return self.draw
 
     def send_to_device(self):
         self.device.display(self.image)

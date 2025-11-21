@@ -30,6 +30,10 @@ class MatrixLed(Xprocess):
         self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
     
+    def finish(self):
+        self._xlog.info("Finalizing Matrix Worker")
+        self._macros.close_canvas()
+    
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
         # We're busy
         self.set_matrix_busy()
