@@ -53,6 +53,7 @@ class Max7219:
         self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self._device.clear()
         self._device.contrast(int(config.get("matrix_led.intensity", 100)))
+        self._xlog.info("Matrix LED display intensity set to " + str(config.get("matrix_led.intensity", 100)))
         self.EMULATION_MODE = "1"
         self.EMULATION_SIZE = Point(
             self._xconfig.get("matrix_led.size.x", 8),
