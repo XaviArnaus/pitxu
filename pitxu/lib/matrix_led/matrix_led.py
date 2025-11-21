@@ -43,10 +43,6 @@ class MatrixLed(Xprocess):
         if action == XprocAction.SAY:
             self.show_kitt_mouth_while_speaking()
         
-        # Shows the Startup splash screen
-        if action == XprocAction.STARTUP:
-            self.splash_startup()
-        
         # Clears the screen
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             # self.disallow_kitt_mouth()
@@ -91,10 +87,6 @@ class MatrixLed(Xprocess):
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on Matrix LED: {text}")
         self._macros.draw_something()
-    
-    def splash_startup(self):
-        self._xlog.info(f"🚥 Startup Splash on Matrix LED")
-        self._macros.kitt_horizontal_effect()
     
     def init_step(self, step: int):
         self._xlog.info(f"🚥 Showing init step {step} on Matrix LED")

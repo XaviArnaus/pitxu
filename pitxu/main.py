@@ -306,7 +306,6 @@ class Main:
     
     def _startup_splash(self):
         self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.STARTUP)
         self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
     
     def _show_init_phases(self, step: int):
