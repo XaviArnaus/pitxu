@@ -59,7 +59,7 @@ class Vosk:
         self._queue = queue.Queue()
         self._xlog.info("Vosk: Loading flags from Shared Memory")
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
-        self._shared_memory.initialize_existing_shared_memory()
+        self._shared_memory.initialize_existing_shared_memory_flags()
 
         self._xlog.info("Done Initializing Vosk STT")
     

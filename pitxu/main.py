@@ -152,16 +152,20 @@ class Main:
 
         # Initialise eInk Display and the helper macros
         self._initialize_displays()
+        self._show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
         self._startup_splash()
+        self._show_init_phases(2)
         time.sleep(2)
 
         # Initialise all classes that require a model. They go per language, that's why it's abstracted
         self._load_models()
+        self._show_init_phases(3)
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
         self._load_language_statics()
+        self._show_init_phases(4)
 
         self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -174,6 +178,8 @@ class Main:
                                 dtype="int16", 
                                 channels=1,
                                 callback=self._dictate.callback) as input_stream:
+                
+                self._show_init_phases(5)
                 
                 # Welcome greeting
                 self._xlog.debug(">> Greetings")
@@ -301,6 +307,9 @@ class Main:
     def _startup_splash(self):
         self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
         self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
+    
+    def _show_init_phases(self, step: int):
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.INIT_STEP, str(step))
     
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.

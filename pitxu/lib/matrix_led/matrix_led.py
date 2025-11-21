@@ -6,7 +6,8 @@ from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.matrix_led import Max7219, Macros
 from pitxu.lib.objects.point import Point
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
+from definitions import SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY,\
+    SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4
 
 class MatrixLed(Xprocess):
     '''
@@ -29,6 +30,11 @@ class MatrixLed(Xprocess):
         self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
     
+    def finish(self):
+        self._xlog.info("Closing possible open canvas")
+        self._macros.close_canvas()
+        self._xlog.info("Finalizing Matrix Worker")
+    
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
         # We're busy
         self.set_matrix_busy()
@@ -38,6 +44,7 @@ class MatrixLed(Xprocess):
             # self.disallow_kitt_mouth()
             self.show(param)
         
+        # Show KITT mouth while speaking
         if action == XprocAction.SAY:
             self.show_kitt_mouth_while_speaking()
         
@@ -45,6 +52,11 @@ class MatrixLed(Xprocess):
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             # self.disallow_kitt_mouth()
             self.clear()
+        
+        if action == XprocAction.INIT_STEP and param != "":
+            step = int(param)
+            # For now, just show the step number as a message
+            self.init_step(step)
         
         # By default, show a KITT effect while speaking, only if nothing else requested.
         # if self.is_kitt_mouth_allowed():
@@ -63,12 +75,28 @@ class MatrixLed(Xprocess):
             if not self.is_speaker_busy():
                 self._xlog.info(f"👄 Stopping KITT mouth on Matrix LED.")
                 break
-            self._macros.kitt_speaking_effect()
+            # self._macros.kitt_speaking_effect()
+
+            # New way: we use the VU Meter columns to show the mouth
+            # col_1_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_1)
+            # col_2_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_2)
+            # col_3_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_3)
+            # col_4_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_4)
+            col_1_value = 0
+            col_2_value = 0
+            col_3_value = 2
+            col_4_value = 4
+            self._macros.kitt_speaking_effect_vu_meter(col_1_value, col_2_value, col_3_value, col_4_value)
         self._macros.close_canvas()
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on Matrix LED: {text}")
         self._macros.draw_something()
+    
+    def init_step(self, step: int):
+        self._xlog.info(f"🚥 Showing init step {step} on Matrix LED")
+        # For now, just show the step number as a message
+        self._macros.show_init_step(step)
     
     def clear(self):
         self._matrix.clear()

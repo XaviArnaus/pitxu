@@ -16,8 +16,8 @@ class Line:
     def to_image_line(self) -> list[tuple]:
         return [self.point_1.to_image_point(), self.point_2.to_image_point()]
     
-    def is_valid(self, config: Config) -> bool:
-        return True if self.point_1.is_valid(config) and \
-                        self.point_2.is_valid(config) and \
+    def is_valid(self, display_size: Point = None) -> bool:
+        return True if self.point_1.is_valid(display_size) and \
+                        self.point_2.is_valid(display_size) and \
                         not self.point_1.equals_to(self.point_2) \
                     else False

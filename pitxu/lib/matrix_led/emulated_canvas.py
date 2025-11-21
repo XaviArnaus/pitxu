@@ -2,7 +2,7 @@ from PIL import Image, ImageDraw
 
 from pyxavi import Config, Logger, Dictionary
 
-import time
+from datetime import datetime
 import logging
 
 
@@ -22,6 +22,8 @@ class EmulatedCanvas(object):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/matrix/"
 
+    MULTIPLIER_FACTOR = 10   # To have a bigger image for better visualization
+
     def __init__(self, config: Config, params: Dictionary, mode: str, size: tuple):
         self._xconfig = config
         self._xparams = params
@@ -37,10 +39,11 @@ class EmulatedCanvas(object):
     def __exit__(self, type, value, traceback):
         if type is None:
             # Save the image
-            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
-            self.image.save(file_path)
+            image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+            image.save(file_path)
             file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
-            self.image.save(file_path)
+            image.save(file_path)
 
         del self.draw   # Tidy up the resources
         return False    # Never suppress exceptions
@@ -54,10 +57,11 @@ class HandableEmulatedCanvas(EmulatedCanvas):
 
     def send_to_device(self):
         # Save the image
-        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
-        self.image.save(file_path)
+        image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
+        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+        image.save(file_path)
         file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
-        self.image.save(file_path)
+        image.save(file_path)
 
     def close(self):
         return False
