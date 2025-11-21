@@ -8,6 +8,11 @@ from PIL import Image,ImageDraw,ImageFont
 import logging, time, math
 
 class Macros:
+    '''
+    Class that builds higher level macros to draw on the Matrix LED display
+
+    Remember that the LED Matrix is 8x8 pixels, (0,0) is top-left and (7,7) is bottom-right
+    '''
 
     _xconfig: Config = None
     _xlog: logging = None
