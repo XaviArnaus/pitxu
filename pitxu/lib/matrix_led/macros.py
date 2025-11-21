@@ -5,7 +5,7 @@ from ..objects import Rectangle, Line, Point, Matrix
 
 from PIL import Image,ImageDraw,ImageFont
 
-import logging, time
+import logging, time, math
 
 class Macros:
 
@@ -67,30 +67,6 @@ class Macros:
                     draw.rectangle((0,0,7,7), self.OFF)
                     draw.point((x,3), self.ON)
                     time.sleep(delay)
-    
-    def kitt_speaking_effect(self, delay: float = 0.1):
-        '''
-        KITT speaking effect: a line moving up and down in the middle of the matrix
-
-        Be careful, it relies on having a HandableCanvas instance opened previously, and
-        needs to be closed afterwards.
-        '''
-        self._xlog.debug("Starting KITT speaking effect")
-
-        canvas = self._handable_canvas.get()
-        mid_y = 3
-        # Move up
-        for y in range(mid_y, -1, -1):
-            canvas.rectangle((0,0,7,7), self.OFF)
-            canvas.line((0, y, 7, y), self.ON)
-            self._handable_canvas.send_to_device()
-            time.sleep(delay)
-        # Move down
-        for y in range(1, mid_y + 1):
-            canvas.rectangle((0,0,7,7), self.OFF)
-            canvas.line((0, y, 7, y), self.ON)
-            self._handable_canvas.send_to_device()
-            time.sleep(delay)
     
     def open_canvas(self) -> HandableCanvas:
         if self._handable_canvas is None:
@@ -200,3 +176,13 @@ class Macros:
             # We show this row to the device
             self._handable_canvas.send_to_device()
             time.sleep(delay)
+
+    def show_init_step(self, step):
+        with self._max7219.create_canvas() as draw:
+            for point in range(0, step):
+                if point > 0:
+                    x = math.floor(point / 8)
+                else:
+                    x = 0
+                y = step % 7
+                draw.point((x, y), self.ON)

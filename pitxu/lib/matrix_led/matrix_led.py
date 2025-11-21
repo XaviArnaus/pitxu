@@ -39,6 +39,7 @@ class MatrixLed(Xprocess):
             # self.disallow_kitt_mouth()
             self.show(param)
         
+        # Show KITT mouth while speaking
         if action == XprocAction.SAY:
             self.show_kitt_mouth_while_speaking()
         
@@ -50,6 +51,11 @@ class MatrixLed(Xprocess):
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             # self.disallow_kitt_mouth()
             self.clear()
+        
+        if action == XprocAction.INIT_STEP and param != "":
+            step = int(param)
+            # For now, just show the step number as a message
+            self.init_step(step)
         
         # By default, show a KITT effect while speaking, only if nothing else requested.
         # if self.is_kitt_mouth_allowed():
@@ -89,6 +95,11 @@ class MatrixLed(Xprocess):
     def splash_startup(self):
         self._xlog.info(f"🚥 Startup Splash on Matrix LED")
         self._macros.kitt_horizontal_effect()
+    
+    def init_step(self, step: int):
+        self._xlog.info(f"🚥 Showing init step {step} on Matrix LED")
+        # For now, just show the step number as a message
+        self._macros.show_init_step(step)
     
     def clear(self):
         self._matrix.clear()
