@@ -6,7 +6,7 @@ from . import ChatbotProtocol
 
 from pyxavi import Logger, Config, Dictionary
 
-from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch
+from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch, TrivagoMCPClient
 
 import logging, time
 
@@ -51,6 +51,7 @@ class GeminiChatbot(ChatbotProtocol):
         google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
         world_position_command = WorldPosition(config=self._xconfig, params=self._xparams)
         world_weather_command = WorldWeather(config=self._xconfig, params=self._xparams)
+        trivago_mcp_client = TrivagoMCPClient(config=self._xconfig, params=self._xparams)
 
         tools = [
             # Grounding workaround so it can use Google Search
@@ -62,11 +63,11 @@ class GeminiChatbot(ChatbotProtocol):
             SystemTime.get_current_time,
             world_position_command.get_latitude_and_longitude_from_location,
             world_position_command.get_latitude_and_longitude_from_current_location,
-            world_position_command.get_latitude_and_longitude_from_address,
+            world_position_command.get_latitude_and_longitude_from_address, 
             world_weather_command.get_weather_forecast_for_today,
             world_weather_command.get_weather_forecast_for_next_days,
-            WorldWikipedia.get_summary_from_wikipedia_by_term,
-        ]
+            WorldWikipedia.get_summary_from_wikipedia_by_term
+        ] + trivago_mcp_client.connect_and_get_tools()
         self._chat = self._client.chats.create(
             model='gemini-2.5-flash',
             config=types.GenerateContentConfig(

@@ -1,4 +1,4 @@
-from pyxavi import Config
+from pyxavi import Dictionary, Config
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from google import genai
@@ -6,7 +6,7 @@ from google.genai import types
 
 class GoogleMaps(PyXavi):
 
-    def __init__(self, config: Config = None, params: dict = None):
+    def __init__(self, config: Config = None, params: Dictionary = None):
         super(GoogleMaps, self).init_pyxavi(config=config, params=params)
 
     def get_google_maps_response_to_a_prompt(self, prompt: str) -> str:
