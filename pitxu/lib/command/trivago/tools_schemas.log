@@ -1,0 +1,243 @@
+(list[3])[
+  (dict[3]){
+    "name": (str[35])"trivago-accommodation-radius-search",
+    "description": (str[293])"
+                Search for accommodations and hotels using a coordinates and radius on Trivago.
+
+                Use this tool when you want to find accommodations near a specific location or street.
+
+                Additional Information: 
+                {
+                "knownInformation": {
+                        "currentYear": "2025",
+                        "today": "2025-11-22"
+                }
+                }
+
+                ",
+    "input_schema": (dict[3]){
+      "properties": (dict[12]){
+        "adults": (dict[3]){"description": (str[26])"
+                The number of adults.
+        ", "minimum": (int)1, "type": (str[6])"number"},
+        "arrival": (dict[2]){"description": (str[222])"
+                The arrival date in YYYY-MM-DD format, today is 2025-11-22.
+
+                The arrival date MUST be before the departure date. If the arrival date is not in the future, notify the user that the arrival date is not in the future.
+                ", "type": (str[6])"string"},
+        "children": (dict[3]){"description": (str[28])"
+                The number of children.
+        ", "minimum": (int)0, "type": (str[6])"number"},
+        "children_ages": (dict[2]){"description": (str[58])"
+                Dashed separated list of children ages, e.g. 10-12-14
+        ", "type": (str[6])"string"},
+        "departure": (dict[2]){"description": (str[245])"
+                The departure date in YYYY-MM-DD format, today is 2025-11-22.
+
+                The departure date MUST be after the arrival date. If the departure date is not after the arrival date, notify the user that the departure date is not after the arrival date.
+                ", "type": (str[6])"string"},
+        "filters": (dict[3]){
+          "description": (str[128])"
+                The filters that you want to apply to the search.
+                Set true or false for each filter.
+                Multiple filters can be selected.
+                ",
+          "properties": (dict[10]){
+            "airConditioning": (dict[3]){"default": (bool)False, "description": (str[46])"Whether the accommodation has air conditioning", "type": (str[7])"boolean"},
+            "breakfastIncluded": (dict[3]){"default": (bool)False, "description": (str[44])"Whether the accommodation includes breakfast", "type": (str[7])"boolean"},
+            "freeCancellation": (dict[3]){"default": (bool)False, "description": (str[47])"Whether the accommodation has free cancellation", "type": (str[7])"boolean"},
+            "freeWiFi": (dict[3]){"default": (bool)False, "description": (str[39])"Whether the accommodation has free WiFi", "type": (str[7])"boolean"},
+            "gym": (dict[3]){"default": (bool)False, "description": (str[35])"Whether the accommodation has a gym", "type": (str[7])"boolean"},
+            "kitchen": (dict[3]){"default": (bool)False, "description": (str[39])"Whether the accommodation has a kitchen", "type": (str[7])"boolean"},
+            "parking": (dict[3]){"default": (bool)False, "description": (str[37])"Whether the accommodation has parking", "type": (str[7])"boolean"},
+            "petFriendly": (dict[3]){"default": (bool)False, "description": (str[41])"Whether the accommodation is pet friendly", "type": (str[7])"boolean"},
+            "pool": (dict[3]){"default": (bool)False, "description": (str[36])"Whether the accommodation has a pool", "type": (str[7])"boolean"},
+            "spa": (dict[3]){"default": (bool)False, "description": (str[35])"Whether the accommodation has a spa", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "hotel_rating": (dict[3]){
+          "description": (str[122])"
+                The hotel rating that you want to filter by.
+                Set true or false for each rating.
+                Multiple ratings can be selected.
+        ",
+          "properties": (dict[5]){
+            "1star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 1 star rating", "type": (str[7])"boolean"},
+            "2star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 2 star rating", "type": (str[7])"boolean"},
+            "3star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 3 star rating", "type": (str[7])"boolean"},
+            "4star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 4 star rating", "type": (str[7])"boolean"},
+            "5star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 5 star rating", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "latitude": (dict[2]){"description": (str[63])"
+                The latitude of the location that you want to search for.
+                ", "type": (str[6])"number"},
+        "longitude": (dict[2]){"description": (str[64])"
+                The longitude of the location that you want to search for.
+                ", "type": (str[6])"number"},
+        "radius": (dict[2]){"description": (str[55])"
+                The radius in meters that you want to search for.
+                ", "type": (str[6])"number"},
+        "review_rating": (dict[3]){
+          "description": (str[129])"
+                The guest review rating that you want to filter by.
+                Set true or false for each rating.
+                Multiple ratings can be selected.
+        ",
+          "properties": (dict[4]){
+            "rating70": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 7.0+", "type": (str[7])"boolean"},
+            "rating75": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 7.5+", "type": (str[7])"boolean"},
+            "rating80": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 8.0+", "type": (str[7])"boolean"},
+            "rating85": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 8.5+", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "rooms": (dict[3]){"description": (str[93])"
+                The number of rooms, Number of rooms must be lower than or equal to the number of adults
+        ", "minimum": (int)1, "type": (str[6])"number"}
+      },
+      "required": (list[5])[(str[6])"radius", (str[8])"latitude", (str[9])"longitude", (str[7])"arrival", (str[9])"departure"],
+      "type": (str[6])"object"
+    }
+  },
+  (dict[3]){
+    "name": (str[28])"trivago-accommodation-search",
+    "description": (str[371])"
+                Search for accommodations and hotels on Trivago.
+
+                Use this tool when you want to find accommodations in broader areas like cities, countries, etc.
+
+                If you are interested in a specific location, use the trivago-accommodation-radius-search tool.
+
+                Additional Information: 
+                {
+                "knownInformation": {
+                        "currentYear": "2025",
+                        "today": "2025-11-22"
+                }
+                }
+
+                ",
+    "input_schema": (dict[3]){
+      "properties": (dict[11]){
+        "adults": (dict[3]){"description": (str[26])"
+                The number of adults.
+        ", "minimum": (int)1, "type": (str[6])"number"},
+        "arrival": (dict[2]){"description": (str[222])"
+                The arrival date in YYYY-MM-DD format, today is 2025-11-22.
+
+                The arrival date MUST be before the departure date. If the arrival date is not in the future, notify the user that the arrival date is not in the future.
+                ", "type": (str[6])"string"},
+        "children": (dict[3]){"description": (str[28])"
+                The number of children.
+        ", "minimum": (int)0, "type": (str[6])"number"},
+        "children_ages": (dict[2]){"description": (str[58])"
+                Dashed separated list of children ages, e.g. 10-12-14
+        ", "type": (str[6])"string"},
+        "departure": (dict[2]){"description": (str[245])"
+                The departure date in YYYY-MM-DD format, today is 2025-11-22.
+
+                The departure date MUST be after the arrival date. If the departure date is not after the arrival date, notify the user that the departure date is not after the arrival date.
+                ", "type": (str[6])"string"},
+        "filters": (dict[3]){
+          "description": (str[128])"
+                The filters that you want to apply to the search.
+                Set true or false for each filter.
+                Multiple filters can be selected.
+                ",
+          "properties": (dict[10]){
+            "airConditioning": (dict[3]){"default": (bool)False, "description": (str[46])"Whether the accommodation has air conditioning", "type": (str[7])"boolean"},
+            "breakfastIncluded": (dict[3]){"default": (bool)False, "description": (str[44])"Whether the accommodation includes breakfast", "type": (str[7])"boolean"},
+            "freeCancellation": (dict[3]){"default": (bool)False, "description": (str[47])"Whether the accommodation has free cancellation", "type": (str[7])"boolean"},
+            "freeWiFi": (dict[3]){"default": (bool)False, "description": (str[39])"Whether the accommodation has free WiFi", "type": (str[7])"boolean"},
+            "gym": (dict[3]){"default": (bool)False, "description": (str[35])"Whether the accommodation has a gym", "type": (str[7])"boolean"},
+            "kitchen": (dict[3]){"default": (bool)False, "description": (str[39])"Whether the accommodation has a kitchen", "type": (str[7])"boolean"},
+            "parking": (dict[3]){"default": (bool)False, "description": (str[37])"Whether the accommodation has parking", "type": (str[7])"boolean"},
+            "petFriendly": (dict[3]){"default": (bool)False, "description": (str[41])"Whether the accommodation is pet friendly", "type": (str[7])"boolean"},
+            "pool": (dict[3]){"default": (bool)False, "description": (str[36])"Whether the accommodation has a pool", "type": (str[7])"boolean"},
+            "spa": (dict[3]){"default": (bool)False, "description": (str[35])"Whether the accommodation has a spa", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "hotel_rating": (dict[3]){
+          "description": (str[122])"
+                The hotel rating that you want to filter by.
+                Set true or false for each rating.
+                Multiple ratings can be selected.
+        ",
+          "properties": (dict[5]){
+            "1star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 1 star rating", "type": (str[7])"boolean"},
+            "2star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 2 star rating", "type": (str[7])"boolean"},
+            "3star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 3 star rating", "type": (str[7])"boolean"},
+            "4star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 4 star rating", "type": (str[7])"boolean"},
+            "5star": (dict[3]){"default": (bool)False, "description": (str[45])"Whether the accommodation has a 5 star rating", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "id": (dict[2]){"description": (str[57])"
+                The ID of the location that you want to search for.
+                ", "type": (str[6])"number"},
+        "ns": (dict[2]){"description": (str[57])"
+                The NS of the location that you want to search for.
+                ", "type": (str[6])"number"},
+        "review_rating": (dict[3]){
+          "description": (str[129])"
+                The guest review rating that you want to filter by.
+                Set true or false for each rating.
+                Multiple ratings can be selected.
+        ",
+          "properties": (dict[4]){
+            "rating70": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 7.0+", "type": (str[7])"boolean"},
+            "rating75": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 7.5+", "type": (str[7])"boolean"},
+            "rating80": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 8.0+", "type": (str[7])"boolean"},
+            "rating85": (dict[3]){"default": (bool)False, "description": (str[52])"Whether the accommodation has a Guest Rating of 8.5+", "type": (str[7])"boolean"}
+          },
+          "type": (str[6])"object"
+        },
+        "rooms": (dict[3]){"description": (str[93])"
+                The number of rooms, Number of rooms must be lower than or equal to the number of adults
+        ", "minimum": (int)1, "type": (str[6])"number"}
+      },
+      "required": (list[4])[(str[2])"ns", (str[2])"id", (str[7])"arrival", (str[9])"departure"],
+      "type": (str[6])"object"
+    }
+  },
+  (dict[3]){
+    "name": (str[26])"trivago-search-suggestions",
+    "description": (str[238])"
+
+        Suggestions are used to provide a list of possible search terms based on the user's query.
+
+        Query can be city, country.
+
+        You must pick output that are close to the user query.
+
+        Example:
+        Input:
+                Query: "Berlin"
+                Query: "Germany"
+        ",
+    "input_schema": (dict[3]){
+      "properties": (dict[1]){
+        "query": (dict[2]){"description": (str[663])"
+                The query to search for suggestions.
+
+                Query must be city, country.
+
+                if you know geolocation, you can use radius search tool to find accommodations near the location.
+
+                if query or the location is ambiguous, clarify the query or location by asking the user for more information.
+
+                When user ask for a query, you must follow these steps. If each step is not successful, try the next step:
+                   1. first try to use query as it is
+                   2. MUST find the city of the query by using internet search, use MUST the city to search for suggestions
+                   3. MUST find the country of the query by using internet search, use MUST the country to search for suggestions
+        ", "type": (str[6])"string"}
+      },
+      "required": (list[1])[(str[5])"query"],
+      "type": (str[6])"object"
+    }
+  }
+]

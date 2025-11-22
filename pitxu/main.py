@@ -20,7 +20,7 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_
 
 import sounddevice
 import time
-from queue import Empty
+import asyncio
 
 class Main:
 
@@ -113,7 +113,7 @@ class Main:
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
         self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
-    
+
     def _load_language_statics(self):
 
         # Load the greeting sentence
@@ -146,7 +146,7 @@ class Main:
         # Needs an initial clear
         self._clear_matrix()
 
-    def run(self):
+    async def run(self):
 
         sw_init = self._stopwatch.start(name="init")
 
@@ -213,7 +213,8 @@ class Main:
                         # We set it as busy in shared memory, so the Matrix can show the thinking effect
                         self.set_chatbot_busy()
                         self._show_thinking()
-                        answer = self._chatbot.ask(question)
+                        answer = await self._chatbot.ask_async(question)
+                        # answer = self._chatbot.ask(question)
                         self.unset_chatbot_busy()
                         self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                     

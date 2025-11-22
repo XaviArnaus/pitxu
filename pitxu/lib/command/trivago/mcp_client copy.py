@@ -1,31 +1,59 @@
+import asyncio
 from typing import Optional
 from contextlib import AsyncExitStack
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
+from pyxavi import Dictionary, Config
+from pitxu.lib.abstract.pyxavi import PyXavi
+
 # TEST MCP n.2
 
-ZAPIER_URL = "https://actions.zapier.com/mcp/your-secret-key/sse"
+# {
+#   "mcpServers": {
+#     "mcp_trivago_search": {
+#       "url": "https://mcp.trivago.com/mcp"
+#     }
+#   }
+# }
 
-class GmailMCPClient:
-    """A client for interacting with Gmail through the Zapier MCP (Model Context Protocol) server.
+class TrivagoMCPClient(PyXavi):
+    """A client for interacting with Trivago through the Trivago MCP (Model Context Protocol) server.
     
     This client establishes and manages a connection to an MCP server using Server-Sent Events (SSE),
-    allowing for tool discovery and execution of Gmail-related operations.
+    allowing for tool discovery and execution of Trivago-related operations.
     
     Attributes:
         session (Optional[ClientSession]): The active client session with the MCP server.
         exit_stack (AsyncExitStack): Context manager for handling async resources.
     """
-    def __init__(self):
+
+    MCP_SERVER_URL = "https://mcp.trivago.com/mcp"
+
+    def __init__(self, config: Config = None, params: Dictionary = None):
+        super(TrivagoMCPClient, self).init_pyxavi(config=config, params=params)
+
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
+    
+    def connect_and_get_tools(self) -> list:
+        """Establishes a connection to the MCP server and retrieves available tools.
         
-    async def connect_to_server(self, zapier_url):
+        This method connects to the Trivago MCP server, initializes the client session,
+        and fetches the list of available tools, returning them in Gemini function calling format.
+        
+        Returns:
+            list[dict]: A list of tool definitions in OpenAI function calling format.
+        """
+        asyncio.run(self.connect_to_server())
+        tools = asyncio.run(self.get_tools())
+        return tools
+        
+    async def connect_to_server(self) -> ClientSession:
         """Establishes an async connection to the MCP server using SSE transport.
         
         Args:
-            zapier_url (str): The URL endpoint of the Zapier MCP server to connect to.
+            url (str): The URL endpoint of the Trivago MCP server to connect to.
             
         Returns:
             ClientSession: The established client session object.
@@ -35,7 +63,7 @@ class GmailMCPClient:
         """
         # Connect using SSE transport
         sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(zapier_url)
+            sse_client(self.MCP_SERVER_URL)
         )
         read, write = sse_transport
         
@@ -66,18 +94,24 @@ class GmailMCPClient:
         """
         response = await self.session.list_tools()
         tool_names = [tool.name for tool in response.tools]
-        print(f'Available Server Tools: {tool_names}')
+        self._xlog.debug(f'Available Server Tools: {tool_names}')
         
-        openai_tools_schema = [{
-        "type": "function",
-        "function": {
+        # openai_tools_schema = [{
+        # "type": "function",
+        # "function": {
+        #     "name": tool.name,
+        #     "description": tool.description,
+        #     "parameters": tool.inputSchema
+        # }
+        # } for tool in response.tools]
+        tools = [{
             "name": tool.name,
             "description": tool.description,
-            "parameters": tool.inputSchema
-        }
+            "input_schema": tool.inputSchema
         } for tool in response.tools]
         
-        return openai_tools_schema
+        # return openai_tools_schema
+        return tools
     
     async def disconnect(self):
         """Cleanly disconnects from the MCP server.

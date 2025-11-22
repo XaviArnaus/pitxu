@@ -11,6 +11,7 @@ from google.genai import types
 from pyxavi import Dictionary, Config
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+# TEST MCP n.1
 # NOT YET TRIED
 
 # {

@@ -1,0 +1,18 @@
+2025-11-22 10:41:04,421 [MainProcess ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
+2025-11-22 10:41:04,421 [MainProcess ] DEBUG    httpcore.http11 receive_response_body.started request=<Request [b'POST']>
+2025-11-22 10:41:04,423 [MainProcess ] DEBUG    httpcore.http11 receive_response_body.complete
+2025-11-22 10:41:04,424 [MainProcess ] DEBUG    httpcore.http11 response_closed.started
+2025-11-22 10:41:04,424 [MainProcess ] DEBUG    httpcore.http11 response_closed.complete
+2025-11-22 10:41:04,425 [MainProcess ] DEBUG    mcp.client.streamable_http Sending client message: root=JSONRPCRequest(method='tools/call', params={'name': 'trivago-accommodation-search', 'arguments': {'arrival': '2025-11-29', 'departure': '2025-11-30', 'id': 13437, 'ns': 200, 'adults': 2}}, jsonrpc='2.0', id=3)
+2025-11-22 10:41:04,426 [MainProcess ] DEBUG    httpcore.http11 send_request_headers.started request=<Request [b'POST']>
+2025-11-22 10:41:04,426 [MainProcess ] DEBUG    httpcore.http11 send_request_headers.complete
+2025-11-22 10:41:04,426 [MainProcess ] DEBUG    httpcore.http11 send_request_body.started request=<Request [b'POST']>
+2025-11-22 10:41:04,426 [MainProcess ] DEBUG    httpcore.http11 send_request_body.complete
+2025-11-22 10:41:04,427 [MainProcess ] DEBUG    httpcore.http11 receive_response_headers.started request=<Request [b'POST']>
+2025-11-22 10:41:04,470 [MainProcess ] DEBUG    httpcore.http11 receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'x-request-id', b'a033aa0f-4666-41e6-84cc-29bae3334d20'), (b'Content-Length', b'0'), (b'Expires', b'Sat, 22 Nov 2025 09:41:04 GMT'), (b'Cache-Control', b'max-age=0, no-cache, no-store'), (b'Pragma', b'no-cache'), (b'Date', b'Sat, 22 Nov 2025 09:41:04 GMT'), (b'Connection', b'close'), (b'Server-Timing', b'edge; dur=11'), (b'Server-Timing', b'origin; dur=17'), (b'Server-Timing', b'cdn-cache; desc=MISS'), (b'Alt-Svc', b'h3=":443"; ma=93600'), (b'Server-Timing', b'ak_p; desc="1763804464452_3092670098_261719402_2750_2470_12_0_-";dur=1')])
+2025-11-22 10:41:04,471 [MainProcess ] INFO     httpx        HTTP Request: POST https://mcp.trivago.com/mcp "HTTP/1.1 500 Internal Server Error"
+2025-11-22 10:41:04,471 [MainProcess ] DEBUG    httpcore.http11 response_closed.started
+2025-11-22 10:41:04,472 [MainProcess ] DEBUG    httpcore.http11 response_closed.complete
+2025-11-22 10:41:04,474 [MainProcess ] DEBUG    httpcore.http11 receive_response_headers.failed exception=CancelledError('Cancelled via cancel scope 11f0a3e50')
+2025-11-22 10:41:04,474 [MainProcess ] DEBUG    httpcore.http11 response_closed.started
+2025-11-22 10:41:04,475 [MainProcess ] DEBUG    httpcore.http11 response_closed.complete

@@ -28,6 +28,16 @@ language:
     es: "Lo siento, el servidor devuelve un error."
     en-us: "I'm sorry, the server returned an error."
     de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben."
+  connection_closed_error:
+    ca: "Ho sento, el servidor retorna error: la connexió s'ha tancat."
+    es: "Lo siento, el servidor devuelve un error: la conexión se ha cerrado."
+    en-us: "I'm sorry, the server returned an error: the connection was closed."
+    de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben: die Verbindung wurde geschlossen."
+  empty_answer:
+    ca: "Ho sento, no et puc donar una resposta ara."
+    es: "Lo siento, no puedo darte una respuesta ahora."
+    en-us: "I'm sorry, I can't give you an answer right now."
+    de: "Es tut mir leid, ich kann dir gerade keine Antwort geben."
   # Common text replacements to normalize output
   text_replacements:
     ca:
