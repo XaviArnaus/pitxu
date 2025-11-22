@@ -38,15 +38,20 @@ class EmulatedCanvas(object):
 
     def __exit__(self, type, value, traceback):
         if type is None:
-            # Save the image
+
+            self._save_image()
+
+        del self.draw   # Tidy up the resources
+        return False    # Never suppress exceptions
+    
+    def _save_image(self):
+        # Save the image
+        if not self._xconfig.get("matrix_led.discard_mocked_images", False):
             image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
             file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
             image.save(file_path)
             file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
             image.save(file_path)
-
-        del self.draw   # Tidy up the resources
-        return False    # Never suppress exceptions
 
 class HandableEmulatedCanvas(EmulatedCanvas):
     '''
@@ -56,12 +61,7 @@ class HandableEmulatedCanvas(EmulatedCanvas):
         return self.__enter__()
 
     def send_to_device(self):
-        # Save the image
-        image = self.image.resize((self.image.width * self.MULTIPLIER_FACTOR, self.image.height * self.MULTIPLIER_FACTOR), Image.Resampling.NEAREST)
-        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
-        image.save(file_path)
-        file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
-        image.save(file_path)
+        self._save_image()
 
     def close(self):
         return False
