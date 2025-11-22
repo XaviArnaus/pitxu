@@ -80,10 +80,17 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         self.init_pyxavi(config=self._xconfig, params=self._xparams)
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
-        self._shared_memory.initialize_existing_shared_memory()
+        self._shared_memory.initialize_existing_shared_memory_flags()
+        self._shared_memory.initialize_existing_shared_memory_vu_meter()
 
     def read_shared_memory_flag(self, index: int) -> bool:
         return self._shared_memory.read_shared_memory_flag(index)
 
     def write_shared_memory_flag(self, index: int, value: bool):
         self._shared_memory.write_shared_memory_flag(index, value)
+
+    def read_shared_memory_vu_meter_column(self, index: int) -> bool:
+        return self._shared_memory.read_shared_memory_vu_meter_column(index)
+
+    def write_shared_memory_vu_meter_column(self, index: int, value: bool):
+        self._shared_memory.write_shared_memory_vu_meter_column(index, value)

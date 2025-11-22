@@ -14,7 +14,7 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY,\
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
@@ -152,16 +152,20 @@ class Main:
 
         # Initialise eInk Display and the helper macros
         self._initialize_displays()
+        self._show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
         self._startup_splash()
+        self._show_init_phases(2)
         time.sleep(2)
 
         # Initialise all classes that require a model. They go per language, that's why it's abstracted
         self._load_models()
+        self._show_init_phases(3)
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
         self._load_language_statics()
+        self._show_init_phases(4)
 
         self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -174,6 +178,8 @@ class Main:
                                 dtype="int16", 
                                 channels=1,
                                 callback=self._dictate.callback) as input_stream:
+                
+                self._show_init_phases(5)
                 
                 # Welcome greeting
                 self._xlog.debug(">> Greetings")
@@ -203,8 +209,13 @@ class Main:
                         # Just assume a goodbye
                         answer = self._goodbye_sentence
                     else:
-                        # Here we start with the Chatbot
+                        # Here we start with the Chatbot.
+                        # We set it as busy in shared memory, so the Matrix can show the thinking effect
+                        self.set_chatbot_busy()
+                        self._show_thinking()
                         answer = self._chatbot.ask(question)
+                        self.unset_chatbot_busy()
+                        self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                     
                     # Clean the answer first, just in case
                     answer = Text.remove_emojis(answer)
@@ -302,6 +313,12 @@ class Main:
         self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
         self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
     
+    def _show_init_phases(self, step: int):
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.INIT_STEP, str(step))
+    
+    def _show_thinking(self):
+        self._process_pool.send(PROCESS_MATRIX, XprocAction.THINKING)
+    
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.
         # First a soft clear, so the screen is white
@@ -321,3 +338,11 @@ class Main:
     def unmute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+    
+    def set_chatbot_busy(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
+        self._xlog.debug("🤖 Setting Chatbot as busy.")
+    
+    def unset_chatbot_busy(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
+        self._xlog.debug("🤖 Unsetting Chatbot as busy.")
