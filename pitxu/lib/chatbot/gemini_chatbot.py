@@ -118,7 +118,8 @@ class GeminiChatbot(PyXavi):
                         
                         # response = await chat.send_message(question)
                         response = await self._chat.send_message(question)
-                        if response.text is None:
+                        text = response.text
+                        if text is None:
                             # Turns out that in most cases the tokens are exhausted, so Gemini refuses to answer.
                             # This may happen due to having too many tools, or too big context.
                             # This started to happen after adding Trivago MCP tool, I guess it consumes a large amount of tokens.
@@ -126,8 +127,6 @@ class GeminiChatbot(PyXavi):
                             finish_reason = response.candidates[0].finish_reason if response.candidates and len(response.candidates) > 0 else "unknown"
                             self._xlog.error("🛑 The server answered with a null response. The finish reason is: " + finish_reason)
                             text = self._xconfig.get("language.empty_answer." + self._xparams.get("language"))
-                        else:
-                            text = response.text
                         self._xlog.debug("🗣️ Received answer: " + str(text))
                         return text
                     except ServerError as e:
