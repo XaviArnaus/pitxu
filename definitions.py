@@ -23,3 +23,11 @@ SHARED_VU_COL_1 = 0
 SHARED_VU_COL_2 = 1
 SHARED_VU_COL_3 = 2
 SHARED_VU_COL_4 = 3
+
+# Buttons
+SHARED_GPIO_BUTTONS = "pitxu_shared_buttons_pressed"
+SHARED_GPIO_BUTTON_GREEN_PIN: int = 5  # GPIO pin for the green switch
+
+# LEDs
+SHARED_GPIO_LEDS = "pitxu_shared_leds_on"
+SHARED_GPIO_LED_BLUE_PIN: int = 6     # GPIO pin for the blue LED

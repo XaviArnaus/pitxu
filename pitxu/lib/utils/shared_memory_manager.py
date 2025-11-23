@@ -4,13 +4,17 @@ import time
 from pyxavi import Config, Dictionary
 
 from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED,\
-    SHARED_MEMORY_VU_METER, SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4
+    SHARED_MEMORY_VU_METER, SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4,\
+    SHARED_GPIO_BUTTONS, SHARED_GPIO_LEDS
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
 
     _shared_memory_flags: shared_memory.ShareableList = None
     _shared_memory_vu_meter: shared_memory.ShareableList = None
+    _shared_memory_gpio_switch: shared_memory.ShareableList = None
+    _shared_memory_gpio_led: shared_memory.ShareableList = None
+
     _shared_flags: dict[str, int] = {
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
@@ -37,7 +41,7 @@ class SharedMemoryManager(PyXavi):
         Initializes the shared memory for inter-process communication.
         '''
         try:
-            self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_FLAGS)
+            self._xlog.debug("Initializing Shared Memory Flags: " + SHARED_MEMORY_FLAGS)
             # Initialisating Shared Memory to handle execution flags between processes
             self._shared_memory_flags = shared_memory.ShareableList([
                 False,  # speaker is busy (pause mic)
@@ -49,14 +53,14 @@ class SharedMemoryManager(PyXavi):
             if self._shared_memory_flags is None:
                 self._xlog.error("Shared Memory Flags is None, cannot write flags")
         except Exception as e:
-            self._xlog.error("Failed to initialize shared memory: " + str(e))
+            self._xlog.error("Failed to initialize Shared Memory Flags: " + str(e))
     
     def initialize_new_shared_memory_vu_meter(self):
         '''
         Initializes the shared memory for inter-process communication.
         '''
         try:
-            self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_VU_METER)
+            self._xlog.debug("Initializing Shared Memory VU Meter: " + SHARED_MEMORY_VU_METER)
             # Initialisating Shared Memory to handle execution flags between processes
             self._shared_memory_vu_meter = shared_memory.ShareableList([
                 0,  # VU meter column 1
@@ -67,8 +71,50 @@ class SharedMemoryManager(PyXavi):
             if self._shared_memory_vu_meter is None:
                 self._xlog.error("Shared Memory VU Meter is None, cannot write VU meter values")
         except Exception as e:
-            self._xlog.error("Failed to initialize shared memory: " + str(e))
+            self._xlog.error("Failed to initialize Shared Memory VU Meter: " + str(e))
+
+    def initialize_new_shared_memory_gpio_buttons(self):
+        '''
+        Initializes the shared memory for inter-process communication.
+        '''
+        try:
+            self._xlog.debug("Initializing Shared Memory GPIO Buttons: " + SHARED_GPIO_BUTTONS)
+            # Initialisating Shared Memory to handle execution flags between processes
+            self._shared_memory_gpio_buttons = shared_memory.ShareableList([
+                False,  # button green is pressed
+            ], name=SHARED_GPIO_BUTTONS)
+            if self._shared_memory_gpio_buttons is None:
+                self._xlog.error("Shared Memory GPIO Buttons is None, cannot write button states")
+        except Exception as e:
+            self._xlog.error("Failed to initialize Shared Memory GPIO Buttons: " + str(e))
     
+    def initialize_new_shared_memory_gpio_leds(self):
+        '''
+        Initializes the shared memory for inter-process communication.
+        '''
+        try:
+            self._xlog.debug("Initializing Shared Memory GPIO LEDs: " + SHARED_GPIO_LEDS)
+            # Initialisating Shared Memory to handle execution flags between processes
+            self._shared_memory_gpio_leds = shared_memory.ShareableList([
+                False,  # LED blue is on
+            ], name=SHARED_GPIO_LEDS)
+            if self._shared_memory_gpio_leds is None:
+                self._xlog.error("Shared Memory GPIO LEDs is None, cannot write LED states")
+        except Exception as e:
+            self._xlog.error("Failed to initialize Shared Memory GPIO LEDs: " + str(e))
+
+    def initialize_existing_shared_memory_gpio_leds(self):
+        self._xlog.info("Loading GPIO LEDs from Shared Memory")
+        self._shared_memory_gpio_leds = shared_memory.ShareableList(name=SHARED_GPIO_LEDS)
+        if self._shared_memory_gpio_leds is None:
+            self._xlog.error("Shared Memory is None, cannot read GPIO LEDs")
+
+    def initialize_existing_shared_memory_gpio_buttons(self):
+        self._xlog.info("Loading GPIO buttons from Shared Memory")
+        self._shared_memory_gpio_buttons = shared_memory.ShareableList(name=SHARED_GPIO_BUTTONS)
+        if self._shared_memory_gpio_buttons is None:
+            self._xlog.error("Shared Memory is None, cannot read GPIO buttons")
+
     def initialize_existing_shared_memory_flags(self):
         self._xlog.info("Loading flags from Shared Memory")
         self._shared_memory_flags = shared_memory.ShareableList(name=SHARED_MEMORY_FLAGS)
@@ -116,6 +162,42 @@ class SharedMemoryManager(PyXavi):
             self._xlog.error("Shared Memory is None, cannot write VU meter column at index " + str(index))
             return
         self._shared_memory_vu_meter[index] = value
+    
+    def read_shared_memory_gpio_button(self, index: int) -> bool:
+        '''
+        Reads a flag from shared memory at the given index
+        '''
+        if self._shared_memory_gpio_buttons is None:
+            self._xlog.error("Shared Memory is None, cannot read GPIO button at index " + str(index))
+            return None
+        return self._shared_memory_gpio_buttons[index]
+
+    def write_shared_memory_gpio_button(self, index: int, value: bool):
+        '''
+        Writes a flag to shared memory at the given index
+        '''
+        if self._shared_memory_gpio_buttons is None:
+            self._xlog.error("Shared Memory is None, cannot write GPIO button at index " + str(index))
+            return
+        self._shared_memory_gpio_buttons[index] = value
+    
+    def read_shared_memory_gpio_led(self, index: int) -> bool:
+        '''
+        Reads a flag from shared memory at the given index
+        '''
+        if self._shared_memory_gpio_leds is None:
+            self._xlog.error("Shared Memory is None, cannot read GPIO LED at index " + str(index))
+            return None
+        return self._shared_memory_gpio_leds[index]
+
+    def write_shared_memory_gpio_led(self, index: int, value: bool):
+        '''
+        Writes a flag to shared memory at the given index
+        '''
+        if self._shared_memory_gpio_leds is None:
+            self._xlog.error("Shared Memory is None, cannot write GPIO LED at index " + str(index))
+            return
+        self._shared_memory_gpio_leds[index] = value
     
     def wait_for_all_busy_process_to_idle(self):
         # Now wait until the displays finish being busy

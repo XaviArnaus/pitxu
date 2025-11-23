@@ -4,6 +4,7 @@ from pyxavi import Logger, Config, Dictionary
 
 import logging
 
+from pitxu.lib.gpio.switch_and_led import SwitchAndLed
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
@@ -20,7 +21,6 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_
 
 import sounddevice
 import time
-from queue import Empty
 
 class Main:
 
@@ -32,6 +32,7 @@ class Main:
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _speech: Piper = None
+    _switch_and_led: SwitchAndLed = None
 
     _process_pool: XprocessPool = None
 
@@ -145,6 +146,14 @@ class Main:
         self._process_pool.new_and_start(PROCESS_MATRIX, target=MatrixLed)
         # Needs an initial clear
         self._clear_matrix()
+    
+    def initialize_gpio(self):
+        """
+        Initialisation of the GPIO switch and LED
+        """
+
+        self._xlog.debug("Initialising GPIO Switch and LED")
+        self._switch_and_led = SwitchAndLed(config=self._xconfig, params=self._xparams)
 
     def run(self):
 
@@ -154,18 +163,22 @@ class Main:
         self._initialize_displays()
         self._show_init_phases(1)
 
+        # Initialise GPIO Switch and LED
+        self.initialize_gpio()
+        self._show_init_phases(2)
+
         # Startup splash. It should be understood as a "Loading..." screen.
         self._startup_splash()
-        self._show_init_phases(2)
+        self._show_init_phases(3)
         time.sleep(2)
 
         # Initialise all classes that require a model. They go per language, that's why it's abstracted
         self._load_models()
-        self._show_init_phases(3)
+        self._show_init_phases(4)
 
         # Reload all language statics, like the exit words and the greeting / goodbye sentences
         self._load_language_statics()
-        self._show_init_phases(4)
+        self._show_init_phases(5)
 
         self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -179,7 +192,7 @@ class Main:
                                 channels=1,
                                 callback=self._dictate.callback) as input_stream:
                 
-                self._show_init_phases(5)
+                self._show_init_phases(6)
                 
                 # Welcome greeting
                 self._xlog.debug(">> Greetings")
@@ -192,6 +205,19 @@ class Main:
                 answer_count = 0
                 while(not self._text_has_exit_intention(question)):
 
+                    # Check if we pressed the mute switch,
+                    # and update the internal state accordingly
+                    if self._switch_and_led.update_mute_switch_state_if_pressed():
+                        self._xlog.info("🟢 Mute Switch pressed.")
+
+                    # Check the switch state
+                    # The microphone state is managed via shared memory flags
+                    # Therefore, we just need to update the Shared Memory Flag accordingly
+                    if self._switch_and_led.is_mute_switch_on():
+                        self.mute_microphone()
+                    else:
+                        self.unmute_microphone()
+
                     # Recognize what comes from the microphone
                     sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                     question = self._dictate.recognize()
@@ -201,8 +227,9 @@ class Main:
                     self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
                     dictate_count += 1
 
-                    # Mute microphone to avoid self-looping
-                    self.mute_microphone()
+                    # Mute microphone to avoid self-looping, unless the mute switch is on
+                    if not self._switch_and_led.is_mute_switch_on():
+                        self.mute_microphone()
 
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
@@ -228,8 +255,9 @@ class Main:
                     self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                     answer_count += 1
 
-                    # Unmute microphone to continue listening
-                    self.unmute_microphone()
+                    # Unmute microphone to continue listening, unless the mute switch is on
+                    if not self._switch_and_led.is_mute_switch_on():
+                        self.unmute_microphone()
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")

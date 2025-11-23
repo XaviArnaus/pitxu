@@ -36,6 +36,8 @@ class XprocessPool(PyXavi):
         self._shared_memory = SharedMemoryManager(config=config, params=params)
         self._shared_memory.initialize_new_shared_memory_flags()
         self._shared_memory.initialize_new_shared_memory_vu_meter()
+        self._shared_memory.initialize_new_shared_memory_gpio_buttons()
+        self._shared_memory.initialize_new_shared_memory_gpio_leds()
 
         # Initialise the manager that will create the queues
         self._manager = Manager()
