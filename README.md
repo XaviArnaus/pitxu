@@ -253,6 +253,13 @@ https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-functio
 ### Chat history
 https://stackoverflow.com/questions/78534769/how-to-include-chat-history-when-using-google-geminis-api
 
+### Trivago MCP Server
+https://mcp.trivago.com/docs
+
+### FastMCP & Gemini
+https://gofastmcp.com/integrations/gemini
+https://github.com/stepanogil/mcp-sse-demo?tab=readme-ov-file
+
 # 😄 Fun fact
 
 ### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]
