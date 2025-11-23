@@ -46,14 +46,14 @@ class TrivagoMCPAccommodationSearch(PyXavi):
         exit_stack (AsyncExitStack): Context manager for handling async resources.
     """
 
-    MCP_SERVER_URL = "https://mcp.trivago.com/mcp/"
+    MCP_SERVER_URL = "https://mcp.trivago.com/mcp"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(TrivagoMCPAccommodationSearch, self).init_pyxavi(config=config, params=params)
 
         nest_asyncio.apply()
         transport = StreamableHttpTransport(self.MCP_SERVER_URL)
-        self.client = Client(transport=transport)
+        self.client = Client(transport=transport, log_handler=self._xlog)
     
     def get_client(self):
         """

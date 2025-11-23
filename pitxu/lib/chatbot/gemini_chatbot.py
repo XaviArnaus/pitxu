@@ -3,16 +3,16 @@ from google.genai import types
 from google.genai.errors import ServerError
 from google.genai.chats import AsyncChat
 
-from . import ChatbotProtocol
-
 from pyxavi import Logger, Config, Dictionary, full_stack, dd
 
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch, TrivagoMCPAccommodationSearch
+from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 
 import logging, time, anyio
 import fastmcp
 
-class GeminiChatbot(ChatbotProtocol):
+class GeminiChatbot(PyXavi):
     """
     Using the Gemini API to get answers. Require internet connection.
 
@@ -25,23 +25,17 @@ class GeminiChatbot(ChatbotProtocol):
     """
 
     _client = None
-    _xparams: Dictionary = None
-    _xconfig: Config = None
-    _xlog: logging
     _chat: AsyncChat = None
+
+    _session_manager: ChatbotSessionManager = None
 
     _mcp_trivago_client: fastmcp.Client = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        self._xparams = params
+        super(GeminiChatbot, self).init_pyxavi(config=config, params=params)
+
         if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
-
-        if config is None:
-            raise RuntimeError("Config can not be None")
-
-        self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         self.initialize()
 
     def initialize(self):
@@ -49,42 +43,13 @@ class GeminiChatbot(ChatbotProtocol):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
+        self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
     
-    async def ask_async(self, question: str) -> str:
-
-        google_maps_command = GoogleMaps(config=self._xconfig, params=self._xparams)
-        google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
-        world_position_command = WorldPosition(config=self._xconfig, params=self._xparams)
-        world_weather_command = WorldWeather(config=self._xconfig, params=self._xparams)
-        trivago_mcp_accommodation_search = TrivagoMCPAccommodationSearch(config=self._xconfig, params=self._xparams)
-
-        self._mcp_trivago_client = trivago_mcp_accommodation_search.get_client()
-
-        # The only way to use MCP with async Gemini API is to use "async with", and this context
-        # has to be the same for both initialising the chat and sending the message.
-        # That's the reason why the setup of the tools and chat was moved from initialize() to here.
-        # Otherwise, it complains with  "ClosedResourceError: The connection to the MCP server was closed"
-        async with self._mcp_trivago_client:
-
-            tools = [
-                # Grounding workaround so it can use Google Search
-                google_search_command.get_google_search_response_to_a_prompt,
-                # Grounding workaround so it can use Google Maps
-                google_maps_command.get_google_maps_response_to_a_prompt,
-                # # Custom Commands
-                SystemDate.get_current_date,
-                SystemTime.get_current_time,
-                world_position_command.get_latitude_and_longitude_from_location,
-                world_position_command.get_latitude_and_longitude_from_current_location,
-                world_position_command.get_latitude_and_longitude_from_address, 
-                world_weather_command.get_weather_forecast_for_today,
-                world_weather_command.get_weather_forecast_for_next_days,
-                WorldWikipedia.get_summary_from_wikipedia_by_term,
-                # To embed a MCP tool, we need to pass the session. As simple as that.
-                # But then we can't really change the output, it can be too big and too boring.
-                self._mcp_trivago_client.session
-            ]
-            chat = self._client.aio.chats.create(
+    def get_session_manager(self):
+        return self._session_manager
+    
+    async def initialize_async(self, tools: list):
+        self._chat = self._client.aio.chats.create(
                 model='gemini-2.5-flash',
                 config=types.GenerateContentConfig(
                     system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
@@ -92,6 +57,49 @@ class GeminiChatbot(ChatbotProtocol):
                     temperature=0.1
                 )
             )
+    
+    async def ask_async(self, question: str) -> str:
+
+        # google_maps_command = GoogleMaps(config=self._xconfig, params=self._xparams)
+        # google_search_command = GoogleSearch(config=self._xconfig, params=self._xparams)
+        # world_position_command = WorldPosition(config=self._xconfig, params=self._xparams)
+        # world_weather_command = WorldWeather(config=self._xconfig, params=self._xparams)
+        # trivago_mcp_accommodation_search = TrivagoMCPAccommodationSearch(config=self._xconfig, params=self._xparams)
+
+        # self._mcp_trivago_client = trivago_mcp_accommodation_search.get_client()
+
+        # # The only way to use MCP with async Gemini API is to use "async with", and this context
+        # # has to be the same for both initialising the chat and sending the message.
+        # # That's the reason why the setup of the tools and chat was moved from initialize() to here.
+        # # Otherwise, it complains with  "ClosedResourceError: The connection to the MCP server was closed"
+        # async with self._mcp_trivago_client:
+
+        #     tools = [
+        #         # Grounding workaround so it can use Google Search
+        #         google_search_command.get_google_search_response_to_a_prompt,
+        #         # Grounding workaround so it can use Google Maps
+        #         google_maps_command.get_google_maps_response_to_a_prompt,
+        #         # # Custom Commands
+        #         SystemDate.get_current_date,
+        #         SystemTime.get_current_time,
+        #         world_position_command.get_latitude_and_longitude_from_location,
+        #         world_position_command.get_latitude_and_longitude_from_current_location,
+        #         world_position_command.get_latitude_and_longitude_from_address, 
+        #         world_weather_command.get_weather_forecast_for_today,
+        #         world_weather_command.get_weather_forecast_for_next_days,
+        #         WorldWikipedia.get_summary_from_wikipedia_by_term,
+        #         # To embed a MCP tool, we need to pass the session. As simple as that.
+        #         # But then we can't really change the output, it can be too big and too boring.
+        #         self._mcp_trivago_client.session
+        #     ]
+        #     chat = self._client.aio.chats.create(
+        #         model='gemini-2.5-flash',
+        #         config=types.GenerateContentConfig(
+        #             system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
+        #             tools=tools,
+        #             temperature=0.1
+        #         )
+        #     )
 
             self._xlog.debug("❓ Question: " + question)
 
@@ -108,7 +116,8 @@ class GeminiChatbot(ChatbotProtocol):
                             self._xlog.debug("Waiting " + str(delay_between_retries * retries) + " seconds (" + str(retries) + "/" + str(max_retries) + ") before retrying...")
                             time.sleep(delay_between_retries * retries)
                         
-                        response = await chat.send_message(question)
+                        # response = await chat.send_message(question)
+                        response = await self._chat.send_message(question)
                         if response.text is None:
                             # Turns out that in most cases the tokens are exhausted, so Gemini refuses to answer.
                             # This may happen due to having too many tools, or too big context.

@@ -79,7 +79,7 @@ class WorldPosition(PyXavi):
             location = geolocator.geocode(
                 address,
                 exactly_one=True,
-                language=self._xconfig.get("language", "en")
+                language=self._xparams.get("language", "en")
             )
 
             latitude = location.latitude

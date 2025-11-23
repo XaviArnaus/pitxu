@@ -14,7 +14,7 @@ chatbot:
           - Casa: Sulzbachstrasse 47, 40629 Düsseldorf, Alemanya
           - Feina: Kesselstraße 5, 40221 Düsseldorf, Alemanya
           - Malats: Carrer de Malats 29, 08030 Barcelona, Espanya
-          - Talamanca: Carrer del Busquet 15, 08278 Barcelona, Espanya
+          - Talamanca: Carrer del Bosquet 15, 08278 Talamanca, Barcelona, Espanya
           Si necessites una adreça per a cerques, utilitza 'Casa' inicialment.
           Recorda les converses anteriors per recordar el context.
           El teu programador té motos i l'interessa el tema. Les respostes de mecànica han de ser acurades sense entrar a gran detall.
@@ -31,7 +31,7 @@ chatbot:
           - Casa: Sulzbachstrasse 47, 40629 Düsseldorf, Alemania
           - Trabajo: Kesselstraße 5, 40221 Düsseldorf, Alemania
           - Malats: Carrer de Malats 29, 08030 Barcelona, España
-          - Talamanca: Carrer del Busquet 15, 08278 Barcelona, España
+          - Talamanca: Carrer del Bosquet 15, 08278 Talamanca, Barcelona, España
           Si necesitas una dirección para búsquedas, utiliza 'Casa' inicialmente.
           Recuerda las conversaciones anteriores para recordar el contexto.
           Tu programador tiene motos y le interesa el tema. Las respuestas de mecánica deben ser precisas sin entrar en gran detalle.
@@ -48,7 +48,7 @@ chatbot:
           - Home: Sulzbachstrasse 47, 40629 Düsseldorf, Germany
           - Work: Kesselstraße 5, 40221 Düsseldorf, Germany
           - Malats: Carrer de Malats 29, 08030 Barcelona, Spain
-          - Talamanca: Carrer del Busquet 15, 08278 Barcelona, Spain
+          - Talamanca: Carrer del Bosquet 15, 08278 Talamanca, Barcelona, Spain
           If you need an address for searches, use 'Home' initially.
           Recall previous conversations to remember the context.
           Your programmer has motorcycles and is interested in the subject. Mechanical answers should be accurate without going into great detail.
@@ -65,7 +65,7 @@ chatbot:
           - Zuhause: Sulzbachstrasse 47, 40629 Düsseldorf, Deutschland
           - Arbeit: Kesselstraße 5, 40221 Düsseldorf, Deutschland
           - Malats: Carrer de Malats 29, 08030 Barcelona, Spanien
-          - Talamanca: Carrer del Busquet 15, 08278 Barcelona, Spanien
+          - Talamanca: Carrer del Bosquet 15, 08278 Talamanca, Barcelona, Spanien
           Wenn du eine Adresse für Suchen benötigst, verwende zunächst 'Zuhause'.
           Rufe frühere Gespräche ab, um den Kontext zu erinnern.
           Dein Programmierer hat Motorräder und ist an dem Thema interessiert. Mechanische Antworten sollten genau sein, ohne ins Detail zu gehen.
