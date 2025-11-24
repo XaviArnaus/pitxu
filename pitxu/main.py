@@ -230,6 +230,7 @@ class Main:
                     # Mute microphone to avoid self-looping, unless the mute switch is on
                     if not self._switch_and_led.is_mute_switch_on():
                         self.mute_microphone()
+                        self._xlog.debug("🔇 Muting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
                     # Avoid calling the Chatbot when exiting
                     if self._text_has_exit_intention(question):
@@ -258,6 +259,7 @@ class Main:
                     # Unmute microphone to continue listening, unless the mute switch is on
                     if not self._switch_and_led.is_mute_switch_on():
                         self.unmute_microphone()
+                        self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
@@ -361,11 +363,9 @@ class Main:
     
     def mute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
-        self._xlog.debug("🔇 Muting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
     
     def unmute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
-        self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
     
     def set_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
