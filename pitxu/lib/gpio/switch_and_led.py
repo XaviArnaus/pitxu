@@ -64,7 +64,7 @@ class SwitchAndLed(PyXavi):
         '''
         To be called to check the state of the mute switch.
         '''
-        is_pressed = self._green_button.is_active
+        is_pressed = self._green_button.is_pressed
         if is_pressed:
             self._states[self.STATE_MUTE_SWITCH] = True
             self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, True)
