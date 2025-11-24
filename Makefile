@@ -65,8 +65,12 @@ clear:
 test_matrix:
 	@$(POETRY) run test_matrix
 
-.PHONY: test_switch_and_led
+.PHONY: test_gpio
 test_gpio:
+	@$(POETRY) run test_switch_and_led
+
+.PHONY: test_gpio_mac
+test_gpio_mac:
 	@sudo $(POETRY) run test_switch_and_led
 
 .PHONY: where-is-python
