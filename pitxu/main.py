@@ -4,7 +4,6 @@ from pyxavi import Logger, Config, Dictionary
 
 import logging
 
-from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
