@@ -1,7 +1,7 @@
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pyxavi import Config, Dictionary
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_GPIO_BUTTON_GREEN_PIN, SHARED_GPIO_LED_BLUE_PIN
+from definitions import SHARED_GPIO_BUTTON_GREEN_STATE, SHARED_GPIO_LED_BLUE_STATE
 
 from gpiozero import LED, Button
 
@@ -33,7 +33,7 @@ class SwitchAndLed(PyXavi):
     def initialize(self):
 
         # The blue LED
-        self._blue_led = LED(SHARED_GPIO_LED_BLUE_PIN)
+        self._blue_led = LED(int(self._xconfig.get("gpio.led_blue_pin")))
 
         # If True (the default), the GPIO pin will be pulled high by default. 
         #   In this case, connect the other side of the button to ground. 
@@ -41,7 +41,7 @@ class SwitchAndLed(PyXavi):
         #   In this case, connect the other side of the button to 3V3.
         #
         # To get the current value, use `self._green_button.is_pressed`
-        self._green_button = Button(SHARED_GPIO_BUTTON_GREEN_PIN, pull_up=True)
+        self._green_button = Button(int(self._xconfig.get("gpio.button_green_pin")), pull_up=True)
 
         self._xlog.info("Switch and Led: Loading GPIO state from Shared Memory")
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
@@ -49,7 +49,7 @@ class SwitchAndLed(PyXavi):
         self._shared_memory.initialize_existing_shared_memory_gpio_leds()
 
         # Let's just reset generally the Switches and LEDs to off at startup
-        self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_PIN, False)
+        self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, False)
         self.set_led_blue_off()
 
         self._xlog.info("Done Initializing Switch and Led")
@@ -67,18 +67,18 @@ class SwitchAndLed(PyXavi):
         is_pressed = self._green_button.is_active
         if is_pressed:
             self._states[self.STATE_MUTE_SWITCH] = True
-            self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_PIN, True)
+            self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, True)
             self.set_led_blue_on()
         else:
             self._states[self.STATE_MUTE_SWITCH] = False
-            self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_PIN, False)
+            self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, False)
             self.set_led_blue_off()
         return is_pressed
 
     def set_led_blue_on(self):
         self._blue_led.on()
-        self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_PIN, True)
+        self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_STATE, True)
 
     def set_led_blue_off(self):
         self._blue_led.off()
-        self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_PIN, False)
+        self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_STATE, False)

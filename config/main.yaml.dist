@@ -15,3 +15,11 @@ app:
 storage:
   # Where, from the root of the project
   path: "storage/"
+
+gpio:
+  # Whether to enable GPIO support
+  enabled: false
+  # Pin number for the button green
+  button_green_pin: 6
+  # Pin number for the LED blue
+  led_blue_pin: 5
