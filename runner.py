@@ -80,6 +80,8 @@ def clear_displays():
 
 def test_switch_and_led():
     try:
+        logger.debug("Testing GPIO Switch and LED")
+
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -90,8 +92,12 @@ def test_switch_and_led():
         shared_memory.initialize_new_shared_memory_gpio_buttons()
         shared_memory.initialize_new_shared_memory_gpio_leds()
 
+        from gpiozero import LED, Button
+        led = LED(16)
+        led.on()
+        time.sleep(1)
+
         # Delegate the run to Main
-        logger.debug("Testing GPIO Switch and LED")
         from pitxu.lib.gpio.switch_and_led import SwitchAndLed
         switch_and_led = SwitchAndLed(config=config, params=parameters)
 
