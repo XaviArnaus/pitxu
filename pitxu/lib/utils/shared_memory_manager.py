@@ -189,6 +189,35 @@ class SharedMemoryManager(PyXavi):
             self._xlog.error("Shared Memory is None, cannot read GPIO LED at index " + str(index))
             return None
         return self._shared_memory_gpio_led[index]
+    
+    def clean_shared_memory(self):
+        '''
+        Cleans up all shared memory segments
+        '''
+        self._xlog.debug("Cleaning up all Shared Memory segments")
+        if self._shared_memory_flags is not None:
+            self._xlog.debug("Cleaning Shared Memory Flags")
+            self._shared_memory_flags.shm.close()
+            self._shared_memory_flags.shm.unlink()
+            self._shared_memory_flags = None
+        
+        if self._shared_memory_vu_meter is not None:
+            self._xlog.debug("Cleaning Shared Memory VU Meter")
+            self._shared_memory_vu_meter.shm.close()
+            self._shared_memory_vu_meter.shm.unlink()
+            self._shared_memory_vu_meter = None
+        
+        if self._shared_memory_gpio_switch is not None:
+            self._xlog.debug("Cleaning Shared Memory GPIO Buttons")
+            self._shared_memory_gpio_switch.shm.close()
+            self._shared_memory_gpio_switch.shm.unlink()
+            self._shared_memory_gpio_switch = None
+        
+        if self._shared_memory_gpio_led is not None:
+            self._xlog.debug("Cleaning Shared Memory GPIO LEDs")
+            self._shared_memory_gpio_led.shm.close()
+            self._shared_memory_gpio_led.shm.unlink()
+            self._shared_memory_gpio_led = None
 
     def write_shared_memory_gpio_led(self, index: int, value: bool):
         '''

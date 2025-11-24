@@ -4,6 +4,8 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_GPIO_BUTTON_GREEN_STATE, SHARED_GPIO_LED_BLUE_STATE
 
 from gpiozero import LED, Button
+from gpiozero.pins.mock import MockFactory
+from gpiozero import Device
 
 
 class SwitchAndLed(PyXavi):
@@ -31,6 +33,11 @@ class SwitchAndLed(PyXavi):
         self._xlog.info("SwitchAndLed initialized")
     
     def initialize(self):
+
+        # Use a Mock Factory if GPIO is not available
+        if self._xconfig.get("gpio.mocked", True):
+            self._xlog.info("Mocking GPIO: Using MockFactory for GPIO")
+            Device.pin_factory = MockFactory()
 
         # The blue LED
         self._blue_led = LED(int(self._xconfig.get("gpio.led_blue_pin")))
@@ -64,7 +71,14 @@ class SwitchAndLed(PyXavi):
         '''
         To be called to check the state of the mute switch.
         '''
-        is_pressed = not self._green_button.is_pressed
+        # Read the state of the button, or the Space keyboard key if GPIO is not available
+        if self._xconfig.get("gpio.mocked", True):
+            self._xlog.debug("Mocking GPIO: Reading state of the Green Mute Switch")
+            is_pressed = self._is_keyboard_space_pressed()
+        else:
+            is_pressed = self._green_button.is_pressed
+
+        # Now do something with the state
         if is_pressed:
             self._states[self.STATE_MUTE_SWITCH] = True
             self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, True)
@@ -76,9 +90,31 @@ class SwitchAndLed(PyXavi):
         return is_pressed
 
     def set_led_blue_on(self):
-        self._blue_led.on()
+        if self._xconfig.get("gpio.mocked", True):
+            self._xlog.debug("Mocking GPIO: Setting Blue LED ON")
+        else:
+            self._blue_led.on()
         self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_STATE, True)
 
     def set_led_blue_off(self):
-        self._blue_led.off()
+        if self._xconfig.get("gpio.mocked", True):
+            self._xlog.debug("Mocking GPIO: Setting Blue LED OFF")
+        else:
+            self._blue_led.off()
         self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_STATE, False)
+    
+    def _is_keyboard_space_pressed(self) -> bool:
+        '''
+        Internal method to check if the space key is pressed on the keyboard.
+        Used for mocking the mute switch when GPIO is not available.
+        '''
+        import keyboard  # Imported here to avoid issues on systems without keyboard module
+
+        is_pressed = keyboard.is_pressed('space')
+        # try:  # used try so that if user pressed other than the given key error will not be shown
+        #     if keyboard.is_pressed('q'):  # if key 'q' is pressed 
+        #         print('You Pressed A Key!')
+        #         break  # finishing the loop
+        # except:
+        #     break  # if user pressed a key other than the given key the loop will break
+        return is_pressed

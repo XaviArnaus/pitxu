@@ -18,7 +18,7 @@ storage:
 
 gpio:
   # Whether to enable GPIO support
-  enabled: false
+  mocked: True
   # Pin number for the button green
   button_green_pin: 6
   # Pin number for the LED blue

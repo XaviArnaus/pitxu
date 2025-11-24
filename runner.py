@@ -82,6 +82,40 @@ def clear_displays():
     except Exception:
         print(full_stack())
 
+def test_switch_and_led():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # This component in special needs the Shared Memory
+        # Initialize shared memory
+        from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+        shared_memory = SharedMemoryManager(config=config, params=parameters)
+        shared_memory.initialize_new_shared_memory_gpio_buttons()
+        shared_memory.initialize_new_shared_memory_gpio_leds()
+
+        # Delegate the run to Main
+        logger.debug("Testing GPIO Switch and LED")
+        from pitxu.lib.gpio.switch_and_led import SwitchAndLed
+        switch_and_led = SwitchAndLed(config=config, params=parameters)
+
+        logger.debug("Turning Blue LED ON for 2 seconds")
+        switch_and_led.set_led_blue_on()
+        time.sleep(2)
+
+        logger.debug("Turning Blue LED OFF")
+        switch_and_led.set_led_blue_off()
+
+        # Clean up Shared Memory
+        shared_memory.clean_shared_memory()
+
+        logger.info("End of work.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def test_matrix():
     try:
         # Instantiating

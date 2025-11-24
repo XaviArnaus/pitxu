@@ -65,6 +65,10 @@ clear:
 test_matrix:
 	@$(POETRY) run test_matrix
 
+.PHONY: test_switch_and_led
+test_gpio:
+	@$(POETRY) run test_switch_and_led
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)
