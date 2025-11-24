@@ -205,7 +205,9 @@ class Macros:
                     canvas.point((x, y), self.ON)
     
     def show_cross(self):
-        with self._max7219.create_canvas() as canvas:
-            for i in range(0,8):
-                canvas.point((i,i), self.ON)
-                canvas.point((7 - i,i), self.ON)
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+        for i in range(0,8):
+            canvas.point((i,i), self.ON)
+            canvas.point((7 - i,i), self.ON)
+        self._handable_canvas.send_to_device()

@@ -6,7 +6,6 @@ from google.genai.chats import AsyncChat
 from pyxavi import Logger, Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch, TrivagoMCPAccommodationSearch
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
@@ -54,6 +53,9 @@ class GeminiChatbot(PyXavi):
     def get_session_manager(self):
         return self._session_manager
     
+    def get_chat_history(self):
+        return self._chat.get_history()
+    
     async def initialize_async(self, tools: list):
         self._chat = self._client.aio.chats.create(
                 model='gemini-2.5-flash',
@@ -93,6 +95,12 @@ class GeminiChatbot(PyXavi):
                             self._xlog.error("🛑 The server answered with a null response. The finish reason is: " + finish_reason)
                             text = self._xconfig.get("language.empty_answer." + self._xparams.get("language"))
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                            # Make him remember that he couldn't answer
+                            self._chat.record_history(
+                                user_input=types.Content(text=question, role="user"),
+                                model_output=types.Content(text=text, role="model"),
+                                is_valid=False
+                            )
                         else:
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
                         self._xlog.debug("🗣️ Received answer: " + str(text))
@@ -101,16 +109,34 @@ class GeminiChatbot(PyXavi):
                         self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                         outcome = self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message)
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                        # Make him remember that he couldn't answer
+                        self._chat.record_history(
+                            user_input=types.Content(text=question, role="user"),
+                            model_output=types.Content(text=text, role="model"),
+                            is_valid=False
+                        )
                         retries += 1
                     except anyio.ClosedResourceError as e:
                         self._xlog.error("🛑 ClosedResourceError when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): The connection to the MCP server was closed")
                         outcome = self._xconfig.get("language.connection_closed_error." + self._xparams.get("language"))
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                        # Make him remember that he couldn't answer
+                        self._chat.record_history(
+                            user_input=types.Content(text=question, role="user"),
+                            model_output=types.Content(text=text, role="model"),
+                            is_valid=False
+                        )
                         retries += 1
                     except Exception as e:
                         self._xlog.error("🛑 Unexpected exception when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e))
                         print(full_stack())
                         outcome = self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                        # Make him remember that he couldn't answer
+                        self._chat.record_history(
+                            user_input=types.Content(text=question, role="user"),
+                            model_output=types.Content(text=text, role="model"),
+                            is_valid=False
+                        )
                         retries += 1
                 return outcome
