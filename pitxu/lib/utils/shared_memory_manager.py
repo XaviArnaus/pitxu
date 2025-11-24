@@ -80,10 +80,10 @@ class SharedMemoryManager(PyXavi):
         try:
             self._xlog.debug("Initializing Shared Memory GPIO Buttons: " + SHARED_GPIO_BUTTONS)
             # Initialisating Shared Memory to handle execution flags between processes
-            self._shared_memory_gpio_buttons = shared_memory.ShareableList([
+            self._shared_memory_gpio_switch = shared_memory.ShareableList([
                 False,  # button green is pressed
             ], name=SHARED_GPIO_BUTTONS)
-            if self._shared_memory_gpio_buttons is None:
+            if self._shared_memory_gpio_switch is None:
                 self._xlog.error("Shared Memory GPIO Buttons is None, cannot write button states")
         except Exception as e:
             self._xlog.error("Failed to initialize Shared Memory GPIO Buttons: " + str(e))
@@ -95,24 +95,24 @@ class SharedMemoryManager(PyXavi):
         try:
             self._xlog.debug("Initializing Shared Memory GPIO LEDs: " + SHARED_GPIO_LEDS)
             # Initialisating Shared Memory to handle execution flags between processes
-            self._shared_memory_gpio_leds = shared_memory.ShareableList([
+            self._shared_memory_gpio_led = shared_memory.ShareableList([
                 False,  # LED blue is on
             ], name=SHARED_GPIO_LEDS)
-            if self._shared_memory_gpio_leds is None:
+            if self._shared_memory_gpio_led is None:
                 self._xlog.error("Shared Memory GPIO LEDs is None, cannot write LED states")
         except Exception as e:
             self._xlog.error("Failed to initialize Shared Memory GPIO LEDs: " + str(e))
 
     def initialize_existing_shared_memory_gpio_leds(self):
         self._xlog.info("Loading GPIO LEDs from Shared Memory")
-        self._shared_memory_gpio_leds = shared_memory.ShareableList(name=SHARED_GPIO_LEDS)
-        if self._shared_memory_gpio_leds is None:
+        self._shared_memory_gpio_led = shared_memory.ShareableList(name=SHARED_GPIO_LEDS)
+        if self._shared_memory_gpio_led is None:
             self._xlog.error("Shared Memory is None, cannot read GPIO LEDs")
 
     def initialize_existing_shared_memory_gpio_buttons(self):
         self._xlog.info("Loading GPIO buttons from Shared Memory")
-        self._shared_memory_gpio_buttons = shared_memory.ShareableList(name=SHARED_GPIO_BUTTONS)
-        if self._shared_memory_gpio_buttons is None:
+        self._shared_memory_gpio_switch = shared_memory.ShareableList(name=SHARED_GPIO_BUTTONS)
+        if self._shared_memory_gpio_switch is None:
             self._xlog.error("Shared Memory is None, cannot read GPIO buttons")
 
     def initialize_existing_shared_memory_flags(self):
@@ -167,37 +167,37 @@ class SharedMemoryManager(PyXavi):
         '''
         Reads a flag from shared memory at the given index
         '''
-        if self._shared_memory_gpio_buttons is None:
+        if self._shared_memory_gpio_switch is None:
             self._xlog.error("Shared Memory is None, cannot read GPIO button at index " + str(index))
             return None
-        return self._shared_memory_gpio_buttons[index]
+        return self._shared_memory_gpio_switch[index]
 
     def write_shared_memory_gpio_button(self, index: int, value: bool):
         '''
         Writes a flag to shared memory at the given index
         '''
-        if self._shared_memory_gpio_buttons is None:
+        if self._shared_memory_gpio_switch is None:
             self._xlog.error("Shared Memory is None, cannot write GPIO button at index " + str(index))
             return
-        self._shared_memory_gpio_buttons[index] = value
+        self._shared_memory_gpio_switch[index] = value
     
     def read_shared_memory_gpio_led(self, index: int) -> bool:
         '''
         Reads a flag from shared memory at the given index
         '''
-        if self._shared_memory_gpio_leds is None:
+        if self._shared_memory_gpio_led is None:
             self._xlog.error("Shared Memory is None, cannot read GPIO LED at index " + str(index))
             return None
-        return self._shared_memory_gpio_leds[index]
+        return self._shared_memory_gpio_led[index]
 
     def write_shared_memory_gpio_led(self, index: int, value: bool):
         '''
         Writes a flag to shared memory at the given index
         '''
-        if self._shared_memory_gpio_leds is None:
+        if self._shared_memory_gpio_led is None:
             self._xlog.error("Shared Memory is None, cannot write GPIO LED at index " + str(index))
             return
-        self._shared_memory_gpio_leds[index] = value
+        self._shared_memory_gpio_led[index] = value
     
     def wait_for_all_busy_process_to_idle(self):
         # Now wait until the displays finish being busy
