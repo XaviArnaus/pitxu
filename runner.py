@@ -5,11 +5,7 @@ import sounddevice
 
 import logging
 
-from pyxavi.terminal_color import TerminalColor
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
-from pyxavi.debugger import full_stack
+from pyxavi import TerminalColor, Config, Logger, Dictionary, full_stack, Stopwatch
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 from pitxu.lib.eink import EinkDisplay
@@ -102,6 +98,13 @@ def test_switch_and_led():
         logger.debug("Turning Blue LED ON for 2 seconds")
         switch_and_led.set_led_blue_on()
         time.sleep(2)
+
+        logger.debug("Waiting for Mute Switch to be turned ON, or 5 seconds timeout")
+        timeout = time.time() + 5  # 5 seconds from now
+        while True and time.time() < timeout:
+            if switch_and_led.is_mute_switch_on():
+                logger.debug("Mute Switch is ON")
+                break
 
         logger.debug("Turning Blue LED OFF")
         switch_and_led.set_led_blue_off()
