@@ -286,9 +286,6 @@ class Main:
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
-    def _answer_has_chatbot_code(self, answer: str) -> bool:
-        return answer.startswith(ChatbotResponse.ERROR)
-    
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._xlog.debug("Closing nicely...")
