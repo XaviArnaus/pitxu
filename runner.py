@@ -91,12 +91,17 @@ def test_switch_and_led():
         shared_memory.initialize_new_shared_memory_gpio_buttons()
         shared_memory.initialize_new_shared_memory_gpio_leds()
 
-        from gpiozero import LED, Button
-        led = LED(16)
-        led.on()
-        time.sleep(1)
+        # Simple test of GPIO (LED and Switch)
+        # 
+        # It works, because then in SwitchAndLed the same initialisation complains
+        #   that the GPIO16 is in use by the LED set here.
+        # Therefore, if it does not light up, the issue is in the hardware
+        #
+        # from gpiozero import LED, Button
+        # led = LED(16)
+        # led.on()
+        # time.sleep(1)
 
-        # Delegate the run to Main
         from pitxu.lib.gpio.switch_and_led import SwitchAndLed
         switch_and_led = SwitchAndLed(config=config, params=parameters)
 
