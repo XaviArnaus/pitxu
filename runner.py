@@ -80,10 +80,9 @@ def clear_displays():
 
 def test_switch_and_led():
     try:
-        logger.debug("Testing GPIO Switch and LED")
-
         # Instantiating
         config, logger, parameters = _initialize()
+        logger.debug("Testing GPIO Switch and LED")
 
         # This component in special needs the Shared Memory
         # Initialize shared memory
