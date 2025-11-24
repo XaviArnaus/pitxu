@@ -4,6 +4,7 @@ from pyxavi import Logger, Config, Dictionary
 
 import logging
 
+from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
@@ -226,7 +227,14 @@ class Main:
                             self.unset_chatbot_busy()
                             self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                         
+                        if self._answer_has_chatbot_code(answer):
+                            # There was an error with the Chatbot
+                            self._xlog.error("Chatbot returned an error code in the answer: " + answer)
+                            
+
+                        
                         # Clean the answer first, just in case
+                        answer = Text.remove_chatbot_responses(answer)
                         answer = Text.remove_emojis(answer)
                         answer = Text.remove_markdown(answer)
                         answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
@@ -278,6 +286,9 @@ class Main:
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
+    
+    def _answer_has_chatbot_code(self, answer: str) -> bool:
+        return answer.startswith(ChatbotResponse.ERROR)
     
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")

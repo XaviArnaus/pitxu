@@ -203,3 +203,9 @@ class Macros:
                 for x in range(0, step % 7 + 1):
                     self._xlog.debug(f"Showing init step point at ({x},{y})")
                     canvas.point((x, y), self.ON)
+    
+    def show_cross(self):
+        with self._max7219.create_canvas() as canvas:
+            for i in range(0,8):
+                canvas.point((i,i), self.ON)
+                canvas.point((7 - i,i), self.ON)

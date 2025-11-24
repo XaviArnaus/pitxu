@@ -3,11 +3,14 @@ from google.genai import types
 from google.genai.errors import ServerError
 from google.genai.chats import AsyncChat
 
-from pyxavi import Logger, Config, Dictionary, full_stack, dd
+from pyxavi import Logger, Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch, TrivagoMCPAccommodationSearch
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+
+from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
 import logging, time, anyio
 import fastmcp
@@ -28,6 +31,7 @@ class GeminiChatbot(PyXavi):
     _chat: AsyncChat = None
 
     _session_manager: ChatbotSessionManager = None
+    _shared_memory: SharedMemoryManager = None
 
     _mcp_trivago_client: fastmcp.Client = None
 
@@ -44,6 +48,8 @@ class GeminiChatbot(PyXavi):
             return False
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
         self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
+        self._shared_memory.initialize_existing_shared_memory_flags()
     
     def get_session_manager(self):
         return self._session_manager
@@ -86,19 +92,25 @@ class GeminiChatbot(PyXavi):
                             finish_reason = response.candidates[0].finish_reason if response.candidates and len(response.candidates) > 0 else "unknown"
                             self._xlog.error("🛑 The server answered with a null response. The finish reason is: " + finish_reason)
                             text = self._xconfig.get("language.empty_answer." + self._xparams.get("language"))
+                            self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                        else:
+                            self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
                         self._xlog.debug("🗣️ Received answer: " + str(text))
                         return text
                     except ServerError as e:
                         self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                         outcome = self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message)
+                        self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         retries += 1
                     except anyio.ClosedResourceError as e:
                         self._xlog.error("🛑 ClosedResourceError when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): The connection to the MCP server was closed")
                         outcome = self._xconfig.get("language.connection_closed_error." + self._xparams.get("language"))
+                        self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         retries += 1
                     except Exception as e:
                         self._xlog.error("🛑 Unexpected exception when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e))
                         print(full_stack())
                         outcome = self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
+                        self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         retries += 1
                 return outcome
