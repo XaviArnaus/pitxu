@@ -99,11 +99,12 @@ def test_switch_and_led():
         switch_and_led.set_led_blue_on()
         time.sleep(2)
 
-        logger.debug("Waiting for Mute Switch to be turned ON, or 5 seconds timeout")
+        logger.debug("Waiting for Mute Toggle to be turned ON, or 5 seconds timeout")
         timeout = time.time() + 5  # 5 seconds from now
-        while True and time.time() < timeout:
-            if switch_and_led.is_mute_switch_on():
-                logger.debug("Mute Switch is ON")
+
+        while time.time() < timeout:
+            if switch_and_led.update_mute_toggle_state_if_pressed():
+                logger.debug("Mute Toggle is ON")
                 break
 
         logger.debug("Turning Blue LED OFF")

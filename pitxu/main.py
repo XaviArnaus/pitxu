@@ -207,13 +207,13 @@ class Main:
 
                     # Check if we pressed the mute switch,
                     # and update the internal state accordingly
-                    if self._switch_and_led.update_mute_switch_state_if_pressed():
-                        self._xlog.info("🟢 Mute Switch pressed.")
+                    if self._switch_and_led.update_mute_toggle_state_if_pressed():
+                        self._xlog.info("🟢 Mute Toggle pressed.")
 
                     # Check the switch state
                     # The microphone state is managed via shared memory flags
                     # Therefore, we just need to update the Shared Memory Flag accordingly
-                    if self._switch_and_led.is_mute_switch_on():
+                    if self._switch_and_led.is_mute_toggle_on():
                         self.mute_microphone()
                     else:
                         self.unmute_microphone()

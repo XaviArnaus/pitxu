@@ -67,7 +67,7 @@ test_matrix:
 
 .PHONY: test_switch_and_led
 test_gpio:
-	@$(POETRY) run test_switch_and_led
+	@sudo $(POETRY) run test_switch_and_led
 
 .PHONY: where-is-python
 where-is-python:

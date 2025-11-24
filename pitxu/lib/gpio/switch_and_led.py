@@ -40,7 +40,7 @@ class SwitchAndLed(PyXavi):
             Device.pin_factory = MockFactory()
 
         # The blue LED
-        self._blue_led = LED(int(self._xconfig.get("gpio.led_blue_pin")))
+        self._blue_led = LED(int(self._xconfig.get("gpio.led_blue_pin")), initial_value=False)
 
         # If True (the default), the GPIO pin will be pulled high by default. 
         #   In this case, connect the other side of the button to ground. 
@@ -57,36 +57,38 @@ class SwitchAndLed(PyXavi):
 
         # Let's just reset generally the Switches and LEDs to off at startup
         self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, False)
+        self._shared_memory.write_shared_memory_gpio_led(SHARED_GPIO_LED_BLUE_STATE, False)
         self.set_led_blue_off()
 
         self._xlog.info("Done Initializing Switch and Led")
     
-    def is_mute_switch_on(self) -> bool:
+    def is_mute_toggle_on(self) -> bool:
         '''
-        Just to know the current state of the mute switch
+        Just to know the current state of the mute toggle
         '''
         return self._states[self.STATE_MUTE_SWITCH]
 
-    def update_mute_switch_state_if_pressed(self) -> bool:
+    def update_mute_toggle_state_if_pressed(self) -> bool:
         '''
-        To be called to check the state of the mute switch.
+        To be called to check the state of the mute toggle.
         '''
         # Read the state of the button, or the Space keyboard key if GPIO is not available
         if self._xconfig.get("gpio.mocked", True):
-            self._xlog.debug("Mocking GPIO: Reading state of the Green Mute Switch")
             is_pressed = self._is_keyboard_space_pressed()
         else:
             is_pressed = self._green_button.is_pressed
 
         # Now do something with the state
         if is_pressed:
+            if not self._states[self.STATE_MUTE_SWITCH]:
+                self.set_led_blue_on()
             self._states[self.STATE_MUTE_SWITCH] = True
             self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, True)
-            self.set_led_blue_on()
         else:
+            if self._states[self.STATE_MUTE_SWITCH]:
+                self.set_led_blue_off()
             self._states[self.STATE_MUTE_SWITCH] = False
             self._shared_memory.write_shared_memory_gpio_button(SHARED_GPIO_BUTTON_GREEN_STATE, False)
-            self.set_led_blue_off()
         return is_pressed
 
     def set_led_blue_on(self):
@@ -110,11 +112,11 @@ class SwitchAndLed(PyXavi):
         '''
         import keyboard  # Imported here to avoid issues on systems without keyboard module
 
-        is_pressed = keyboard.is_pressed('space')
-        # try:  # used try so that if user pressed other than the given key error will not be shown
-        #     if keyboard.is_pressed('q'):  # if key 'q' is pressed 
-        #         print('You Pressed A Key!')
-        #         break  # finishing the loop
-        # except:
-        #     break  # if user pressed a key other than the given key the loop will break
-        return is_pressed
+        # is_pressed = keyboard.is_pressed('space')
+        try:  # used try so that if user pressed other than the given key error will not be shown
+            if keyboard.is_pressed('space'):  # if key 'space' is pressed
+                self._xlog.debug("Mocking GPIO: Space key is PRESSED")
+                return True
+        except:
+            pass  # if user pressed a key other than the given key the loop will break
+        return False
