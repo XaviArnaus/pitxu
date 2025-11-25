@@ -65,6 +65,10 @@ clear:
 test_matrix:
 	@$(POETRY) run test_matrix
 
+.PHONY: battery_status
+battery_status:
+	@$(POETRY) run battery_status
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

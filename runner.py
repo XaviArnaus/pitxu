@@ -115,6 +115,26 @@ def query_sound_devices():
     except Exception:
         print(full_stack()) 
 
+def battery_status():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        from pitxu.lib.ups.ups import UPS
+        voltage, capacity = UPS.read_voltage_and_capacity(UPS.bus)
+        pld_state = UPS.get_pld_state()
+        logger.info(f"Battery voltage: {voltage:.2f} V")
+        logger.info(f"Battery capacity: {capacity:.2f} %")
+        logger.info(f"Power Loss/Adapter Failure State: {'FAIL' if pld_state == 0 else 'OK'}")
+        logger.info("End of work.")
+
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def _initialize():
     load_environment()
     config = ConfigLoader.load_config_files()

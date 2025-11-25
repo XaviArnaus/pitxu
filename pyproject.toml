@@ -38,6 +38,7 @@ main = "runner:run"
 sounddevices = "runner:query_sound_devices"
 clear = "runner:clear_displays"
 test_matrix = "runner:test_matrix"
+battery_status = "runner:battery_status"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"
