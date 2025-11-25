@@ -203,3 +203,11 @@ class Macros:
                 for x in range(0, step % 7 + 1):
                     self._xlog.debug(f"Showing init step point at ({x},{y})")
                     canvas.point((x, y), self.ON)
+    
+    def show_cross(self):
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+        for i in range(0,8):
+            canvas.point((i,i), self.ON)
+            canvas.point((7 - i,i), self.ON)
+        self._handable_canvas.send_to_device()

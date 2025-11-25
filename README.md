@@ -253,6 +253,13 @@ https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-functio
 ### Chat history
 https://stackoverflow.com/questions/78534769/how-to-include-chat-history-when-using-google-geminis-api
 
+### Trivago MCP Server
+https://mcp.trivago.com/docs
+
+### FastMCP & Gemini
+https://gofastmcp.com/integrations/gemini
+https://github.com/stepanogil/mcp-sse-demo?tab=readme-ov-file
+
 ## Geekworm X1203 UPS
 Use the USB-C (5v/5A) from the UPS and not from the Raspberry Pi.
 If connected without software, it will behave as follows:

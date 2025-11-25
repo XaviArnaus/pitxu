@@ -20,7 +20,7 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_
 
 import sounddevice
 import time
-from queue import Empty
+import asyncio
 
 class Main:
 
@@ -113,7 +113,7 @@ class Main:
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
         self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
-    
+
     def _load_language_statics(self):
 
         # Load the greeting sentence
@@ -146,7 +146,7 @@ class Main:
         # Needs an initial clear
         self._clear_matrix()
 
-    def run(self):
+    async def run(self):
 
         sw_init = self._stopwatch.start(name="init")
 
@@ -178,7 +178,6 @@ class Main:
                                 dtype="int16", 
                                 channels=1,
                                 callback=self._dictate.callback) as input_stream:
-                
                 self._show_init_phases(5)
                 
                 # Welcome greeting
@@ -186,50 +185,60 @@ class Main:
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
+                self._show_init_phases(6)
 
-                question = ""
-                dictate_count = 0
-                answer_count = 0
-                while(not self._text_has_exit_intention(question)):
+                # Now comes the set up of all the session context we need for the Chatbot and the MCP tools
+                async with self._chatbot.get_session_manager() as chatbot_session_manager:
+                    self._show_init_phases(7)
 
-                    # Recognize what comes from the microphone
-                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                    question = self._dictate.recognize()
-                    if (question == None or question.strip() == ""):
-                        continue
-                    self._xlog.debug(">> Recognised dictate")
-                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                    dictate_count += 1
+                    # Initialise the Chatbot async context with all the tools from the session manager
+                    await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
+                    self._show_init_phases(8)
 
-                    # Mute microphone to avoid self-looping
-                    self.mute_microphone()
+                    question = ""
+                    dictate_count = 0
+                    answer_count = 0
+                    while(not self._text_has_exit_intention(question)):
 
-                    # Avoid calling the Chatbot when exiting
-                    if self._text_has_exit_intention(question):
-                        # Just assume a goodbye
-                        answer = self._goodbye_sentence
-                    else:
-                        # Here we start with the Chatbot.
-                        # We set it as busy in shared memory, so the Matrix can show the thinking effect
-                        self.set_chatbot_busy()
-                        self._show_thinking()
-                        answer = self._chatbot.ask(question)
-                        self.unset_chatbot_busy()
-                        self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
-                    
-                    # Clean the answer first, just in case
-                    answer = Text.remove_emojis(answer)
-                    answer = Text.remove_markdown(answer)
-                    answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+                        # Recognize what comes from the microphone
+                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                        question = self._dictate.recognize()
+                        if (question == None or question.strip() == ""):
+                            continue
+                        self._xlog.debug(">> Recognised dictate")
+                        self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                        dictate_count += 1
 
-                    # Answer
-                    sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                    self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
-                    self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                    answer_count += 1
+                        # Mute microphone to avoid self-looping
+                        self.mute_microphone()
 
-                    # Unmute microphone to continue listening
-                    self.unmute_microphone()
+                        # Avoid calling the Chatbot when exiting
+                        if self._text_has_exit_intention(question):
+                            # Just assume a goodbye
+                            answer = self._goodbye_sentence
+                        else:
+                            # Here we start with the Chatbot.
+                            # We set it as busy in shared memory, so the Matrix can show the thinking effect
+                            self.set_chatbot_busy()
+                            self._show_thinking()
+                            answer = await self._chatbot.ask_async(question)
+                            # answer = self._chatbot.ask(question)
+                            self.unset_chatbot_busy()
+                            self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
+                        
+                        # Clean the answer first, just in case
+                        answer = Text.remove_emojis(answer)
+                        answer = Text.remove_markdown(answer)
+                        answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+
+                        # Answer
+                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
+                        self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                        answer_count += 1
+
+                        # Unmute microphone to continue listening
+                        self.unmute_microphone()
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")

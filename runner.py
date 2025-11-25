@@ -2,7 +2,7 @@ import os, time
 from dotenv import load_dotenv
 import importlib.metadata
 import sounddevice
-
+import asyncio
 import logging
 
 from pyxavi.terminal_color import TerminalColor
@@ -56,7 +56,7 @@ def run():
         # Delegate the run to Main
         logger.debug("Starting Main run")
         main = Main(config=config, params=parameters)
-        main.run()
+        asyncio.run(main.run())
         logger.info("End of the Main run")
 
 

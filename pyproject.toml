@@ -29,6 +29,9 @@ psutil = "^7.0.0"
 "luma.led_matrix" = "^1.7.1"
 ipdata = "^4.0.7"
 geopy = "^2.4.1"
+gemini-tool-agent = "^0.1.5"
+fastmcp = "^2.13.1"
+nest-asyncio = "^1.6.0"
 
 [tool.poetry.scripts]
 main = "runner:run"
