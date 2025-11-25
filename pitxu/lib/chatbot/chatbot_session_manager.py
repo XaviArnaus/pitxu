@@ -51,8 +51,8 @@ class ChatbotSessionManager(PyXavi):
                 # # Custom Commands
                 SystemDate.get_current_date,
                 SystemTime.get_current_time,
-                SystemPowerManagement.get_battery_level,
-                SystemPowerManagement.is_power_cable_connected,
+                self.clients["power_management"].get_battery_level,
+                self.clients["power_management"].is_power_cable_connected,
                 partial(self.clients["power_management"].shutdown_local_machine, self._safe_close_callback),
                 partial(self.clients["power_management"].reboot_local_machine, self._safe_close_callback),
                 self.clients["world_position"].get_latitude_and_longitude_from_location,
