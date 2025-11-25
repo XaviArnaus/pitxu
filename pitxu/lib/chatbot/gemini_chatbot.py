@@ -35,8 +35,10 @@ class GeminiChatbot(PyXavi):
 
     _mcp_trivago_client: fastmcp.Client = None
 
-    def __init__(self, config: Config = None, params: Dictionary = None):
-        super(GeminiChatbot, self).init_pyxavi(config=config, params=params, safe_close_callback=None)
+    def __init__(self, config: Config = None, params: Dictionary = None, safe_close_callback = None):
+        super(GeminiChatbot, self).init_pyxavi(config=config, params=params)
+
+        self._safe_close_callback = safe_close_callback
 
         if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
