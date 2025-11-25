@@ -1,7 +1,7 @@
 from pyxavi import Config, Logger, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.command import SystemDate, SystemTime, SystemBattery,\
+from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch
@@ -45,7 +45,10 @@ class ChatbotSessionManager(PyXavi):
                 # # Custom Commands
                 SystemDate.get_current_date,
                 SystemTime.get_current_time,
-                SystemBattery.get_battery_level,
+                SystemPowerManagement.get_battery_level,
+                SystemPowerManagement.is_power_cable_connected,
+                SystemPowerManagement.shutdown_local_machine,
+                SystemPowerManagement.reboot_local_machine,
                 self.clients["world_position"].get_latitude_and_longitude_from_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_current_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_address, 

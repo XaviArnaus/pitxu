@@ -1,0 +1,15 @@
+[Unit]
+Description=Pitxu Service
+After=multi-user.target
+Requires=network.target
+
+[Service]
+Type=idle
+User=xavier
+WorkingDirectory=/home/xavier/pitxu
+ExecStart=/home/xavier/.local/bin/poetry run main
+# We want it to restart everythim it leaves
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

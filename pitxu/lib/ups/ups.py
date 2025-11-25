@@ -35,6 +35,11 @@ class UPS(PyXavi):
             return 0 # power loss/adapter failure
         else:
             return 1 # power ok
+    
+    @staticmethod
+    def is_power_cable_connected() -> bool:
+        pld_state = UPS.get_pld_state()
+        return pld_state == 1
 
     @staticmethod
     def read_hardware_metric(command_args, strip_chars): #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **

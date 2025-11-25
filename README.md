@@ -313,6 +313,31 @@ PSU_MAX_CURRENT=5000
 
 Reboot
 
+## Some newbie Debian docs for setting up stuff
+
+### Make Pitxu to start at boot
+
+https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/
+
+```
+[Unit]
+Description=Pitxu Service
+After=multi-user.target
+Requires=network.target
+
+[Service]
+Type=idle
+User=xavier
+WorkingDirectory=/home/xavier/pitxu
+ExecStart=/home/xavier/.local/bin/poetry run main
+# We want it to restart everythim it leaves
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+
 # 😄 Fun fact
 
 ### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]
