@@ -1,12 +1,16 @@
 [Unit]
 Description=Pitxu Service
 After=multi-user.target
-Requires=network.target
+Requires=network.target network-online.target
 
 [Service]
 Type=idle
 User=xavier
 WorkingDirectory=/home/xavier/pitxu
+# This activates the sound card in this service, otherwise sound is not active in systemd.
+# Use pactl list sources | grep long_card_name
+# Select the card that fits with the pitchu/config/speech.yml setup
+ExecStartPre=pulseaudio --start ; pactl set-default-sink "C-Media Electronics Inc. USB Audio Device at usb-xhci-hcd.1-2, full speed"
 ExecStart=/home/xavier/.local/bin/poetry run main
 # We want it to restart everythim it leaves
 Restart=always

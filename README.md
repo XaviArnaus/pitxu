@@ -337,6 +337,17 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
+as:
+```
+sudo chmod 644 /home/xavier/pitxu/bin/pitxu.systemd
+cd /etc/systemd/system/
+sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
+sudo systemctl daemon-reload
+sudo systemctl enable pitxu
+sudo systemctl start pitxu
+sudo systemctl status pitxu
+```
+
 
 # 😄 Fun fact
 
