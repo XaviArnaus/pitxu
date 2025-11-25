@@ -6,21 +6,16 @@ from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement,\
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch
 
-from functools import partial
-
 class ChatbotSessionManager(PyXavi):
 
     mcp_clients = {}
     clients = {}
 
-    _safe_close_callback = None
-
     session_handlers = {}
     tools = []
     
-    def __init__(self, config: Config, params: Dictionary, safe_close_callback = None):
+    def __init__(self, config: Config, params: Dictionary):
         super(ChatbotSessionManager, self).init_pyxavi(config=config, params=params)
-        self._safe_close_callback = safe_close_callback
 
     async def initialize(self):
 
@@ -53,8 +48,8 @@ class ChatbotSessionManager(PyXavi):
                 SystemTime.get_current_time,
                 self.clients["power_management"].get_battery_level,
                 self.clients["power_management"].is_power_cable_connected,
-                partial(self.clients["power_management"].shutdown_local_machine, self._safe_close_callback),
-                partial(self.clients["power_management"].reboot_local_machine, self._safe_close_callback),
+                self.clients["power_management"].shutdown_local_machine, self._safe_close_callback,
+                self.clients["power_management"].reboot_local_machine, self._safe_close_callback,
                 self.clients["world_position"].get_latitude_and_longitude_from_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_current_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_address, 
