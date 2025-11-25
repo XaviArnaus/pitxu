@@ -260,6 +260,21 @@ https://mcp.trivago.com/docs
 https://gofastmcp.com/integrations/gemini
 https://github.com/stepanogil/mcp-sse-demo?tab=readme-ov-file
 
+## Geekworm X1203 UPS
+Use the USB-C (5v/5A) from the UPS and not from the Raspberry Pi.
+If connected without software, it will behave as follows:
+
+- When connected it, the Raspberry Pi will start automatically
+- The charging will start also automatically. One led blinks. There are 3 green leds that indicate the battery level.
+- When shutting down the Raspberry Pi, it will remain on.
+- To completelly shut it down, press the UPS power button 3 times.
+- If a momentary button is connected to the XH2.54 dedicated socket, it also needs 3 times.
+- To turn it on again, a single push to any of above buttons will do.
+
+The software and some instructions can be found here:
+https://wiki.geekworm.com/X1203
+https://suptronics.com/Raspberrypi/Power_mgmt/x120x-v1.0_software.html
+
 # 😄 Fun fact
 
 ### The very first conversation with Pitxu was 2025-06-02 [commit hash: [fcaccfc](https://github.com/XaviArnaus/pitxu/commit/fcaccfc57b379cc9883646be57aca066c3d593d5)]
