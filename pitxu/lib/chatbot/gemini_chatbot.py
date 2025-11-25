@@ -102,6 +102,7 @@ class GeminiChatbot(PyXavi):
                             self._chat.record_history(
                                 user_input=types.Content(role="user", parts = [types.Part(text=question)]),
                                 model_output=types.Content(role="model", parts = [types.Part(text=text)]),
+                                automatic_function_calling_history=[],
                                 is_valid=False
                             )
                         else:
@@ -115,7 +116,8 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                                model_output=types.Content(role="model", parts = [types.Part(text=text)]),
+                            model_output=types.Content(role="model", parts = [types.Part(text=text)]),
+                            automatic_function_calling_history=[],
                             is_valid=False
                         )
                         retries += 1
@@ -127,6 +129,7 @@ class GeminiChatbot(PyXavi):
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
                             model_output=types.Content(role="model", parts = [types.Part(text=text)]),
+                            automatic_function_calling_history=[],
                             is_valid=False
                         )
                         retries += 1
@@ -139,6 +142,7 @@ class GeminiChatbot(PyXavi):
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
                             model_output=types.Content(role="model", parts = [types.Part(text=text)]),
+                            automatic_function_calling_history=[],
                             is_valid=False
                         )
                         retries += 1
