@@ -36,7 +36,7 @@ class SystemPowerManagement(PyXavi):
         return self.ups.is_power_cable_connected()
     
 
-    def shutdown_local_machine(self, safe_close_callback = None):
+    def shutdown_local_machine(self):
         '''
         Shuts down the local machine. Beware: This will immediately power off the machine.
         '''
@@ -46,7 +46,7 @@ class SystemPowerManagement(PyXavi):
         except Exception as e:
             self._xlog.error(f"Error during shutdown: {e}")
 
-    def reboot_local_machine(self, safe_close_callback = None):
+    def reboot_local_machine(self):
         '''
         Reboots the local machine. Beware: This will immediately reboot the machine.
         '''
