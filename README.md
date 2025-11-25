@@ -72,11 +72,20 @@ For Debian based linux distros:
 sudo apt install swig liblgpio-dev
 ```
 
+### Dependencies related to `i2c`
+
+This is not needed for the Python / Poetry application to work, but it's useful to debug and identify the own hardware.
+
+For Debian based linux distros:
+```
+sudo apt install i2c-tools
+```
+
 ### ❗️ All Linux/Debian dependencies in one line
 Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools
 ```
 
 
@@ -274,6 +283,11 @@ If connected without software, it will behave as follows:
 The software and some instructions can be found here:
 https://wiki.geekworm.com/X1203
 https://suptronics.com/Raspberrypi/Power_mgmt/x120x-v1.0_software.html
+
+To see which address the UPS is connected (docs says 0x36)
+```
+sudo i2cdetect -y 1
+```
 
 # 😄 Fun fact
 
