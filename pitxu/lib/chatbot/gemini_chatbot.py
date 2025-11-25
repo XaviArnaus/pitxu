@@ -100,8 +100,8 @@ class GeminiChatbot(PyXavi):
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                             # Make him remember that he couldn't answer
                             self._chat.record_history(
-                                user_input=types.Content(text=question, role="user"),
-                                model_output=types.Content(text=text, role="model"),
+                                user_input=types.Content(role="user", parts = [types.Part(text=question)]),
+                                model_output=types.Content(role="model", parts = [types.Part(text=text)]),
                                 is_valid=False
                             )
                         else:
@@ -114,8 +114,8 @@ class GeminiChatbot(PyXavi):
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
-                            user_input=types.Content(text=question, role="user"),
-                            model_output=types.Content(text=text, role="model"),
+                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
+                                model_output=types.Content(role="model", parts = [types.Part(text=text)]),
                             is_valid=False
                         )
                         retries += 1
@@ -125,8 +125,8 @@ class GeminiChatbot(PyXavi):
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
-                            user_input=types.Content(text=question, role="user"),
-                            model_output=types.Content(text=text, role="model"),
+                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
+                            model_output=types.Content(role="model", parts = [types.Part(text=text)]),
                             is_valid=False
                         )
                         retries += 1
@@ -137,8 +137,8 @@ class GeminiChatbot(PyXavi):
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
-                            user_input=types.Content(text=question, role="user"),
-                            model_output=types.Content(text=text, role="model"),
+                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
+                            model_output=types.Content(role="model", parts = [types.Part(text=text)]),
                             is_valid=False
                         )
                         retries += 1
