@@ -13,8 +13,8 @@ class SystemPowerManagement:
         Returns:
             The current battery level as a percentage
         '''
-        voltage, capacity = math.ceil(UPS.read_voltage_and_capacity(UPS.bus))
-        return capacity
+        voltage, capacity = UPS.read_voltage_and_capacity(UPS.bus)
+        return math.ceil(capacity)
 
     @staticmethod
     def is_power_cable_connected() -> bool:
