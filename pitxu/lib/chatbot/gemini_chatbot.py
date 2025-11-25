@@ -31,11 +31,12 @@ class GeminiChatbot(PyXavi):
 
     _session_manager: ChatbotSessionManager = None
     _shared_memory: SharedMemoryManager = None
+    _safe_close_callback = None
 
     _mcp_trivago_client: fastmcp.Client = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super(GeminiChatbot, self).init_pyxavi(config=config, params=params)
+        super(GeminiChatbot, self).init_pyxavi(config=config, params=params, safe_close_callback=None)
 
         if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
@@ -46,7 +47,7 @@ class GeminiChatbot(PyXavi):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
-        self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
+        self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams, safe_close_callback=None)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
     

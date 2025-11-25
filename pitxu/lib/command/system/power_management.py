@@ -27,15 +27,19 @@ class SystemPowerManagement:
         return UPS.is_power_cable_connected()
     
     @staticmethod
-    def shutdown_local_machine():
+    def shutdown_local_machine(safe_close_callback = None):
         '''
         Shuts down the local machine. Beware: This will immediately power off the machine.
         '''
+        if safe_close_callback is not None:
+            safe_close_callback()
         call("sudo nohup shutdown -h now", shell=True)
     
     @staticmethod
-    def reboot_local_machine():
+    def reboot_local_machine(safe_close_callback = None):
         '''
         Reboots the local machine. Beware: This will immediately reboot the machine.
         '''
+        if safe_close_callback is not None:
+            safe_close_callback()
         call("sudo nohup reboot", shell=True)

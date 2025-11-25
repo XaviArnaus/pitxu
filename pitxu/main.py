@@ -112,7 +112,7 @@ class Main:
 
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams, safe_close_callback=self.close_nicely)
 
     def _load_language_statics(self):
 

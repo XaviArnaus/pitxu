@@ -15,3 +15,9 @@ app:
 storage:
   # Where, from the root of the project
   path: "storage/"
+
+ups:
+  # Whether to enable UPS support
+  mocked: True
+  # I2C address of the UPS
+  i2c_address: 0x36
