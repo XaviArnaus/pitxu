@@ -1,5 +1,7 @@
 from pitxu.lib.ups.ups import UPS
 
+import math
+
 class SystemBattery:
 
     @staticmethod
@@ -10,5 +12,5 @@ class SystemBattery:
         Returns:
             The current battery level as a percentage
         '''
-        voltage, capacity = UPS.read_voltage_and_capacity(UPS.bus)
+        voltage, capacity = math.ceil(UPS.read_voltage_and_capacity(UPS.bus))
         return capacity
