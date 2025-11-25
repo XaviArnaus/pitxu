@@ -29,7 +29,8 @@ class ChatbotSessionManager(PyXavi):
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),
             "world_position": WorldPosition(config=self._xconfig, params=self._xparams),
-            "world_weather": WorldWeather(config=self._xconfig, params=self._xparams)
+            "world_weather": WorldWeather(config=self._xconfig, params=self._xparams),
+            "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams)
         }
         
 
@@ -52,8 +53,8 @@ class ChatbotSessionManager(PyXavi):
                 SystemTime.get_current_time,
                 SystemPowerManagement.get_battery_level,
                 SystemPowerManagement.is_power_cable_connected,
-                partial(SystemPowerManagement.shutdown_local_machine, self._safe_close_callback),
-                partial(SystemPowerManagement.reboot_local_machine, self._safe_close_callback),
+                partial(self.clients["power_management"].shutdown_local_machine, self._safe_close_callback),
+                partial(self.clients["power_management"].reboot_local_machine, self._safe_close_callback),
                 self.clients["world_position"].get_latitude_and_longitude_from_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_current_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_address, 
