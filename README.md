@@ -284,10 +284,34 @@ The software and some instructions can be found here:
 https://wiki.geekworm.com/X1203
 https://suptronics.com/Raspberrypi/Power_mgmt/x120x-v1.0_software.html
 
+⚠️ Its control per software implies the use of `I2C`. At this point we should already have it
+activated as the eInk and the LED matrix need it as well. Otherwise, read how to activate the
+`I2C` feature through the `sudo raspi-config` command.
+
+### Which I2C address is the UPS connected to?
 To see which address the UPS is connected (docs says 0x36)
 ```
 sudo i2cdetect -y 1
 ```
+
+### How to update the RPi5 EEPROM so that all powers off together
+
+In a terminal in the RPi, edit the EEPROM config:
+```
+sudo rpi-eeprom-config -e
+```
+
+Change the setting of `POWER_OFF_ON_HALT` from `0` to `1`,
+Add `PSU_MAX_CURRENT=5000` at the end of the file that reads like this:
+```
+[all]
+BOOT_UART=1
+BOOT_ORDER=0xf14
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+```
+
+Reboot
 
 # 😄 Fun fact
 
