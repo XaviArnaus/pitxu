@@ -1,7 +1,7 @@
 from pyxavi import Config, Logger, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement,\
+from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch
@@ -25,7 +25,8 @@ class ChatbotSessionManager(PyXavi):
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),
             "world_position": WorldPosition(config=self._xconfig, params=self._xparams),
             "world_weather": WorldWeather(config=self._xconfig, params=self._xparams),
-            "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams)
+            "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams),
+            "volume": SystemVolume(config=self._xconfig, params=self._xparams)
         }
         
 
@@ -50,6 +51,10 @@ class ChatbotSessionManager(PyXavi):
                 self.clients["power_management"].is_power_cable_connected,
                 self.clients["power_management"].shutdown_local_machine,
                 self.clients["power_management"].reboot_local_machine,
+                self.clients["volume"].get_volume_level,
+                self.clients["volume"].get_mute_status,
+                self.clients["volume"].set_volume_level,
+                self.clients["volume"].set_mute_status,
                 self.clients["world_position"].get_latitude_and_longitude_from_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_current_location,
                 self.clients["world_position"].get_latitude_and_longitude_from_address, 

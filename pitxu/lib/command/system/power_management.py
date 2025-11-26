@@ -60,8 +60,6 @@ class SystemPowerManagement(PyXavi):
         '''
         Placeholder for any cleanup operations before shutdown or reboot.
         '''
-        self._xlog.info("Performing cleanup operations before shutdown/reboot.")
-        
         shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         shared_memory.initialize_existing_shared_memory_flags()
         shared_memory.close()
