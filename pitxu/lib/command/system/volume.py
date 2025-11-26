@@ -7,7 +7,7 @@ from subprocess import check_output
 class SystemVolume(PyXavi):
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super().__init__(config=config, params=params)
+        super().init_pyxavi(config=config, params=params)
 
     def get_volume_level(self) -> int:
         '''
