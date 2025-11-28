@@ -16,6 +16,17 @@ storage:
   # Where, from the root of the project
   path: "storage/"
 
+gpio:
+  # Whether to enable GPIO support
+  mocked: True
+  # Pin number for the button green
+  button_green_pin: 26
+  # Pin number for the button red: POWER BUTTON
+  # Important: The pin is hard-requirement: The UPS is connected via POGO pins.
+  button_red_pin: 6
+  # Pin number for the LED blue
+  led_blue_pin: 16
+
 ups:
   # Whether to enable UPS support
   mocked: True

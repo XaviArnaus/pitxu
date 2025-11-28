@@ -20,12 +20,19 @@ class UPS(PyXavi):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-        # Constants
-        self.CHG_ONOFF_PIN = 16 # pinctrl get 16
-        self.PLD_BUTTON = Button(6) # down = fail, up = pass
-        self.bus = smbus2.SMBus(1) # i2cdetect -y 1
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked: Not initialising it.")
+        else:
+            # Constants
+            self.CHG_ONOFF_PIN = 16 # pinctrl get 16
+            self.PLD_BUTTON = Button(6) # down = fail, up = pass
+            self.bus = smbus2.SMBus(1) # i2cdetect -y 1
 
-    def read_voltage_and_capacity(self):
+    def read_voltage_and_capacity(self) -> tuple[float, float]:
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked: Battery data is fake.")
+            return 50, 50
+
         address = 0x36 # i2cget -y 1 0x36 ...
         voltage_read = self.bus.read_word_data(address, 2) # 0x02 w
         capacity_read = self.bus.read_word_data(address, 4) # 0x04 w
@@ -35,7 +42,11 @@ class UPS(PyXavi):
         capacity = capacity_swapped / 256 # convert to 1-100% scale
         return voltage, capacity
 
-    def get_pld_state(self):
+    def get_pld_state(self) -> int:
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked: Returning Power Cable always present.")
+            return 1
+
         if self.PLD_BUTTON.is_pressed:
             return 0 # power loss/adapter failure
         else:
@@ -46,6 +57,10 @@ class UPS(PyXavi):
         return pld_state == 1
 
     def read_hardware_metric(self, command_args, strip_chars): #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked, Hardware metric data is fake.")
+            return 50.2
+
         try:
             output = check_output(command_args).decode("utf-8") # runs a command w/ args and captures its output converting to UTF-8 encoded string
             metric_str = output.split("=")[1].strip().rstrip(strip_chars)
@@ -58,19 +73,23 @@ class UPS(PyXavi):
             print(f"Error reading hardware metric: {e}")
             return None
 
-    def read_cpu_volts(self): 
+    def read_cpu_volts(self) -> float: 
         return self.read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_V"], 'V') # return current cpu voltage
 
-    def read_cpu_amps(self):
+    def read_cpu_amps(self) -> float:
         return self.read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_A"], 'A') # reurn current cpu amperage
 
-    def read_cpu_temp(self):
+    def read_cpu_temp(self)-> float:
         return self.read_hardware_metric(["vcgencmd", "measure_temp"], "'C") # return current cpu temp
 
-    def read_input_voltage(self):
+    def read_input_voltage(self) -> float:
         return self.read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V') # return input voltage
 
-    def get_fan_rpm(self):
+    def get_fan_rpm(self) -> str:
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked: Returning fake fan RPM.")
+            return "0 RPM"
+
         try:
             sys_devices_path = Path('/sys/devices/platform/cooling_fan') 
             fan_input_files = list(sys_devices_path.rglob('fan1_input')) # scan path for fan1_input (sometimes its under hwmon2, sometimes hwmon3...)
@@ -86,7 +105,11 @@ class UPS(PyXavi):
         except Exception as e:
             return f"Unexpected error: {e}"
 
-    def power_consumption_watts(self):
+    def power_consumption_watts(self) -> float:
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked: Power consumption data is fake.")
+            return 10.0
+
         output = check_output(['vcgencmd', 'pmic_read_adc']).decode("utf-8") # gets a printout of all rpi5 voltages/amperages, converts output from binary to utf-8 string
         lines = output.split('\n') # splits the output based on newline
         amperages = {} # initialize amps dictionary
@@ -105,10 +128,14 @@ class UPS(PyXavi):
         wattage = sum(amperages[key] * voltages[key] for key in amperages if key in voltages) # iterates over each key in amperages
         return wattage
     
-    def close(self):
+    def close(self) -> None:
         '''
         Closes the UPS resources.
         '''
+        if self._xconfig.get("ups.mocked", True):
+            self._xlog.warning("UPS is mocked, Faking close().")
+            return
+        
         if self.bus is not None:
             self.bus.close()
             self.bus = None
