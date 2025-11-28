@@ -218,12 +218,12 @@ Works very decent, no very significant difference with MacOS
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
     - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
     - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
+- Most of the times, the very first start, the Splash screen is shown grey-ish.
 
 ### Led Matrix
-- Works good as a test in the main thread, I can't make it work properly in a subprocess:
-    - Initialisation presents random (always the same) led on.
-    - Flush to the device does not seem to work (it works when all is in the main thread, check test)
-    - Only got to get flasshing random leds and bars.
+- Works good in general
+- The very first show of the KITT mouth is shown mangled. The rest of the times is good.
+- Spotted few times where the KITT mouth did not appear while TTS speaks. Smells like Shared Memory Flags were not updated on time.
 
 
 # Ideas
@@ -319,33 +319,38 @@ Reboot
 
 https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/
 
-```
-[Unit]
-Description=Pitxu Service
-After=multi-user.target
-Requires=network.target
+See [The `pitxu.service` file in the /bin folder](./bin/pitxu.service)
 
-[Service]
-Type=idle
-User=xavier
-WorkingDirectory=/home/xavier/pitxu
-ExecStart=/home/xavier/.local/bin/poetry run main
-# We want it to restart everythim it leaves
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
+1. Ensure that this file has `644` permissions
+2. Create a soft link from `/etc/systemd/system/` to this file:
 ```
-
-as:
-```
-sudo chmod 644 /home/xavier/pitxu/bin/pitxu.systemd
 cd /etc/systemd/system/
 sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
+```
+
+3. Reload the systemd daemon and enable the service
+```
 sudo systemctl daemon-reload
-sudo systemctl enable pitxu
-sudo systemctl start pitxu
-sudo systemctl status pitxu
+sudo systemctl enable
+```
+
+Further updates do not need to repeat point 3, but if the filename changes.
+
+### Clear the displays on every shutdown and reboot
+
+See [The `k99_cleanup_pitxu` file in the /bin folder](./bin/k99_cleanup_pitxu)
+
+1. Ensure that this file has `755` permissions
+2. Create a soft link from `/etc/rc0.d/` to this file. This will clear the displays on reboot
+```
+cd /etc/rc0.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
+3. Create a soft link from `/etc/rc6.d/` to this file. This will clear the displays on shutdown
+```
+cd /etc/rc6.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
 ```
 
 
