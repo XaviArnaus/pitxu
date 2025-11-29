@@ -28,6 +28,11 @@ language:
     es: "Lo siento, el servidor devuelve un error."
     en-us: "I'm sorry, the server returned an error."
     de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben."
+  client_error:
+    ca: "Ho sento, sembla que hi ha un error de client."
+    es: "Lo siento, parece que hay un error de cliente."
+    en-us: "I'm sorry, it seems there is a client error."
+    de: "Es tut mir leid, es scheint ein Client-Fehler vorzuliegen."
   connection_closed_error:
     ca: "Ho sento, el servidor retorna error: la connexió s'ha tancat."
     es: "Lo siento, el servidor devuelve un error: la conexión se ha cerrado."

@@ -1,9 +1,7 @@
-from subprocess import call
 from pitxu.lib.ups.ups import UPS
 from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
 import math
 
@@ -40,29 +38,13 @@ class SystemPowerManagement(PyXavi):
         '''
         Shuts down the local machine. Beware: This will immediately power off the machine.
         '''
-        try:
-            self.close_nicely()
-            call("sudo nohup shutdown -h now", shell=True)
-        except Exception as e:
-            self._xlog.error(f"Error during shutdown: {e}")
+        # We fake this command, so that the `main` can handle the actual shutdown
+        return True
 
     def reboot_local_machine(self):
         '''
         Reboots the local machine. Beware: This will immediately reboot the machine.
         '''
-        try:
-            self.close_nicely()
-            call("sudo nohup reboot", shell=True)
-        except Exception as e:
-            self._xlog.error(f"Error during reboot: {e}")
-    
-    def close_nicely(self):
-        '''
-        Placeholder for any cleanup operations before shutdown or reboot.
-        '''
-        shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
-        shared_memory.initialize_existing_shared_memory_flags()
-        shared_memory.close()
-
-        self.ups.close()
+        # We fake this command, so that the `main` can handle the actual reboot
+        return True
 
