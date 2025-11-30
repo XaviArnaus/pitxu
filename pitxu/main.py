@@ -229,11 +229,14 @@ class Main:
                             chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
-                            if chat_response.function_call_history.get_last().has_response():
-                                self._xlog.debug("🗣️ Received function call response. Reacting.")
-                                # Shutdown and Reboot interrupt the flow and directly shutdown,
-                                # calling `close_nicely()` from there.
-                                self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                            try:
+                                if chat_response.function_call_history.get_last().has_response():
+                                    self._xlog.debug("🗣️ Received function call response. Reacting.")
+                                    # Shutdown and Reboot interrupt the flow and directly shutdown,
+                                    # calling `close_nicely()` from there.
+                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                            except Exception as e:
+                                self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             self.unset_chatbot_busy()
                             self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                         
