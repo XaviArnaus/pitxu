@@ -81,7 +81,7 @@ class FunctionCallHistory:
             The last valid FunctionCallPair if available, otherwise None.
         """
         if self.history and len(self.history) > 0:
-            for pair in reversed(self.history):
+            for name, pair in reversed(self.history):
                 if pair.is_valid():
                     return pair
         
