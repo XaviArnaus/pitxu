@@ -1,6 +1,6 @@
 from google import genai
 from google.genai import types
-from google.genai.errors import ServerError, ClientError
+from google.genai.errors import ServerError, ClientError, APIError
 from google.genai.chats import AsyncChat
 
 from pyxavi import Logger, Config, Dictionary, full_stack, dd
@@ -119,6 +119,18 @@ class GeminiChatbot(PyXavi):
                         self._xlog.debug("💰 Tokens: " + str(outcome.metadata.total_token_count) if outcome.metadata and outcome.metadata.total_token_count is not None else "?")
                         # We interrupt any retry loop returning directly here
                         return outcome
+                    except APIError as e:
+                        self._xlog.error("🛑 API error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
+                        outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(e.message))
+                        self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
+                        # Make him remember that he couldn't answer
+                        self._chat.record_history(
+                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
+                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            automatic_function_calling_history=[],
+                            is_valid=False
+                        )
+                        retries += 1
                     except ServerError as e:
                         self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                         outcome = ChatbotResponse(text=self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message))

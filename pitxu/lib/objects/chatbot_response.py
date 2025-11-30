@@ -41,6 +41,8 @@ class ChatbotResponse:
     def parse_error(response: GenerateContentResponse) -> FinishReason:
         """
         Parses the given response to determine if there was an error.
+        It all starts by checking if there is a text in the answer.
+
         Args:
             response (GenerateContentResponse): The response to parse.
         Returns:
@@ -64,6 +66,10 @@ class ChatbotResponse:
         """
 
         try:
+            # First, check if there is any text at all
+            if response.text and len(response.text.strip()) > 0:
+                return None
+
             # Assume the first candidate is representative
             # Then, take the finish_reason. If not None then it's an error.
             finish_reason: FinishReason = None

@@ -28,6 +28,11 @@ language:
     es: "Lo siento, el servidor devuelve un error."
     en-us: "I'm sorry, the server returned an error."
     de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben."
+  api_error:
+    ca: "Ho sento, el servidor ha retornat un error de l'API."
+    es: "Lo siento, el servidor ha devuelto un error de API."
+    en-us: "I'm sorry, the server returned an API error."
+    de: "Es tut mir leid, der Server hat einen API-Fehler zurückgegeben."
   client_error:
     ca: "Ho sento, sembla que hi ha un error de client."
     es: "Lo siento, parece que hay un error de cliente."

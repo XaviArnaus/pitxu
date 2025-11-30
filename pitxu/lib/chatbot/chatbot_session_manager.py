@@ -83,21 +83,24 @@ class ChatbotSessionManager(PyXavi):
             )
 
     async def __aenter__(self):
-        self._xlog.debug("ChatbotSessionManager: Initializing.")
-        await self.initialize()
+        try:
+            self._xlog.debug("ChatbotSessionManager: Initializing.")
+            await self.initialize()
 
-        self._xlog.debug("ChatbotSessionManager: Connecting to all MCP servers.")
-        if self.ENABLE_TRIVAGO_MCP:
-            self.session_handlers["trivago"] = await self.mcp_clients["trivago"]._connect()
+            self._xlog.debug("ChatbotSessionManager: Connecting to all MCP servers.")
+            if self.ENABLE_TRIVAGO_MCP:
+                self.session_handlers["trivago"] = await self.mcp_clients["trivago"]._connect()
 
-        self._xlog.debug("ChatbotSessionManager: Initializing all tooling.")
-        await self.initialize_tooling()
+            self._xlog.debug("ChatbotSessionManager: Initializing all tooling.")
+            await self.initialize_tooling()
+        except Exception as e:
+            self._xlog.error(f"🛑 ChatbotSessionManager: Error during initialization: {e}")
 
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self._xlog.debug("ChatbotSessionManager: Disconnecting from all MCP servers.")
-        if self.ENABLE_TRIVAGO_MCP and self.ENABLE_TOOLS:
+        if self.ENABLE_TOOLS and self.ENABLE_TRIVAGO_MCP:
             self.session_handlers["trivago"] = await self.mcp_clients["trivago"]._disconnect()
 
         self._xlog.debug("ChatbotSessionManager: Clearing all session handlers.")
