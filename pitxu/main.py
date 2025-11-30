@@ -309,26 +309,36 @@ class Main:
         #   specific to search for here.
 
         if function_call_pair.has_response():
-            self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_call.name))
+            self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
             # Here we can parse the function response and act accordingly
             # For example, if the function call is to get the current time, we can display it on an eInk screen
-            if function_call_pair.function_call.name == "get_current_time":
+            if function_call_pair.function_name == "get_current_time":
                 response_data = function_call_pair.function_response.response
                 current_time = response_data.get("result", "unknown")
                 self._xlog.debug("🕒 Here we should show the time in the eInk: " + str(current_time))
-            elif function_call_pair.function_call.name == "shutdown_local_machine":
+            elif function_call_pair.function_name == "shutdown_local_machine":
                 self._xlog.debug("💤 Preparing for shutdown...")
-                # self.communicate("Shutting down. Goodbye!", [self.COMM_TTS, self.COMM_DISPLAY])
-                time.sleep(2)  # Give some time to the TTS to finish
+                # The chatbot is in "Thinking" mode, we need to unset it
+                self.unset_chatbot_busy()
+                # And also reactivate the microphone because it keeps the state on shutdowns / reboots
+                self.unmute_microphone()
+                # Now wait until busy processes are done
+                self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
+                # Finally, close nicely and shutdown
                 self.close_nicely()
                 try:
                     call("sudo nohup shutdown -h now", shell=True)
                 except Exception as e:
                     self._xlog.error(f"Error during shutdown: {e}")
-            elif function_call_pair.function_call.name == "reboot_local_machine":
+            elif function_call_pair.function_name == "reboot_local_machine":
                 self._xlog.debug("♻️  Preparing for reboot...")
-                # self.communicate("Rebooting. See you soon!", [self.COMM_TTS, self.COMM_DISPLAY])
-                time.sleep(2)  # Give some time to the TTS to finish
+                # The chatbot is in "Thinking" mode, we need to unset it
+                self.unset_chatbot_busy()
+                # And also reactivate the microphone because it keeps the state on shutdowns / reboots
+                self.unmute_microphone()
+                # Now wait until busy processes are done
+                self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
+                # Finally, close nicely and shutdown
                 self.close_nicely()
                 try:
                     call("sudo nohup reboot", shell=True)
