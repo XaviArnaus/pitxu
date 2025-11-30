@@ -72,11 +72,20 @@ For Debian based linux distros:
 sudo apt install swig liblgpio-dev
 ```
 
+### Dependencies related to `i2c`
+
+This is not needed for the Python / Poetry application to work, but it's useful to debug and identify the own hardware.
+
+For Debian based linux distros:
+```
+sudo apt install i2c-tools
+```
+
 ### ❗️ All Linux/Debian dependencies in one line
 Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools
 ```
 
 
@@ -209,12 +218,12 @@ Works very decent, no very significant difference with MacOS
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
     - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
     - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
+- Most of the times, the very first start, the Splash screen is shown grey-ish.
 
 ### Led Matrix
-- Works good as a test in the main thread, I can't make it work properly in a subprocess:
-    - Initialisation presents random (always the same) led on.
-    - Flush to the device does not seem to work (it works when all is in the main thread, check test)
-    - Only got to get flasshing random leds and bars.
+- Works good in general
+- The very first show of the KITT mouth is shown mangled. The rest of the times is good.
+- Spotted few times where the KITT mouth did not appear while TTS speaks. Smells like Shared Memory Flags were not updated on time.
 
 
 # Ideas
@@ -274,6 +283,76 @@ If connected without software, it will behave as follows:
 The software and some instructions can be found here:
 https://wiki.geekworm.com/X1203
 https://suptronics.com/Raspberrypi/Power_mgmt/x120x-v1.0_software.html
+
+⚠️ Its control per software implies the use of `I2C`. At this point we should already have it
+activated as the eInk and the LED matrix need it as well. Otherwise, read how to activate the
+`I2C` feature through the `sudo raspi-config` command.
+
+### Which I2C address is the UPS connected to?
+To see which address the UPS is connected (docs says 0x36)
+```
+sudo i2cdetect -y 1
+```
+
+### How to update the RPi5 EEPROM so that all powers off together
+
+In a terminal in the RPi, edit the EEPROM config:
+```
+sudo rpi-eeprom-config -e
+```
+
+Change the setting of `POWER_OFF_ON_HALT` from `0` to `1`,
+Add `PSU_MAX_CURRENT=5000` at the end of the file that reads like this:
+```
+[all]
+BOOT_UART=1
+BOOT_ORDER=0xf14
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+```
+
+Reboot
+
+## Some newbie Debian docs for setting up stuff
+
+### Make Pitxu to start at boot
+
+https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/
+
+See [The `pitxu.service` file in the /bin folder](./bin/pitxu.service)
+
+1. Ensure that this file has `644` permissions
+2. Create a soft link from `/etc/systemd/system/` to this file:
+```
+cd /etc/systemd/system/
+sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
+```
+
+3. Reload the systemd daemon and enable the service
+```
+sudo systemctl daemon-reload
+sudo systemctl enable
+```
+
+Further updates do not need to repeat point 3, but if the filename changes.
+
+### Clear the displays on every shutdown and reboot
+
+See [The `k99_cleanup_pitxu` file in the /bin folder](./bin/k99_cleanup_pitxu)
+
+1. Ensure that this file has `755` permissions
+2. Create a soft link from `/etc/rc0.d/` to this file. This will clear the displays on reboot
+```
+cd /etc/rc0.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
+3. Create a soft link from `/etc/rc6.d/` to this file. This will clear the displays on shutdown
+```
+cd /etc/rc6.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
 
 # 😄 Fun fact
 

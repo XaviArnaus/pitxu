@@ -1,6 +1,7 @@
 from multiprocessing import JoinableQueue, shared_memory
+from subprocess import call
 
-from pyxavi import Logger, Config, Dictionary
+from pyxavi import Logger, Config, Dictionary, Storage
 
 import logging
 
@@ -13,19 +14,19 @@ from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
-from pitxu.lib.objects import XprocAction
+from pitxu.lib.objects import XprocAction, ChatbotResponse, FunctionCallPair
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
                         PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
 
 
 import sounddevice
 import time
-import asyncio
 
 class Main:
 
     _xconfig: Config = None
     _xlog: logging = None
+    _state: Storage = None
 
     _display: Display = None
     _matrix: MatrixLed = None
@@ -46,6 +47,7 @@ class Main:
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
     _exit_words: list = []
+    _tokens_counter: int = 0
 
     COMM_DISPLAY = "display"
     COMM_MATRIX = "matrix"
@@ -77,6 +79,9 @@ class Main:
 
         # Initial Language
         self._xparams.set("language", config.get("app.default_language", self.CATALAN))
+
+        # Initialize State
+        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
 
         # Supported Languages
         self._supported_languages = config.get("languages.supported_languages")
@@ -221,10 +226,24 @@ class Main:
                             # We set it as busy in shared memory, so the Matrix can show the thinking effect
                             self.set_chatbot_busy()
                             self._show_thinking()
-                            answer = await self._chatbot.ask_async(question)
-                            # answer = self._chatbot.ask(question)
+                            chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+                            self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
+                            answer = chat_response.text
+                            try:
+                                if chat_response.function_call_history.get_last().has_response():
+                                    self._xlog.debug("🗣️ Received function call response. Reacting.")
+                                    # Shutdown and Reboot interrupt the flow and directly shutdown,
+                                    # calling `close_nicely()` from there.
+                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                            except Exception as e:
+                                self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             self.unset_chatbot_busy()
                             self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
+                        
+                        # Do we actully have any answer?
+                        if answer is None or answer.strip() == "":
+                            self._xlog.debug(">> Empty answer from Chatbot, we should not be here, it should be handled inside Chatbot.")
+                            answer = "ERROR"
                         
                         # Clean the answer first, just in case
                         answer = Text.remove_emojis(answer)
@@ -275,6 +294,63 @@ class Main:
         # Yeah, but still there is job to be done (speaking, for example)
         self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
         self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+    
+    def react_on_last_function_call(self, function_call_pair: FunctionCallPair) -> None:
+        """
+        Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
+
+        Args:
+            function_call (FunctionCallPair): The last function call pair from the chatbot.
+        """
+
+        # The idea here is to be able to use the hardware as part of the response, like moving eyes,
+        #   or showing the hour in the eInk if asked for the time...
+        #
+        # More importantly, this is the way to perform a proper close_nicely(), besides just
+        #   shutting down or rebooting the system without caring.
+        # For this last point to happen, we need to control the answer of the tool, give something
+        #   specific to search for here.
+
+        try:
+
+            if function_call_pair.has_response():
+                self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
+                # Here we can parse the function response and act accordingly
+                # For example, if the function call is to get the current time, we can display it on an eInk screen
+                if function_call_pair.function_name == "get_current_time":
+                    response_data = function_call_pair.function_response.response
+                    current_time = response_data.get("result", "unknown")
+                    self._xlog.debug("🕒 Here we should show the time in the eInk: " + str(current_time))
+                elif function_call_pair.function_name == "shutdown_local_machine":
+                    self._xlog.debug("💤 Preparing for shutdown...")
+                    # The chatbot is in "Thinking" mode, we need to unset it
+                    self.unset_chatbot_busy()
+                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
+                    self.unmute_microphone()
+                    # Now wait until busy processes are done
+                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
+                    # Finally, close nicely and shutdown
+                    self.close_nicely()
+                    try:
+                        call("sudo nohup shutdown -h now", shell=True)
+                    except Exception as e:
+                        self._xlog.error(f"Error during shutdown: {e}")
+                elif function_call_pair.function_name == "reboot_local_machine":
+                    self._xlog.debug("♻️  Preparing for reboot...")
+                    # The chatbot is in "Thinking" mode, we need to unset it
+                    self.unset_chatbot_busy()
+                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
+                    self.unmute_microphone()
+                    # Now wait until busy processes are done
+                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
+                    # Finally, close nicely and shutdown
+                    self.close_nicely()
+                    try:
+                        call("sudo nohup reboot", shell=True)
+                    except Exception as e:
+                        self._xlog.error(f"Error during reboot: {e}")
+        except Exception as e:
+            self._xlog.error("🛑 Error reacting to function call: " + str(e))
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -282,6 +358,9 @@ class Main:
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._xlog.debug("Closing nicely...")
+
+        # Persist state
+        self.persist_state()
 
         # Clean the displays
         self.clear_displays()
@@ -300,8 +379,15 @@ class Main:
 
         # Here comes anything that we want to do before leaving
         self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._xlog.info("💡  Memory used:" + str(Memory.use(Memory.MEGABYTES)) + " MB")
+        self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
+        self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
     
+    def persist_state(self):
+
+        self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
+        self._state.write_file()
+        self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
+
     def clear_displays(self):
         self._xlog.debug("Clearing the eInk.")
         self._clear_display()
