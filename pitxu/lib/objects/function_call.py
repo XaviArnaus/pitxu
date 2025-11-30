@@ -6,10 +6,18 @@ class FunctionCallHistory:
     """
     Represents a history of function calls and their responses.
     """
-    history: list[FunctionCallPair]
+    history: dict[str, FunctionCallPair]
 
-    def __init__(self, history: list[FunctionCallPair] = None):
-        self.history = history if history is not None else []
+    def __init__(self, history: dict[str, FunctionCallPair] | list[FunctionCallPair] = None):
+        if history is not None and isinstance(history, list):
+            # Convert list to dict using function name as key
+            self.history = {pair.function_name: pair for pair in history if pair.function_name is not None}
+        elif isinstance(history, dict):
+            # Direct assignment
+            self.history = history
+        else:
+            # If history is neither a list nor a dict, initialize an empty history
+            self.history = {}
 
     @staticmethod
     def from_response(response: GenerateContentResponse) -> FunctionCallHistory:
@@ -120,11 +128,12 @@ class FunctionCallPair:
         Checks if the FunctionCallPair is valid (both call and response are present and have the same function name).
 
         Returns:
-            True if both function_call and function_response are not None, and both have the same name, False otherwise.
+            True if both function_call and function_response are present, and both have the same name, False otherwise.
         """
-        return self.function_call is not None \
-                and self.function_response is not None \
-                and self.function_call.name == self.function_response.name
+        if self.has_call() and self.has_response():
+            call_name, response_name = self.get_names()
+            return call_name == response_name
+        return False
     
     def get_names(self) -> tuple[str, str]:
         """
@@ -137,6 +146,18 @@ class FunctionCallPair:
         call_name = self.function_call.name if self.has_call() else ""
         response_name = self.function_response.name if self.has_response() else ""
         return (call_name, response_name)
+    
+    @property
+    def function_name(self) -> str | None:
+        """
+        Gets the name of the function call pair
+
+        Returns:
+            The name of the function call if the pair is present, otherwise None.
+        """
+        if self.is_valid():
+            return self.function_call.name
+        return None
 
     @staticmethod
     def from_empty() -> FunctionCallPair:
