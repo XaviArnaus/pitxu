@@ -394,6 +394,10 @@ class Main:
 
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
+                    # Unset eInk idle mode to be able to show stuff if needed
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
                     # The chatbot is in "Thinking" mode, we need to unset it
                     self.unset_chatbot_busy()
                     # And also reactivate the microphone because it keeps the state on shutdowns / reboots
@@ -408,6 +412,10 @@ class Main:
                         self._xlog.error(f"Error during shutdown: {e}")
                 elif function_call_pair.function_name == "reboot_local_machine":
                     self._xlog.debug("♻️  Preparing for reboot...")
+                    # Unset eInk idle mode to be able to show stuff if needed
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
                     # The chatbot is in "Thinking" mode, we need to unset it
                     self.unset_chatbot_busy()
                     # And also reactivate the microphone because it keeps the state on shutdowns / reboots
