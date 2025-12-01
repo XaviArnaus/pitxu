@@ -15,12 +15,40 @@ class Macros:
     _xparams: Dictionary = None
 
     _display_size: Point = None
+    _statics: dict[str, EinkDisplay] = {
+        "initial_eyes": None,
+        "eyes_open": None,
+        "eyes_closed": None
+    }
 
     def __init__(self, config: Config, params: Dictionary):
         self._xparams = params
         self._xconfig = config
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+    
+    def load_or_create_statics(self,):
+        '''
+        Loads or creates the static images used in the macros.
+        Currently, only the eyes images.
+
+        It is meant to be called once at the initialization of the Display process,
+        to have access to the singleton working image.
+        '''
+        if self._statics["initial_eyes"] is None:
+            self._xlog.info("Creating static image for initial eyes")
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            self._statics["initial_eyes"] = self._draw_initial_eyes(display)
+
+        if self._statics["eyes_open"] is None:
+            self._xlog.info("Creating static image for eyes open")
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            self._statics["eyes_open"] = self._draw_eyes_open(display)
+
+        if self._statics["eyes_closed"] is None:
+            self._xlog.info("Creating static image for eyes closed")
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            self._statics["eyes_closed"] = self._draw_eyes_closed(display)
 
     def draw_text_bubble(self, display: EinkDisplay, text: str, font: ImageFont):
 
@@ -161,7 +189,80 @@ class Macros:
                     align = "center")
         display.display(partial=True)
     
-    def initial_eyes(self, display: EinkDisplay):
+    def initial_eyes(self, display: EinkDisplay = None):
+        """
+        Draw the initial eyes on the display.
+
+        Consists of the eye arcs only.
+        It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
+        """
+
+        if display is None:
+            self._xlog.debug("👀 Displaying precomputed static image for initial eyes")
+
+            # Use the precomputed static image
+            self._statics["initial_eyes"].display(partial=False)
+        else:
+            self._xlog.debug("👀 Drawing initial eyes on given display")
+
+            # Draw the initial arcs (as partial=False) on the given display
+            display = self._draw_initial_eyes(display)
+
+            # Now show it into the display.
+            display.display(partial=False)
+        
+    
+    def eyes_open(self, display: EinkDisplay = None):
+        """
+        Draw the eyes OPEN on the display.
+
+        It is meant to be used after initial_eyes() as this does not draw the eye arcs.
+        It is a partial update.
+        """
+
+        if display is None:
+            self._xlog.debug("👀 Displaying precomputed static image for eyes open")
+
+            # Use the precomputed static image
+            self._statics["eyes_open"].display(partial=True)
+        else:
+            self._xlog.debug("👀 Drawing eyes open on given display")
+
+            # Draw the eyes open (as partial=True) on the given display
+            display = self._draw_eyes_open(display)
+
+            # Now display the canvas
+            display.display(partial=True)
+    
+    def eyes_closed(self, display: EinkDisplay = None):
+        """
+        Draw the eyes CLOSED on the display.
+
+        It is meant to be used after initial_eyes(), as blinking from eyes_open().
+        It is a partial update.
+        """
+
+        if display is None:
+            self._xlog.debug("👀 Displaying precomputed static image for eyes closed")
+
+            # Use the precomputed static image
+            self._statics["eyes_closed"].display(partial=True)
+        else:
+            self._xlog.debug("👀 Drawing eyes closed on given display")
+
+            # Draw the eyes closed (as partial=True) on the given display
+            display = self._draw_eyes_closed(display)
+
+            # Now display the canvas
+            display.display(partial=True)
+
+    def _draw_initial_eyes(self, display: EinkDisplay) -> EinkDisplay:
+        """
+        Creates the initial eyes on the given display.
+
+        Consists of the eye arcs only.
+        It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
+        """
 
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
@@ -182,14 +283,20 @@ class Macros:
         canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
         canvas.line([(175, 114), (205, 114)], width=4)
 
-        # Now display the canvas
-        display.display()
-
+        # We don't display the canvas, we return the display object for further use
+        return display
     
-    def eyes_open(self, display: EinkDisplay):
+    def _draw_eyes_open(self, display: EinkDisplay):
+        """
+        Creates the eyes OPEN on the given display.
+
+        It is meant to be used after initial_eyes() as this does not draw the eye arcs.
+        It is a partial update.
+        """
         
         # First create a canvas
-        canvas = display.create_canvas(reset_base_image=True)
+        #canvas = display.create_canvas(reset_base_image=True)
+        canvas = display.create_canvas(reset_base_image=False)
 
         # Delete the previous eyes space
         canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
@@ -197,14 +304,21 @@ class Macros:
         # Draw the black pupils
         canvas.ellipse((75, 75, 95, 105), fill=0)  # Left pupil
         canvas.ellipse((155, 75, 175, 105), fill=0)  # Right pupil
-        
-        # Now display the canvas
-        display.display(partial=True)
 
-    def eyes_closed(self, display: EinkDisplay):
+        # We don't display the canvas, we return the display object for further use
+        return display
+    
+    def _draw_eyes_closed(self, display: EinkDisplay):
+        """
+        Creates the eyes CLOSED on the given display.
+
+        It is meant to be used after initial_eyes(), as blinking from eyes_open().
+        It is a partial update.
+        """
         
         # First create a canvas
-        canvas = display.create_canvas(reset_base_image=True)
+        # canvas = display.create_canvas(reset_base_image=True)
+        canvas = display.create_canvas(reset_base_image=False)
 
         # Delete the previous eyes space
         canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
@@ -213,8 +327,8 @@ class Macros:
         canvas.ellipse([(75, 95), (95, 95)], fill=0)  # Left pupil
         canvas.ellipse([(155, 95), (175, 95)], fill=0)  # Right pupil
 
-        # Now display the canvas
-        display.display(partial=True)
+        # We don't display the canvas, we return the display object for further use
+        return display
     
     def soft_clear(self, display: EinkDisplay):
 

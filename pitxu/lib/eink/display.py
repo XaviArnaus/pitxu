@@ -27,7 +27,8 @@ class Display(Xprocess):
     COLOR_BLACK: int = 0
     COLOR_WHITE: int = 1
 
-    IDLE_EYES_CADENCE_SECONDS: int = 5
+    IDLE_EYES_CADENCE_SECONDS: float = 10.0
+    IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.1
 
     def get_process_name(self) -> str:
         return "Display"
@@ -42,6 +43,9 @@ class Display(Xprocess):
         self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
         self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+
+        # Initialize the macros statics
+        self._macros.load_or_create_statics()
     
     def finish(self):
         self._xlog.debug("Closing eInk display")
@@ -131,7 +135,8 @@ class Display(Xprocess):
         # self._display.clear()
 
         # Draw first the eyes archs
-        self._macros.initial_eyes(display=self._display)
+        # self._macros.initial_eyes(display=self._display)
+        self._macros.initial_eyes()
 
         # It repeats until the speaker is busy
         should_stop_idle = False
@@ -159,15 +164,17 @@ class Display(Xprocess):
                     break
                 # show eyes open if not already shown
                 if not are_eyes_open:
-                    self._macros.eyes_open(display=self._display)
+                    # self._macros.eyes_open(display=self._display)
+                    self._macros.eyes_open()
                     are_eyes_open = True
 
             # We're here because the cadence time is over or because we should stop idle.
             if not should_stop_idle:
                 # show the eyes closed
-                self._macros.eyes_closed(display=self._display)
+                # self._macros.eyes_closed(display=self._display)
+                self._macros.eyes_closed()
                 # and wait a bit
-                time.sleep(0.3)
+                time.sleep(self.IDLE_EYES_BLINK_DURATION_SECONDS)
 
         # End of the cadence loop.
         # Setting it from the main process.

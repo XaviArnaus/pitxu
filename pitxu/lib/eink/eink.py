@@ -62,7 +62,7 @@ class EinkDisplay:
         if reset_base_image:
             self._reset_image()
 
-        image = self.get_image(True)
+        image = self.get_image(clear_background=True)
         return ImageDraw.Draw(image)
     
     def display(self, partial: bool = True):
@@ -139,7 +139,7 @@ class EinkDisplay:
         If does not exists, creates it.
         """
         if self._working_image is None:
-            # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
+            # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
             if (self._is_gpio_allowed()):
                 self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
             else:

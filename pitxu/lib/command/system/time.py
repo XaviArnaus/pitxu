@@ -63,7 +63,8 @@ class SystemTime(PyXavi, Command):
             # display: EinkDisplay = EinkDisplay(config=self._xconfig, params=self._xparams)
             # canvas = display.create_canvas(reset_base_image=True)
             # screen_size: Point = display.get_screen_size()
-            # canvas.text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
+            # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
+            # canvas.text(Point(screen_size.y / 2, screen_size.x / 2).to_image_point(),
             #             text = value,
             #             font = display.FONT_HUGE,
             #             fill = display.COLOR_BLACK,
