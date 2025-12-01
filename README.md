@@ -232,6 +232,17 @@ Works very decent, no very significant difference with MacOS
 - Button to mute, so it does not attend what is spoken in front
 - Button to skip what is being TTS, so user can discard the explanation (can be anoyingly long)
 
+Python offers several powerful libraries for sentiment analysis. Some of the most popular and effective ones include:
+
+*   **NLTK (Natural Language Toolkit)**: A comprehensive library for natural language processing, NLTK includes tools for sentiment analysis, notably the VADER (Valence Aware Dictionary and Sentiment Reasoner) sentiment analyzer, which is particularly effective for social media texts.
+*   **TextBlob**: Built on top of NLTK, TextBlob is known for its simplicity and ease of use, making it ideal for beginners and quick sentiment evaluations. It provides a pre-trained sentiment analyzer and offers fine-grained polarity scores and subjectivity analysis.
+*   **VADER (Valence Aware Dictionary and Sentiment Reasoner)**: Specifically designed for analyzing sentiment in social media and short text content, VADER is a rule-based sentiment analysis tool. It generates compound polarity scores and can handle informal language, slang, and emojis.
+*   **SpaCy**: A modern NLP library focused on efficiency and production use, SpaCy includes support for sentiment analysis. It utilizes a machine learning approach based on convolutional neural networks, which can handle complex language features like negation and sarcasm.
+*   **BERT (Bidirectional Encoder Representations from Transformers)**: A state-of-the-art library from Hugging Face, Transformers offers a wide range of pre-trained models, including BERT, which achieve remarkable performance on sentiment analysis benchmarks.
+*   **Flair**: Another advanced library offering sophisticated features and capabilities for more complex sentiment analysis tasks, including strong multilingual support.
+*   **Scikit-learn**: A popular machine learning library, Scikit-learn includes tools for building custom sentiment analysis models using classifiers and feature extraction.
+*   **PyTorch**: A deep learning framework used for building custom sentiment analysis models, PyTorch provides full flexibility to design and train neural networks.
+
 
 # Resources
 

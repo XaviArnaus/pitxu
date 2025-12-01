@@ -32,7 +32,7 @@ class XprocessProtocol(Protocol):
         pass
 
     @abstractmethod
-    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str) -> None:
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any) -> None:
         '''
         This is what you want to implement in your child class as the actual work.
         Called from run() with the initialised basic framework.

@@ -16,10 +16,6 @@ class Macros:
 
     _display_size: Point = None
 
-    DEFAULT_STROKE: int = 1
-    COLOR_BLACK: int = 0
-    COLOR_WHITE: int = 1
-
     def __init__(self, config: Config, params: Dictionary):
         self._xparams = params
         self._xconfig = config
@@ -41,8 +37,8 @@ class Macros:
         canvas.rounded_rectangle(
             Rectangle(rect_1, rect_2).to_image_rectangle(),
             radius=10,
-            outline=self.COLOR_BLACK,
-            fill=self.COLOR_WHITE,
+            outline=display.COLOR_BLACK,
+            fill=display.COLOR_WHITE,
             corners=(True, True, True, True))
 
         # Prepare the area for the text
@@ -56,12 +52,12 @@ class Macros:
         text = self.break_line_in_text_if_needed(canvas, text, textbox_boundaries, font)
 
         # Draw the text
-        _bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = self.COLOR_BLACK)
+        _bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = display.COLOR_BLACK)
 
         # The pick of the speach bubble
-        canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_WHITE, width=1)
-        canvas.line(Line(Point(30,rect_2.y), Point(31, self._display_size.y - 2)).to_image_line(), fill=self.COLOR_BLACK, width=1)
-        canvas.line(Line(Point(31, self._display_size.y - 2), Point(40, rect_2.y)).to_image_line(), fill=self.COLOR_BLACK, width=1)
+        canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=display.COLOR_WHITE, width=1)
+        canvas.line(Line(Point(30,rect_2.y), Point(31, self._display_size.y - 2)).to_image_line(), fill=display.COLOR_BLACK, width=1)
+        canvas.line(Line(Point(31, self._display_size.y - 2), Point(40, rect_2.y)).to_image_line(), fill=display.COLOR_BLACK, width=1)
 
         # Now display the canvas
         display.display()
@@ -111,13 +107,13 @@ class Macros:
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
                     text = title + "  v" + version, 
                     font = display.FONT_BIG, 
-                    fill = self.COLOR_BLACK,
+                    fill = display.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
         
         # Draw a line between the title and the subtitle
         canvas.line(Rectangle(Point(5, self._display_size.y / 2), Point(self._display_size.x - 5, self._display_size.y / 2)).to_image_rectangle(),
-                    fill = self.COLOR_BLACK,
+                    fill = display.COLOR_BLACK,
                     width = 1)
         
         # Subtitle
@@ -128,7 +124,7 @@ class Macros:
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = display.FONT_MEDIUM, 
-                    fill = self.COLOR_BLACK,
+                    fill = display.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
         
@@ -146,12 +142,68 @@ class Macros:
         canvas.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
                     text = "Ready", 
                     font = display.FONT_BIG, 
-                    fill = self.COLOR_BLACK,
+                    fill = display.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
         
         # Now display the canvas
         display.display(partial=False)
+    
+    def arbitrary_text_centered(self, display: EinkDisplay, text: str):
+
+        canvas = display.create_canvas(reset_base_image=True)
+        screen_size: Point = display.get_screen_size()
+        canvas.text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
+                    text = text,
+                    font = display.FONT_HUGE,
+                    fill = display.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
+        display.display(partial=True)
+    
+    def eyes_open(self, display: EinkDisplay):
+        
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # Left eye arc
+        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
+        canvas.line([(45, 114), (75, 114)], width=4)
+
+        # Right eye arc
+        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
+        canvas.line([(175, 114), (205, 114)], width=4)
+
+        # Draw the black pupils
+        canvas.ellipse((75, 75, 95, 105), fill=0)  # Left pupil
+        canvas.ellipse((155, 75, 175, 105), fill=0)  # Right pupil
+        
+        # Now display the canvas
+        display.display(partial=True)
+
+    def eyes_closed(self, display: EinkDisplay):
+        
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+    
+        # Left eye arc
+        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
+        canvas.line([(45, 114), (75, 114)], width=4)
+
+        # Right eye arc
+        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
+        canvas.line([(175, 114), (205, 114)], width=4)
+
+        # Draw the black pupils
+        canvas.ellipse([(75, 95), (95, 95)], fill=0)  # Left pupil
+        canvas.ellipse([(155, 95), (175, 95)], fill=0)  # Right pupil
+
+        # Now display the canvas
+        display.display(partial=True)
     
     def soft_clear(self, display: EinkDisplay):
 
@@ -163,8 +215,8 @@ class Macros:
         rect_2 = Point(self._display_size.x, self._display_size.y)
         canvas.rectangle(
             Rectangle(rect_1, rect_2).to_image_rectangle(),
-            outline=self.COLOR_WHITE,
-            fill=self.COLOR_WHITE)
+            outline=display.COLOR_WHITE,
+            fill=display.COLOR_WHITE)
 
         # Now display the canvas
         display.display()

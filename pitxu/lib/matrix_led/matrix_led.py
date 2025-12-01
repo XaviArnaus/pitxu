@@ -35,7 +35,7 @@ class MatrixLed(Xprocess):
         self._macros.close_canvas()
         self._xlog.info("Finalizing Matrix Worker")
     
-    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: str):
+    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         # We're busy
         self.set_matrix_busy()
 

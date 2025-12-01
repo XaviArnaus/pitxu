@@ -1,6 +1,7 @@
 from pyxavi import Config, Logger, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.command import Command
 from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
@@ -27,6 +28,13 @@ class ChatbotSessionManager(PyXavi):
             return
 
         self._xlog.debug("ChatbotSessionManager: Initializing instantiable tooling.")
+        # The clients defined in self.clients and self.mcp_clients are instances to the classes that provide the tools
+        #
+        # They are used to:
+        # 1) define the functions available to the LLM as tools
+        # 2) map the function names to their related callbacks after the LLM calls them and get back to us.
+        #
+        # Therefore, ALL TOOLS MUST BE DEFINED HERE AS INSTANCES (no static method calling anymore in the tools list) 
         self.clients = {
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),
@@ -51,13 +59,14 @@ class ChatbotSessionManager(PyXavi):
             return
 
         self._xlog.debug("ChatbotSessionManager: Setting up tools.")
+        # The tools defined in self.tools and self.mcp_tools are used to define the functions available to the LLM as tools
         self.tools = [
                 # Grounding workaround so it can use Google Search
                 self.clients["google_search"].get_google_search_response_to_a_prompt,
                 # Grounding workaround so it can use Google Maps
                 self.clients["google_maps"].get_google_maps_response_to_a_prompt,
                 # # Custom Commands
-                self.clients["system_date"].get_current_date,
+                self.clients["system_date"].get_current_date_without_time,
                 self.clients["system_time"].get_current_time,
                 self.clients["power_management"].get_battery_level,
                 self.clients["power_management"].is_power_cable_connected,
@@ -106,3 +115,17 @@ class ChatbotSessionManager(PyXavi):
         self._xlog.debug("ChatbotSessionManager: Clearing all session handlers.")
         for key in list(self.session_handlers.keys()):
             del self.session_handlers[key]
+    
+    def get_client_callbacks_by_function_name(self) -> dict[str, callable]:
+        clients_by_function_name = {}
+        clients_stacks = [self.clients, self.mcp_clients]
+        # Iterate over all clients and map function names to clients
+        for clients in clients_stacks:
+            for name, client in dict(clients).items():
+                # Only grab the ones that have the Command as base class
+                if isinstance(client, Command):
+                    # They are already instantiated clients
+                    for function_name in client.get_function_names():
+                        # Get the related callable for the given function name
+                        clients_by_function_name[function_name] = client.get_callback_by_given_function_name(function_name)
+        return clients_by_function_name

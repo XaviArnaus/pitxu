@@ -6,18 +6,13 @@ class FunctionCallHistory:
     """
     Represents a history of function calls and their responses.
     """
-    history: dict[str, FunctionCallPair]
+    history: list[FunctionCallPair]
 
-    def __init__(self, history: dict[str, FunctionCallPair] | list[FunctionCallPair] = None):
+    def __init__(self, history: list[FunctionCallPair] = None):
         if history is not None and isinstance(history, list):
-            # Convert list to dict using function name as key
-            self.history = {pair.function_name: pair for pair in history if pair.function_name is not None}
-        elif isinstance(history, dict):
-            # Direct assignment
             self.history = history
         else:
-            # If history is neither a list nor a dict, initialize an empty history
-            self.history = {}
+            self.history = []
 
     @staticmethod
     def from_response(response: GenerateContentResponse) -> FunctionCallHistory:
@@ -81,12 +76,21 @@ class FunctionCallHistory:
             The last valid FunctionCallPair if available, otherwise None.
         """
         if self.history and len(self.history) > 0:
-            for name, pair in reversed(self.history.items()):
+            for pair in reversed(self.history):
                 if pair.is_valid():
                     return pair
         
         # Still here? No valid pair found, it will return empty
         return FunctionCallPair.from_empty()
+    
+    def get_names(self) -> list[str]:
+        """
+        Gets the names of all function calls in the history.
+
+        Returns:
+            A list of function call names.
+        """
+        return [pair.function_name for pair in self.history if pair.function_name is not None]
 
 class FunctionCallPair:
     """

@@ -11,11 +11,11 @@ class SystemDate(PyXavi):
 
     format = "%Y-%m-%d"
 
-    def get_current_date(self) -> str:
+    def get_current_date_without_time(self) -> str:
         '''
-        Gets the current system date
+        Gets the current system date. The time is not included.
         
         Returns:
-            The current date in YYYY-MM-DD format
+            The current date in Year-Month-Day format
         '''
         return time.strftime(self.format, time.localtime())

@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+from datetime import datetime
 import time
 
 from PIL import Image,ImageDraw,ImageFont
@@ -9,7 +10,7 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 
-from ..objects.point import Point
+from pitxu.lib.objects import Point
 
 class EinkDisplay:
 
@@ -24,10 +25,16 @@ class EinkDisplay:
     FONT_SMALL: ImageFont = None
     FONT_MEDIUM: ImageFont = None
     FONT_BIG: ImageFont = None
+    FONT_HUGE: ImageFont = None
 
     DEFAULT_FONT_BIG_SIZE = 22
     DEFAULT_FONT_MEDIUM_SIZE = 14
     DEFAULT_FONT_SMALL_SIZE = 10
+    DEFAULT_FONT_HUGE_SIZE = 32
+
+    DEFAULT_STROKE: int = 1
+    COLOR_BLACK: int = 0
+    COLOR_WHITE: int = 1
 
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_IMAGES_PATH = "mocked/eink/"
@@ -55,27 +62,40 @@ class EinkDisplay:
         if reset_base_image:
             self._reset_image()
 
-        image = self._get_image(True)
+        image = self.get_image(True)
         return ImageDraw.Draw(image)
     
     def display(self, partial: bool = True):
+        """
+        Displays the current working image on the eInk display.
+
+        Args:
+            partial: Whether to use partial update or full update.
+        """
+        self.display_arbitrary_image(self._working_image, partial=partial)
+
+    def display_arbitrary_image(self, image: Image.Image, partial: bool = True):
+        """
+        Displays an arbitrary image on the eInk display.
+
+        Args:
+            image: The image to display. Must be in mode '1' (1-bit pixels, black and white).
+            partial: Whether to use partial update or full update.
+        """
         if (not self._is_gpio_allowed()):
-            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + time.strftime("%Y%m%d-%H%M%S") + ".png"
-            self._working_image.save(file_path)
+            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+            image.save(file_path)
             file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
-            self._working_image.save(file_path)
+            image.save(file_path)
         else:
             if self._xconfig.get("display.rotate", False):
-                self._working_image = self._working_image.rotate(180)
-            
-            # The example uses display_fast(). Tests show that display() works. Now testing display_fast().
-            # self._epd.display(self._epd.getbuffer(self._working_image))
-            # self._epd.display_fast(self._epd.getbuffer(self._working_image))
+                image = image.rotate(180)
+
             if partial:
-                self._epd.displayPartial(self._epd.getbuffer(self._working_image))
+                self._epd.displayPartial(self._epd.getbuffer(image))
             else:
-                self._epd.display_fast(self._epd.getbuffer(self._working_image))
-    
+                self._epd.display_fast(self._epd.getbuffer(image))
+
     def clear(self):
         if (self._is_gpio_allowed()):
             self._epd.Clear(0xFF)
@@ -106,7 +126,13 @@ class EinkDisplay:
         self.clear()
         time.sleep(2)
     
-    def _get_image(self, clear_background: bool = True):
+    def get_screen_size(self) -> Point:
+        """
+        Returns the screen size as a Point (width, height)
+        """
+        return self._screen_size
+    
+    def get_image(self, clear_background: bool = True) -> Image.Image:
         """
         Returns the image that is being prepared to show
 
@@ -114,9 +140,9 @@ class EinkDisplay:
         """
         if self._working_image is None:
             # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
-            if (self._is_gpio_allowed()): 
+            if (self._is_gpio_allowed()):
                 self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
-            else:    
+            else:
                 self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
         return self._working_image
 
@@ -194,6 +220,14 @@ class EinkDisplay:
         big_size = self.DEFAULT_FONT_BIG_SIZE
         medium_size = self.DEFAULT_FONT_MEDIUM_SIZE
         small_size = self.DEFAULT_FONT_SMALL_SIZE
+        huge_size = self.DEFAULT_FONT_HUGE_SIZE
+
+        # Huge size
+        if (self._xparams.key_exists("display.fonts.huge")):
+            huge_size = self._xparams.get("display.fonts.huge")
+        elif (self._xconfig.key_exists("display.fonts.huge")):
+            huge_size = self._xconfig.get("display.fonts.huge")
+        self.FONT_HUGE = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), huge_size)
 
         # Big size
         if (self._xparams.key_exists("display.fonts.big")):

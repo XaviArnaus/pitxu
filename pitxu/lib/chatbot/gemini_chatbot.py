@@ -101,7 +101,6 @@ class GeminiChatbot(PyXavi):
                             # This may happen due to having too many tools, or too big context.
                             # This started to happen after adding Trivago MCP tool, I guess it consumes a large amount of tokens.
                             # Also the context may be too big if the previous conversation is large.
-                            # finish_reason = response.candidates[0].finish_reason if response.candidates and len(response.candidates) > 0 else "unknown"
                             self._xlog.error("🛑 The server answered with an error. The finish reason is: " + outcome.error + 
                                              " and had " + (str(outcome.metadata.total_token_count) + " total tokens" if outcome.metadata and outcome.metadata.total_token_count is not None else ""))
                             outcome.set_text(self._xconfig.get("language.empty_answer." + self._xparams.get("language")))

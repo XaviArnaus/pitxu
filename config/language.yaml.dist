@@ -4,7 +4,7 @@ language:
   exit_words:
     ca: ["sortir", "adéu"]
     es: ["salir", "adiós"]
-    en-us: ["exit", "quit", "bye", "goodbye"]
+    en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
     de: ["tschüss", "beenden", "ende"]
   # This is the welcome / greeting message
   greeting:

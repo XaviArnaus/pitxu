@@ -1,22 +1,25 @@
 from multiprocessing import JoinableQueue, shared_memory
 from subprocess import call
 
-from pyxavi import Logger, Config, Dictionary, Storage
+from pyxavi import Logger, Config, Dictionary, Storage, dd
 
 import logging
+from functools import partial
 
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction, ChatbotResponse, FunctionCallPair
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, \
-                        PROCESS_EINK, PROCESS_MATRIX, PROCESS_SPEAKER
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, \
+                        SHARED_CHATBOT_BUSY, SHARED_EINK_IDLE_MODE, \
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER
 
 
 import sounddevice
@@ -27,12 +30,10 @@ class Main:
     _xconfig: Config = None
     _xlog: logging = None
     _state: Storage = None
+    _maintenance: Maintenance = None
 
-    _display: Display = None
-    _matrix: MatrixLed = None
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
-    _speech: Piper = None
 
     _process_pool: XprocessPool = None
 
@@ -41,6 +42,8 @@ class Main:
     _queue_matrix: JoinableQueue = None
     _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
+
+    _chatbot_client_callbacks: dict[str, callable] = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -83,6 +86,9 @@ class Main:
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
 
+        # Initialize Maintenance utility
+        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
+
         # Supported Languages
         self._supported_languages = config.get("languages.supported_languages")
 
@@ -113,7 +119,7 @@ class Main:
 
         # Initialise Text-To-Speech.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        self._process_pool.new_and_start(PROCESS_SPEAKER, target=Piper)
+        self._process_pool.new_and_start(QUEUE_SPEAKER, target=Piper)
 
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
@@ -143,11 +149,11 @@ class Main:
         Initialisation of the displays and macros
         """
 
-        self._xlog.debug("Initialising eInk Display and Macros")
-        self._process_pool.new_and_start(PROCESS_EINK, target=Display)
+        self._xlog.info("Initialising eInk Display and Macros")
+        self._process_pool.new_and_start(QUEUE_EINK, target=Display)
 
-        self._xlog.debug("Initialising Matrix LED Display and Macros")
-        self._process_pool.new_and_start(PROCESS_MATRIX, target=MatrixLed)
+        self._xlog.info("Initialising Matrix LED Display and Macros")
+        self._process_pool.new_and_start(QUEUE_MATRIX, target=MatrixLed)
         # Needs an initial clear
         self._clear_matrix()
 
@@ -155,7 +161,10 @@ class Main:
 
         sw_init = self._stopwatch.start(name="init")
 
-        # Initialise eInk Display and the helper macros
+        # Execute the initial maintenance tasks
+        self._maintenance.clean_previous_mocked_images()
+
+        # Initialise Displays and the helper macros.
         self._initialize_displays()
         self._show_init_phases(1)
 
@@ -164,13 +173,19 @@ class Main:
         self._show_init_phases(2)
         time.sleep(2)
 
-        # Initialise all classes that require a model. They go per language, that's why it's abstracted
-        self._load_models()
+        # At this point, we better wait for all queues to be empty.
+        # This basically involves eInk (for the splash).
+        # Matrix would also be related, but as we're showing the init phases, it's not that critical.
+        self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
         self._show_init_phases(3)
 
-        # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self._load_language_statics()
+        # Initialise all classes that require a model. They go per language.
+        self._load_models()
         self._show_init_phases(4)
+
+        # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._load_language_statics()
+        self._show_init_phases(5)
 
         self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
@@ -183,41 +198,57 @@ class Main:
                                 dtype="int16", 
                                 channels=1,
                                 callback=self._dictate.callback) as input_stream:
-                self._show_init_phases(5)
+                self._show_init_phases(6)
                 
                 # Welcome greeting
-                self._xlog.debug(">> Greetings")
+                self._xlog.debug("Say Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
-                self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
-                self._show_init_phases(6)
+                # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
+                # self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
+                self._show_idle()
+                self.communicate(self._greeting_sentence, [self.COMM_TTS])
 
-                # Now comes the set up of all the session context we need for the Chatbot and the MCP tools
+                self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
+                self._show_init_phases(7)
+
+                # Set up of all the session context we need for the Chatbot and the MCP tools
                 async with self._chatbot.get_session_manager() as chatbot_session_manager:
-                    self._show_init_phases(7)
+                    self._show_init_phases(8)
 
                     # Initialise the Chatbot async context with all the tools from the session manager
                     await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
-                    self._show_init_phases(8)
+                    self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+                    self._show_init_phases(9)
 
                     question = ""
                     dictate_count = 0
                     answer_count = 0
                     while(not self._text_has_exit_intention(question)):
 
+                        # Show idle screen in eInk if not already showing it
+                        if not self.is_eink_in_idle_mode():
+                            self._show_idle()
+
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                         question = self._dictate.recognize()
                         if (question == None or question.strip() == ""):
+                            # Nothing recognized, nothing to process.
                             continue
-                        self._xlog.debug(">> Recognised dictate")
+
+                        # Still here? Then something got recognised.
+                        self._xlog.debug("💬 Recognised dictate")
                         self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
                         dictate_count += 1
 
                         # Mute microphone to avoid self-looping
                         self.mute_microphone()
 
-                        # Avoid calling the Chatbot when exiting
+                        # To keep track of the communication channels to ignore
+                        # Because the outcome of any chatbot's function call may be using them.
+                        comm_channels_to_ignore = []
+
+                        # Avoid calling the Chatbot when we can exit directly.
                         if self._text_has_exit_intention(question):
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
@@ -230,11 +261,14 @@ class Main:
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
                             try:
+                                dd(chat_response.function_call_history.get_names())
                                 if chat_response.function_call_history.get_last().has_response():
                                     self._xlog.debug("🗣️ Received function call response. Reacting.")
                                     # Shutdown and Reboot interrupt the flow and directly shutdown,
                                     # calling `close_nicely()` from there.
-                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                                    # Keep in mind that here we may have played with BUSY flags.
+                                    comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
+                                    # TODO: Feels like sometimes the flow does not come back here. Apparenty, the second time asking for the hour.
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             self.unset_chatbot_busy()
@@ -252,12 +286,21 @@ class Main:
 
                         # Answer
                         sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        self.communicate(answer, [self.COMM_TTS, self.COMM_DISPLAY])
+                        # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
+                        #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
+                        self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
                         self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                         answer_count += 1
 
                         # Unmute microphone to continue listening
                         self.unmute_microphone()
+                    
+                    # We arrived here because the user wanted to exit the main loop
+                    # Make sure we leave the state properly
+                    self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)   
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
@@ -289,18 +332,27 @@ class Main:
             self._show(text)
         
         # We want that the main thread waits until some of the actions finished in the subprocesses
-        self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
-        self._process_pool.wait_for_queue_to_empty(PROCESS_SPEAKER)
-        # Yeah, but still there is job to be done (speaking, for example)
-        self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-        self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+        # still there is job to be done (speaking, for example)
+        if self.COMM_DISPLAY in channels:
+            self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+            self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+        
+        if self.COMM_TTS in channels:
+            self._process_pool.wait_for_queue_to_empty(QUEUE_SPEAKER)
+            self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+            # Speaking often involves Matrix too (for the speaking effect)
+            self._process_pool.wait_for_queue_to_empty(QUEUE_MATRIX)
+            self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
     
-    def react_on_last_function_call(self, function_call_pair: FunctionCallPair) -> None:
+    def react_on_last_function_call(self, function_call_pair: FunctionCallPair) -> list[str]:
         """
         Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
 
         Args:
             function_call (FunctionCallPair): The last function call pair from the chatbot.
+        
+        Returns:
+            list[str]: List of communications channels that should be ignored in the communication() method.
         """
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
@@ -313,14 +365,25 @@ class Main:
 
         try:
 
+            communication_channels_to_ignore: list[str] = []
             if function_call_pair.has_response():
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
                 # Here we can parse the function response and act accordingly
                 # For example, if the function call is to get the current time, we can display it on an eInk screen
                 if function_call_pair.function_name == "get_current_time":
+                    
                     response_data = function_call_pair.function_response.response
                     current_time = response_data.get("result", "unknown")
-                    self._xlog.debug("🕒 Here we should show the time in the eInk: " + str(current_time))
+
+                    self._xlog.debug("🕒 Here we show the time in the eInk: " + str(current_time))
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+
+                    partial(self._chatbot_client_callbacks["get_current_time"], self, current_time)()
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+
+                    communication_channels_to_ignore.append(self.COMM_DISPLAY)
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
                     # The chatbot is in "Thinking" mode, we need to unset it
@@ -349,6 +412,10 @@ class Main:
                         call("sudo nohup reboot", shell=True)
                     except Exception as e:
                         self._xlog.error(f"Error during reboot: {e}")
+
+            # Finally we return the communication channels to ignore
+            # Because we're actually using them here.
+            return communication_channels_to_ignore
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
 
@@ -361,6 +428,10 @@ class Main:
 
         # Persist state
         self.persist_state()
+
+        # Stop eInk idle mode if active
+        self.unset_eink_idle_mode()
+        self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
 
         # Clean the displays
         self.clear_displays()
@@ -397,33 +468,64 @@ class Main:
     # ------- Communication with Queues ---------
     
     def _say(self, message: str):
-        self._process_pool.send(PROCESS_SPEAKER, XprocAction.SAY, message)
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.SAY, message)
+        self._process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+        self._process_pool.send(QUEUE_MATRIX, XprocAction.SAY, message)
     
     def _show(self, message: str):
-        self._process_pool.send(PROCESS_EINK, XprocAction.SHOW, message)
-        # self._process_pool.send(PROCESS_MATRIX, XprocAction.LED, message)
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW, message)
     
     def _startup_splash(self):
-        self._process_pool.send(PROCESS_EINK, XprocAction.STARTUP)
-        self._process_pool.wait_for_queue_to_empty(PROCESS_EINK)
+        self._process_pool.send(QUEUE_EINK, XprocAction.STARTUP)
     
     def _show_init_phases(self, step: int):
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.INIT_STEP, str(step))
+        self._process_pool.send(QUEUE_MATRIX, XprocAction.INIT_STEP, str(step))
     
     def _show_thinking(self):
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.THINKING)
-    
+        self._process_pool.send(QUEUE_MATRIX, XprocAction.THINKING)
+
+    def _show_idle(self):
+        self._xlog.debug("👀 Starting eInk idle mode from Main")
+        self.set_eink_idle_mode()
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IDLE_EINK)
+
     def _clear_display(self):
         # Now that we use partial refresh, the clear needs a previous white rectangle.
         # First a soft clear, so the screen is white
-        self._process_pool.send(PROCESS_EINK, XprocAction.SOFT_CLEAR)
+        self._process_pool.send(QUEUE_EINK, XprocAction.SOFT_CLEAR)
         # Full clear, to ensure a reset.
-        self._process_pool.send(PROCESS_EINK, XprocAction.CLEAR)
+        self._process_pool.send(QUEUE_EINK, XprocAction.CLEAR)
 
     def _clear_matrix(self):
-        self._process_pool.send(PROCESS_MATRIX, XprocAction.LED_CLEAR)
+        self._process_pool.send(QUEUE_MATRIX, XprocAction.LED_CLEAR)
+
+    # ------- Communication with Queues, by Command's Callbacks ---------
+
+    # def get_eInk_display(self) -> EinkDisplay:
+    #     display_process: Display = self._process_pool.get_process(QUEUE_EINK)
+    #     if display_process is not None:
+    #         return display_process.get_display_handler()
+    #     else:
+    #         self._xlog.error("eInk Display process is not available.")
+    #         return None
     
+    # # May not work! Check which class I'm getting here.
+    # def get_matrix_led(self) -> MatrixLed:
+    #     matrix_process = self._process_pool.get_process(QUEUE_MATRIX)
+    #     if matrix_process is not None:
+    #         return matrix_process.get_display_handler()
+    #     else:
+    #         self._xlog.error("Matrix LED process is not available.")
+    #         return None
+
+    def show_arbitrary_text_centered_on_eink(self, text: str):
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)
+
+    def show_image_on_eink(self, image: dict):
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IMAGE_EINK, image)
+
+    def show_image_on_led(self, image: dict):
+        self._process_pool.send(QUEUE_MATRIX, XprocAction.SHOW_IMAGE_LED, image)
+
     # ------- Communication with Flags ---------
     
     def mute_microphone(self):
@@ -441,3 +543,12 @@ class Main:
     def unset_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._xlog.debug("🤖 Unsetting Chatbot as busy.")
+    
+    def is_eink_in_idle_mode(self) -> bool:
+        return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_EINK_IDLE_MODE)
+    
+    def set_eink_idle_mode(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
+
+    def unset_eink_idle_mode(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)

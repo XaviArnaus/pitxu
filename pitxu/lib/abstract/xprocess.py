@@ -13,6 +13,8 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     _queue: JoinableQueue = None
     _shared_memory: SharedMemoryManager = None
 
+    _current_action: XprocAction = None
+
     def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
 
@@ -25,6 +27,18 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
+    
+    def remove_following_repetitions_from_queue(self):
+        current_queue_snapshot = list(self._queue.queue)
+        dd(f"Xprocess [{self._PROCESS_NAME}] - Current queue snapshot before removing repetitions: {current_queue_snapshot}")
+        for i in range(len(current_queue_snapshot)):
+            action, param = current_queue_snapshot[i]
+            if action == self.get_current_processing_action():
+                self._xlog.debug(f"Xprocess [{self._PROCESS_NAME}] - Removing repeated action [{action}] from queue at position {i}.")
+                del self._queue.queue[i]
+
+    def get_current_processing_action(self) -> XprocAction:
+        return self._current_action
 
     def run(self):
         '''
@@ -41,7 +55,10 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
                 action, param = queue_item
-                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + param + "]" if param is not None else "]"))
+                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + self.ensure_nice_string(param) + "]" if param is not None else "]"))
+
+                # Let's remember the current action
+                self._current_action = action
 
                 # This is the old way, to be deprecated
                 self.run_with_context(self._xconfig, self._xlog, action, param)
@@ -63,6 +80,10 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 
                 # Finally, we mark this task as done
                 try:
+                    # Removing the current action
+                    self._current_action = None
+
+                    # In the queue
                     self._queue.task_done()
                 except ValueError:
                     pass
@@ -70,6 +91,21 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
             self.finish()
+        except EOFError as e:
+            self._xlog.error("🛑 EOFError detected in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
+        except Exception as e:
+            self._xlog.error("🛑 Unexpected Error in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
+    
+    def ensure_nice_string(self, value: any) -> str:
+        try:
+            # Assuming that a string longer than 10 characters that can be converted to int in base 16 is a hexadecimal value
+            if type(value) == str and len(value) > 10:
+                int(value, 16)
+                return "<hexadecimal value>"
+        except (ValueError, TypeError):
+            pass
+        return value if type(value) == str else str(type(value))
+
 
     def _initialize_on_every_run(self):
         '''
