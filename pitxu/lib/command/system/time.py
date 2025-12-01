@@ -54,12 +54,12 @@ class SystemTime(PyXavi, Command):
             # display: EinkDisplay = main_instance.get_eInk_display()
             # canvas = display.create_canvas(reset_base_image=True)
 
+            # This works, but it feels too much work for something simple.
+            # Taking another route: predefining a generic drawing macro.
+
             # To workaround that, we create a new EinkDisplay instance here.
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-
-            # This works, but feels like that the second time it gets stuck, does not show, and messes up with idle.
-            # Commented out and using show_arbitrary_text_while_speaking from Display instead.
             # display: EinkDisplay = EinkDisplay(config=self._xconfig, params=self._xparams)
             # canvas = display.create_canvas(reset_base_image=True)
             # screen_size: Point = display.get_screen_size()
