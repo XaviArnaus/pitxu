@@ -22,6 +22,9 @@ class EinkDisplay:
     _working_image: Image.Image = None
     _screen_size: Point = None
 
+    # FONT_FILE: str = "Font.ttc"
+    FONT_FILE: str = "Font_with_emojis.ttc"
+
     FONT_SMALL: ImageFont = None
     FONT_MEDIUM: ImageFont = None
     FONT_BIG: ImageFont = None
@@ -227,29 +230,29 @@ class EinkDisplay:
             huge_size = self._xparams.get("display.fonts.huge")
         elif (self._xconfig.key_exists("display.fonts.huge")):
             huge_size = self._xconfig.get("display.fonts.huge")
-        self.FONT_HUGE = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), huge_size)
+        self.FONT_HUGE = ImageFont.truetype(os.path.join(self._pic_dir, self.FONT_FILE), huge_size)
 
         # Big size
         if (self._xparams.key_exists("display.fonts.big")):
             big_size = self._xparams.get("display.fonts.big")
         elif (self._xconfig.key_exists("display.fonts.big")):
             big_size = self._xconfig.get("display.fonts.big")
-        self.FONT_BIG = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), big_size)
+        self.FONT_BIG = ImageFont.truetype(os.path.join(self._pic_dir, self.FONT_FILE), big_size)
 
         # Medium size
         if (self._xparams.key_exists("display.fonts.medium")):
             medium_size = self._xparams.get("display.fonts.medium")
         elif (self._xconfig.key_exists("display.fonts.medium")):
             medium_size = self._xconfig.get("display.fonts.medium")
-        self.FONT_MEDIUM = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), medium_size)
+        self.FONT_MEDIUM = ImageFont.truetype(os.path.join(self._pic_dir, self.FONT_FILE), medium_size)
 
         # Small size
         if (self._xparams.key_exists("display.fonts.small")):
             small_size = self._xparams.get("display.fonts.small")
         elif (self._xconfig.key_exists("display.fonts.small")):
             small_size = self._xconfig.get("display.fonts.small")
-        self.FONT_SMALL = ImageFont.truetype(os.path.join(self._pic_dir, 'Font.ttc'), small_size)
-    
+        self.FONT_SMALL = ImageFont.truetype(os.path.join(self._pic_dir, self.FONT_FILE), small_size)
+
     def close(self):
         if self._epd is not None:
             self._epd.sleep()

@@ -370,20 +370,28 @@ class Main:
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
                 # Here we can parse the function response and act accordingly
                 # For example, if the function call is to get the current time, we can display it on an eInk screen
-                if function_call_pair.function_name == "get_current_time":
-                    
-                    response_data = function_call_pair.function_response.response
-                    current_time = response_data.get("result", "unknown")
+                if function_call_pair.function_name in self._chatbot_client_callbacks.keys():
+                    # Generic callback execution for other functions that have a defined callback
 
-                    self._xlog.debug("🕒 Here we show the time in the eInk: " + str(current_time))
+                    #TODO: It works but for weather it always says that the last call is get_current_time, why?
+                    # I think the weather fails to build in the callbback, and the pair.is_valid() then is false.
+
+                    value = function_call_pair.function_response.response.get("result", "unknown")
+                    self._xlog.debug("📺 Show the function response in the eInk: " + str(value))
                     self.unset_eink_idle_mode()
                     self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
                     self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
 
-                    partial(self._chatbot_client_callbacks["get_current_time"], self, current_time)()
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+                    # Here we call the callback from within the command, passing the context of `main` and the value
+                    # Whatever happens, it's done there inside.
+                    partial(
+                        self._chatbot_client_callbacks[function_call_pair.function_name],
+                        self,
+                        value
+                    )()
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
+
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
                     # The chatbot is in "Thinking" mode, we need to unset it
@@ -500,13 +508,8 @@ class Main:
 
     # ------- Communication with Queues, by Command's Callbacks ---------
 
-    # def get_eInk_display(self) -> EinkDisplay:
-    #     display_process: Display = self._process_pool.get_process(QUEUE_EINK)
-    #     if display_process is not None:
-    #         return display_process.get_display_handler()
-    #     else:
-    #         self._xlog.error("eInk Display process is not available.")
-    #         return None
+    def get_eInk_display(self) -> Display:
+        return self._process_pool.get_process(QUEUE_EINK)
     
     # # May not work! Check which class I'm getting here.
     # def get_matrix_led(self) -> MatrixLed:

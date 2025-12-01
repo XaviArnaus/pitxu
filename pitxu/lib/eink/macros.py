@@ -49,6 +49,9 @@ class Macros:
             self._xlog.info("Creating static image for eyes closed")
             display = EinkDisplay(config=self._xconfig, params=self._xparams)
             self._statics["eyes_closed"] = self._draw_eyes_closed(display)
+    
+    def get_display_size(self) -> Point:
+        return self._display_size
 
     def draw_text_bubble(self, display: EinkDisplay, text: str, font: ImageFont):
 

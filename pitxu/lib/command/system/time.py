@@ -4,9 +4,6 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkDisplay
-
-from pitxu.lib.objects.point import Point
 
 
 class SystemTime(PyXavi, Command):

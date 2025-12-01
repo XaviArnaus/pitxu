@@ -1,10 +1,12 @@
 from pyxavi import Config, Dictionary
+
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.command import Command
 
 from subprocess import check_output
 
 
-class SystemVolume(PyXavi):
+class SystemVolume(PyXavi, Command):
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
@@ -66,3 +68,45 @@ class SystemVolume(PyXavi):
             check_output(f"pactl set-sink-mute @DEFAULT_SINK@ {mute_str}", shell=True)
         except Exception as e:
             self._xlog.error(f"Error setting mute status: {e}")
+    
+    def callback_volume_level(self, main_instance, value) -> None:
+        """
+        Callback for `get_volume_level` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_volume_level`.
+
+        """
+        main_instance._xlog.info(f"The volume level in the callback is: {value}")
+
+        try:
+            # Add a percentage sign to the value
+            value = f"{value} %"
+
+            # New approach, using the existing display instance via main
+            main_instance._xlog.error(f"🔊 Showing volume level on eInk: [{value}]")
+            main_instance.show_arbitrary_text_centered_on_eink(value)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
+
+    def get_tool_definition(self) -> list[callable]:
+        """
+        Returns the methods of the class that will be used as tools by the chatbot.
+
+        It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
+        """
+        return [self.get_volume_level]
+
+    def get_callback_by_given_function_name(self, function_name: str) -> callable:
+        """
+        Gets the callback function for a given function name.
+
+        It expects the function_name because a class may provide multiple functions as tools.
+
+        Args:
+            function_name: The name of the function to get the callback for.
+        """
+        if function_name == "get_volume_level":
+            return self.callback_volume_level
+        return self.default_empty_callback
