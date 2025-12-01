@@ -266,6 +266,7 @@ https://alphacephei.com/vosk/models
 ## Google Gemini
 https://ai.google.dev/gemini-api/docs/migrate
 https://ai.google.dev/gemini-api/docs/rate-limits
+https://aistudio.google.com/usage?timeRange=last-28-days&project=gen-lang-client-0547047381&tab=rate-limit
 
 ### Commands 
 https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-function-for-function-calling
