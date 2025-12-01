@@ -128,7 +128,10 @@ class Display(Xprocess):
         # self.set_eink_idle_mode()
 
         # Before we start some time with partial reloads, do a full clear
-        self._display.clear()
+        # self._display.clear()
+
+        # Draw first the eyes archs
+        self._macros.initial_eyes(display=self._display)
 
         # It repeats until the speaker is busy
         should_stop_idle = False

@@ -161,11 +161,17 @@ class Macros:
                     align = "center")
         display.display(partial=True)
     
-    def eyes_open(self, display: EinkDisplay):
-        
+    def initial_eyes(self, display: EinkDisplay):
+
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
 
+        # Create a white rectangle with the sizes of the screen
+        canvas.rectangle(
+            Rectangle(Point(0, 0), Point(self._display_size.x, self._display_size.y)).to_image_rectangle(),
+            outline=display.COLOR_WHITE,
+            fill=display.COLOR_WHITE)
+        
         # Left eye arc
         canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
         canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
@@ -175,6 +181,18 @@ class Macros:
         canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
         canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
         canvas.line([(175, 114), (205, 114)], width=4)
+
+        # Now display the canvas
+        display.display()
+
+    
+    def eyes_open(self, display: EinkDisplay):
+        
+        # First create a canvas
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # Delete the previous eyes space
+        canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
 
         # Draw the black pupils
         canvas.ellipse((75, 75, 95, 105), fill=0)  # Left pupil
@@ -187,16 +205,9 @@ class Macros:
         
         # First create a canvas
         canvas = display.create_canvas(reset_base_image=True)
-    
-        # Left eye arc
-        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
-        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
-        canvas.line([(45, 114), (75, 114)], width=4)
 
-        # Right eye arc
-        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
-        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
-        canvas.line([(175, 114), (205, 114)], width=4)
+        # Delete the previous eyes space
+        canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
 
         # Draw the black pupils
         canvas.ellipse([(75, 95), (95, 95)], fill=0)  # Left pupil
