@@ -28,7 +28,7 @@ class Display(Xprocess):
     COLOR_WHITE: int = 1
 
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
-    IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.1
+    IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
     def get_process_name(self) -> str:
         return "Display"

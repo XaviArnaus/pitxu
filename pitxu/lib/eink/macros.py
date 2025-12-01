@@ -180,36 +180,13 @@ class Macros:
     def arbitrary_text_centered(self, display: EinkDisplay, text: str):
 
         canvas = display.create_canvas(reset_base_image=True)
-        screen_size: Point = display.get_screen_size()
-        canvas.text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
+        canvas.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
                     text = text,
                     font = display.FONT_HUGE,
                     fill = display.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
         display.display(partial=True)
-    
-    # def initial_eyes(self, display: EinkDisplay = None):
-    #     """
-    #     Draw the initial eyes on the display.
-
-    #     Consists of the eye arcs only.
-    #     It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
-    #     """
-
-    #     if display is None:
-    #         self._xlog.debug("👀 Displaying precomputed static image for initial eyes")
-
-    #         # Use the precomputed static image
-    #         self._statics["initial_eyes"].display(partial=False)
-    #     else:
-    #         self._xlog.debug("👀 Drawing initial eyes on given display")
-
-    #         # Draw the initial arcs (as partial=False) on the given display
-    #         display = self._draw_initial_eyes(display)
-
-    #         # Now show it into the display.
-    #         display.display(partial=False)
         
     
     def eyes_open(self, display: EinkDisplay = None):
@@ -255,36 +232,6 @@ class Macros:
 
             # Now display the canvas
             display.display(partial=True)
-
-    # def _draw_initial_eyes(self, display: EinkDisplay) -> EinkDisplay:
-    #     """
-    #     Creates the initial eyes on the given display.
-
-    #     Consists of the eye arcs only.
-    #     It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
-    #     """
-
-    #     # First create a canvas
-    #     canvas = display.create_canvas(reset_base_image=True)
-
-    #     # Create a white rectangle with the sizes of the screen
-    #     canvas.rectangle(
-    #         Rectangle(Point(0, 0), Point(self._display_size.x, self._display_size.y)).to_image_rectangle(),
-    #         outline=display.COLOR_WHITE,
-    #         fill=display.COLOR_WHITE)
-        
-    #     # Left eye arc
-    #     canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
-    #     canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
-    #     canvas.line([(45, 114), (75, 114)], width=4)
-
-    #     # Right eye arc
-    #     canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
-    #     canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
-    #     canvas.line([(175, 114), (205, 114)], width=4)
-
-    #     # We don't display the canvas, we return the display object for further use
-    #     return display
     
     def _draw_eyes_open(self, display: EinkDisplay):
         """
