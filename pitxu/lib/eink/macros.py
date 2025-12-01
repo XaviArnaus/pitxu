@@ -16,7 +16,7 @@ class Macros:
 
     _display_size: Point = None
     _statics: dict[str, EinkDisplay] = {
-        "initial_eyes": None,
+        # "initial_eyes": None,
         "eyes_open": None,
         "eyes_closed": None
     }
@@ -35,10 +35,10 @@ class Macros:
         It is meant to be called once at the initialization of the Display process,
         to have access to the singleton working image.
         '''
-        if self._statics["initial_eyes"] is None:
-            self._xlog.info("Creating static image for initial eyes")
-            display = EinkDisplay(config=self._xconfig, params=self._xparams)
-            self._statics["initial_eyes"] = self._draw_initial_eyes(display)
+        # if self._statics["initial_eyes"] is None:
+        #     self._xlog.info("Creating static image for initial eyes")
+        #     display = EinkDisplay(config=self._xconfig, params=self._xparams)
+        #     self._statics["initial_eyes"] = self._draw_initial_eyes(display)
 
         if self._statics["eyes_open"] is None:
             self._xlog.info("Creating static image for eyes open")
@@ -189,27 +189,27 @@ class Macros:
                     align = "center")
         display.display(partial=True)
     
-    def initial_eyes(self, display: EinkDisplay = None):
-        """
-        Draw the initial eyes on the display.
+    # def initial_eyes(self, display: EinkDisplay = None):
+    #     """
+    #     Draw the initial eyes on the display.
 
-        Consists of the eye arcs only.
-        It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
-        """
+    #     Consists of the eye arcs only.
+    #     It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
+    #     """
 
-        if display is None:
-            self._xlog.debug("👀 Displaying precomputed static image for initial eyes")
+    #     if display is None:
+    #         self._xlog.debug("👀 Displaying precomputed static image for initial eyes")
 
-            # Use the precomputed static image
-            self._statics["initial_eyes"].display(partial=False)
-        else:
-            self._xlog.debug("👀 Drawing initial eyes on given display")
+    #         # Use the precomputed static image
+    #         self._statics["initial_eyes"].display(partial=False)
+    #     else:
+    #         self._xlog.debug("👀 Drawing initial eyes on given display")
 
-            # Draw the initial arcs (as partial=False) on the given display
-            display = self._draw_initial_eyes(display)
+    #         # Draw the initial arcs (as partial=False) on the given display
+    #         display = self._draw_initial_eyes(display)
 
-            # Now show it into the display.
-            display.display(partial=False)
+    #         # Now show it into the display.
+    #         display.display(partial=False)
         
     
     def eyes_open(self, display: EinkDisplay = None):
@@ -256,35 +256,35 @@ class Macros:
             # Now display the canvas
             display.display(partial=True)
 
-    def _draw_initial_eyes(self, display: EinkDisplay) -> EinkDisplay:
-        """
-        Creates the initial eyes on the given display.
+    # def _draw_initial_eyes(self, display: EinkDisplay) -> EinkDisplay:
+    #     """
+    #     Creates the initial eyes on the given display.
 
-        Consists of the eye arcs only.
-        It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
-        """
+    #     Consists of the eye arcs only.
+    #     It is mandatory that it behaves as a reset, and that's why it can't be a partial update.
+    #     """
 
-        # First create a canvas
-        canvas = display.create_canvas(reset_base_image=True)
+    #     # First create a canvas
+    #     canvas = display.create_canvas(reset_base_image=True)
 
-        # Create a white rectangle with the sizes of the screen
-        canvas.rectangle(
-            Rectangle(Point(0, 0), Point(self._display_size.x, self._display_size.y)).to_image_rectangle(),
-            outline=display.COLOR_WHITE,
-            fill=display.COLOR_WHITE)
+    #     # Create a white rectangle with the sizes of the screen
+    #     canvas.rectangle(
+    #         Rectangle(Point(0, 0), Point(self._display_size.x, self._display_size.y)).to_image_rectangle(),
+    #         outline=display.COLOR_WHITE,
+    #         fill=display.COLOR_WHITE)
         
-        # Left eye arc
-        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
-        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
-        canvas.line([(45, 114), (75, 114)], width=4)
+    #     # Left eye arc
+    #     canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
+    #     canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
+    #     canvas.line([(45, 114), (75, 114)], width=4)
 
-        # Right eye arc
-        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
-        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
-        canvas.line([(175, 114), (205, 114)], width=4)
+    #     # Right eye arc
+    #     canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
+    #     canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
+    #     canvas.line([(175, 114), (205, 114)], width=4)
 
-        # We don't display the canvas, we return the display object for further use
-        return display
+    #     # We don't display the canvas, we return the display object for further use
+    #     return display
     
     def _draw_eyes_open(self, display: EinkDisplay):
         """
@@ -298,8 +298,15 @@ class Macros:
         #canvas = display.create_canvas(reset_base_image=True)
         canvas = display.create_canvas(reset_base_image=False)
 
-        # Delete the previous eyes space
-        canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
+        # Left eye arc
+        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
+        canvas.line([(45, 114), (75, 114)], width=4)
+
+        # Right eye arc
+        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
+        canvas.line([(175, 114), (205, 114)], width=4)
 
         # Draw the black pupils
         canvas.ellipse((75, 75, 95, 105), fill=0)  # Left pupil
@@ -320,8 +327,15 @@ class Macros:
         # canvas = display.create_canvas(reset_base_image=True)
         canvas = display.create_canvas(reset_base_image=False)
 
-        # Delete the previous eyes space
-        canvas.rectangle([(50, 50), (200, 120)], outline=display.COLOR_WHITE, fill=display.COLOR_WHITE)
+        # Left eye arc
+        canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(30, 20), (59, 115)], start=80, end=200, fill=0, width=4)
+        canvas.line([(45, 114), (75, 114)], width=4)
+
+        # Right eye arc
+        canvas.arc([(150, 20), (220, 90)], start=180, end=0, fill=0, width=4)
+        canvas.arc([(192, 20), (221, 115)], start=340, end=100, fill=0, width=4)
+        canvas.line([(175, 114), (205, 114)], width=4)
 
         # Draw the black pupils
         canvas.ellipse([(75, 95), (95, 95)], fill=0)  # Left pupil

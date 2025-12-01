@@ -136,7 +136,8 @@ class Display(Xprocess):
 
         # Draw first the eyes archs
         # self._macros.initial_eyes(display=self._display)
-        self._macros.initial_eyes()
+        # self._macros.initial_eyes()
+        self._macros.soft_clear(display=self._display)
 
         # It repeats until the speaker is busy
         should_stop_idle = False
