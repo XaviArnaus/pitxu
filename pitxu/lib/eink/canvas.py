@@ -69,11 +69,7 @@ class EinkCanvas(PyXavi):
         If does not exists, creates it.
         """
         if self._working_image is None:
-            # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
-            if (self._is_gpio_allowed()):
-                self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
-            else:
-                self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
+            self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
         return self._working_image
     
     def _reset_image(self):
