@@ -39,7 +39,10 @@ class EinkCanvas(PyXavi):
         if screen_size is not None:
             self._screen_size = screen_size
         else:
-            self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+            if self._is_gpio_allowed():
+                self._screen_size = Point(self._xconfig.get("display.size.y"), self._xconfig.get("display.size.x"))
+            else:
+                self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
         # Initialise fonts
         self._initialise_fonts()
@@ -72,8 +75,8 @@ class EinkCanvas(PyXavi):
             #     self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
             # else:
             #     self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
-            if (self._is_gpio_allowed()):
-                self._working_image = self._working_image.rotate(90, expand=True)
+            # if (self._is_gpio_allowed()):
+            #     self._working_image = self._working_image.rotate(90, expand=True)
         return self._working_image
     
     def _reset_image(self):
