@@ -391,6 +391,17 @@ class Main:
                     )()
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
+                
+                elif function_call_pair.function_name == "error":
+                    self._xlog.debug("🚨  Showing the ERROR in the eInk")
+
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+
+                    self.show_arbitrary_text_centered_on_eink(function_call_pair.function_response.response.get("result", "unknown"))
+
+                    communication_channels_to_ignore.append(self.COMM_DISPLAY)
 
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
@@ -531,10 +542,10 @@ class Main:
     def show_arbitrary_text_centered_on_eink(self, text: str):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)
 
-    def show_image_on_eink(self, image: dict):
+    def show_image_on_eink(self, image: str):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IMAGE_EINK, image)
 
-    def show_image_on_led(self, image: dict):
+    def show_image_on_led(self, image: str):
         self._process_pool.send(QUEUE_MATRIX, XprocAction.SHOW_IMAGE_LED, image)
 
     # ------- Communication with Flags ---------

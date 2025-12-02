@@ -8,11 +8,11 @@ from pyxavi import Logger, Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from pitxu.lib.objects import FunctionCallHistory, ChatbotResponse
+from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import logging, time, anyio
+import logging, time, anyio, math
 import fastmcp
 
 class GeminiChatbot(PyXavi):
@@ -36,6 +36,8 @@ class GeminiChatbot(PyXavi):
 
     # MODEL = 'gemini-2.0-flash'
     MODEL = 'gemini-2.5-flash'
+
+    ERROR_QUOTA_EXCEEDED = 429
 
     _client = None
     _chat: AsyncChat = None
@@ -119,17 +121,56 @@ class GeminiChatbot(PyXavi):
                         # We interrupt any retry loop returning directly here
                         return outcome
                     except APIError as e:
-                        self._xlog.error("🛑 API error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
-                        outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(e.message))
+                        # Rework this: The APIError is the parent class of ClientError and ServerError
+                        # For Quota Exceeded we actually receive a ClientError
+                        # It is captured here because it is the parent class
+                        self._xlog.error("🛑 API error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message)) 
+                        message = e.message.split(',')[0] if ',' in e.message else e.message
+                        message_short = message
+                        retries += 1
+                        if e.code == self.ERROR_QUOTA_EXCEEDED:
+                            if e.details:
+                                seconds = str(math.ceil(float(e.details["retryDelay"]))) if "retryDelay" in e.details else None
+                                violations = ""
+                                if 'violations' in e.details:
+                                    quota_metric = str(e.details['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in e.details['violations'] else "metric?"
+                                    quota_value = str(e.details['violations']['quotaValue']) if 'quotaValue' in e.details['violations'] else "value?"
+                                    violations = f"\n{quota_metric}: {quota_value}"
+                                status = str(e.details['status']) if 'status' in e.details else ""
+                                message_short = f"{status}{violations}\nRetry after {seconds if seconds is not None else 'some'} seconds."
+                                outcome = ChatbotResponse(text=self._xconfig.get("language.quota_exceeded_error." + self._xparams.get("language")) % (seconds if seconds is not None else "some"))
+                                # Having details makes us able to draw an error into the eInk.
+                                outcome.function_call_history.add_pair(
+                                    FunctionCallPair(
+                                        function_call=FunctionCall(
+                                            name="error",
+                                            arguments={"code": e.code, "message": message}),
+                                        function_response=FunctionResponse(
+                                            name="error",
+                                            response={"result": message_short})))
+                            else:
+                                outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
+                            # In case of a quota exceeded, we don't need to retry now.
+                            # We answer and let the user decide when to retry.
+                            retries = max_retries
+                        else:
+                            outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
-                        # Make him remember that he couldn't answer
+                        # Make him remember that he couldn't answer, even it was out fault (quota?)
                         self._chat.record_history(
-                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            user_input=types.Content(role="user", parts = [types.Part(
+                                text=question,
+                                function_call=types.FunctionCall(
+                                    name="error",
+                                    args={"code": e.code, "message": message}))]),
+                            model_output=types.Content(role="model", parts = [types.Part(
+                                text=outcome.text,
+                                function_response=types.FunctionResponse(
+                                    name="error",
+                                    response={"result": message_short}))]),
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
-                        retries += 1
                     except ServerError as e:
                         self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                         outcome = ChatbotResponse(text=self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message))

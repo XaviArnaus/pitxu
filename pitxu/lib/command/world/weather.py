@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary, dd, full_stack
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -123,19 +123,26 @@ class WorldWeather(PyXavi, Command):
 
             # Create a summary string
             # Format: "☀️ 🌡️ 25°C,💧 60%, 🌬️ 15km/h"
-            weather_summary = f"{weather_emoji} {temperature}°C\n💧 {humidity}% | 🌬️ {wind_speed}km/h"
+            weather_header = f"{weather_emoji} {temperature}°C"
+            weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
-            main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_summary}")
+            main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
             # main_instance.show_arbitrary_text_centered_on_eink(weather_summary)
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
             display: EinkDisplay = EinkDisplay(config=self._xconfig, params=self._xparams)
             canvas = display.create_canvas(reset_base_image=True)
-            screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+            screen_size = display.get_screen_size()
             # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
-            canvas.text(Point(screen_size.y / 2, screen_size.x / 2).to_image_point(),
-                        text = value,
-                        font = display.FONT_BIG,
+            canvas.text(Point(screen_size.x / 2, screen_size.y / 3).to_image_point(),
+                        text = weather_header,
+                        font = display.FONT_HUGE,
+                        fill = display.COLOR_BLACK,
+                        anchor = "mm",
+                        align = "center")
+            canvas.text(Point(screen_size.x / 2, (screen_size.y / 4 * 3)).to_image_point(),
+                        text = weather_other,
+                        font = display.FONT_MEDIUM,
                         fill = display.COLOR_BLACK,
                         anchor = "mm",
                         align = "center")
@@ -145,6 +152,7 @@ class WorldWeather(PyXavi, Command):
             main_instance.show_image_on_eink(image.tobytes().hex())
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
+            main_instance._xlog.error(full_stack())
 
     def callback_weather_forecast_for_next_days(self, main_instance, value) -> None:
         """

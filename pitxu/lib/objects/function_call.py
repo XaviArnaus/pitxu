@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pyxavi import dd
 from google.genai.chats import GenerateContentResponse
 
 class FunctionCallHistory:
@@ -77,6 +78,7 @@ class FunctionCallHistory:
         """
         if self.history and len(self.history) > 0:
             for pair in reversed(self.history):
+                dd(pair)
                 if pair.is_valid():
                     return pair
         
@@ -91,6 +93,15 @@ class FunctionCallHistory:
             A list of function call names.
         """
         return [pair.function_name for pair in self.history if pair.function_name is not None]
+    
+    def add_pair(self, pair: FunctionCallPair):
+        """
+        Adds a FunctionCallPair to the history.
+
+        Args:
+            pair: The FunctionCallPair to add.
+        """
+        self.history.append(pair)
 
 class FunctionCallPair:
     """
