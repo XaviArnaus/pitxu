@@ -373,9 +373,6 @@ class Main:
                 if function_call_pair.function_name in self._chatbot_client_callbacks.keys():
                     # Generic callback execution for other functions that have a defined callback
 
-                    #TODO: It works but for weather it always says that the last call is get_current_time, why?
-                    # I think the weather fails to build in the callbback, and the pair.is_valid() then is false.
-
                     value = function_call_pair.function_response.response.get("result", "unknown")
                     self._xlog.debug("📺 Show the function response in the eInk: " + str(value))
                     self.unset_eink_idle_mode()
