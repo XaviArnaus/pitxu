@@ -3,7 +3,7 @@ from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkDisplay
+from pitxu.lib.eink import EinkCanvas
 from pitxu.lib.objects.point import Point
 
 from datetime import datetime
@@ -129,24 +129,24 @@ class WorldWeather(PyXavi, Command):
             main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-            display = EinkDisplay(config=self._xconfig, params=self._xparams)
-            canvas = display.create_canvas(reset_base_image=True)
-            screen_size = display.get_screen_size()
+            canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
+            screen_size = canvas_handler.get_screen_size()
+            canvas = canvas_handler.create_canvas(reset_base_image=True)
             canvas.text(Point(screen_size.x / 2, screen_size.y / 3).to_image_point(),
                         text = weather_header,
-                        font = display.FONT_HUGE,
-                        fill = display.COLOR_BLACK,
+                        font = canvas_handler.FONT_HUGE,
+                        fill = canvas_handler.COLOR_BLACK,
                         anchor = "mm",
                         align = "center")
             canvas.text(Point(screen_size.x / 2, (screen_size.y / 4 * 3)).to_image_point(),
                         text = weather_other,
-                        font = display.FONT_MEDIUM,
-                        fill = display.COLOR_BLACK,
+                        font = canvas_handler.FONT_MEDIUM,
+                        fill = canvas_handler.COLOR_BLACK,
                         anchor = "mm",
                         align = "center")
 
             # Show the time in the eInk display
-            image = display.get_image()
+            image = canvas_handler.get_image()
             main_instance.show_image_on_eink(image.tobytes().hex())
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing weather forecast for today on eInk: {e}")

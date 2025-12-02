@@ -1,9 +1,10 @@
 from pyxavi import Config, Dictionary, full_stack
+from pitxu.lib.eink.eink import EinkDisplay
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkDisplay, Macros
+from pitxu.lib.eink import EinkCanvas, Macros
 from pitxu.lib.objects import Point, Rectangle
 
 class WorldWikipedia(PyXavi, Command):
@@ -56,24 +57,24 @@ class WorldWikipedia(PyXavi, Command):
 
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-            display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
+            screen_size = canvas_handler.get_screen_size()
+            canvas = canvas_handler.create_canvas(reset_base_image=True)
             macros = Macros(config=self._xconfig, params=self._xparams)
-            canvas = display.create_canvas(reset_base_image=True)
-            screen_size = display.get_screen_size()
             padding = 5
-            font = display.FONT_BIG
+            font = canvas_handler.FONT_BIG
             textbox_boundaries = Rectangle(Point(padding, padding), Point(screen_size.x - padding - 2, screen_size.y - padding))
             value = macros.break_line_in_text_if_needed(canvas, value, textbox_boundaries, font)
             canvas.multiline_text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
                         text = value,
                         font = font,
-                        fill = display.COLOR_BLACK,
+                        fill = canvas_handler.COLOR_BLACK,
                         anchor = "mm",
                         align = "center")
 
             # Show the time in the eInk display
             main_instance._xlog.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
-            image = display.get_image()
+            image = canvas_handler.get_image()
             main_instance.show_image_on_eink(image.tobytes().hex())
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")

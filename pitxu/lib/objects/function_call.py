@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pyxavi import dd
+from pyxavi import dd, full_stack
 from google.genai.chats import GenerateContentResponse
 
 class FunctionCallHistory:
@@ -28,12 +28,11 @@ class FunctionCallHistory:
         # at least backwards until the first function call of the chain.
 
         function_call_pairs: list[FunctionCallPair] = []
-
+        dd(response.automatic_function_calling_history)
         try:
             # temporary storage for pairing function call and response
             temporary_pair = FunctionCallPair.from_empty()
             for i in range(len(response.automatic_function_calling_history)):
-
                 content = response.automatic_function_calling_history[i]
                 # Having a `parts` as list means that we can have more than one part, even never seen more than 1.
                 # This implies that in the future we may have issues if we extend functionality.
@@ -43,6 +42,9 @@ class FunctionCallHistory:
                 if content.role == "model" \
                     and part is not None \
                     and part.function_call:
+
+                    if temporary_pair.has_call():
+                        print("⚠️ Detected a new function call before having a response for the previous one. Discarding the previous incomplete pair.")
 
                     temporary_pair.set_call(FunctionCall(
                             name=part.function_call.name,
@@ -54,18 +56,25 @@ class FunctionCallHistory:
                     and part.function_response \
                     and temporary_pair is not None:
 
+                    if not temporary_pair.has_call():
+                        print("⚠️ Detected a function response without a previous function call. Discarding the response.")
+                        temporary_pair = FunctionCallPair.from_empty()
+                        continue
+
                     temporary_pair.set_response(FunctionResponse(
                         name=part.function_response.name,
                         response=part.function_response.response))
                     
                     # Assuming that all pairs start with "model" and end with "user"
                     # Once we have registered a response, we can store the pair and reset it
+                    dd(temporary_pair)
                     function_call_pairs.append(temporary_pair)
                     temporary_pair = FunctionCallPair.from_empty()
 
         except Exception as e:
             # In case of any error, return an empty history
             print("Error parsing function call history: " + str(e))
+            print(full_stack())
 
         return FunctionCallHistory(history=function_call_pairs)
 

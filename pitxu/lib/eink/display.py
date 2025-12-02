@@ -33,7 +33,7 @@ class Display(Xprocess):
     def get_process_name(self) -> str:
         return "Display"
 
-    def get_display_handler(self) -> EinkDisplay:
+    def get_display_handler(self) -> EinkDisplay | None:
         if self._display is not None:
             return self._display
         return None

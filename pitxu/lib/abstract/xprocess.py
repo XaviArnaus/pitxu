@@ -1,4 +1,4 @@
-from pyxavi import Dictionary, Config, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
@@ -28,14 +28,14 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     def get_queue(self) -> JoinableQueue:
         return self._queue
     
-    def remove_following_repetitions_from_queue(self):
-        current_queue_snapshot = list(self._queue.queue)
-        dd(f"Xprocess [{self._PROCESS_NAME}] - Current queue snapshot before removing repetitions: {current_queue_snapshot}")
-        for i in range(len(current_queue_snapshot)):
-            action, param = current_queue_snapshot[i]
-            if action == self.get_current_processing_action():
-                self._xlog.debug(f"Xprocess [{self._PROCESS_NAME}] - Removing repeated action [{action}] from queue at position {i}.")
-                del self._queue.queue[i]
+    # def remove_following_repetitions_from_queue(self):
+    #     current_queue_snapshot = list(self._queue.queue)
+    #     dd(f"Xprocess [{self._PROCESS_NAME}] - Current queue snapshot before removing repetitions: {current_queue_snapshot}")
+    #     for i in range(len(current_queue_snapshot)):
+    #         action, param = current_queue_snapshot[i]
+    #         if action == self.get_current_processing_action():
+    #             self._xlog.debug(f"Xprocess [{self._PROCESS_NAME}] - Removing repeated action [{action}] from queue at position {i}.")
+    #             del self._queue.queue[i]
 
     def get_current_processing_action(self) -> XprocAction:
         return self._current_action
@@ -95,6 +95,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.error("🛑 EOFError detected in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
         except Exception as e:
             self._xlog.error("🛑 Unexpected Error in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
+            self._xlog.error(full_stack())
     
     def ensure_nice_string(self, value: any) -> str:
         try:

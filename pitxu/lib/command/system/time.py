@@ -57,7 +57,7 @@ class SystemTime(PyXavi, Command):
             # To workaround that, we create a new EinkDisplay instance here.
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-            # display: EinkDisplay = EinkDisplay(config=self._xconfig, params=self._xparams)
+            # display = main_instance.get_eInk_display().get_display_handler() # type: EinkDisplay
             # canvas = display.create_canvas(reset_base_image=True)
             # screen_size: Point = display.get_screen_size()
             # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.

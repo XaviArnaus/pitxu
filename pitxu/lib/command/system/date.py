@@ -4,7 +4,7 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkDisplay
+from pitxu.lib.eink import EinkCanvas
 from pitxu.lib.objects import Point
 
 from datetime import datetime
@@ -57,20 +57,19 @@ class SystemDate(PyXavi, Command):
 
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-            display = EinkDisplay(config=self._xconfig, params=self._xparams)
-            canvas = display.create_canvas(reset_base_image=True)
-            screen_size = display.get_screen_size()
-            font = display.FONT_BIG
+            canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
+            screen_size = canvas_handler.get_screen_size()
+            canvas = canvas_handler.create_canvas(reset_base_image=True)
             canvas.text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
                         text = f"📆 {value}",
-                        font = font,
-                        fill = display.COLOR_BLACK,
+                        font = canvas_handler.FONT_BIG,
+                        fill = canvas_handler.COLOR_BLACK,
                         anchor = "mm",
                         align = "center")
 
             # Show the time in the eInk display
             main_instance._xlog.error(f"📆 Showing date on eInk: {value}")
-            image = display.get_image()
+            image = canvas_handler.get_image()
             main_instance.show_image_on_eink(image.tobytes().hex())
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing date on eInk: {e}")
