@@ -350,6 +350,8 @@ Further updates do not need to repeat point 3, but if the filename changes.
 
 ### Clear the displays on every shutdown and reboot
 
+https://askubuntu.com/a/416330
+
 See [The `k99_cleanup_pitxu` file in the /bin folder](./bin/k99_cleanup_pitxu)
 
 1. Ensure that this file has `755` permissions
@@ -363,6 +365,31 @@ sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
 ```
 cd /etc/rc6.d/
 sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
+### Make Debian `journalctl` to store persistent
+
+⚠️ didn't work.
+
+https://unix.stackexchange.com/a/414301
+
+By default Debian's journal saves no files to disk. We need to change that so that we can see what happens during shutdown (if we want)
+
+1. Edit `/etc/systemd/journald.conf`
+2. Change the configuration so that the following parameters are uncommented and with the following values:
+```
+Storage=persistent      # This will persist the logs, even after reboot.
+MaxRetentionSec=1week   # This will rotate the logs, cleaning them after a week
+```
+
+3. Add your user to the journal group
+```
+sudo usermod -a -G systemd-journal xavier
+```
+
+4. Restart the journal servie
+```
+systemctl restart systemd-journald
 ```
 
 
