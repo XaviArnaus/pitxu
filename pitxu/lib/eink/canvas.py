@@ -72,6 +72,8 @@ class EinkCanvas(PyXavi):
             #     self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
             # else:
             #     self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
+            if (self._is_gpio_allowed()):
+                self._working_image = self._working_image.rotate(90, expand=True)
         return self._working_image
     
     def _reset_image(self):
