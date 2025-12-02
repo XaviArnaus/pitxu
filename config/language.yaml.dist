@@ -33,6 +33,11 @@ language:
     es: "Lo siento, el servidor ha devuelto un error de API."
     en-us: "I'm sorry, the server returned an API error."
     de: "Es tut mir leid, der Server hat einen API-Fehler zurückgegeben."
+  quota_exceeded_error:
+    ca: "Ho sento, la quota s'ha excedit. Espera %s segons abans de tornar-ho a provar."
+    es: "Lo siento, la cuota se ha excedido. Espera %s segundos antes de volver a intentarlo."
+    en-us: "I'm sorry, the quota has been exceeded. Wait %s seconds before retrying."
+    de: "Es tut mir leid, das Kontingent wurde überschritten. Warten Sie %s Sekunden, bevor Sie es erneut versuchen."
   client_error:
     ca: "Ho sento, sembla que hi ha un error de client."
     es: "Lo siento, parece que hay un error de cliente."
