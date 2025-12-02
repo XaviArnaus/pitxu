@@ -35,14 +35,11 @@ class EinkCanvas(PyXavi):
     def __init__(self, config: Config = None, params: Dictionary = None, screen_size: Point = None):
         super(EinkCanvas, self).init_pyxavi(config=config, params=params)
 
+        # Set the screen size given.
         if screen_size is not None:
             self._screen_size = screen_size
         else:
-            # Set the screen size given.
-            if self._is_gpio_allowed():
-                self._screen_size = Point(self._xconfig.get("display.size.y"), self._xconfig.get("display.size.x"))
-            else:
-                self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+            self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
         # Initialise fonts
         self._initialise_fonts()
@@ -69,7 +66,11 @@ class EinkCanvas(PyXavi):
         If does not exists, creates it.
         """
         if self._working_image is None:
-            self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
+            # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
+            if (self._is_gpio_allowed()):
+                self._working_image = Image.new('1', (self._screen_size.y, self._screen_size.x), 255 if clear_background else 0)
+            else:
+                self._working_image = Image.new('1', (self._screen_size.x, self._screen_size.y), 255 if clear_background else 0)
         return self._working_image
     
     def _reset_image(self):
