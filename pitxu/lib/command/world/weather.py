@@ -98,7 +98,7 @@ class WorldWeather(PyXavi, Command):
             self._xlog.error(f"🛑 Error getting weather forecast for next {days} days at location: {latitude}, {longitude}: {e}")
             return self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
     
-    def callback_weather_forecast_for_today(self, main_instance, value: dict) -> None:
+    def callback_weather_forecast_for_today(self, main_instance, value: dict, args: dict = None) -> None:
         """
         Callback for `get_weather_forecast_for_today` that gets called AFTER chatbot from `main`.
 
@@ -127,13 +127,11 @@ class WorldWeather(PyXavi, Command):
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
             main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
-            # main_instance.show_arbitrary_text_centered_on_eink(weather_summary)
             # Be careful. We use some shortcuts to create a canvas,
             # but we should NOT use the Display class directly from here.
-            display: EinkDisplay = EinkDisplay(config=self._xconfig, params=self._xparams)
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
             canvas = display.create_canvas(reset_base_image=True)
             screen_size = display.get_screen_size()
-            # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
             canvas.text(Point(screen_size.x / 2, screen_size.y / 3).to_image_point(),
                         text = weather_header,
                         font = display.FONT_HUGE,

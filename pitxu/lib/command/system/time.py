@@ -26,7 +26,7 @@ class SystemTime(PyXavi, Command):
             self._xlog.error(f"Error getting current time: {e}")
             return "Error"
 
-    def callback_show_time(self, main_instance, value) -> None:
+    def callback_show_time(self, main_instance, value: any, args: dict = None) -> None:
         """
         Callback for `get_current_time` that gets called AFTER chatbot from `main`.
         
@@ -74,7 +74,7 @@ class SystemTime(PyXavi, Command):
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🕒 Showing time on eInk: {value}")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
+            main_instance.show_arbitrary_text_centered_on_eink(f"🕒 {value}")
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing time on eInk: {e}")
 

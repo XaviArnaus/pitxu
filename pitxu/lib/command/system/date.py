@@ -4,6 +4,8 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.eink import EinkDisplay
+from pitxu.lib.objects import Point
 
 from datetime import datetime
 
@@ -29,7 +31,7 @@ class SystemDate(PyXavi, Command):
             self._xlog.error(f"Error getting current date: {e}")
             return "Error"
     
-    def callback_show_date(self, main_instance, value) -> None:
+    def callback_show_date(self, main_instance, value: any, args: dict = None) -> None:
         """
         Callback for `get_current_date_without_time` that gets called AFTER chatbot from `main`.
 
@@ -53,9 +55,23 @@ class SystemDate(PyXavi, Command):
             date_obj = datetime.strptime(value, self.format)
             value = date_obj.strftime(self.displayed_format)
 
-            # New approach, using the existing display instance via main
+            # Be careful. We use some shortcuts to create a canvas,
+            # but we should NOT use the Display class directly from here.
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            canvas = display.create_canvas(reset_base_image=True)
+            screen_size = display.get_screen_size()
+            font = display.FONT_BIG
+            canvas.text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
+                        text = f"📆 {value}",
+                        font = font,
+                        fill = display.COLOR_BLACK,
+                        anchor = "mm",
+                        align = "center")
+
+            # Show the time in the eInk display
             main_instance._xlog.error(f"📆 Showing date on eInk: {value}")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
+            image = display.get_image()
+            main_instance.show_image_on_eink(image.tobytes().hex())
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing date on eInk: {e}")
 

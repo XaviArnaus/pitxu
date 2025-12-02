@@ -49,7 +49,7 @@ class SystemPowerManagement(PyXavi, Command):
         # We fake this command, so that the `main` can handle the actual reboot
         return True
     
-    def callback_battery_level(self, main_instance, value) -> None:
+    def callback_battery_level(self, main_instance, value: any, args: dict = None) -> None:
         """
         Callback for `get_battery_level` that gets called AFTER chatbot from `main`.
 
@@ -61,8 +61,11 @@ class SystemPowerManagement(PyXavi, Command):
         main_instance._xlog.info(f"The battery level in the callback is: {value}")
 
         try:
-            # Add a percentage sign to the value
-            value = f"{value} %"
+            # Add an emoji and a percentage sign to the value
+            if float(value) < 30.0:
+                value = f"🪫 {value} %"
+            else:
+                value = f"🔋 {value} %"
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔋 Showing battery level on eInk: {value}")

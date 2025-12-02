@@ -78,7 +78,6 @@ class FunctionCallHistory:
         """
         if self.history and len(self.history) > 0:
             for pair in reversed(self.history):
-                dd(pair)
                 if pair.is_valid():
                     return pair
         

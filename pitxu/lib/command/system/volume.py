@@ -69,7 +69,7 @@ class SystemVolume(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"Error setting mute status: {e}")
     
-    def callback_volume_level(self, main_instance, value) -> None:
+    def callback_volume_level(self, main_instance, value: any, args: dict = None) -> None:
         """
         Callback for `get_volume_level` that gets called AFTER chatbot from `main`.
 
@@ -81,8 +81,8 @@ class SystemVolume(PyXavi, Command):
         main_instance._xlog.info(f"The volume level in the callback is: {value}")
 
         try:
-            # Add a percentage sign to the value
-            value = f"{value} %"
+            # Add an emoji and a percentage sign to the value
+            value = f"🔊 {value} %"
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔊 Showing volume level on eInk: [{value}]")

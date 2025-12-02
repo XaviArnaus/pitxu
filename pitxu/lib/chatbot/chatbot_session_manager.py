@@ -38,6 +38,7 @@ class ChatbotSessionManager(PyXavi):
         self.clients = {
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),
+            "world_wikipedia": WorldWikipedia(config=self._xconfig, params=self._xparams),
             "world_position": WorldPosition(config=self._xconfig, params=self._xparams),
             "world_weather": WorldWeather(config=self._xconfig, params=self._xparams),
             "system_time": SystemTime(config=self._xconfig, params=self._xparams),
@@ -81,7 +82,7 @@ class ChatbotSessionManager(PyXavi):
                 self.clients["world_position"].get_latitude_and_longitude_from_address, 
                 self.clients["world_weather"].get_weather_forecast_for_today,
                 self.clients["world_weather"].get_weather_forecast_for_next_days,
-                WorldWikipedia.get_summary_from_wikipedia_by_term,
+                self.clients["world_wikipedia"].get_summary_from_wikipedia_by_term,
             ]
         
         if self.ENABLE_TRIVAGO_MCP:

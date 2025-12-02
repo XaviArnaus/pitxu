@@ -261,7 +261,7 @@ class Main:
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
                             try:
-                                dd(chat_response.function_call_history.get_names())
+                                self._xlog.debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
                                 if chat_response.function_call_history.get_last().has_response():
                                     self._xlog.debug("🗣️ Received function call response. Reacting.")
                                     # Shutdown and Reboot interrupt the flow and directly shutdown,
@@ -374,6 +374,7 @@ class Main:
                     # Generic callback execution for other functions that have a defined callback
 
                     value = function_call_pair.function_response.response.get("result", "unknown")
+                    args = function_call_pair.function_call.arguments
                     self._xlog.debug("📺 Show the function response in the eInk: " + str(value))
                     self.unset_eink_idle_mode()
                     self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
@@ -384,7 +385,8 @@ class Main:
                     partial(
                         self._chatbot_client_callbacks[function_call_pair.function_name],
                         self,
-                        value
+                        value,
+                        args
                     )()
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
