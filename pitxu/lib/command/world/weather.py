@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, dd, full_stack
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -92,7 +92,6 @@ class WorldWeather(PyXavi, Command):
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(days))
             response = ApiRequest.do(url)
-            dd(response)
             return response
         except Exception as e:
             self._xlog.error(f"🛑 Error getting weather forecast for next {days} days at location: {latitude}, {longitude}: {e}")

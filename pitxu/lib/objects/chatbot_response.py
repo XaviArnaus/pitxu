@@ -30,7 +30,6 @@ class ChatbotResponse:
     
     def add_pair_to_function_call_history(self, pair: FunctionCallPair):
         self.function_call_history.add_pair(pair)
-        dd(self.function_call_history.history)
     
     @staticmethod
     def from_response(response: GenerateContentResponse) -> ChatbotResponse: 

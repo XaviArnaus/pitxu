@@ -9,6 +9,8 @@ class FunctionCallHistory:
     """
     history: list[FunctionCallPair]
 
+    DEBUG = False
+
     def __init__(self, history: list[FunctionCallPair] = None):
         if history is not None and isinstance(history, list):
             self.history = history
@@ -28,7 +30,8 @@ class FunctionCallHistory:
         # at least backwards until the first function call of the chain.
 
         function_call_pairs: list[FunctionCallPair] = []
-        dd(response.automatic_function_calling_history)
+        if FunctionCallHistory.DEBUG:
+            dd(response.automatic_function_calling_history)
         try:
             # temporary storage for pairing function call and response
             temporary_pair = FunctionCallPair.from_empty()
@@ -67,7 +70,8 @@ class FunctionCallHistory:
                     
                     # Assuming that all pairs start with "model" and end with "user"
                     # Once we have registered a response, we can store the pair and reset it
-                    dd(temporary_pair)
+                    if FunctionCallHistory.DEBUG:
+                        dd(temporary_pair)
                     function_call_pairs.append(temporary_pair)
                     temporary_pair = FunctionCallPair.from_empty()
 

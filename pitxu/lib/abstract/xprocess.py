@@ -27,15 +27,6 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
-    
-    # def remove_following_repetitions_from_queue(self):
-    #     current_queue_snapshot = list(self._queue.queue)
-    #     dd(f"Xprocess [{self._PROCESS_NAME}] - Current queue snapshot before removing repetitions: {current_queue_snapshot}")
-    #     for i in range(len(current_queue_snapshot)):
-    #         action, param = current_queue_snapshot[i]
-    #         if action == self.get_current_processing_action():
-    #             self._xlog.debug(f"Xprocess [{self._PROCESS_NAME}] - Removing repeated action [{action}] from queue at position {i}.")
-    #             del self._queue.queue[i]
 
     def get_current_processing_action(self) -> XprocAction:
         return self._current_action

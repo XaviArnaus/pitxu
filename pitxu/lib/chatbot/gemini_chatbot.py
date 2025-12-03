@@ -129,7 +129,6 @@ class GeminiChatbot(PyXavi):
                         message_short = message
                         retries += 1
                         if e.code == self.ERROR_QUOTA_EXCEEDED:
-                            # dd(e.details)
                             if e.details and "error" in e.details and "details" in e.details["error"] and len(e.details["error"]["details"]) == 3:
                                 details = e.details["error"]
                                 # There is a "details" inside. It's a list.
