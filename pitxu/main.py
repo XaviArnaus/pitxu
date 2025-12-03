@@ -18,7 +18,7 @@ from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction, ChatbotResponse, FunctionCallPair
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, \
-                        SHARED_CHATBOT_BUSY, SHARED_EINK_IDLE_MODE, \
+                        SHARED_CHATBOT_BUSY, SHARED_EINK_IDLE_MODE, SHARED_CHATBOT_ANSWER_IS_ERROR, \
                         QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER
 
 
@@ -292,6 +292,10 @@ class Main:
                         self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                         answer_count += 1
 
+                        # If we were communicating an error, it's over and start new
+                        if self.is_chatbot_error():
+                            self.unset_chatbot_error()
+
                         # Unmute microphone to continue listening
                         self.unmute_microphone()
                     
@@ -564,6 +568,12 @@ class Main:
     def unset_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._xlog.debug("🤖 Unsetting Chatbot as busy.")
+    
+    def is_chatbot_error(self) -> bool:
+        return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR)
+    
+    def unset_chatbot_error(self):
+        self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
     
     def is_eink_in_idle_mode(self) -> bool:
         return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_EINK_IDLE_MODE)
