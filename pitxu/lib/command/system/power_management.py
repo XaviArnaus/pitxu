@@ -3,6 +3,7 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.eink import EinkCanvas
 
 import math
 
@@ -63,13 +64,16 @@ class SystemPowerManagement(PyXavi, Command):
         try:
             # Add an emoji and a percentage sign to the value
             if float(value) < 30.0:
-                value = f"🪫 {value} %"
+                icon = "🪫"
             else:
-                value = f"🔋 {value} %"
+                icon = "🔋"
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔋 Showing battery level on eInk: {value}")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
+            main_instance.show_callback_on_eink(
+                icon=icon,
+                text=value,
+                font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing battery level on eInk: {e}")
 

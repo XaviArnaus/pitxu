@@ -126,29 +126,6 @@ class WorldWeather(PyXavi, Command):
             weather_header = f"{weather_emoji} {temperature}°C"
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
-            # main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
-            # # Be careful. We use some shortcuts to create a canvas,
-            # # but we should NOT use the Display class directly from here.
-            # canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
-            # screen_size = canvas_handler.get_screen_size()
-            # canvas = canvas_handler.create_canvas(reset_base_image=True)
-            # canvas.text(Point(screen_size.x / 2, screen_size.y / 3).to_image_point(),
-            #             text = weather_header,
-            #             font = canvas_handler.FONT_HUGE,
-            #             fill = canvas_handler.COLOR_BLACK,
-            #             anchor = "mm",
-            #             align = "center")
-            # canvas.text(Point(screen_size.x / 2, (screen_size.y / 4 * 3)).to_image_point(),
-            #             text = weather_other,
-            #             font = canvas_handler.FONT_MEDIUM,
-            #             fill = canvas_handler.COLOR_BLACK,
-            #             anchor = "mm",
-            #             align = "center")
-
-            # # Show the time in the eInk display
-            # image = canvas_handler.get_image()
-            # main_instance.show_image_on_eink(image.tobytes().hex())
-
             main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
             main_instance.show_callback_on_eink(
                 header=weather_header,

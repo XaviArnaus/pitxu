@@ -131,7 +131,8 @@ class Display(Xprocess):
             icon=param.get("icon"),
             font_size=param.get("font_size", 24),
             header=param.get("header"),
-            font_header_size=param.get("font_header_size", 32)
+            font_header_size=param.get("font_header_size", 32),
+            text_multiline=param.get("text_multiline", False)
         )
 
     def splash_ready(self):

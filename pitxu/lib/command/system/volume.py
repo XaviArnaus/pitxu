@@ -2,6 +2,7 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.eink import EinkCanvas
 
 from subprocess import check_output
 
@@ -85,12 +86,12 @@ class SystemVolume(PyXavi, Command):
         main_instance._xlog.info(f"The volume level in the callback is: {value}")
 
         try:
-            # Add an emoji and a percentage sign to the value
-            value = f"🔊 {value} %"
-
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔊 Showing volume level on eInk: [{value}]")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
+            main_instance.show_callback_on_eink(
+                icon="🔊",
+                text=f"{value} %",
+                font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
     
