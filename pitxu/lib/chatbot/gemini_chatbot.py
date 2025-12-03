@@ -130,12 +130,16 @@ class GeminiChatbot(PyXavi):
                         retries += 1
                         if e.code == self.ERROR_QUOTA_EXCEEDED:
                             dd(e.details)
-                            if e.details:
-                                seconds = str(math.ceil(float(e.details["retryDelay"]))) if "retryDelay" in e.details else None
+                            if e.details and "details" in e.details and len(e.details["details"]) == 3:
+                                # There is a "details" inside. It's a list.
+                                # - position 0 has help
+                                # - position 1 has quota info
+                                # - position 2 has retryDelay
+                                seconds = str(math.ceil(float(e.details["details"][2]["retryDelay"]))) if "retryDelay" in e.details["details"][2] else None
                                 violations = ""
-                                if 'violations' in e.details:
-                                    quota_metric = str(e.details['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in e.details['violations'] else "metric?"
-                                    quota_value = str(e.details['violations']['quotaValue']) if 'quotaValue' in e.details['violations'] else "value?"
+                                if 'violations' in e.details["details"][1]:
+                                    quota_metric = str(e.details["details"][1]['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in e.details["details"][1]['violations'] else "metric?"
+                                    quota_value = str(e.details["details"][1]['violations']['quotaValue']) if 'quotaValue' in e.details["details"][1]['violations'] else "value?"
                                     violations = f"\n{quota_metric}: {quota_value}"
                                 status = str(e.details['status']) if 'status' in e.details else ""
                                 message_short = f"{status}{violations}\nRetry after {seconds if seconds is not None else 'some'} seconds."
