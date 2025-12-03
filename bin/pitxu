@@ -33,6 +33,10 @@ status_pitxu_background() {
     sudo systemctl status pitxu
 }
 
+logs_journalctl_pitxu_background() {
+    sudo journalctl -u pitxu -f
+}
+
 
 if [[ $# -eq 0 ]] ; then
     # No arguments provided, we start pitxu
@@ -46,6 +50,7 @@ case "$1" in
     "stop") stop_pitxu_background ;;
     "restart") restart_pitxu_background ;;
     "status") status_pitxu_background ;;
+    "logs") logs_journalctl_pitxu_background ;;
     "help") echo "Usage: pitxu [start|stop|restart|status|help]" ;;
     *) echo "Command unknown" ;;
 esac
