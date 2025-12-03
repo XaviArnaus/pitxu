@@ -129,19 +129,20 @@ class GeminiChatbot(PyXavi):
                         message_short = message
                         retries += 1
                         if e.code == self.ERROR_QUOTA_EXCEEDED:
-                            dd(e.details)
-                            if e.details and "details" in e.details and len(e.details["details"]) == 3:
+                            # dd(e.details)
+                            if e.details and "error" in e.details and "details" in e.details["error"] and len(e.details["error"]["details"]) == 3:
+                                details = e.details["error"]
                                 # There is a "details" inside. It's a list.
                                 # - position 0 has help
                                 # - position 1 has quota info
                                 # - position 2 has retryDelay
-                                seconds = str(math.ceil(float(e.details["details"][2]["retryDelay"]))) if "retryDelay" in e.details["details"][2] else None
+                                seconds = str(math.ceil(float(str(details["details"][2]["retryDelay"]).replace("s", "")))) if "retryDelay" in details["details"][2] else None
                                 violations = ""
-                                if 'violations' in e.details["details"][1]:
-                                    quota_metric = str(e.details["details"][1]['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in e.details["details"][1]['violations'] else "metric?"
-                                    quota_value = str(e.details["details"][1]['violations']['quotaValue']) if 'quotaValue' in e.details["details"][1]['violations'] else "value?"
+                                if 'violations' in details["details"][1]:
+                                    quota_metric = str(details["details"][1]['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in details["details"][1]['violations'] else "metric?"
+                                    quota_value = str(details["details"][1]['violations']['quotaValue']) if 'quotaValue' in details["details"][1]['violations'] else "value?"
                                     violations = f"\n{quota_metric}: {quota_value}"
-                                status = str(e.details['status']) if 'status' in e.details else ""
+                                status = str(details['status']) if 'status' in details else ""
                                 message_short = f"{status}{violations}\nRetry after {seconds if seconds is not None else 'some'} seconds."
                                 outcome = ChatbotResponse(text=self._xconfig.get("language.quota_exceeded_error." + self._xparams.get("language")) % (seconds if seconds is not None else "some"))
                                 # Having details makes us able to draw an error into the eInk.
