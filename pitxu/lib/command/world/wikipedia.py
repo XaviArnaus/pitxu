@@ -53,33 +53,40 @@ class WorldWikipedia(PyXavi, Command):
 
         try:
             # Add an emoji and a percentage sign to the value
-            value = f"🌐 {search_term}"
+            # value = f"🌐 {search_term}"
 
-            # Be careful. We use some shortcuts to create a canvas,
-            # but we should NOT use the Display class directly from here.
-            canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
-            screen_size = canvas_handler.get_screen_size()
-            canvas = canvas_handler.create_canvas(reset_base_image=True)
-            macros = Macros(config=self._xconfig, params=self._xparams)
-            padding = 5
-            font = canvas_handler.FONT_BIG
-            textbox_boundaries = Rectangle(Point(padding, padding), Point(screen_size.x - padding - 2, screen_size.y - padding))
-            value = macros.break_line_in_text_if_needed(canvas, value, textbox_boundaries, font)
-            canvas.multiline_text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
-                        text = value,
-                        font = font,
-                        fill = canvas_handler.COLOR_BLACK,
-                        anchor = "mm",
-                        align = "center")
+            # # Be careful. We use some shortcuts to create a canvas,
+            # # but we should NOT use the Display class directly from here.
+            # canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
+            # screen_size = canvas_handler.get_screen_size()
+            # canvas = canvas_handler.create_canvas(reset_base_image=True)
+            # macros = Macros(config=self._xconfig, params=self._xparams)
+            # padding = 5
+            # font = canvas_handler.FONT_BIG
+            # textbox_boundaries = Rectangle(Point(padding, padding), Point(screen_size.x - padding - 2, screen_size.y - padding))
+            # value = macros.break_line_in_text_if_needed(canvas, value, textbox_boundaries, font)
+            # canvas.multiline_text(Point(screen_size.x / 2, screen_size.y / 2).to_image_point(),
+            #             text = value,
+            #             font = font,
+            #             fill = canvas_handler.COLOR_BLACK,
+            #             anchor = "mm",
+            #             align = "center")
 
-            # Show the time in the eInk display
+            # # Show the time in the eInk display
+            # main_instance._xlog.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
+            # image = canvas_handler.get_image()
+            # main_instance.show_image_on_eink({
+            #     "image_data": image.tobytes().hex(),
+            #     "mode": image.mode,
+            #     "size": image.size
+            # })
+
             main_instance._xlog.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
-            image = canvas_handler.get_image()
-            main_instance.show_image_on_eink({
-                "image_data": image.tobytes().hex(),
-                "mode": image.mode,
-                "size": image.size
-            })
+            main_instance.show_callback_on_eink(
+                icon="🌐",
+                text=search_term,
+                font_size=EinkCanvas.FONT_BIG_SIZE,
+                text_multiline=True)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")
             main_instance._xlog.error(full_stack())

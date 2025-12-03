@@ -18,6 +18,8 @@ class EinkDisplay(PyXavi):
     _screen_size: Point = None
     _canvas: EinkCanvas = None
 
+    font_by_size = {}
+
     FONT_SMALL: ImageFont = None
     FONT_MEDIUM: ImageFont = None
     FONT_BIG: ImageFont = None
@@ -45,7 +47,17 @@ class EinkDisplay(PyXavi):
         self.FONT_HUGE = self._canvas.FONT_HUGE
         self.COLOR_BLACK = self._canvas.COLOR_BLACK
         self.COLOR_WHITE = self._canvas.COLOR_WHITE
+
+        self.font_by_size = {
+            f"{EinkCanvas.FONT_SMALL_SIZE}": self._canvas.FONT_SMALL,
+            f"{EinkCanvas.FONT_MEDIUM_SIZE}": self._canvas.FONT_MEDIUM,
+            f"{EinkCanvas.FONT_BIG_SIZE}": self._canvas.FONT_BIG,
+            f"{EinkCanvas.FONT_HUGE_SIZE}": self._canvas.FONT_HUGE
+        }
     
+    def get_font_by_size(self, size: int) -> ImageFont:
+        return self.font_by_size[f"{size}"]
+
     def create_canvas(self, reset_base_image = True):
         return self._canvas.create_canvas(reset_base_image=reset_base_image)
     

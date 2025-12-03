@@ -20,10 +20,10 @@ class EinkCanvas(PyXavi):
     FONT_BIG: ImageFont = None
     FONT_HUGE: ImageFont = None
 
-    DEFAULT_FONT_BIG_SIZE = 22
-    DEFAULT_FONT_MEDIUM_SIZE = 14
-    DEFAULT_FONT_SMALL_SIZE = 10
-    DEFAULT_FONT_HUGE_SIZE = 45
+    FONT_BIG_SIZE = 22
+    FONT_MEDIUM_SIZE = 14
+    FONT_SMALL_SIZE = 10
+    FONT_HUGE_SIZE = 45
 
     DEFAULT_STROKE: int = 1
     COLOR_BLACK: int = 0
@@ -106,10 +106,10 @@ class EinkCanvas(PyXavi):
         - Config: to use the overall app setup
         - Class default: Fonts must exist, so this is the last resort
         """
-        big_size = self.DEFAULT_FONT_BIG_SIZE
-        medium_size = self.DEFAULT_FONT_MEDIUM_SIZE
-        small_size = self.DEFAULT_FONT_SMALL_SIZE
-        huge_size = self.DEFAULT_FONT_HUGE_SIZE
+        big_size = self.FONT_BIG_SIZE
+        medium_size = self.FONT_MEDIUM_SIZE
+        small_size = self.FONT_SMALL_SIZE
+        huge_size = self.FONT_HUGE_SIZE
 
         # Huge size
         if (self._xparams.key_exists("display.fonts.huge")):

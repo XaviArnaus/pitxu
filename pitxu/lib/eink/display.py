@@ -66,6 +66,9 @@ class Display(Xprocess):
         
         if action == XprocAction.SHOW_TALKING_ARBITRARY_EINK and param:
             self.show_arbitrary_text_while_speaking(param)
+        
+        if action == XprocAction.SHOW_CALLBACK_EINK and param:
+            self.show_callback_on_eink(param)
 
         # Shows the Idle splash screen
         if action == XprocAction.SHOW_IDLE_EINK:
@@ -119,6 +122,17 @@ class Display(Xprocess):
             time.sleep(1)
         time.sleep(1)  # small delay to ensure the user sees the image
         self._xlog.info(f"👀 Finished showing arbitrary text on eInk.")
+    
+    def show_callback_on_eink(self, param: dict):
+        self._xlog.info(f"👀 Showing callback on eInk.")
+        self._macros.arbitrary_text_with_icon(
+            display=self._display,
+            text=param.get("text"),
+            icon=param.get("icon"),
+            font_size=param.get("font_size", 24),
+            header=param.get("header"),
+            font_header_size=param.get("font_header_size", 32)
+        )
 
     def splash_ready(self):
         # Draw the ready splash screen
