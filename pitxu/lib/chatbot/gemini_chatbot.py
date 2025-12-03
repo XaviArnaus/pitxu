@@ -129,6 +129,7 @@ class GeminiChatbot(PyXavi):
                         message_short = message
                         retries += 1
                         if e.code == self.ERROR_QUOTA_EXCEEDED:
+                            dd(e.details)
                             if e.details:
                                 seconds = str(math.ceil(float(e.details["retryDelay"]))) if "retryDelay" in e.details else None
                                 violations = ""
