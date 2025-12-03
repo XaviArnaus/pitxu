@@ -35,7 +35,9 @@ class GeminiChatbot(PyXavi):
     """
 
     # MODEL = 'gemini-2.0-flash'
-    MODEL = 'gemini-2.5-flash'
+    MODEL_MAIN = 'gemini-2.5-flash'
+    MODEL_SECONDARY = 'gemini-2.0-flash'
+    MODEL = MODEL_MAIN
 
     ERROR_QUOTA_EXCEEDED = 429
 
@@ -69,7 +71,8 @@ class GeminiChatbot(PyXavi):
     def get_chat_history(self):
         return self._chat.get_history()
     
-    async def initialize_async(self, tools: list):
+    async def initialize_async(self, tools: list, force_model: str = None):
+        self.MODEL = force_model if force_model is not None and force_model in [self.MODEL_MAIN, self.MODEL_SECONDARY] else self.MODEL
         self._chat = self._client.aio.chats.create(
                 model=self.MODEL,
                 config=types.GenerateContentConfig(
@@ -155,6 +158,10 @@ class GeminiChatbot(PyXavi):
                                         function_response=FunctionResponse(
                                             name="error",
                                             response={"result": message_short})))
+                                # And now, as we have exhausted the quota, let's try to move to the secondary model if possible
+                                if self.MODEL == self.MODEL_MAIN:
+                                    self._xlog.info("🧠 Switching to secondary model: " + self.MODEL_SECONDARY)
+                                    await self.initialize_async(tools=self.get_session_manager().tools, force_model=self.MODEL_SECONDARY)
                             else:
                                 outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
                             # In case of a quota exceeded, we don't need to retry now.
