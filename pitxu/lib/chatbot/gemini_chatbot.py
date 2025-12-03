@@ -138,9 +138,10 @@ class GeminiChatbot(PyXavi):
                                 # - position 2 has retryDelay
                                 seconds = str(math.ceil(float(str(details["details"][2]["retryDelay"]).replace("s", "")))) if "retryDelay" in details["details"][2] else None
                                 violations = ""
-                                if 'violations' in details["details"][1]:
-                                    quota_metric = str(details["details"][1]['violations']['quotaMetric']).split('_')[-1] if 'quotaMetric' in details["details"][1]['violations'] else "metric?"
-                                    quota_value = str(details["details"][1]['violations']['quotaValue']) if 'quotaValue' in details["details"][1]['violations'] else "value?"
+                                if 'violations' in details["details"][1] and len(details["details"][1]['violations']) > 0:
+                                    # Violations is also a list of 1 element
+                                    quota_metric = str(details["details"][1]['violations'][0]['quotaMetric']).split('_')[-1] if 'quotaMetric' in details["details"][1]['violations'][0] else "metric?"
+                                    quota_value = str(details["details"][1]['violations'][0]['quotaValue']) if 'quotaValue' in details["details"][1]['violations'][0] else "value?"
                                     violations = f"\n{quota_metric}: {quota_value}"
                                 status = str(details['status']) if 'status' in details else ""
                                 message_short = f"{status}{violations}\nRetry after {seconds if seconds is not None else 'some'} seconds."
