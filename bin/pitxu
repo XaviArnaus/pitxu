@@ -37,6 +37,14 @@ logs_journalctl_pitxu_background() {
     sudo journalctl -u pitxu -f
 }
 
+clear_pitxu_screen() {
+     cd "$DIR/.." && poetry run clear
+}
+
+sounddevices() {
+     cd "$DIR/.." && poetry run sounddevices
+}
+
 
 if [[ $# -eq 0 ]] ; then
     # No arguments provided, we start pitxu
@@ -51,6 +59,8 @@ case "$1" in
     "restart") restart_pitxu_background ;;
     "status") status_pitxu_background ;;
     "logs") logs_journalctl_pitxu_background ;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help]" ;;
+    "clear") clear_pitxu_screen ;;
+    "sounddevices") sounddevices ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices]" ;;
     *) echo "Command unknown" ;;
 esac
