@@ -8,6 +8,9 @@ from subprocess import check_output
 
 class SystemVolume(PyXavi, Command):
 
+    MUTED = "muted"
+    UNMUTED = "unmuted"
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
@@ -56,7 +59,7 @@ class SystemVolume(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
     
-    def set_mute_status(self, mute: bool):
+    def set_mute_status(self, mute: bool) -> str:
         '''
         Sets the system mute status.
 
@@ -66,6 +69,7 @@ class SystemVolume(PyXavi, Command):
         try:
             mute_str = "1" if mute else "0"
             check_output(f"pactl set-sink-mute @DEFAULT_SINK@ {mute_str}", shell=True)
+            return self.MUTED if mute else self.UNMUTED
         except Exception as e:
             self._xlog.error(f"Error setting mute status: {e}")
     
@@ -89,6 +93,27 @@ class SystemVolume(PyXavi, Command):
             main_instance.show_arbitrary_text_centered_on_eink(value)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
+    
+    def callback_muting(self, main_instance, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_volume_level` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_volume_level`.
+
+        """
+        main_instance._xlog.info(f"The volume level in the callback is: {value}")
+
+        try:
+            # Add an emoji and a percentage sign to the value
+            value = "🔇" if value == self.MUTED or value == True else "🔈"
+
+            # New approach, using the existing display instance via main
+            main_instance._xlog.error(f"🔊 Showing mute status on eInk: [{value}]")
+            main_instance.show_arbitrary_text_centered_on_eink(value)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -96,7 +121,7 @@ class SystemVolume(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_volume_level]
+        return [self.get_volume_level, self.set_mute_status, self.get_mute_status]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -109,4 +134,6 @@ class SystemVolume(PyXavi, Command):
         """
         if function_name == "get_volume_level":
             return self.callback_volume_level
+        elif function_name == "set_mute_status" or function_name == "get_mute_status":
+            return self.callback_muting
         return self.default_empty_callback
