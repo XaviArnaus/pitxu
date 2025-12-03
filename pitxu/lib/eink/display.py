@@ -95,13 +95,15 @@ class Display(Xprocess):
         self._xlog.info(f"👀 Showing text bubble on eInk.")
         self._macros.draw_text_bubble(display=self._display, text=text, font=self._display.FONT_MEDIUM)
     
-    def show_arbitrary_image_while_speaking(self, image_bytes: str):
+    def show_arbitrary_image_while_speaking(self, image_bytes: dict):
         # Show a given image on the eInk display
         self._xlog.info(f"👀 Showing arbitrary image on eInk while speaking.")
         image = Image.frombytes(
-            self._display.get_image().mode,
-            self._display.get_image().size,
-            bytes.fromhex(image_bytes),
+            # self._display.get_image().mode,
+            # self._display.get_image().size,
+            image_bytes["mode"],
+            image_bytes["size"],
+            bytes.fromhex(image_bytes["image_data"]),
             "raw"
         )
         self._display.display_arbitrary_image(image, partial=False)

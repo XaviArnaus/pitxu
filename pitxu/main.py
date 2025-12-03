@@ -541,7 +541,7 @@ class Main:
     def show_arbitrary_text_centered_on_eink(self, text: str):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)
 
-    def show_image_on_eink(self, image: str):
+    def show_image_on_eink(self, image: dict):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IMAGE_EINK, image)
 
     def show_image_on_led(self, image: str):

@@ -75,7 +75,11 @@ class WorldWikipedia(PyXavi, Command):
             # Show the time in the eInk display
             main_instance._xlog.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
             image = canvas_handler.get_image()
-            main_instance.show_image_on_eink(image.tobytes().hex())
+            main_instance.show_image_on_eink({
+                "image_data": image.tobytes().hex(),
+                "mode": image.mode,
+                "size": image.size
+            })
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")
             main_instance._xlog.error(full_stack())
