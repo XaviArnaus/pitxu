@@ -64,3 +64,6 @@ case "$1" in
     "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices]" ;;
     *) echo "Command unknown" ;;
 esac
+
+FINAL_EXIT_CODE=$?
+return $FINAL_EXIT_CODE
