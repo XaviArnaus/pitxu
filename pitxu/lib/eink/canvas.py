@@ -40,7 +40,7 @@ class EinkCanvas(PyXavi):
             self._screen_size = screen_size
         else:
             if self._is_gpio_allowed():
-                self._screen_size = Point(self._xconfig.get("display.size.y"), self._xconfig.get("display.size.x"))
+                self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.x"))
             else:
                 self._screen_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
