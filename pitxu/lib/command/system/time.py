@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.eink import EinkCanvas
 
 
 class SystemTime(PyXavi, Command):
@@ -46,35 +47,11 @@ class SystemTime(PyXavi, Command):
         main_instance._xlog.info(f"The current time in the callback is: {value}")
 
         try:
-
-            # Apparently I can't get access to the class that lives as a subprocess.
-            # display: EinkDisplay = main_instance.get_eInk_display()
-            # canvas = display.create_canvas(reset_base_image=True)
-
-            # This works, but it feels too much work for something simple.
-            # Taking another route: predefining a generic drawing macro.
-
-            # To workaround that, we create a new EinkDisplay instance here.
-            # Be careful. We use some shortcuts to create a canvas,
-            # but we should NOT use the Display class directly from here.
-            # display = main_instance.get_eInk_display().get_display_handler() # type: EinkDisplay
-            # canvas = display.create_canvas(reset_base_image=True)
-            # screen_size: Point = display.get_screen_size()
-            # # Apparently, the e-ink display is rotated 90 degrees, so swap coordinates for real GPIO work.
-            # canvas.text(Point(screen_size.y / 2, screen_size.x / 2).to_image_point(),
-            #             text = value,
-            #             font = display.FONT_HUGE,
-            #             fill = display.COLOR_BLACK,
-            #             anchor = "mm",
-            #             align = "center")
-
-            # # Show the time in the eInk display
-            # image = display.get_image()
-            # main_instance.show_image_on_eink(image.tobytes().hex())
-
-            # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🕒 Showing time on eInk: {value}")
-            main_instance.show_arbitrary_text_centered_on_eink(f"🕒 {value}")
+            main_instance.show_callback_on_eink(
+                icon="🕒",
+                text=value,
+                font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing time on eInk: {e}")
 

@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, dd, full_stack
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -92,7 +92,6 @@ class WorldWeather(PyXavi, Command):
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(days))
             response = ApiRequest.do(url)
-            dd(response)
             return response
         except Exception as e:
             self._xlog.error(f"🛑 Error getting weather forecast for next {days} days at location: {latitude}, {longitude}: {e}")
@@ -115,9 +114,9 @@ class WorldWeather(PyXavi, Command):
             # Get the values from out time range that belongs to now
             temperature = value.get("hourly", {}).get("temperature_2m", [])[now]
             humidity = value.get("hourly", {}).get("relative_humidity_2m", [])[now]
-            pressure = value.get("hourly", {}).get("surface_pressure", [])[now]
+            # pressure = value.get("hourly", {}).get("surface_pressure", [])[now]
             wind_speed = value.get("hourly", {}).get("wind_speed_10m", [])[now]
-            wind_direction = value.get("hourly", {}).get("wind_direction_10m", [])[now]
+            # wind_direction = value.get("hourly", {}).get("wind_direction_10m", [])[now]
             weather_code = value.get("hourly", {}).get("weathercode", [])[now]
             weather_emoji = self.map_code_to_emoji.get(weather_code, "❓")
 
@@ -127,27 +126,11 @@ class WorldWeather(PyXavi, Command):
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
             main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
-            # Be careful. We use some shortcuts to create a canvas,
-            # but we should NOT use the Display class directly from here.
-            canvas_handler = EinkCanvas(config=self._xconfig, params=self._xparams)
-            screen_size = canvas_handler.get_screen_size()
-            canvas = canvas_handler.create_canvas(reset_base_image=True)
-            canvas.text(Point(screen_size.x / 2, screen_size.y / 3).to_image_point(),
-                        text = weather_header,
-                        font = canvas_handler.FONT_HUGE,
-                        fill = canvas_handler.COLOR_BLACK,
-                        anchor = "mm",
-                        align = "center")
-            canvas.text(Point(screen_size.x / 2, (screen_size.y / 4 * 3)).to_image_point(),
-                        text = weather_other,
-                        font = canvas_handler.FONT_MEDIUM,
-                        fill = canvas_handler.COLOR_BLACK,
-                        anchor = "mm",
-                        align = "center")
-
-            # Show the time in the eInk display
-            image = canvas_handler.get_image()
-            main_instance.show_image_on_eink(image.tobytes().hex())
+            main_instance.show_callback_on_eink(
+                header=weather_header,
+                font_header_size=EinkCanvas.FONT_HUGE_SIZE,
+                text=weather_other,
+                font_size=EinkCanvas.FONT_BIG_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
             main_instance._xlog.error(full_stack())

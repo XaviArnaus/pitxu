@@ -6,6 +6,8 @@ from pyxavi.dictionary import Dictionary
 from . import EinkDisplay
 from ..objects import Rectangle, Line, Point
 
+from pyxavi import dd
+
 import logging
 
 class Macros:
@@ -95,8 +97,8 @@ class Macros:
 
     def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
 
-        self._xlog.debug("Boundary left for text is " + "{:d}".format(boundaries.point_2.x))
-        
+        self._xlog.debug(f"Boundary left for text is {boundaries.point_2.x}")
+
         # Split the lines, we need to cover all individually
         lines = text.split("\n")
         words_to_add__to_next_line = []
@@ -108,7 +110,7 @@ class Macros:
             words_to_add__to_next_line = []
             # What's the current size
             width_text = canvas.textlength(working_line, font)
-            self._xlog.debug("Line [" + working_line + "] has width " + "{:.9f}".format(width_text))
+            self._xlog.debug(f"Line [{working_line}] has width {width_text:.9f}")
             # Loop while  the text is still bigger
             while(width_text > boundaries.point_2.x):
                 # Split by words
@@ -190,6 +192,67 @@ class Macros:
                     anchor = "mm",
                     align = "center")
         display.display(partial=True)
+
+    def arbitrary_text_with_icon(
+            self,
+            display: EinkDisplay, 
+            text: str = None, 
+            icon: str = None, 
+            font_size: int = 24, 
+            header: str = None, 
+            font_header_size: int = 32,
+            text_multiline: bool = False) -> str:
+
+        canvas = display.create_canvas(reset_base_image=True)
+
+        # calculate anchor points and emojis for header and text
+        if header and text:
+            header_anchor = Point(self._display_size.x / 2, self._display_size.y / 3)
+            text_anchor = Point(self._display_size.x / 2, (self._display_size.y / 4) * 3)
+            header_emoji = icon + " " if icon else ""
+            text_emoji = ""
+        elif header and not text:
+            header_anchor = Point(self._display_size.x / 2, self._display_size.y / 2)
+            header_emoji = icon + " " if icon else ""
+        elif not header and text:
+            text_anchor = Point(self._display_size.x / 2, self._display_size.y / 2)
+            text_emoji = icon + " " if icon else ""
+
+        if header:
+            canvas.text(header_anchor.to_image_point(),
+                text = f"{header_emoji}{header}",
+                font = display.get_font_by_size(font_header_size),
+                fill = display.COLOR_BLACK,
+                anchor = "mm",
+                align = "center")
+
+        if text:
+            font = display.get_font_by_size(font_size)
+            if text_multiline:
+                padding = 5
+                textbox_boundaries = Rectangle(
+                    Point(padding, padding),
+                    Point(text_anchor.x - padding - 2, text_anchor.y - padding))
+                value = self.break_line_in_text_if_needed(
+                    canvas,
+                    f"{text_emoji}{text}",
+                    textbox_boundaries,
+                    font)
+                canvas.multiline_text(text_anchor.to_image_point(),
+                    text = value,
+                    font = font,
+                    fill = display.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
+            else:
+                canvas.text(text_anchor.to_image_point(),
+                    text = f"{text_emoji}{text}",
+                    font = font,
+                    fill = display.COLOR_BLACK,
+                    anchor = "mm",
+                    align = "center")
+        
+        display.display()
         
     
     def eyes_open(self, display: EinkDisplay = None):

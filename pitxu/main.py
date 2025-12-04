@@ -1,7 +1,7 @@
 from multiprocessing import JoinableQueue, shared_memory
 from subprocess import call
 
-from pyxavi import Logger, Config, Dictionary, Storage, dd
+from pyxavi import Logger, Config, Dictionary, Storage
 
 import logging
 from functools import partial
@@ -12,7 +12,7 @@ from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.chatbot import GeminiChatbot
-from pitxu.lib.eink import Display
+from pitxu.lib.eink import Display, EinkCanvas
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
@@ -403,6 +403,11 @@ class Main:
                     self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
 
                     self.show_arbitrary_text_centered_on_eink(function_call_pair.function_response.response.get("result", "unknown"))
+                    self.show_callback_on_eink(
+                        icon="🚨",
+                        text=function_call_pair.function_response.response.get("result", "unknown"),
+                        font_size=EinkCanvas.FONT_BIG_SIZE,
+                        text_multiline=True)
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
 
@@ -544,6 +549,24 @@ class Main:
 
     def show_arbitrary_text_centered_on_eink(self, text: str):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)
+    
+    def show_callback_on_eink(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            text_multiline: bool = False
+        ):
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_CALLBACK_EINK, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "text_multiline": text_multiline
+        })
 
     def show_image_on_eink(self, image: dict):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IMAGE_EINK, image)
