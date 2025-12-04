@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pitxu.lib.objects.function_call import FunctionCallHistory
+from pitxu.lib.objects.function_call import FunctionCallHistory, FunctionCallPair
 from google.genai.chats import GenerateContentResponse
 from google.genai.types import FinishReason, GenerateContentResponseUsageMetadata
 
@@ -27,6 +27,9 @@ class ChatbotResponse:
     
     def set_error(self, error: FinishReason):
         self.error = error
+    
+    def add_pair_to_function_call_history(self, pair: FunctionCallPair):
+        self.function_call_history.add_pair(pair)
     
     @staticmethod
     def from_response(response: GenerateContentResponse) -> ChatbotResponse: 

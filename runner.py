@@ -12,7 +12,7 @@ from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
 from pitxu.lib.utils.config_loader import ConfigLoader
-from pitxu.lib.eink import EinkDisplay
+from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
 from pitxu.lib.matrix_led import Max7219
 
 from definitions import ROOT_DIR, CONFIG_DIR
@@ -75,6 +75,42 @@ def clear_displays():
         EinkDisplay(config=config, params=parameters).clear()
         logger.debug("Clearing LED Matrix display")
         Max7219(config=config, params=parameters).clear()
+        logger.info("End of work.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
+def test_eink_multiline():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Testing eInk display multiline text")
+        eink = EinkDisplay(config=config, params=parameters)
+        macros = Macros(config=config, params=parameters)
+        macros.arbitrary_text_with_icon(
+            display = eink, 
+            text = "This is a test", 
+            icon = "⚠️", 
+            font_size = EinkCanvas.FONT_BIG_SIZE, 
+            header = "Single Line Test", 
+            font_header_size = EinkCanvas.FONT_BIG_SIZE)
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
+        macros.arbitrary_text_with_icon(
+            display = eink, 
+            text = "This is a test of multiline text rendering on the eInk display.", 
+            icon = "⚠️", 
+            font_size = EinkCanvas.FONT_BIG_SIZE, 
+            header = "Multiline Test", 
+            font_header_size = EinkCanvas.FONT_BIG_SIZE)
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
+        logger.debug("Clearing eInk display")
+        eink.clear()
         logger.info("End of work.")
 
     except RuntimeError as e:

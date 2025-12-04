@@ -8,11 +8,11 @@ from pyxavi import Logger, Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from pitxu.lib.objects import FunctionCallHistory, ChatbotResponse
+from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import logging, time, anyio
+import logging, time, anyio, math
 import fastmcp
 
 class GeminiChatbot(PyXavi):
@@ -35,7 +35,11 @@ class GeminiChatbot(PyXavi):
     """
 
     # MODEL = 'gemini-2.0-flash'
-    MODEL = 'gemini-2.5-flash'
+    MODEL_MAIN = 'gemini-2.5-flash'
+    MODEL_SECONDARY = 'gemini-2.0-flash'
+    MODEL = MODEL_MAIN
+
+    ERROR_QUOTA_EXCEEDED = 429
 
     _client = None
     _chat: AsyncChat = None
@@ -67,7 +71,8 @@ class GeminiChatbot(PyXavi):
     def get_chat_history(self):
         return self._chat.get_history()
     
-    async def initialize_async(self, tools: list):
+    async def initialize_async(self, tools: list, force_model: str = None):
+        self.MODEL = force_model if force_model is not None and force_model in [self.MODEL_MAIN, self.MODEL_SECONDARY] else self.MODEL
         self._chat = self._client.aio.chats.create(
                 model=self.MODEL,
                 config=types.GenerateContentConfig(
@@ -101,7 +106,6 @@ class GeminiChatbot(PyXavi):
                             # This may happen due to having too many tools, or too big context.
                             # This started to happen after adding Trivago MCP tool, I guess it consumes a large amount of tokens.
                             # Also the context may be too big if the previous conversation is large.
-                            # finish_reason = response.candidates[0].finish_reason if response.candidates and len(response.candidates) > 0 else "unknown"
                             self._xlog.error("🛑 The server answered with an error. The finish reason is: " + outcome.error + 
                                              " and had " + (str(outcome.metadata.total_token_count) + " total tokens" if outcome.metadata and outcome.metadata.total_token_count is not None else ""))
                             outcome.set_text(self._xconfig.get("language.empty_answer." + self._xparams.get("language")))
@@ -120,17 +124,66 @@ class GeminiChatbot(PyXavi):
                         # We interrupt any retry loop returning directly here
                         return outcome
                     except APIError as e:
-                        self._xlog.error("🛑 API error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
-                        outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(e.message))
+                        # Rework this: The APIError is the parent class of ClientError and ServerError
+                        # For Quota Exceeded we actually receive a ClientError
+                        # It is captured here because it is the parent class
+                        self._xlog.error("🛑 API error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message)) 
+                        message = e.message.split(',')[0] if ',' in e.message else e.message
+                        message_short = message
+                        retries += 1
+                        if e.code == self.ERROR_QUOTA_EXCEEDED:
+                            if e.details and "error" in e.details and "details" in e.details["error"] and len(e.details["error"]["details"]) == 3:
+                                details = e.details["error"]
+                                # There is a "details" inside. It's a list.
+                                # - position 0 has help
+                                # - position 1 has quota info
+                                # - position 2 has retryDelay
+                                seconds = str(math.ceil(float(str(details["details"][2]["retryDelay"]).replace("s", "")))) if "retryDelay" in details["details"][2] else None
+                                violations = ""
+                                if 'violations' in details["details"][1] and len(details["details"][1]['violations']) > 0:
+                                    # Violations is also a list of 1 element
+                                    quota_metric = str(details["details"][1]['violations'][0]['quotaMetric']).split('_')[-1] if 'quotaMetric' in details["details"][1]['violations'][0] else "metric?"
+                                    quota_value = str(details["details"][1]['violations'][0]['quotaValue']) if 'quotaValue' in details["details"][1]['violations'][0] else "value?"
+                                    violations = f"\n{quota_metric}: {quota_value}"
+                                status = str(details['status']) if 'status' in details else ""
+                                message_short = f"{status}{violations}\nRetry after {seconds if seconds is not None else 'some'} seconds."
+                                outcome = ChatbotResponse(text=self._xconfig.get("language.quota_exceeded_error." + self._xparams.get("language")) % (seconds if seconds is not None else "some"))
+                                # Having details makes us able to draw an error into the eInk.
+                                outcome.function_call_history.add_pair(
+                                    FunctionCallPair(
+                                        function_call=FunctionCall(
+                                            name="error",
+                                            arguments={"code": e.code, "message": message}),
+                                        function_response=FunctionResponse(
+                                            name="error",
+                                            response={"result": message_short})))
+                                # And now, as we have exhausted the quota, let's try to move to the secondary model if possible
+                                if self.MODEL == self.MODEL_MAIN:
+                                    self._xlog.info("🧠 Switching to secondary model: " + self.MODEL_SECONDARY)
+                                    await self.initialize_async(tools=self.get_session_manager().tools, force_model=self.MODEL_SECONDARY)
+                            else:
+                                outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
+                            # In case of a quota exceeded, we don't need to retry now.
+                            # We answer and let the user decide when to retry.
+                            retries = max_retries
+                        else:
+                            outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
-                        # Make him remember that he couldn't answer
+                        # Make him remember that he couldn't answer, even it was out fault (quota?)
                         self._chat.record_history(
-                            user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            user_input=types.Content(role="user", parts = [types.Part(
+                                text=question,
+                                function_call=types.FunctionCall(
+                                    name="error",
+                                    args={"code": e.code, "message": message}))]),
+                            model_output=types.Content(role="model", parts = [types.Part(
+                                text=outcome.text,
+                                function_response=types.FunctionResponse(
+                                    name="error",
+                                    response={"result": message_short}))]),
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
-                        retries += 1
                     except ServerError as e:
                         self._xlog.error("🛑 Server error when asking question to Gemini (" + str(retries) + "/" + str(max_retries) + "): " + str(e.code) + " " + str(e.message))
                         outcome = ChatbotResponse(text=self._xconfig.get("language.server_error." + self._xparams.get("language")) + " " + str(e.message))

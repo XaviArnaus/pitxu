@@ -4,7 +4,9 @@ import time
 from pyxavi import Config, Dictionary
 
 from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED,\
-    SHARED_MEMORY_VU_METER, SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4
+    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE,\
+    SHARED_MEMORY_VU_METER, SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4,\
+    QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -23,6 +25,15 @@ class SharedMemoryManager(PyXavi):
         "col_2": SHARED_VU_COL_2,
         "col_3": SHARED_VU_COL_3,
         "col_4": SHARED_VU_COL_4,
+    }
+    _map_index_to_flag: dict[int, str] = {
+        SHARED_EINK_BUSY: "eink_busy",
+        SHARED_MATRIX_BUSY: "matrix_busy",
+        SHARED_SPEAKER_BUSY: "speaker_busy",
+        SHARED_MICROPHONE_MUTED: "microphone_muted",
+        SHARED_CHATBOT_BUSY: "chatbot_busy",
+        SHARED_CHATBOT_ANSWER_IS_ERROR: "chatbot_answer_is_error",
+        SHARED_EINK_IDLE_MODE: "eink_idle_mode",
     }
 
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
@@ -46,6 +57,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # microphone is muted
                 False,  # chatbot is busy
                 False,  # chatbot answer is error
+                False   # eink idle mode (showing idle eyes)
             ], name=SHARED_MEMORY_FLAGS)
             if self._shared_memory_flags is None:
                 self._xlog.error("Shared Memory Flags is None, cannot write flags")
@@ -133,14 +145,15 @@ class SharedMemoryManager(PyXavi):
         self._xlog.debug("All processes are idle now. I've sleept " + str(total_sleeping) + "s.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int):
-        self._xlog.debug("Waiting for a process to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
+        memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
+        self._xlog.debug(f"Waiting for the process {memory_position_name} to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
         sleep_seconds = 0.5
         total_sleeping = 0
         while self.read_shared_memory_flag(memory_position):
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
-        self._xlog.debug("The process is idle now. I've sleept " + str(total_sleeping) + "s.")
-    
+        self._xlog.debug(f"The process {memory_position_name} is idle now. I've sleept " + str(total_sleeping) + "s.")
+
     def close(self):
         if self._shared_memory_flags is not None:
             self._xlog.debug("Closing Shared Memory Flags")

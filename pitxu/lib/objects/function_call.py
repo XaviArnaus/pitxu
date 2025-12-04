@@ -1,23 +1,21 @@
 from __future__ import annotations
 
+from pyxavi import dd, full_stack
 from google.genai.chats import GenerateContentResponse
 
 class FunctionCallHistory:
     """
     Represents a history of function calls and their responses.
     """
-    history: dict[str, FunctionCallPair]
+    history: list[FunctionCallPair]
 
-    def __init__(self, history: dict[str, FunctionCallPair] | list[FunctionCallPair] = None):
+    DEBUG = False
+
+    def __init__(self, history: list[FunctionCallPair] = None):
         if history is not None and isinstance(history, list):
-            # Convert list to dict using function name as key
-            self.history = {pair.function_name: pair for pair in history if pair.function_name is not None}
-        elif isinstance(history, dict):
-            # Direct assignment
             self.history = history
         else:
-            # If history is neither a list nor a dict, initialize an empty history
-            self.history = {}
+            self.history = []
 
     @staticmethod
     def from_response(response: GenerateContentResponse) -> FunctionCallHistory:
@@ -32,12 +30,12 @@ class FunctionCallHistory:
         # at least backwards until the first function call of the chain.
 
         function_call_pairs: list[FunctionCallPair] = []
-
+        if FunctionCallHistory.DEBUG:
+            dd(response.automatic_function_calling_history)
         try:
             # temporary storage for pairing function call and response
             temporary_pair = FunctionCallPair.from_empty()
             for i in range(len(response.automatic_function_calling_history)):
-
                 content = response.automatic_function_calling_history[i]
                 # Having a `parts` as list means that we can have more than one part, even never seen more than 1.
                 # This implies that in the future we may have issues if we extend functionality.
@@ -47,6 +45,9 @@ class FunctionCallHistory:
                 if content.role == "model" \
                     and part is not None \
                     and part.function_call:
+
+                    if temporary_pair.has_call():
+                        print("⚠️ Detected a new function call before having a response for the previous one. Discarding the previous incomplete pair.")
 
                     temporary_pair.set_call(FunctionCall(
                             name=part.function_call.name,
@@ -58,18 +59,26 @@ class FunctionCallHistory:
                     and part.function_response \
                     and temporary_pair is not None:
 
+                    if not temporary_pair.has_call():
+                        print("⚠️ Detected a function response without a previous function call. Discarding the response.")
+                        temporary_pair = FunctionCallPair.from_empty()
+                        continue
+
                     temporary_pair.set_response(FunctionResponse(
                         name=part.function_response.name,
                         response=part.function_response.response))
                     
                     # Assuming that all pairs start with "model" and end with "user"
                     # Once we have registered a response, we can store the pair and reset it
+                    if FunctionCallHistory.DEBUG:
+                        dd(temporary_pair)
                     function_call_pairs.append(temporary_pair)
                     temporary_pair = FunctionCallPair.from_empty()
 
         except Exception as e:
             # In case of any error, return an empty history
             print("Error parsing function call history: " + str(e))
+            print(full_stack())
 
         return FunctionCallHistory(history=function_call_pairs)
 
@@ -81,12 +90,30 @@ class FunctionCallHistory:
             The last valid FunctionCallPair if available, otherwise None.
         """
         if self.history and len(self.history) > 0:
-            for name, pair in reversed(self.history.items()):
+            for pair in reversed(self.history):
                 if pair.is_valid():
                     return pair
         
         # Still here? No valid pair found, it will return empty
         return FunctionCallPair.from_empty()
+    
+    def get_names(self) -> list[str]:
+        """
+        Gets the names of all function calls in the history.
+
+        Returns:
+            A list of function call names.
+        """
+        return [pair.function_name for pair in self.history if pair.function_name is not None]
+    
+    def add_pair(self, pair: FunctionCallPair):
+        """
+        Adds a FunctionCallPair to the history.
+
+        Args:
+            pair: The FunctionCallPair to add.
+        """
+        self.history.append(pair)
 
 class FunctionCallPair:
     """

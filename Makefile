@@ -65,6 +65,10 @@ clear:
 test_matrix:
 	@$(POETRY) run test_matrix
 
+.PHONY: test_eink_multiline
+test_eink_multiline:
+	@$(POETRY) run test_eink_multiline
+
 .PHONY: battery_status
 battery_status:
 	@$(POETRY) run battery_status

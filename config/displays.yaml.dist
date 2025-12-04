@@ -16,6 +16,7 @@ display:
     big: 22
     medium: 14
     small: 10
+    huge: 40
 
 # Configuration fo the Max7219 matrix led
 matrix_led:

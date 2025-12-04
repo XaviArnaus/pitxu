@@ -17,6 +17,14 @@ storage:
   path: "storage/"
   # General purpose state
   state_file: "state.yaml"
+  # Mock files
+  mocked_files:
+    # [String] Path for mocked eInk output files
+    eink: "mocked/eink/"
+    # [String] Path for mocked LED output files
+    led_matrix: "mocked/matrix/"
+    # [list<String>] Exclude the following files from cleaning
+    exclude_from_cleaning: ["_latest.png", ".keep"]
 
 gpio:
   # Whether to enable GPIO support
