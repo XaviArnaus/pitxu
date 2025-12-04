@@ -406,8 +406,7 @@ class Main:
                     self.show_callback_on_eink(
                         icon="🚨",
                         text=function_call_pair.function_response.response.get("result", "unknown"),
-                        font_size=EinkCanvas.FONT_BIG_SIZE,
-                        text_multiline=True)
+                        font_size=EinkCanvas.FONT_BIG_SIZE)
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
 
@@ -557,7 +556,7 @@ class Main:
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            text_multiline: bool = False
+            padding = 5
         ):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_CALLBACK_EINK, {
             "icon": icon,
@@ -565,7 +564,7 @@ class Main:
             "font_size": font_size,
             "header": header,
             "font_header_size": font_header_size,
-            "text_multiline": text_multiline
+            "padding": padding
         })
 
     def show_image_on_eink(self, image: dict):

@@ -14,7 +14,7 @@ spidev = [{version="^3.7", markers="sys_platform=='linux'"}]
 gpiozero = [{version="^2.0", markers="sys_platform=='linux'"}]
 "rpi.gpio" = [{version="^0.7", markers="sys_platform=='linux'"}]
 lgpio = [{version="^0.2.2.0", markers="sys_platform=='linux'"}]
-pillow = "^11.2.1"
+pillow = "^12.0.0"
 emoji = "^2.15.0"
 pyaudio = "^0.2.14"
 sounddevice = "^0.5.2"
@@ -38,6 +38,7 @@ main = "runner:run"
 sounddevices = "runner:query_sound_devices"
 clear = "runner:clear_displays"
 test_matrix = "runner:test_matrix"
+test_eink_multiline = "runner:test_eink_multiline"
 battery_status = "runner:battery_status"
 
 [tool.poetry.requires-plugins]

@@ -72,8 +72,7 @@ class GoogleMaps(PyXavi, Command):
             main_instance.show_callback_on_eink(
                 icon="📍",
                 text=search_term,
-                font_size=EinkCanvas.FONT_BIG_SIZE,
-                text_multiline=True)
+                font_size=EinkCanvas.FONT_BIG_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Google Maps searched term on eInk: {e}")
             main_instance._xlog.error(full_stack())

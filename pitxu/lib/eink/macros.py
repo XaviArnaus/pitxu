@@ -1,4 +1,4 @@
-from PIL import Image,ImageDraw,ImageFont
+from PIL import ImageDraw,ImageFont, ImageText
 
 from pyxavi.config import Config
 from pyxavi.logger import Logger
@@ -74,18 +74,17 @@ class Macros:
             fill=display.COLOR_WHITE,
             corners=(True, True, True, True))
 
-        # Prepare the area for the text
-        rect_text_1 = Point(rect_1.x + padding, rect_1.y + padding)
-        rect_text_2 = Point(rect_2.x - padding - 2, rect_2.y - padding)
-        textbox_boundaries = Rectangle(rect_text_1, rect_text_2)
-
         # Ensure that the text fits in the square.
         # For that, introduce line breaks in the text.
         # For now, do not care about overflowing vertically
-        text = self.break_line_in_text_if_needed(canvas, text, textbox_boundaries, font)
+        text = self.wrap_text_if_needed(canvas, text, rect_2.x - padding - 2, font)
 
         # Draw the text
-        _bounding_rectangle = canvas.multiline_text(rect_text_1.to_image_point(), text, font = font, fill = display.COLOR_BLACK)
+        _bounding_rectangle = canvas.multiline_text(
+            Point(rect_1.x + padding, rect_1.y + padding).to_image_point(), 
+            text, 
+            font = font, 
+            fill = display.COLOR_BLACK)
 
         # The pick of the speach bubble
         canvas.line(Line(Point(30,rect_2.y), Point(40, rect_2.y)).to_image_line(), fill=display.COLOR_WHITE, width=1)
@@ -94,40 +93,27 @@ class Macros:
 
         # Now display the canvas
         display.display()
-
-    def break_line_in_text_if_needed(self, canvas: ImageDraw, text: str, boundaries: Rectangle, font: ImageFont) -> str:
-
-        self._xlog.debug(f"Boundary left for text is {boundaries.point_2.x}")
-
-        # Split the lines, we need to cover all individually
-        lines = text.split("\n")
-        words_to_add__to_next_line = []
-        new_text_lines = []
-        for line in lines:
-            # First we add the words that don't have a space in the previous line
-            words_to_add__to_next_line.reverse()
-            working_line = " ".join(words_to_add__to_next_line) + (" " if words_to_add__to_next_line else "") + line
-            words_to_add__to_next_line = []
-            # What's the current size
-            width_text = canvas.textlength(working_line, font)
-            self._xlog.debug(f"Line [{working_line}] has width {width_text:.9f}")
-            # Loop while  the text is still bigger
-            while(width_text > boundaries.point_2.x):
-                # Split by words
-                words = working_line.split(" ")
-                # Join all but the last word
-                working_line = " ".join(words[0:-1])
-                # Keep the last word for the next line
-                words_to_add__to_next_line.append(words[-1])
-                # Get the new line size for the loop to analyse
-                width_text = canvas.textlength(working_line, font)
-            # Once the line is ready, add it to the outcome list
-            new_text_lines.append(working_line)
-        
-        words_to_add__to_next_line.reverse()
-        final_text = "\n".join(new_text_lines) + "\n" + " ".join(words_to_add__to_next_line)
-        self._xlog.debug("Final text is [" + final_text.replace("\n", "\\n") + "]")
-        return final_text
+    
+    def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
+        width_text = canvas.textlength(text, font)
+        if(width_text <= max_width):
+            return text
+        else:
+            # Remove all possible current line breaks and then split by words
+            words = text.replace("\n", " ").split(" ")
+            new_text = ""
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + (" " if current_line != "" else "") + word
+                width_test_line = canvas.textlength(test_line, font)
+                if(width_test_line <= max_width):
+                    current_line = test_line
+                else:
+                    new_text += current_line + "\n"
+                    current_line = word
+            new_text += current_line
+            return new_text
     
     def startup_splash(self, display: EinkDisplay):
 
@@ -201,7 +187,7 @@ class Macros:
             font_size: int = 24, 
             header: str = None, 
             font_header_size: int = 32,
-            text_multiline: bool = False) -> str:
+            padding = 5) -> str:
 
         canvas = display.create_canvas(reset_base_image=True)
 
@@ -228,29 +214,19 @@ class Macros:
 
         if text:
             font = display.get_font_by_size(font_size)
-            if text_multiline:
-                padding = 5
-                textbox_boundaries = Rectangle(
-                    Point(padding, padding),
-                    Point(text_anchor.x - padding - 2, text_anchor.y - padding))
-                value = self.break_line_in_text_if_needed(
-                    canvas,
-                    f"{text_emoji}{text}",
-                    textbox_boundaries,
-                    font)
-                canvas.multiline_text(text_anchor.to_image_point(),
-                    text = value,
-                    font = font,
-                    fill = display.COLOR_BLACK,
-                    anchor = "mm",
-                    align = "center")
-            else:
-                canvas.text(text_anchor.to_image_point(),
-                    text = f"{text_emoji}{text}",
-                    font = font,
-                    fill = display.COLOR_BLACK,
-                    anchor = "mm",
-                    align = "center")
+            padding = 5
+            value = self.wrap_text_if_needed(
+                canvas=canvas,
+                text=f"{text_emoji}{text}",
+                max_width=self._display_size.x - (2 * padding),
+                font=font
+            )
+            canvas.multiline_text(text_anchor.to_image_point(),
+                text = value,
+                font = font,
+                fill = display.COLOR_BLACK,
+                anchor = "mm",
+                align = "center")
         
         display.display()
         
