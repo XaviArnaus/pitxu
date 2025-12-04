@@ -20,6 +20,7 @@ class Reminders(PyXavi, Command):
         super(Reminders, self).init_pyxavi(config=config, params=params)
 
         self.state = self._state = Storage(filename=self._xconfig.get("storage.path") + self.REMINDER_FILENAME)
+        self.delete_past_reminders()
 
     def create_reminder(self, date: str, time: str, reminder_text: str) -> bool:
         '''
@@ -116,3 +117,31 @@ class Reminders(PyXavi, Command):
         else:
             self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
             return False
+    
+    def delete_past_reminders(self) -> int:
+        '''
+        Deletes all reminders that are in the past.
+        
+        Returns:
+            The number of reminders deleted.
+        '''
+        self._xlog.info(f"📝 Deleting past reminders")
+
+        now = datetime.now()
+        deleted_count = 0
+
+        all_reminders = self.state.get_all()
+        for date_str, times in all_reminders.items():
+            for time_str in list(times.keys()):
+                reminder_datetime_str = f"{date_str} {time_str}"
+                reminder_datetime = datetime.strptime(reminder_datetime_str, f"{self.FORMAT_DATE} {self.FORMAT_TIME}")
+                if reminder_datetime < now:
+                    self.state.delete(f"{date_str}.{time_str}")
+                    deleted_count += 1
+                    self._xlog.info(f"📝 Deleted past reminder for [{date_str}] at [{time_str}]")
+
+        if deleted_count > 0:
+            self.state.write_file()
+
+        self._xlog.info(f"📝 Deleted {deleted_count} past reminders")
+        return deleted_count
