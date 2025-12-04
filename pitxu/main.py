@@ -536,15 +536,6 @@ class Main:
 
     def get_eInk_display(self) -> Display:
         return self._process_pool.get_process(QUEUE_EINK)
-    
-    # # May not work! Check which class I'm getting here.
-    # def get_matrix_led(self) -> MatrixLed:
-    #     matrix_process = self._process_pool.get_process(QUEUE_MATRIX)
-    #     if matrix_process is not None:
-    #         return matrix_process.get_display_handler()
-    #     else:
-    #         self._xlog.error("Matrix LED process is not available.")
-    #         return None
 
     def show_arbitrary_text_centered_on_eink(self, text: str):
         self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)

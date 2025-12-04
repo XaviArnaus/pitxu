@@ -125,7 +125,7 @@ class WorldWeather(PyXavi, Command):
             weather_header = f"{weather_emoji} {temperature}°C"
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
-            main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header}\n{weather_other}")
+            main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header} {weather_other}")
             main_instance.show_callback_on_eink(
                 header=weather_header,
                 font_header_size=EinkCanvas.FONT_HUGE_SIZE,

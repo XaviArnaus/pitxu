@@ -9,7 +9,7 @@ class FunctionCallHistory:
     """
     history: list[FunctionCallPair]
 
-    DEBUG = False
+    DEBUG = True
 
     def __init__(self, history: list[FunctionCallPair] = None):
         if history is not None and isinstance(history, list):
@@ -18,7 +18,7 @@ class FunctionCallHistory:
             self.history = []
 
     @staticmethod
-    def from_response(response: GenerateContentResponse) -> FunctionCallHistory:
+    def from_response(response: GenerateContentResponse, full_parse = False) -> FunctionCallHistory:
 
         # The response is a block containing a dialog between the User and the Model.
         # Regarding function calls, think about as the receiver, not the sender:
@@ -35,45 +35,57 @@ class FunctionCallHistory:
         try:
             # temporary storage for pairing function call and response
             temporary_pair = FunctionCallPair.from_empty()
-            for i in range(len(response.automatic_function_calling_history)):
-                content = response.automatic_function_calling_history[i]
-                # Having a `parts` as list means that we can have more than one part, even never seen more than 1.
-                # This implies that in the future we may have issues if we extend functionality.
-                # For now we just assume there is only one part.
-                part = content.parts[0] if content.parts and len(content.parts) > 0 else None
 
-                if content.role == "model" \
-                    and part is not None \
-                    and part.function_call:
+            # Iterate through the automatic function calling history, asuming it's chronological.
+            # This is done every time we get a response from the model, so it's a costly loop.
+            # We actually do not need all the history, just the last operation path.
+            # Just in case, we let a parameter to do a full parse if needed.
+            if full_parse:
+                function_call_pairs = FunctionCallHistory()._parse_full_history(response)
+            else:
+                # We loop in reverse order and we'll break it when we have our first valid pair (that will be the last one chronologically)
+                for i in range(len(response.automatic_function_calling_history) - 1, 0, -1):
+                    content = response.automatic_function_calling_history[i]
+                    # Having a `parts` as list means that we can have more than one part, even never seen more than 1.
+                    # This implies that in the future we may have issues if we extend functionality.
+                    # For now we just assume there is only one part.
+                    part = content.parts[0] if content.parts and len(content.parts) > 0 else None
 
-                    if temporary_pair.has_call():
-                        print("⚠️ Detected a new function call before having a response for the previous one. Discarding the previous incomplete pair.")
+                    # Because is reverse order, we first check for the response.
+                    # All status checks are done reversed from a normal full parse
+                    if content.role == "user" \
+                        and part is not None \
+                        and part.function_response:
 
-                    temporary_pair.set_call(FunctionCall(
-                            name=part.function_call.name,
-                            arguments=part.function_call.args
-                        ))
-                    
-                elif content.role == "user" \
-                    and part is not None \
-                    and part.function_response \
-                    and temporary_pair is not None:
+                        if temporary_pair.has_response():
+                            print("⚠️ Detected a new function response before having a call for the previous one. Discarding the previous incomplete pair.")
 
-                    if not temporary_pair.has_call():
-                        print("⚠️ Detected a function response without a previous function call. Discarding the response.")
-                        temporary_pair = FunctionCallPair.from_empty()
-                        continue
+                        temporary_pair.set_response(FunctionResponse(
+                            name=part.function_response.name,
+                            response=part.function_response.response))
+                        
+                    elif content.role == "model" \
+                        and part is not None \
+                        and part.function_call \
+                        and temporary_pair is not None:
 
-                    temporary_pair.set_response(FunctionResponse(
-                        name=part.function_response.name,
-                        response=part.function_response.response))
-                    
-                    # Assuming that all pairs start with "model" and end with "user"
-                    # Once we have registered a response, we can store the pair and reset it
-                    if FunctionCallHistory.DEBUG:
-                        dd(temporary_pair)
-                    function_call_pairs.append(temporary_pair)
-                    temporary_pair = FunctionCallPair.from_empty()
+                        if not temporary_pair.has_response():
+                            print("⚠️ Detected a function call without a previous function response. Discarding the call.")
+                            temporary_pair = FunctionCallPair.from_empty()
+                            continue
+
+                        temporary_pair.set_call(FunctionCall(
+                                name=part.function_call.name,
+                                arguments=part.function_call.args))
+                        
+                        # So we're done, we have a valid pair
+                        # Assign it to the list and break the loop
+                        if FunctionCallHistory.DEBUG:
+                            dd(temporary_pair)
+                        function_call_pairs.append(temporary_pair)
+                        break
+
+            return FunctionCallHistory(history=function_call_pairs)
 
         except Exception as e:
             # In case of any error, return an empty history
@@ -81,6 +93,59 @@ class FunctionCallHistory:
             print(full_stack())
 
         return FunctionCallHistory(history=function_call_pairs)
+
+    def _parse_full_history(self, response: GenerateContentResponse) -> list[FunctionCallPair]:
+        """
+        Parses the full function call history from the response.
+
+        Args:
+            response (GenerateContentResponse): The response to parse.
+        Returns:
+            A list of FunctionCallPair objects representing the function call history.
+        """
+        function_call_pairs: list[FunctionCallPair] = []
+        temporary_pair = FunctionCallPair.from_empty()
+        for i in range(len(response.automatic_function_calling_history)):
+            content = response.automatic_function_calling_history[i]
+            # Having a `parts` as list means that we can have more than one part, even never seen more than 1.
+            # This implies that in the future we may have issues if we extend functionality.
+            # For now we just assume there is only one part.
+            part = content.parts[0] if content.parts and len(content.parts) > 0 else None
+
+            if content.role == "model" \
+                and part is not None \
+                and part.function_call:
+
+                if temporary_pair.has_call():
+                    print("⚠️ Detected a new function call before having a response for the previous one. Discarding the previous incomplete pair.")
+
+                temporary_pair.set_call(FunctionCall(
+                        name=part.function_call.name,
+                        arguments=part.function_call.args
+                    ))
+                
+            elif content.role == "user" \
+                and part is not None \
+                and part.function_response \
+                and temporary_pair is not None:
+
+                if not temporary_pair.has_call():
+                    print("⚠️ Detected a function response without a previous function call. Discarding the response.")
+                    temporary_pair = FunctionCallPair.from_empty()
+                    continue
+
+                temporary_pair.set_response(FunctionResponse(
+                    name=part.function_response.name,
+                    response=part.function_response.response))
+                
+                # Assuming that all pairs start with "model" and end with "user"
+                # Once we have registered a response, we can store the pair and reset it
+                if FunctionCallHistory.DEBUG:
+                    dd(temporary_pair)
+                function_call_pairs.append(temporary_pair)
+                temporary_pair = FunctionCallPair.from_empty()
+
+        return function_call_pairs
 
     def get_last(self) -> FunctionCallPair:
         """
