@@ -88,7 +88,7 @@ class SystemVolume(PyXavi, Command):
         try:
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔊 Showing volume level on eInk: [{value}]")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="🔊",
                 text=f"{value} %",
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
@@ -107,12 +107,12 @@ class SystemVolume(PyXavi, Command):
         main_instance._xlog.info(f"The volume level in the callback is: {value}")
 
         try:
-            # Add an emoji and a percentage sign to the value
-            value = "🔇" if value == self.MUTED or value == True else "🔈"
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔊 Showing mute status on eInk: [{value}]")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
+            main_instance.show_arbitrary_text_on_eink(
+                icon="🔇" if value == self.MUTED or value == True else "🔈",
+                font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
 

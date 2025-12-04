@@ -56,7 +56,7 @@ class SystemDate(PyXavi, Command):
             value = date_obj.strftime(self.displayed_format)
 
             main_instance._xlog.error(f"📆 Showing date on eInk: {value}")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="📆",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)

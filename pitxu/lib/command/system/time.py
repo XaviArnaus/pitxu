@@ -48,7 +48,7 @@ class SystemTime(PyXavi, Command):
 
         try:
             main_instance._xlog.error(f"🕒 Showing time on eInk: {value}")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="🕒",
                 text=value,
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
