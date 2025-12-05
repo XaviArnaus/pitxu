@@ -35,7 +35,7 @@ class Main:
     
     _last_processed_minute: int = -1
     _last_interaction_datetime: datetime = None
-    _seconds_to_hold_interaction_answer: int = 10
+    _seconds_to_hold_interaction_answer: int = 15
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -277,9 +277,6 @@ class Main:
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
                         elif self._text_intends_to_trigger_or_continue_an_interaction(question):
-                            # First of all, remember when was the last interaction
-                            self._last_interaction_datetime = datetime.now()
-
                             # Here we start with the Chatbot.
                             # We set it as busy in shared memory, so the Matrix can show the thinking effect
                             self.set_chatbot_busy()
@@ -322,6 +319,10 @@ class Main:
                             # If we were communicating an error, it's over and start new
                             if self.is_chatbot_error():
                                 self.unset_chatbot_error()
+                            
+                            # Last thing to do is to remember this as the last interaction.
+                            # Has to happen at the very last otherwise the time is consumed by the possible answering process.
+                            self._last_interaction_datetime = datetime.now()
 
                         # Unmute microphone to continue listening
                         self.unmute_microphone()
