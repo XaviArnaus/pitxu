@@ -237,6 +237,11 @@ class Main:
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
                     self._show_init_phases(9)
 
+                    # Before we start with the loop, let's set the last interaction time to now
+                    # It just started, there was a greating after all.
+                    # Maybe the user wants to talk straight away without the trigger words.
+                    self._last_interaction_datetime = datetime.now()
+
                     question = ""
                     dictate_count = 0
                     answer_count = 0
