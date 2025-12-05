@@ -69,8 +69,8 @@ class ChatbotSessionManager(PyXavi):
                 # Grounding workaround so it can use Google Maps
                 self.clients["google_maps"].get_google_maps_response_to_a_prompt,
                 # # Custom Commands
-                self.clients["system_date"].get_current_date_without_time,
-                self.clients["system_time"].get_current_time,
+                self.clients["system_date"].get_current_system_calendar_date_as_year_month_date,
+                self.clients["system_time"].get_current_system_clock_time_as_hours_and_minutes,
                 self.clients["power_management"].get_battery_level,
                 self.clients["power_management"].is_power_cable_connected,
                 self.clients["power_management"].shutdown_local_machine,

@@ -95,31 +95,25 @@ class StatefulReminders(PyXavi, Command):
             self._xlog.error(f"🛑 Error deleting reminder for [{date}] [{time}]: {e}")
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_deletion_error." + self._xparams.get("language"))
-        
-
-
-
-
-        
     
     def show_create_reminder(self, main_instance, value: any, args: dict = None) -> None:
 
         try:
             main_instance._xlog.error(f"📝 Showing Create Reminder on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            main_instance.show_arbitrary_text_on_eink_while_speaking(
                 icon="📝",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Create Reminder on eInk: {e}")
     
-    def show_get_reminders_for_date(self, main_instance, value: dict, args: dict = None) -> None:
+    def show_get_reminders_for_date(self, main_instance, value: list, args: dict = None) -> None:
 
         try:
-            reminders_count = len(value.items())
+            reminders_count = len(value)
 
             main_instance._xlog.error(f"📝 Showing Get Reminders for Date on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            main_instance.show_arbitrary_text_on_eink_while_speaking(
                 icon="📝",
                 text=f"{reminders_count} reminders.",
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
@@ -130,7 +124,7 @@ class StatefulReminders(PyXavi, Command):
 
         try:
             main_instance._xlog.error(f"📝 Showing Delete Reminder on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            main_instance.show_arbitrary_text_on_eink_while_speaking(
                 icon="📝",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)
@@ -143,9 +137,9 @@ class StatefulReminders(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.show_create_reminder,
-                self.show_get_reminders_for_date,
-                self.show_delete_reminder]
+        return [self.create_reminder,
+                self.get_reminders_for_date,
+                self.delete_reminder]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -156,7 +150,7 @@ class StatefulReminders(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "get_create_reminder":
+        if function_name == "create_reminder":
             return self.show_create_reminder
         elif function_name == "get_reminders_for_date":
             return self.show_get_reminders_for_date

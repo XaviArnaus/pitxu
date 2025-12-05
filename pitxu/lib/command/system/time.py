@@ -14,7 +14,7 @@ class SystemTime(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_current_time(self) -> str:
+    def get_current_system_clock_time_as_hours_and_minutes(self) -> str:
         '''
         Gets the current system time. The date is not included.
 
@@ -29,7 +29,7 @@ class SystemTime(PyXavi, Command):
 
     def callback_show_time(self, main_instance, value: any, args: dict = None) -> None:
         """
-        Callback for `get_current_time` that gets called AFTER chatbot from `main`.
+        Callback for `get_current_system_clock_time_as_hours_and_minutes` that gets called AFTER chatbot from `main`.
         
         With this, we have the `main` context to play with for the given function call.
         For example, show the time in the eInk while we TTS the anwer from the Chatbot.
@@ -41,7 +41,7 @@ class SystemTime(PyXavi, Command):
 
         Args:
             main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `get_current_time`.
+            value: The value returned from the Chatbot AFTER it ran `get_current_system_clock_time_as_hours_and_minutes`.
         
         """
         main_instance._xlog.info(f"The current time in the callback is: {value}")
@@ -61,7 +61,7 @@ class SystemTime(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_current_time]
+        return [self.get_current_system_clock_time_as_hours_and_minutes]
     
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -72,6 +72,6 @@ class SystemTime(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "get_current_time":
+        if function_name == "get_current_system_clock_time_as_hours_and_minutes":
             return self.callback_show_time
         return self.default_empty_callback

@@ -632,7 +632,9 @@ class Main:
             self._last_processed_minute = current_minute
             self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ". Running every-minute tasks.")
             # Get the possible reminder for the current date and time
-            reminder: dict = self._reminders.get_reminder(datetime.now().strftime(Reminders.FORMAT_DATE), datetime.now().strftime(Reminders.FORMAT_TIME))
+            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
+            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
+            reminder: dict = self._reminders.get_reminder(date_str, time_str)
             if reminder is not False:
                 self._xlog.debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
@@ -648,4 +650,4 @@ class Main:
                 self.communicate(reminder_text_for_speaking, [self.COMM_TTS])
                 self.unmute_microphone()
                 # Remove the reminder now that it's been announced
-                self._reminders.delete_reminder(reminder.get("id"))
+                self._reminders.delete_reminder(date_str, time_str)

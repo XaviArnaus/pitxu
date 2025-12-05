@@ -1,5 +1,5 @@
 
-from pyxavi import Storage, Config, Dictionary
+from pyxavi import Storage, Config, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -60,6 +60,7 @@ class Reminders(PyXavi, Command):
         '''
 
         self._xlog.info(f"📝 Retrieving reminders for [{date}]")
+        self.state.read_file()
         reminders = []
         stored_reminders = self.state.get(date, {}, slugify_param_name=True)
         for time, reminder_text in stored_reminders.items():
@@ -81,7 +82,7 @@ class Reminders(PyXavi, Command):
             A boolean indicating success or failure.
         '''
         self._xlog.info(f"📝 Deleting a reminder for [{date}] at [{time}]")
-
+        self.state.read_file()
         reminder_key = f"{date}.{time}"
         if self.state.key_exists(reminder_key, slugify_param_name=True):
             self.state.delete(reminder_key, slugify_param_name=True)
@@ -104,11 +105,15 @@ class Reminders(PyXavi, Command):
             The reminder details as a JSON object or False if not found.
         '''
         self._xlog.info(f"📝 Retrieving a reminder for [{date}] at [{time}]")
-
+        self.state.read_file()
         reminder_key = f"{date}.{time}"
+        dd(reminder_key)
+        dd(self.state.get_all())
+        dd(self.state.key_exists(reminder_key, slugify_param_name=True))
+        dd(self.state.get(reminder_key, slugify_param_name=True))
         if self.state.key_exists(reminder_key, slugify_param_name=True):
-            self._xlog.info(f"📝 Reminder found for [{date}] at [{time}]: {reminder_text}")
             reminder_text = self.state.get(reminder_key, slugify_param_name=True)
+            self._xlog.info(f"📝 Reminder found for [{date}] at [{time}]: {reminder_text}")
             return {
                 "date": date,
                 "time": time,
@@ -129,7 +134,7 @@ class Reminders(PyXavi, Command):
 
         now = datetime.now()
         deleted_count = 0
-
+        self.state.read_file()
         all_reminders = self.state.get_all()
         for date_str, times in all_reminders.items():
             for time_str in list(times.keys()):
