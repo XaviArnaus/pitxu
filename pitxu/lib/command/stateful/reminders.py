@@ -115,7 +115,7 @@ class StatefulReminders(PyXavi, Command):
             main_instance._xlog.error(f"📝 Showing Get Reminders for Date on eInk: {value}")
             main_instance.show_arbitrary_text_on_eink_while_speaking(
                 icon="📝",
-                text=f"{reminders_count} reminders.",
+                text=f"{reminders_count} reminder{'s' if reminders_count != 1 else ''}.",
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Get Reminders for Date on eInk: {e}")
