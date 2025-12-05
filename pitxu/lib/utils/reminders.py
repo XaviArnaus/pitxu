@@ -107,10 +107,6 @@ class Reminders(PyXavi, Command):
         self._xlog.info(f"📝 Retrieving a reminder for [{date}] at [{time}]")
         self.state.read_file()
         reminder_key = f"{date}.{time}"
-        dd(reminder_key)
-        dd(self.state.get_all())
-        dd(self.state.key_exists(reminder_key, slugify_param_name=True))
-        dd(self.state.get(reminder_key, slugify_param_name=True))
         if self.state.key_exists(reminder_key, slugify_param_name=True):
             reminder_text = self.state.get(reminder_key, slugify_param_name=True)
             self._xlog.info(f"📝 Reminder found for [{date}] at [{time}]: {reminder_text}")

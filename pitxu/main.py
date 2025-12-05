@@ -488,15 +488,16 @@ class Main:
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
-    def _text_intends_to_trigger_or_continue_an_interaction(self, text: str):
+    def _text_intends_to_trigger_or_continue_an_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = " ".join(text.lower().strip().split(" ")[0:5])
+        first_words = " ".join(question.lower().strip().split(" ")[0:5])
         for trigger_word in self._trigger_words:
             if trigger_word in first_words:
                 return True
         
         # Still here? This means that no trigger word was found
         # But we may be in an ongoing interaction, so let's check the last interaction time
+        # We must take in account the time spent talking
         if self._last_interaction_datetime is not None:
             seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
             if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
