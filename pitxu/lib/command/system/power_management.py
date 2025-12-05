@@ -70,7 +70,7 @@ class SystemPowerManagement(PyXavi, Command):
 
             # New approach, using the existing display instance via main
             main_instance._xlog.error(f"🔋 Showing battery level on eInk: {value}")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 icon=icon,
                 text=value,
                 font_size=EinkCanvas.FONT_HUGE_SIZE)

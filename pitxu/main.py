@@ -11,6 +11,7 @@ from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.utils.maintenance import Maintenance
+from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display, EinkCanvas
 from pitxu.lib.matrix_led import MatrixLed
@@ -24,13 +25,14 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_
 
 import sounddevice
 import time
+from datetime import datetime
 
 class Main:
 
     _xconfig: Config = None
     _xlog: logging = None
     _state: Storage = None
-    _maintenance: Maintenance = None
+    _last_processed_minute: int = -1
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -44,6 +46,9 @@ class Main:
     _shared_memory: shared_memory.ShareableList = None
 
     _chatbot_client_callbacks: dict[str, callable] = None
+
+    _maintenance: Maintenance = None
+    _reminders: Reminders = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -95,6 +100,10 @@ class Main:
         # Process Pool (initialisation of process handling)
         self._process_pool = XprocessPool(config=self._xconfig, params=self._xparams)
 
+        # The Reminders functionality
+        self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+
+        # Stopwatch to measure times
         self._stopwatch = Stopwatch()
 
     def load_language(self, new_language: str):
@@ -224,6 +233,10 @@ class Main:
                     dictate_count = 0
                     answer_count = 0
                     while(not self._text_has_exit_intention(question)):
+
+                        # Check the things to do every minute
+                        # This includes reminders checking and speaking them out.
+                        self.do_every_minute_tasks()
 
                         # Show idle screen in eInk if not already showing it
                         if not self.is_eink_in_idle_mode():
@@ -402,8 +415,7 @@ class Main:
                     self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
                     self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
 
-                    self.show_arbitrary_text_centered_on_eink(function_call_pair.function_response.response.get("result", "unknown"))
-                    self.show_callback_on_eink(
+                    self.show_arbitrary_text_on_eink(
                         icon="🚨",
                         text=function_call_pair.function_response.response.get("result", "unknown"),
                         font_size=EinkCanvas.FONT_BIG_SIZE)
@@ -536,11 +548,8 @@ class Main:
 
     def get_eInk_display(self) -> Display:
         return self._process_pool.get_process(QUEUE_EINK)
-
-    def show_arbitrary_text_centered_on_eink(self, text: str):
-        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, text)
     
-    def show_callback_on_eink(
+    def show_arbitrary_text_on_eink(
             self,
             icon: str = None,
             text: str = None,
@@ -549,7 +558,25 @@ class Main:
             font_header_size: int = 32,
             padding = 5
         ):
-        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_CALLBACK_EINK, {
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_EINK, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding
+        })
+
+    def show_arbitrary_text_on_eink_while_speaking(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5
+        ):
+        self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, {
             "icon": icon,
             "text": text,
             "font_size": font_size,
@@ -596,3 +623,31 @@ class Main:
 
     def unset_eink_idle_mode(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)
+    
+    # ------- Stuff to do every minute -------
+
+    def do_every_minute_tasks(self):
+        current_minute = time.localtime().tm_min
+        if current_minute != self._last_processed_minute:
+            self._last_processed_minute = current_minute
+            self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ". Running every-minute tasks.")
+            # Get the possible reminder for the current date and time
+            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
+            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
+            reminder: dict = self._reminders.get_reminder(date_str, time_str)
+            if reminder is not False:
+                self._xlog.debug("📝 Reminder found for now: " + str(reminder))
+                # Show reminder in eInk and say it
+                reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
+                self.unset_eink_idle_mode()
+                self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+                self.show_arbitrary_text_on_eink(
+                    icon="📝",
+                    text=reminder.get("text", ""),
+                    font_size=EinkCanvas.FONT_BIG_SIZE)
+                self.mute_microphone()
+                self.communicate(reminder_text_for_speaking, [self.COMM_TTS])
+                self.unmute_microphone()
+                # Remove the reminder now that it's been announced
+                self._reminders.delete_reminder(date_str, time_str)

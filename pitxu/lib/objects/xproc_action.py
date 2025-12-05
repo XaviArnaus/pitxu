@@ -28,7 +28,7 @@ class XprocAction:
     SHOW_IMAGE_EINK: str = "SHOW_IMAGE_EINK"    # Do not use.
     SHOW_IDLE_EINK: str = "SHOW_IDLE_EINK"
     SHOW_TALKING_ARBITRARY_EINK: str = "SHOW_TALKING_ARBITRARY_EINK"
-    SHOW_CALLBACK_EINK: str = "SHOW_CALLBACK_EINK"
+    SHOW_ARBITRARY_TEXT_EINK: str = "SHOW_ARBITRARY_TEXT_EINK"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"

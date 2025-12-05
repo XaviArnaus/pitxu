@@ -91,3 +91,66 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
+
+  # Reminders
+  reminders:
+    reminder_set:
+      ca: "Recordatori establert per al %s a les %s: '%s'."
+      es: "Recordatorio establecido para el %s a las %s: '%s'."
+      en-us: "Reminder set for %s at %s: '%s'."
+      de: "Erinnerung gesetzt für den %s um %s: '%s'."
+    reminder_invalid_date:
+      ca: "Data invàlida. Si us plau, utilitza el format Any-Mes-Dia (per exemple, 2023-12-25)."
+      es: "Fecha inválida. Por favor, utiliza el formato Año-Mes-Día (por ejemplo, 2023-12-25)."
+      en-us: "Invalid date. Please use the Year-Month-Day format (e.g., 2023-12-25)."
+      de: "Ungültiges Datum. Bitte verwende das Format Jahr-Monat-Tag (z.B. 2023-12-25)."
+    reminder_invalid_time:
+      ca: "Hora invàlida. Si us plau, utilitza el format HH:MM en format de 24 hores (per exemple, 14:30)."
+      es: "Hora inválida. Por favor, utiliza el formato HH:MM en formato de 24 horas (por ejemplo, 14:30)."
+      en-us: "Invalid time. Please use the HH:MM format in 24-hour format (e.g., 14:30)."
+      de: "Ungültige Uhrzeit. Bitte verwende das Format HH:MM im 24-Stunden-Format (z.B. 14:30)."
+    reminder_past_datetime:
+      ca: "No es pot establir un recordatori per a una data i hora passada."
+      es: "No se puede establecer un recordatorio para una fecha y hora pasada."
+      en-us: "Cannot set a reminder for a past date and time."
+      de: "Es kann keine Erinnerung für ein vergangenes Datum und eine vergangene Uhrzeit festgelegt werden."
+    reminder_creation_error:
+      ca: "Ho sento, hi ha hagut un error en crear el recordatori."
+      es: "Lo siento, ha habido un error al crear el recordatorio."
+      en-us: "I'm sorry, there was an error creating the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Erinnerung."
+    reminder_already_exists:
+      ca: "Ja existeix un recordatori per a aquesta data i hora: %s."
+      es: "Ya existe un recordatorio para esta fecha y hora: %s."
+      en-us: "A reminder already exists for this date and time: %s."
+      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Erinnerung: %s."
+    reminder_list_empty:
+      ca: "No hi ha recordatoris establerts."
+      es: "No hay recordatorios establecidos."
+      en-us: "There are no reminders set."
+      de: "Es sind keine Erinnerungen gesetzt."
+    reminder_retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar els recordatoris."
+      es: "Lo siento, ha habido un error al recuperar los recordatorios."
+      en-us: "I'm sorry, there was an error retrieving the reminders."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Erinnerungen."
+    reminder_deleted:
+      ca: "Recordatori eliminat per al %s a les %s."
+      es: "Recordatorio eliminado para el %s a las %s."
+      en-us: "Reminder deleted for %s at %s."
+      de: "Erinnerung gelöscht für den %s um %s."
+    reminder_not_found:
+      ca: "No s'ha trobat cap recordatori per al %s a les %s."
+      es: "No se ha encontrado ningún recordatorio para el %s a las %s."
+      en-us: "No reminder found for %s at %s."
+      de: "Keine Erinnerung für den %s um %s gefunden."
+    reminder_deletion_error:
+      ca: "Ho sento, hi ha hagut un error en eliminar el recordatori."
+      es: "Lo siento, ha habido un error al eliminar el recordatorio."
+      en-us: "I'm sorry, there was an error deleting the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Löschen der Erinnerung."
+    reminder_announcement:
+      ca: "Recordatori: %s"
+      es: "Recordatorio: %s"
+      en-us: "Reminder: %s"
+      de: "Erinnerung: %s"

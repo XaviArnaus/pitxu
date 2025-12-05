@@ -9,7 +9,7 @@ class FunctionCallHistory:
     """
     history: list[FunctionCallPair]
 
-    DEBUG = True
+    DEBUG = False
 
     def __init__(self, history: list[FunctionCallPair] = None):
         if history is not None and isinstance(history, list):

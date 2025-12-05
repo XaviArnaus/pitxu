@@ -69,7 +69,7 @@ class GoogleMaps(PyXavi, Command):
 
         try:
             main_instance._xlog.error(f"📍 Showing Google Maps searched term on eInk: [{search_term}]")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="📍",
                 text=search_term,
                 font_size=EinkCanvas.FONT_BIG_SIZE)

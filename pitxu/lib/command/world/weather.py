@@ -126,7 +126,7 @@ class WorldWeather(PyXavi, Command):
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
             main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header} {weather_other}")
-            main_instance.show_callback_on_eink(
+            main_instance.show_arbitrary_text_on_eink(
                 header=weather_header,
                 font_header_size=EinkCanvas.FONT_HUGE_SIZE,
                 text=weather_other,
@@ -135,24 +135,28 @@ class WorldWeather(PyXavi, Command):
             main_instance._xlog.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
             main_instance._xlog.error(full_stack())
 
-    def callback_weather_forecast_for_next_days(self, main_instance, value) -> None:
-        """
-        Callback for `get_weather_forecast_for_next_days` that gets called AFTER chatbot from `main`.
+    # def callback_weather_forecast_for_next_days(self, main_instance, value) -> None:
+    #     """
+    #     Callback for `get_weather_forecast_for_next_days` that gets called AFTER chatbot from `main`.
 
-        Args:
-            main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `get_weather_forecast_for_next_days`.
+    #     Args:
+    #         main_instance: The `main` application instance.
+    #         value: The value returned from the Chatbot AFTER it ran `get_weather_forecast_for_next_days`.
 
-        """
-        main_instance._xlog.info(f"The weather forecast for the next days in the callback is: {value}")
+    #     """
+    #     main_instance._xlog.info(f"The weather forecast for the next days in the callback is: {value}")
 
-        try:
+    #     try:
 
-            # New approach, using the existing display instance via main
-            main_instance._xlog.error(f"☀️ Showing weather forecast for the next days on eInk: {value}")
-            main_instance.show_arbitrary_text_centered_on_eink(value)
-        except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing weather forecast for the next days on eInk: {e}")
+    #         # New approach, using the existing display instance via main
+    #         main_instance._xlog.error(f"☀️ Showing weather forecast for the next days on eInk: {value}")
+    #         main_instance.show_arbitrary_text_on_eink(
+    #             header=weather_header,
+    #             font_header_size=EinkCanvas.FONT_HUGE_SIZE,
+    #             text=weather_other,
+    #             font_size=EinkCanvas.FONT_BIG_SIZE)
+    #     except Exception as e:
+    #         main_instance._xlog.error(f"🛑 Error showing weather forecast for the next days on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -173,6 +177,6 @@ class WorldWeather(PyXavi, Command):
         """
         if function_name == "get_weather_forecast_for_today":
             return self.callback_weather_forecast_for_today
-        elif function_name == "get_weather_forecast_for_next_days":
-            return self.callback_weather_forecast_for_next_days
+        # elif function_name == "get_weather_forecast_for_next_days":
+        #     return self.callback_weather_forecast_for_next_days
         return self.default_empty_callback
