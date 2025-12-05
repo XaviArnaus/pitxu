@@ -72,7 +72,12 @@ class GeminiChatbot(PyXavi):
         return self._chat.get_history()
     
     async def initialize_async(self, tools: list, force_model: str = None):
+        self._xlog.info("🧠 Initializing GeminiChatbot with forcing the model " + (str(force_model) if force_model is not None else "None"))
         self.MODEL = force_model if force_model is not None and force_model in [self.MODEL_MAIN, self.MODEL_SECONDARY] else self.MODEL
+        self._xlog.info("🧠 Using model: " + str(self.MODEL))
+        if force_model is not None:
+            self._xlog.info("🧠 reloading the Client.")
+            self._client = genai.Client(api_key=self._xparams.get("api_key"))
         self._chat = self._client.aio.chats.create(
                 model=self.MODEL,
                 config=types.GenerateContentConfig(
