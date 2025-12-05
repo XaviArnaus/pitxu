@@ -100,7 +100,7 @@ class StatefulReminders(PyXavi, Command):
 
         try:
             main_instance._xlog.error(f"📝 Showing Create Reminder on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink_while_speaking(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="📝",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)
@@ -112,8 +112,8 @@ class StatefulReminders(PyXavi, Command):
         try:
             reminders_count = len(value)
 
-            main_instance._xlog.error(f"📝 Showing Get Reminders for Date on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink_while_speaking(
+            main_instance._xlog.error(f"📝 Showing Get Reminders for Date on eInk: {reminders_count}")
+            main_instance.show_arbitrary_text_on_eink(
                 icon="📝",
                 text=f"{reminders_count} reminder{'s' if reminders_count != 1 else ''}.",
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
@@ -124,7 +124,7 @@ class StatefulReminders(PyXavi, Command):
 
         try:
             main_instance._xlog.error(f"📝 Showing Delete Reminder on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink_while_speaking(
+            main_instance.show_arbitrary_text_on_eink(
                 icon="📝",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)
