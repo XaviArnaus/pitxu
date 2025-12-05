@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -30,7 +30,7 @@ class StatefulReminders(PyXavi, Command):
             A confirmation message or an error message.
         '''
         try:
-            self._xlog.info(f"📝 Creating a reminder for [{date}] at [{time}]: {reminder_text}")
+            self._xlog.info(f"📝 Request for Creating a reminder for [{date}] at [{time}]: {reminder_text}")
             # Validate date and time format
             try:
                 datetime.strptime(date, Reminders.FORMAT_DATE)
@@ -51,6 +51,7 @@ class StatefulReminders(PyXavi, Command):
 
         except Exception as e:
             self._xlog.error(f"🛑 Error creating reminder for [{date}] [{time}] [{reminder_text}]: {e}")
+            self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_creation_error." + self._xparams.get("language"))
         
     def get_reminders_for_date(self, date: str) -> list[str]:
@@ -64,11 +65,12 @@ class StatefulReminders(PyXavi, Command):
             A list of reminders for the specified date in a JSON format or an error message as string.
         '''
 
-        self._xlog.info(f"📝 Retrieving reminders for [{date}]")
+        self._xlog.info(f"📝 Request for Retrieving reminders for [{date}]")
         try:
             return self._reminders.get_reminders_for_date(date)
         except Exception as e:
             self._xlog.error(f"🛑 Error retrieving reminders for date [{date}]: {e}")
+            self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_retrieval_error." + self._xparams.get("language"))
     
     def delete_reminder(self, date: str, time: str) -> str:
@@ -82,7 +84,7 @@ class StatefulReminders(PyXavi, Command):
         Returns:
             A confirmation message or an error message.
         '''
-        self._xlog.info(f"📝 Deleting a reminder for [{date}] at [{time}]")
+        self._xlog.info(f"📝 Request for Deleting a reminder for [{date}] at [{time}]")
         try:
             success = self._reminders.delete_reminder(date, time)
             if success:
@@ -91,6 +93,7 @@ class StatefulReminders(PyXavi, Command):
                 return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
         except Exception as e:
             self._xlog.error(f"🛑 Error deleting reminder for [{date}] [{time}]: {e}")
+            self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_deletion_error." + self._xparams.get("language"))
         
 
@@ -99,55 +102,64 @@ class StatefulReminders(PyXavi, Command):
 
         
     
-    # def callback_show_date(self, main_instance, value: any, args: dict = None) -> None:
-    #     """
-    #     Callback for `get_current_date_without_time` that gets called AFTER chatbot from `main`.
+    def show_create_reminder(self, main_instance, value: any, args: dict = None) -> None:
 
-    #     With this, we have the `main` context to play with for the given function call.
-    #     For example, show the date in the eInk while we TTS the anwer from the Chatbot.
+        try:
+            main_instance._xlog.error(f"📝 Showing Create Reminder on eInk: {value}")
+            main_instance.show_arbitrary_text_on_eink(
+                icon="📝",
+                text=value,
+                font_size=EinkCanvas.FONT_BIG_SIZE)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing Create Reminder on eInk: {e}")
+    
+    def show_get_reminders_for_date(self, main_instance, value: dict, args: dict = None) -> None:
 
-    #     It is meant to trigger stuff, not to return anything.
-    #     Yeah, it couples it with other parts (why would I couple it with the eInk class?),
-    #     but is thought as a feature of the application. Is the application that needs to evolve
-    #     to abstract these actions (and therefore the communication() method there).
+        try:
+            reminders_count = len(value.items())
 
-    #     Args:
-    #         main_instance: The `main` application instance.
-    #         value: The value returned from the Chatbot AFTER it ran `get_current_date_without_time`.
+            main_instance._xlog.error(f"📝 Showing Get Reminders for Date on eInk: {value}")
+            main_instance.show_arbitrary_text_on_eink(
+                icon="📝",
+                text=f"{reminders_count} reminders.",
+                font_size=EinkCanvas.FONT_HUGE_SIZE)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing Get Reminders for Date on eInk: {e}")
+    
+    def show_delete_reminder(self, main_instance, value: any, args: dict = None) -> None:
 
-    #     """
-    #     main_instance._xlog.info(f"The current date in the callback is: {value}")
+        try:
+            main_instance._xlog.error(f"📝 Showing Delete Reminder on eInk: {value}")
+            main_instance.show_arbitrary_text_on_eink(
+                icon="📝",
+                text=value,
+                font_size=EinkCanvas.FONT_BIG_SIZE)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing Delete Reminder on eInk: {e}")
 
-    #     try:
-    #         # Get a datetime object from the value
-    #         date_obj = datetime.strptime(value, self.format)
-    #         value = date_obj.strftime(self.displayed_format)
+    def get_tool_definition(self) -> list[callable]:
+        """
+        Returns the methods of the class that will be used as tools by the chatbot.
 
-    #         main_instance._xlog.error(f"📆 Showing date on eInk: {value}")
-    #         main_instance.show_arbitrary_text_on_eink(
-    #             icon="📆",
-    #             text=value,
-    #             font_size=EinkCanvas.FONT_BIG_SIZE)
-    #     except Exception as e:
-    #         main_instance._xlog.error(f"🛑 Error showing date on eInk: {e}")
+        It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
+        """
+        return [self.show_create_reminder,
+                self.show_get_reminders_for_date,
+                self.show_delete_reminder]
 
-    # def get_tool_definition(self) -> list[callable]:
-    #     """
-    #     Returns the methods of the class that will be used as tools by the chatbot.
+    def get_callback_by_given_function_name(self, function_name: str) -> callable:
+        """
+        Gets the callback function for a given function name.
 
-    #     It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
-    #     """
-    #     return [self.get_current_date_without_time]
+        It expects the function_name because a class may provide multiple functions as tools.
 
-    # def get_callback_by_given_function_name(self, function_name: str) -> callable:
-    #     """
-    #     Gets the callback function for a given function name.
-
-    #     It expects the function_name because a class may provide multiple functions as tools.
-
-    #     Args:
-    #         function_name: The name of the function to get the callback for.
-    #     """
-    #     if function_name == "get_current_date_without_time":
-    #         return self.callback_show_date
-    #     return self.default_empty_callback
+        Args:
+            function_name: The name of the function to get the callback for.
+        """
+        if function_name == "get_create_reminder":
+            return self.show_create_reminder
+        elif function_name == "get_reminders_for_date":
+            return self.show_get_reminders_for_date
+        elif function_name == "delete_reminder":
+            return self.show_delete_reminder
+        return self.default_empty_callback

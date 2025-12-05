@@ -633,7 +633,7 @@ class Main:
             self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ". Running every-minute tasks.")
             # Get the possible reminder for the current date and time
             reminder: dict = self._reminders.get_reminder(datetime.now().strftime(Reminders.FORMAT_DATE), datetime.now().strftime(Reminders.FORMAT_TIME))
-            if reminder is not None:
+            if reminder is not False:
                 self._xlog.debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")

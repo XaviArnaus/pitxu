@@ -42,7 +42,7 @@ class Reminders(PyXavi, Command):
             self._xlog.info(f"📝 Reminder already exists for [{date}] at [{time}]")
             return False
 
-        self.state.set(reminder_key, reminder_text)
+        self.state.set(reminder_key, reminder_text, slugify_param_name=True)
         self.state.write_file()
         self._xlog.info(f"📝 Reminder set for [{date}] at [{time}]: {reminder_text}")
 
@@ -61,10 +61,10 @@ class Reminders(PyXavi, Command):
 
         self._xlog.info(f"📝 Retrieving reminders for [{date}]")
         reminders = []
-        stored_reminders = self.state.get(date, {})
+        stored_reminders = self.state.get(date, {}, slugify_param_name=True)
         for time, reminder_text in stored_reminders.items():
             reminders.append({
-                "time": time,
+                "time": self._unslugify_time(time),
                 "text": reminder_text
             })
         return reminders
@@ -83,8 +83,8 @@ class Reminders(PyXavi, Command):
         self._xlog.info(f"📝 Deleting a reminder for [{date}] at [{time}]")
 
         reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key):
-            self.state.delete(reminder_key)
+        if self.state.key_exists(reminder_key, slugify_param_name=True):
+            self.state.delete(reminder_key, slugify_param_name=True)
             self.state.write_file()
             self._xlog.info(f"📝 Reminder deleted for [{date}] at [{time}]")
             return True
@@ -92,7 +92,7 @@ class Reminders(PyXavi, Command):
             self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
             return False
     
-    def get_reminder(self, date: str, time: str) -> str | False:
+    def get_reminder(self, date: str, time: str) -> dict | bool:
         '''
         Retrieves a specific reminder.
         
@@ -106,9 +106,9 @@ class Reminders(PyXavi, Command):
         self._xlog.info(f"📝 Retrieving a reminder for [{date}] at [{time}]")
 
         reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key):
-            reminder_text = self.state.get(reminder_key)
+        if self.state.key_exists(reminder_key, slugify_param_name=True):
             self._xlog.info(f"📝 Reminder found for [{date}] at [{time}]: {reminder_text}")
+            reminder_text = self.state.get(reminder_key, slugify_param_name=True)
             return {
                 "date": date,
                 "time": time,
@@ -133,7 +133,7 @@ class Reminders(PyXavi, Command):
         all_reminders = self.state.get_all()
         for date_str, times in all_reminders.items():
             for time_str in list(times.keys()):
-                reminder_datetime_str = f"{date_str} {time_str}"
+                reminder_datetime_str = f"{date_str} {self._unslugify_time(time_str)}"
                 reminder_datetime = datetime.strptime(reminder_datetime_str, f"{self.FORMAT_DATE} {self.FORMAT_TIME}")
                 if reminder_datetime < now:
                     self.state.delete(f"{date_str}.{time_str}")
@@ -145,3 +145,15 @@ class Reminders(PyXavi, Command):
 
         self._xlog.info(f"📝 Deleted {deleted_count} past reminders")
         return deleted_count
+    
+    def _unslugify_time(self, slugified_time: str) -> str:
+        '''
+        Converts a slugified time back to its original format.
+
+        Args:
+            slugified_time: The slugified time string.
+
+        Returns:
+            The original time string.
+        '''
+        return slugified_time.replace("-", ":")

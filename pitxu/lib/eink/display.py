@@ -117,7 +117,7 @@ class Display(Xprocess):
     
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
-        self._macros.arbitrary_text_with_icon(param)
+        self.show_arbitrary_text_on_eink(param=param)
         while self.is_speaker_busy():
             time.sleep(1)
         time.sleep(1)  # small delay to ensure the user sees the image
@@ -125,7 +125,13 @@ class Display(Xprocess):
     
     def show_arbitrary_text_on_eink(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
-        self._macros.arbitrary_text_with_icon(param)
+        self._macros.arbitrary_text_with_icon(
+            display=self._display,
+            text=param.get("text", None),
+            icon=param.get("icon", None),
+            font_size=param.get("font_size", EinkCanvas.FONT_BIG_SIZE),
+            header=param.get("header", None),
+            font_header_size=param.get("font_header_size", EinkCanvas.FONT_HUGE_SIZE))
 
     def splash_ready(self):
         # Draw the ready splash screen

@@ -66,4 +66,4 @@ case "$1" in
 esac
 
 FINAL_EXIT_CODE=$?
-return $FINAL_EXIT_CODE
+exit $FINAL_EXIT_CODE

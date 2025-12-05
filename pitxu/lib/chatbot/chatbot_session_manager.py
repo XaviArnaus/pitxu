@@ -5,7 +5,8 @@ from pitxu.lib.abstract.command import Command
 from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
-                                TrivagoMCPAccommodationSearch
+                                TrivagoMCPAccommodationSearch,\
+                                StatefulReminders
 
 class ChatbotSessionManager(PyXavi):
 
@@ -44,7 +45,8 @@ class ChatbotSessionManager(PyXavi):
             "system_time": SystemTime(config=self._xconfig, params=self._xparams),
             "system_date": SystemDate(config=self._xconfig, params=self._xparams),
             "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams),
-            "volume": SystemVolume(config=self._xconfig, params=self._xparams)
+            "volume": SystemVolume(config=self._xconfig, params=self._xparams),
+            "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")
@@ -83,6 +85,9 @@ class ChatbotSessionManager(PyXavi):
                 self.clients["world_weather"].get_weather_forecast_for_today,
                 self.clients["world_weather"].get_weather_forecast_for_next_days,
                 self.clients["world_wikipedia"].get_summary_from_wikipedia_by_term,
+                self.clients["reminders"].create_reminder,
+                self.clients["reminders"].delete_reminder,
+                self.clients["reminders"].get_reminders_for_date,
             ]
         
         if self.ENABLE_TRIVAGO_MCP:
