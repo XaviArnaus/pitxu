@@ -95,11 +95,11 @@ class Macros:
         display.display()
     
     def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
-        width_text = canvas.textlength(text, font)
-        if(width_text <= max_width):
-            return text
-        else:
-            try:
+        try:
+            width_text = canvas.textlength(text.replace("\n", ""), font)
+            if(width_text <= max_width):
+                return text
+            else:
                 # Remove all possible current line breaks and then split by words
                 words = text.replace("\n", " ").split(" ")
                 new_text = ""
@@ -115,7 +115,7 @@ class Macros:
                         current_line = word
                 new_text += current_line
                 return new_text
-            except ValueError as e:
+        except ValueError as e:
                 self._xlog.error(f"Error wrapping text: {e}")
                 dd(text)
                 return text
