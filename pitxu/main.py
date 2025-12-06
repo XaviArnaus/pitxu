@@ -689,3 +689,5 @@ class Main:
                 self.unmute_microphone()
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
+                # Reset the last interaction time, as we just spoke
+                self._last_interaction_datetime = datetime.now()
