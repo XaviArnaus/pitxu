@@ -686,6 +686,7 @@ class Main:
                     font_size=EinkCanvas.FONT_BIG_SIZE)
                 self.mute_microphone()
                 self.communicate(reminder_text_for_speaking, [self.COMM_TTS])
+                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
                 self.unmute_microphone()
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
