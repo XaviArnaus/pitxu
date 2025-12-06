@@ -62,7 +62,6 @@ class SystemPowerManagement(PyXavi, Command):
         main_instance._xlog.info(f"The battery level in the callback is: {value}")
 
         try:
-            # Add an emoji and a percentage sign to the value
             if float(value) < 30.0:
                 icon = "🪫"
             else:
@@ -72,7 +71,7 @@ class SystemPowerManagement(PyXavi, Command):
             main_instance._xlog.error(f"🔋 Showing battery level on eInk: {value}")
             main_instance.show_arbitrary_text_on_eink(
                 icon=icon,
-                text=value,
+                text=f"{value} %",
                 font_size=EinkCanvas.FONT_HUGE_SIZE)
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing battery level on eInk: {e}")
