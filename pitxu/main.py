@@ -32,7 +32,10 @@ class Main:
     _xconfig: Config = None
     _xlog: logging = None
     _state: Storage = None
+    
     _last_processed_minute: int = -1
+    _last_interaction_datetime: datetime = None
+    _seconds_to_hold_interaction_answer: int = 15
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -55,6 +58,7 @@ class Main:
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
     _exit_words: list = []
+    _trigger_words: list = []
     _tokens_counter: int = 0
 
     COMM_DISPLAY = "display"
@@ -144,6 +148,10 @@ class Main:
         self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
         self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
 
+        # Load trigger words
+        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
+        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
+
         # Compile exit words
         all_possible_exit_words = []
         for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
@@ -229,6 +237,11 @@ class Main:
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
                     self._show_init_phases(9)
 
+                    # Before we start with the loop, let's set the last interaction time to now
+                    # It just started, there was a greating after all.
+                    # Maybe the user wants to talk straight away without the trigger words.
+                    self._last_interaction_datetime = datetime.now()
+
                     question = ""
                     dictate_count = 0
                     answer_count = 0
@@ -261,11 +274,14 @@ class Main:
                         # Because the outcome of any chatbot's function call may be using them.
                         comm_channels_to_ignore = []
 
+                        # Initialize answer
+                        answer = None
+
                         # Avoid calling the Chatbot when we can exit directly.
                         if self._text_has_exit_intention(question):
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
-                        else:
+                        elif self._text_intends_to_trigger_or_continue_an_interaction(question):
                             # Here we start with the Chatbot.
                             # We set it as busy in shared memory, so the Matrix can show the thinking effect
                             self.set_chatbot_busy()
@@ -286,28 +302,32 @@ class Main:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             self.unset_chatbot_busy()
                             self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
+                        else:
+                            self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                         
                         # Do we actully have any answer?
-                        if answer is None or answer.strip() == "":
-                            self._xlog.debug(">> Empty answer from Chatbot, we should not be here, it should be handled inside Chatbot.")
-                            answer = "ERROR"
+                        if answer is not None and answer.strip() != "":
                         
-                        # Clean the answer first, just in case
-                        answer = Text.remove_emojis(answer)
-                        answer = Text.remove_markdown(answer)
-                        answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+                            # Clean the answer first, just in case
+                            answer = Text.remove_emojis(answer)
+                            answer = Text.remove_markdown(answer)
+                            answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
 
-                        # Answer
-                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                        # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
-                        #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
-                        self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
-                        self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                        answer_count += 1
+                            # Answer
+                            sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                            # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
+                            #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
+                            self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
+                            self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                            answer_count += 1
 
-                        # If we were communicating an error, it's over and start new
-                        if self.is_chatbot_error():
-                            self.unset_chatbot_error()
+                            # If we were communicating an error, it's over and start new
+                            if self.is_chatbot_error():
+                                self.unset_chatbot_error()
+                            
+                            # Last thing to do is to remember this as the last interaction.
+                            # Has to happen at the very last otherwise the time is consumed by the possible answering process.
+                            self._last_interaction_datetime = datetime.now()
 
                         # Unmute microphone to continue listening
                         self.unmute_microphone()
@@ -467,6 +487,24 @@ class Main:
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
+    
+    def _text_intends_to_trigger_or_continue_an_interaction(self, question: str) -> bool:
+        # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
+        first_words = " ".join(question.lower().strip().split(" ")[0:5])
+        for trigger_word in self._trigger_words:
+            if trigger_word in first_words:
+                return True
+        
+        # Still here? This means that no trigger word was found
+        # But we may be in an ongoing interaction, so let's check the last interaction time
+        # We must take in account the time spent talking
+        if self._last_interaction_datetime is not None:
+            seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
+            if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+                return True
+        
+        # No trigger word found, and no ongoing interaction
+        return False
     
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
@@ -648,6 +686,9 @@ class Main:
                     font_size=EinkCanvas.FONT_BIG_SIZE)
                 self.mute_microphone()
                 self.communicate(reminder_text_for_speaking, [self.COMM_TTS])
+                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
                 self.unmute_microphone()
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
+                # Reset the last interaction time, as we just spoke
+                self._last_interaction_datetime = datetime.now()

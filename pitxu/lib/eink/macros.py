@@ -1,4 +1,4 @@
-from PIL import ImageDraw,ImageFont, ImageText
+from PIL import ImageDraw,ImageFont
 
 from pyxavi.config import Config
 from pyxavi.logger import Logger
@@ -95,25 +95,30 @@ class Macros:
         display.display()
     
     def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
-        width_text = canvas.textlength(text, font)
-        if(width_text <= max_width):
-            return text
-        else:
-            # Remove all possible current line breaks and then split by words
-            words = text.replace("\n", " ").split(" ")
-            new_text = ""
-            current_line = ""
-            
-            for word in words:
-                test_line = current_line + (" " if current_line != "" else "") + word
-                width_test_line = canvas.textlength(test_line, font)
-                if(width_test_line <= max_width):
-                    current_line = test_line
-                else:
-                    new_text += current_line + "\n"
-                    current_line = word
-            new_text += current_line
-            return new_text
+        try:
+            width_text = canvas.textlength(text.replace("\n", ""), font)
+            if(width_text <= max_width):
+                return text
+            else:
+                # Remove all possible current line breaks and then split by words
+                words = text.replace("\n", " ").split(" ")
+                new_text = ""
+                current_line = ""
+                
+                for word in words:
+                    test_line = current_line + (" " if current_line != "" else "") + word
+                    width_test_line = canvas.textlength(test_line, font)
+                    if(width_test_line <= max_width):
+                        current_line = test_line
+                    else:
+                        new_text += current_line + "\n"
+                        current_line = word
+                new_text += current_line
+                return new_text
+        except ValueError as e:
+                self._xlog.error(f"Error wrapping text: {e}")
+                dd(text)
+                return text
     
     def startup_splash(self, display: EinkDisplay):
 

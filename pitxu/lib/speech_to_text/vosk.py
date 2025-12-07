@@ -82,11 +82,15 @@ class Vosk:
         return int(device_info["default_samplerate"])
 
     def callback(self, indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block."""
+        """
+        This is called (from a separate thread) for each audio block.
+        Audio blocks are sentences.
+        """
         if status:
             print(status, file=sys.stderr)
         
         if not self.should_skip_audio_input():
+            # print(time.inputBufferAdcTime)
             self._queue.put(bytes(indata))
 
     def _int_or_str(self, text):

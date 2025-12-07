@@ -14,6 +14,7 @@ from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
 import logging, time, anyio, math
 import fastmcp
+from collections import Counter
 
 class GeminiChatbot(PyXavi):
     """
@@ -34,10 +35,23 @@ class GeminiChatbot(PyXavi):
     - 250 requests per day
     """
 
-    # MODEL = 'gemini-2.0-flash'
+    # This is a list of available models to pick from
+    # Basically, from better to worse by version
+    # Be careful: Several sub-versions of same main version share quotas.
+    #   This means that using gemini-2.5-flash-preview-09-2025 and
+    #   gemini-2.5-flash will consume the same quota.
+    # That's why it's commented here.
+    MODELS = [
+        # 'gemini-2.5-flash-preview-09-2025',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        "gemma-3-27b",
+        'gemini-2.0-flash',
+    ]
+    # We define the Priority model.
     MODEL_MAIN = 'gemini-2.5-flash'
-    MODEL_SECONDARY = 'gemini-2.0-flash'
-    MODEL = MODEL_MAIN
+
+    _used_models = []
 
     ERROR_QUOTA_EXCEEDED = 429
 
@@ -60,7 +74,6 @@ class GeminiChatbot(PyXavi):
         if (self._xconfig.get("chatbot.mock", True)):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
-        self._client = genai.Client(api_key=self._xparams.get("api_key"))
         self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
@@ -70,9 +83,48 @@ class GeminiChatbot(PyXavi):
     
     def get_chat_history(self):
         return self._chat.get_history()
+
+    def pick_new_model(self) -> str:
+        """
+        Picks a new model that hasn't been used yet.
+        If all models have been used, resets the used models list and picks again.
+
+        Returns:
+            The new model name.
+        """
+        # Just the ones we CAN pick
+        # https://stackoverflow.com/a/55015281/1973860
+        available_models = [ v for c in [Counter(self._used_models)] for v in self.MODELS if not c[v] or c.subtract([v]) ]
+        # None? Reset. Warning, this can lead to an infinite loop where Pitxu
+        # goes through all of them, Google answers 429 in all of them,
+        # the list resets and we start again.
+        if not available_models:
+            self._used_models = []
+            available_models = self.MODELS
+
+        # Always preference for the MAIN one
+        if self.MODEL_MAIN in available_models:
+            new_model = self.MODEL_MAIN
+        else:
+            new_model = available_models[0]
+        
+        self._used_models.append(new_model)
+        return new_model
+    
+    def discard_current_model(self):
+        """
+        Discards the current model from the used models list.
+        """
+        self._used_models.append(self.MODEL)
     
     async def initialize_async(self, tools: list, force_model: str = None):
-        self.MODEL = force_model if force_model is not None and force_model in [self.MODEL_MAIN, self.MODEL_SECONDARY] else self.MODEL
+        self._xlog.info("🧠 Initializing GeminiChatbot with forcing the model " + (str(force_model) if force_model is not None else "None"))
+        self._client = genai.Client(api_key=self._xparams.get("api_key"))
+        if force_model is not None and force_model not in self._used_models:
+            self.MODEL = force_model
+        else:
+            self.MODEL = self.pick_new_model()
+        self._xlog.info("🧠 Using model: " + str(self.MODEL))
         self._chat = self._client.aio.chats.create(
                 model=self.MODEL,
                 config=types.GenerateContentConfig(
@@ -81,6 +133,7 @@ class GeminiChatbot(PyXavi):
                     temperature=0.1
                 )
             )
+        self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
     
     async def ask_async(self, question: str) -> ChatbotResponse:
 
@@ -159,8 +212,9 @@ class GeminiChatbot(PyXavi):
                                             response={"result": message_short})))
                                 # And now, as we have exhausted the quota, let's try to move to the secondary model if possible
                                 if self.MODEL == self.MODEL_MAIN:
-                                    self._xlog.info("🧠 Switching to secondary model: " + self.MODEL_SECONDARY)
-                                    await self.initialize_async(tools=self.get_session_manager().tools, force_model=self.MODEL_SECONDARY)
+                                    self._xlog.info("🧠 Switching to another model.")
+                                    self.discard_current_model()
+                                    await self.initialize_async(tools=self.get_session_manager().tools)
                             else:
                                 outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
                             # In case of a quota exceeded, we don't need to retry now.
