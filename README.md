@@ -281,6 +281,10 @@ https://mcp.trivago.com/docs
 https://gofastmcp.com/integrations/gemini
 https://github.com/stepanogil/mcp-sse-demo?tab=readme-ov-file
 
+### Make Gemma3 to use native tools for Ollama
+https://github.com/IllFil/gemma3-ollama-tools
+https://www.philschmid.de/gemma-function-calling
+
 ## Geekworm X1203 UPS
 Use the USB-C (5v/5A) from the UPS and not from the Raspberry Pi.
 If connected without software, it will behave as follows:

@@ -1460,7 +1460,6 @@ description = "Fundamental package for array computing in Python"
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" or sys_platform == \"linux\""
 files = [
     {file = "numpy-2.3.4-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:e78aecd2800b32e8347ce49316d3eaf04aed849cd5b38e0af39f829a4e59f5eb"},
     {file = "numpy-2.3.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:7fd09cc5d65bda1e79432859c40978010622112e9194e581e3415a3eccc7f43f"},
@@ -2315,29 +2314,25 @@ files = [
 
 [[package]]
 name = "pyxavi"
-version = "1.3.0"
+version = "1.3.1"
 description = "Set of utilities to assist on simple Python projects"
 optional = false
-python-versions = "^3.9"
+python-versions = "<4.0,>=3.9"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "pyxavi-1.3.1-py3-none-any.whl", hash = "sha256:8b25335925ad85187c40b2c55c531f46e012589991029e3c9ec1f97e9c9b6f2b"},
+    {file = "pyxavi-1.3.1.tar.gz", hash = "sha256:646ac4ab60c5faaf39874dbe1a075b2d93e38b9728e401581db3ccd146c9a65d"},
+]
 
 [package.dependencies]
-beautifulsoup4 = "^4.11"
-emoji = "^2.14.1"
-feedparser = "^6.0.10"
-multiprocessing-logging = "^0.3.4"
-python-slugify = "^7.0.0"
-pyyaml = "^6.0.1"
-requests = "^2.28.0"
-validators = "^0.22.0"
-
-[package.source]
-type = "git"
-url = "ssh://git@github.com/XaviArnaus/pyxavi.git"
-reference = "feature/add-slugify-support-to-param-parts-in-dict"
-resolved_reference = "1292e4ed66eacba3324012e3effdf367d0d8a923"
+beautifulsoup4 = ">=4.11,<5.0"
+emoji = ">=2.14.1,<3.0.0"
+feedparser = ">=6.0.10,<7.0.0"
+multiprocessing-logging = ">=0.3.4,<0.4.0"
+python-slugify = ">=7.0.0,<8.0.0"
+pyyaml = ">=6.0.1,<7.0.0"
+requests = ">=2.28.0,<3.0.0"
+validators = ">=0.22.0,<0.23.0"
 
 [[package]]
 name = "pyyaml"
@@ -3161,4 +3156,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "d3cd12702b491fa6cffc092019ddad175d31e463186e3eb6a6235d34796e7ca7"
+content-hash = "051a2eba89f9ec5b4241351ce0e0cbd2d9f0cb1c1c731af47437269c11c8ceba"
