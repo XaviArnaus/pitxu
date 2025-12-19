@@ -35,6 +35,9 @@ class GeminiChatbot(PyXavi):
     - 250 requests per day
     """
 
+    # Check the available models here:
+    # curl "https://generativelanguage.googleapis.com/v1beta/models?key=API_KEY"
+
     # This is a list of available models to pick from
     # Basically, from better to worse by version
     # Be careful: Several sub-versions of same main version share quotas.
@@ -45,11 +48,12 @@ class GeminiChatbot(PyXavi):
         # 'gemini-2.5-flash-preview-09-2025',
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite',
-        "gemma-3-27b",
+        "gemma-3-27b-it",
         'gemini-2.0-flash',
     ]
     # We define the Priority model.
-    MODEL_MAIN = 'gemini-2.5-flash'
+    # MODEL_MAIN = 'gemini-2.5-flash'
+    MODEL_MAIN = "gemma-3-27b-it"
 
     _used_models = []
 
