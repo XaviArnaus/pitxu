@@ -94,7 +94,8 @@ class OllamaChatbot(PyXavi):
                 # {"role": "system", "content": self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))},
                 {"role": "user", "content": question}
             ],
-            stream=False
+            stream=False,
+            num_ctx=2048
 
         )
         answer = response['message']['content']
