@@ -1,4 +1,4 @@
-from pyxavi import Dictionary, Config, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
@@ -13,6 +13,8 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     _queue: JoinableQueue = None
     _shared_memory: SharedMemoryManager = None
 
+    _current_action: XprocAction = None
+
     def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
 
@@ -25,6 +27,9 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
+
+    def get_current_processing_action(self) -> XprocAction:
+        return self._current_action
 
     def run(self):
         '''
@@ -41,7 +46,10 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
                 action, param = queue_item
-                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + param + "]" if param is not None else "]"))
+                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + self.ensure_nice_string(param) + "]" if param is not None else "]"))
+
+                # Let's remember the current action
+                self._current_action = action
 
                 # This is the old way, to be deprecated
                 self.run_with_context(self._xconfig, self._xlog, action, param)
@@ -63,6 +71,10 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 
                 # Finally, we mark this task as done
                 try:
+                    # Removing the current action
+                    self._current_action = None
+
+                    # In the queue
                     self._queue.task_done()
                 except ValueError:
                     pass
@@ -70,6 +82,22 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
             self.finish()
+        except EOFError as e:
+            self._xlog.error("🛑 EOFError detected in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
+        except Exception as e:
+            self._xlog.error("🛑 Unexpected Error in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
+            self._xlog.error(full_stack())
+    
+    def ensure_nice_string(self, value: any) -> str:
+        try:
+            # Assuming that a string longer than 10 characters that can be converted to int in base 16 is a hexadecimal value
+            if type(value) == str and len(value) > 10:
+                int(value, 16)
+                return "<hexadecimal value>"
+        except (ValueError, TypeError):
+            pass
+        return value if type(value) == str else str(type(value))
+
 
     def _initialize_on_every_run(self):
         '''
@@ -80,10 +108,17 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         self.init_pyxavi(config=self._xconfig, params=self._xparams)
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
-        self._shared_memory.initialize_existing_shared_memory()
+        self._shared_memory.initialize_existing_shared_memory_flags()
+        self._shared_memory.initialize_existing_shared_memory_vu_meter()
 
     def read_shared_memory_flag(self, index: int) -> bool:
         return self._shared_memory.read_shared_memory_flag(index)
 
     def write_shared_memory_flag(self, index: int, value: bool):
         self._shared_memory.write_shared_memory_flag(index, value)
+
+    def read_shared_memory_vu_meter_column(self, index: int) -> bool:
+        return self._shared_memory.read_shared_memory_vu_meter_column(index)
+
+    def write_shared_memory_vu_meter_column(self, index: int, value: bool):
+        self._shared_memory.write_shared_memory_vu_meter_column(index, value)

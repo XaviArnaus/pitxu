@@ -3,7 +3,7 @@ import logging
 
 from pyxavi import Config, Logger, Dictionary
 from pitxu.lib.objects import Point, Rectangle, Matrix
-from . import EmulatedCanvas, DeviceWrapper
+from . import EmulatedCanvas, DeviceWrapper, HandableEmulatedCanvas, HandableCanvas
 
 from luma.core.interface.serial import spi, noop
 from luma.core.render import canvas
@@ -49,14 +49,15 @@ class Max7219:
 
         # Max7219
         if (not self._xconfig.get("matrix_led.mock", True)):
-            self._serial = spi(port=0, device=0, gpio=noop())
+            self._serial = spi(port=0, device=1, gpio=noop())
         self._device = DeviceWrapper(config=config, params=params, serial_interface=self._serial)
         self._device.clear()
         self._device.contrast(int(config.get("matrix_led.intensity", 100)))
+        self._xlog.info("Matrix LED display intensity set to " + str(config.get("matrix_led.intensity", 100)))
         self.EMULATION_MODE = "1"
         self.EMULATION_SIZE = Point(
-            self._xconfig.get("matrix_led.size.x", 8) - 1,
-            self._xconfig.get("matrix_led.size.y", 8) - 1
+            self._xconfig.get("matrix_led.size.x", 8),
+            self._xconfig.get("matrix_led.size.y", 8)
         ).to_image_point()
         self.BOUNDING_BOX = Rectangle(
             Point(0,0),
@@ -82,6 +83,14 @@ class Max7219:
         else:
             self._xlog.debug("Creating Matrix Canvas")
             return canvas(self._device)
+    
+    def create_handable_canvas(self) -> HandableCanvas | HandableEmulatedCanvas:
+        if (self._xconfig.get("matrix_led.mock", True)):
+            self._xlog.debug("Creating Matrix Emulation Handable Canvas")
+            return HandableEmulatedCanvas(self._xconfig, self._xparams, self.EMULATION_MODE, self.EMULATION_SIZE)
+        else:
+            self._xlog.debug("Creating Matrix Handable Canvas")
+            return HandableCanvas(self._device)
     
     def clear(self, draw: ImageDraw = None) -> None:
         self._xlog.debug("Clearing Matrix.")

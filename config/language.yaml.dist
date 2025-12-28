@@ -1,23 +1,64 @@
 # General settings about language
 language:
+  # Trigger words to start an interaction
+  trigger_words:
+    ca: ["hola bob", "ep bob", "ei bob", "bon dia bob", "bona tarda bob", "bona nit bob", "escolta bob", "bob"]
+    es: ["hola bob", "eh bob", "oye bob", "buenos días bob", "buenas tardes bob", "buenas noches bob", "escucha bob", "bob"]
+    en-us: ["hello bob", "hi bob", "hey bob", "good morning bob", "good afternoon bob", "good evening bob", "listen bob", "bob"]
+    de: ["hallo bob", "hi bob", "hey bob", "guten morgen bob", "guten tag bob", "guten abend bob", "hör zu bob", "bob"]
   # Exit words are used to identify the program termination
   exit_words:
     ca: ["sortir", "adéu"]
     es: ["salir", "adiós"]
-    en-us: ["exit", "quit", "bye", "goodbye"]
-    de: ["chus"]
+    en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
+    de: ["tschüss", "beenden", "ende"]
   # This is the welcome / greeting message
   greeting:
-    ca: "Hola sóc el Pitxu. Diga'm alguna cosa"
-    es: "Hola soy el Pitxu. Dime algo"
-    en-us: "Hi I'm Pitxu. Tell me anything"
-    de: "Hallo Ich bin Pitxu. Erzähl mir was"
+    ca: "Hola"
+    es: "Hola"
+    en-us: "Hello"
+    de: "Hallo"
   # This is the goodbye message
   goodbye:
     ca: "Fins la propera! Adéu!"
     es: "Hasta la próxima! Adiós"
     en-us: "See you next time! Goodbye!"
     de: "Bis zum nächsten Mal! Auf Wiedersehen!"
+  general_error:
+    ca: "Ho sento, ha hagut un error inesperat."
+    es: "Lo siento, ha habido un error inesperado."
+    en-us: "I'm sorry, there was an unexpected error."
+    de: "Es tut mir leid, es gab einen unerwarteten Fehler."
+  server_error:
+    ca: "Ho sento, el servidor retorna error."
+    es: "Lo siento, el servidor devuelve un error."
+    en-us: "I'm sorry, the server returned an error."
+    de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben."
+  api_error:
+    ca: "Ho sento, el servidor ha retornat un error de l'API."
+    es: "Lo siento, el servidor ha devuelto un error de API."
+    en-us: "I'm sorry, the server returned an API error."
+    de: "Es tut mir leid, der Server hat einen API-Fehler zurückgegeben."
+  quota_exceeded_error:
+    ca: "Ho sento, la quota s'ha excedit. Espera %s segons abans de tornar-ho a provar."
+    es: "Lo siento, la cuota se ha excedido. Espera %s segundos antes de volver a intentarlo."
+    en-us: "I'm sorry, the quota has been exceeded. Wait %s seconds before retrying."
+    de: "Es tut mir leid, das Kontingent wurde überschritten. Warten Sie %s Sekunden, bevor Sie es erneut versuchen."
+  client_error:
+    ca: "Ho sento, sembla que hi ha un error de client."
+    es: "Lo siento, parece que hay un error de cliente."
+    en-us: "I'm sorry, it seems there is a client error."
+    de: "Es tut mir leid, es scheint ein Client-Fehler vorzuliegen."
+  connection_closed_error:
+    ca: "Ho sento, el servidor retorna error: la connexió s'ha tancat."
+    es: "Lo siento, el servidor devuelve un error: la conexión se ha cerrado."
+    en-us: "I'm sorry, the server returned an error: the connection was closed."
+    de: "Es tut mir leid, der Server hat einen Fehler zurückgegeben: die Verbindung wurde geschlossen."
+  empty_answer:
+    ca: "Ho sento, no et puc donar una resposta ara."
+    es: "Lo siento, no puedo darte una respuesta ahora."
+    en-us: "I'm sorry, I can't give you an answer right now."
+    de: "Es tut mir leid, ich kann dir gerade keine Antwort geben."
   # Common text replacements to normalize output
   text_replacements:
     ca:
@@ -56,3 +97,66 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
+
+  # Reminders
+  reminders:
+    reminder_set:
+      ca: "Recordatori establert per al %s a les %s: '%s'."
+      es: "Recordatorio establecido para el %s a las %s: '%s'."
+      en-us: "Reminder set for %s at %s: '%s'."
+      de: "Erinnerung gesetzt für den %s um %s: '%s'."
+    reminder_invalid_date:
+      ca: "Data invàlida. Si us plau, utilitza el format Any-Mes-Dia (per exemple, 2023-12-25)."
+      es: "Fecha inválida. Por favor, utiliza el formato Año-Mes-Día (por ejemplo, 2023-12-25)."
+      en-us: "Invalid date. Please use the Year-Month-Day format (e.g., 2023-12-25)."
+      de: "Ungültiges Datum. Bitte verwende das Format Jahr-Monat-Tag (z.B. 2023-12-25)."
+    reminder_invalid_time:
+      ca: "Hora invàlida. Si us plau, utilitza el format HH:MM en format de 24 hores (per exemple, 14:30)."
+      es: "Hora inválida. Por favor, utiliza el formato HH:MM en formato de 24 horas (por ejemplo, 14:30)."
+      en-us: "Invalid time. Please use the HH:MM format in 24-hour format (e.g., 14:30)."
+      de: "Ungültige Uhrzeit. Bitte verwende das Format HH:MM im 24-Stunden-Format (z.B. 14:30)."
+    reminder_past_datetime:
+      ca: "No es pot establir un recordatori per a una data i hora passada."
+      es: "No se puede establecer un recordatorio para una fecha y hora pasada."
+      en-us: "Cannot set a reminder for a past date and time."
+      de: "Es kann keine Erinnerung für ein vergangenes Datum und eine vergangene Uhrzeit festgelegt werden."
+    reminder_creation_error:
+      ca: "Ho sento, hi ha hagut un error en crear el recordatori."
+      es: "Lo siento, ha habido un error al crear el recordatorio."
+      en-us: "I'm sorry, there was an error creating the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Erinnerung."
+    reminder_already_exists:
+      ca: "Ja existeix un recordatori per a aquesta data i hora: %s."
+      es: "Ya existe un recordatorio para esta fecha y hora: %s."
+      en-us: "A reminder already exists for this date and time: %s."
+      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Erinnerung: %s."
+    reminder_list_empty:
+      ca: "No hi ha recordatoris establerts."
+      es: "No hay recordatorios establecidos."
+      en-us: "There are no reminders set."
+      de: "Es sind keine Erinnerungen gesetzt."
+    reminder_retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar els recordatoris."
+      es: "Lo siento, ha habido un error al recuperar los recordatorios."
+      en-us: "I'm sorry, there was an error retrieving the reminders."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Erinnerungen."
+    reminder_deleted:
+      ca: "Recordatori eliminat per al %s a les %s."
+      es: "Recordatorio eliminado para el %s a las %s."
+      en-us: "Reminder deleted for %s at %s."
+      de: "Erinnerung gelöscht für den %s um %s."
+    reminder_not_found:
+      ca: "No s'ha trobat cap recordatori per al %s a les %s."
+      es: "No se ha encontrado ningún recordatorio para el %s a las %s."
+      en-us: "No reminder found for %s at %s."
+      de: "Keine Erinnerung für den %s um %s gefunden."
+    reminder_deletion_error:
+      ca: "Ho sento, hi ha hagut un error en eliminar el recordatori."
+      es: "Lo siento, ha habido un error al eliminar el recordatorio."
+      en-us: "I'm sorry, there was an error deleting the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Löschen der Erinnerung."
+    reminder_announcement:
+      ca: "Recordatori: %s"
+      es: "Recordatorio: %s"
+      en-us: "Reminder: %s"
+      de: "Erinnerung: %s"

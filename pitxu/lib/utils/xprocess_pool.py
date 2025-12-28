@@ -34,7 +34,8 @@ class XprocessPool(PyXavi):
 
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=config, params=params)
-        self._shared_memory.initialize_new_shared_memory()
+        self._shared_memory.initialize_new_shared_memory_flags()
+        self._shared_memory.initialize_new_shared_memory_vu_meter()
 
         # Initialise the manager that will create the queues
         self._manager = Manager()
@@ -106,6 +107,9 @@ class XprocessPool(PyXavi):
     def broadcast(self, action: XprocAction, param: str = None):
         for queue_name in self._queue.keys():
             self.send(queue_name, action, param)
+
+    def get_memory_manager(self) -> SharedMemoryManager:
+        return self._shared_memory
     
     def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy
@@ -153,13 +157,13 @@ class XprocessPool(PyXavi):
 
         # 4. Terminate any leftover processes
         for name, process in self._process.items():
-            self._xlog.debug("[Main Finish] Is the subprocess [" + name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
+            self._xlog.debug("Is the subprocess [" + name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
             if process.is_alive():
-                self._xlog.debug("[Main Finish] Terminating Process [" + name + "]")
+                self._xlog.debug("Terminating Process [" + name + "]")
                 process.terminate()
         
-        # Close the Shared Memory
-        self._xlog.debug("[Main Finish] Closing Shared Memory")
+        # Close the Shared Memory Manager
+        self._xlog.debug("Closing Shared Memory Manager")
         self._shared_memory.close()
     
     def _clearAndDiscardQueue(self, queue: JoinableQueue):

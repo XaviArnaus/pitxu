@@ -1,0 +1,19 @@
+from luma.core.render import canvas
+from PIL import ImageDraw
+
+class HandableCanvas(canvas):
+    '''
+    Extends luma.core.render.canvas to add handable features
+    '''
+
+    def get(self) -> ImageDraw.ImageDraw:
+        if self.draw is None:
+            return self.__enter__()
+        else:
+            return self.draw
+
+    def send_to_device(self):
+        self.device.display(self.image)
+    
+    def close(self):
+        self.__exit__(None, None, None)

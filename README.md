@@ -72,11 +72,20 @@ For Debian based linux distros:
 sudo apt install swig liblgpio-dev
 ```
 
+### Dependencies related to `i2c`
+
+This is not needed for the Python / Poetry application to work, but it's useful to debug and identify the own hardware.
+
+For Debian based linux distros:
+```
+sudo apt install i2c-tools
+```
+
 ### ❗️ All Linux/Debian dependencies in one line
 Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools
 ```
 
 
@@ -209,12 +218,30 @@ Works very decent, no very significant difference with MacOS
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
     - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
     - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
+- Most of the times, the very first start, the Splash screen is shown grey-ish.
 
 ### Led Matrix
-- Works good as a test in the main thread, I can't make it work properly in a subprocess:
-    - Initialisation presents random (always the same) led on.
-    - Flush to the device does not seem to work (it works when all is in the main thread, check test)
-    - Only got to get flasshing random leds and bars.
+- Works good in general
+- The very first show of the KITT mouth is shown mangled. The rest of the times is good.
+- Spotted few times where the KITT mouth did not appear while TTS speaks. Smells like Shared Memory Flags were not updated on time.
+
+
+# Ideas
+
+- API public transport
+- Button to mute, so it does not attend what is spoken in front
+- Button to skip what is being TTS, so user can discard the explanation (can be anoyingly long)
+
+Python offers several powerful libraries for sentiment analysis. Some of the most popular and effective ones include:
+
+*   **NLTK (Natural Language Toolkit)**: A comprehensive library for natural language processing, NLTK includes tools for sentiment analysis, notably the VADER (Valence Aware Dictionary and Sentiment Reasoner) sentiment analyzer, which is particularly effective for social media texts.
+*   **TextBlob**: Built on top of NLTK, TextBlob is known for its simplicity and ease of use, making it ideal for beginners and quick sentiment evaluations. It provides a pre-trained sentiment analyzer and offers fine-grained polarity scores and subjectivity analysis.
+*   **VADER (Valence Aware Dictionary and Sentiment Reasoner)**: Specifically designed for analyzing sentiment in social media and short text content, VADER is a rule-based sentiment analysis tool. It generates compound polarity scores and can handle informal language, slang, and emojis.
+*   **SpaCy**: A modern NLP library focused on efficiency and production use, SpaCy includes support for sentiment analysis. It utilizes a machine learning approach based on convolutional neural networks, which can handle complex language features like negation and sarcasm.
+*   **BERT (Bidirectional Encoder Representations from Transformers)**: A state-of-the-art library from Hugging Face, Transformers offers a wide range of pre-trained models, including BERT, which achieve remarkable performance on sentiment analysis benchmarks.
+*   **Flair**: Another advanced library offering sophisticated features and capabilities for more complex sentiment analysis tasks, including strong multilingual support.
+*   **Scikit-learn**: A popular machine learning library, Scikit-learn includes tools for building custom sentiment analysis models using classifiers and feature extraction.
+*   **PyTorch**: A deep learning framework used for building custom sentiment analysis models, PyTorch provides full flexibility to design and train neural networks.
 
 
 # Resources
@@ -239,6 +266,7 @@ https://alphacephei.com/vosk/models
 ## Google Gemini
 https://ai.google.dev/gemini-api/docs/migrate
 https://ai.google.dev/gemini-api/docs/rate-limits
+https://aistudio.google.com/usage?timeRange=last-28-days&project=gen-lang-client-0547047381&tab=rate-limit
 
 ### Commands 
 https://github.com/googleapis/python-genai#manually-declare-and-invoke-a-function-for-function-calling
@@ -259,6 +287,127 @@ https://ollama.com/library
 
 ### Explicit Catalan model (based on Gemma3)
 https://ollama.com/jobautomation/OpenEuroLLM-Catalan:latest
+### Trivago MCP Server
+https://mcp.trivago.com/docs
+
+### FastMCP & Gemini
+https://gofastmcp.com/integrations/gemini
+https://github.com/stepanogil/mcp-sse-demo?tab=readme-ov-file
+
+### Make Gemma3 to use native tools for Ollama
+https://github.com/IllFil/gemma3-ollama-tools
+https://www.philschmid.de/gemma-function-calling
+
+## Geekworm X1203 UPS
+Use the USB-C (5v/5A) from the UPS and not from the Raspberry Pi.
+If connected without software, it will behave as follows:
+
+- When connected it, the Raspberry Pi will start automatically
+- The charging will start also automatically. One led blinks. There are 3 green leds that indicate the battery level.
+- When shutting down the Raspberry Pi, it will remain on.
+- To completelly shut it down, press the UPS power button 3 times.
+- If a momentary button is connected to the XH2.54 dedicated socket, it also needs 3 times.
+- To turn it on again, a single push to any of above buttons will do.
+
+The software and some instructions can be found here:
+https://wiki.geekworm.com/X1203
+https://suptronics.com/Raspberrypi/Power_mgmt/x120x-v1.0_software.html
+
+⚠️ Its control per software implies the use of `I2C`. At this point we should already have it
+activated as the eInk and the LED matrix need it as well. Otherwise, read how to activate the
+`I2C` feature through the `sudo raspi-config` command.
+
+### Which I2C address is the UPS connected to?
+To see which address the UPS is connected (docs says 0x36)
+```
+sudo i2cdetect -y 1
+```
+
+### How to update the RPi5 EEPROM so that all powers off together
+
+In a terminal in the RPi, edit the EEPROM config:
+```
+sudo rpi-eeprom-config -e
+```
+
+Change the setting of `POWER_OFF_ON_HALT` from `0` to `1`,
+Add `PSU_MAX_CURRENT=5000` at the end of the file that reads like this:
+```
+[all]
+BOOT_UART=1
+BOOT_ORDER=0xf14
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+```
+
+Reboot
+
+## Some newbie Debian docs for setting up stuff
+
+### Make Pitxu to start at boot
+
+https://www.thedigitalpictureframe.com/ultimate-guide-systemd-autostart-scripts-raspberry-pi/
+
+See [The `pitxu.service` file in the /bin folder](./bin/pitxu.service)
+
+1. Ensure that this file has `644` permissions
+2. Create a soft link from `/etc/systemd/system/` to this file:
+```
+cd /etc/systemd/system/
+sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
+```
+
+3. Reload the systemd daemon and enable the service
+```
+sudo systemctl daemon-reload
+sudo systemctl enable pitxu
+```
+
+Further updates do not need to repeat point 3, but if the filename changes.
+
+### Clear the displays on every shutdown and reboot
+
+https://askubuntu.com/a/416330
+
+See [The `k99_cleanup_pitxu` file in the /bin folder](./bin/k99_cleanup_pitxu)
+
+1. Ensure that this file has `755` permissions
+2. Create a soft link from `/etc/rc0.d/` to this file. This will clear the displays on reboot
+```
+cd /etc/rc0.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
+3. Create a soft link from `/etc/rc6.d/` to this file. This will clear the displays on shutdown
+```
+cd /etc/rc6.d/
+sudo ln -s /home/xavier/pitxu/bin/k99_cleanup_pitxu k99_cleanup_pitxu
+```
+
+### Make Debian `journalctl` to store persistent
+
+⚠️ didn't work.
+
+https://unix.stackexchange.com/a/414301
+
+By default Debian's journal saves no files to disk. We need to change that so that we can see what happens during shutdown (if we want)
+
+1. Edit `/etc/systemd/journald.conf`
+2. Change the configuration so that the following parameters are uncommented and with the following values:
+```
+Storage=persistent      # This will persist the logs, even after reboot.
+MaxRetentionSec=1week   # This will rotate the logs, cleaning them after a week
+```
+
+3. Add your user to the journal group
+```
+sudo usermod -a -G systemd-journal xavier
+```
+
+4. Restart the journal servie
+```
+systemctl restart systemd-journald
+```
 
 
 # 😄 Fun fact

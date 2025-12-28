@@ -1,13 +1,15 @@
-from pyxavi import Config
-from pitxu.lib.utils.api_request import ApiRequest
+from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.command import Command
+from pitxu.lib.eink import EinkCanvas, Macros
+from pitxu.lib.objects import Point, Rectangle
 
 from google import genai
 from google.genai import types
 
-class GoogleSearch(PyXavi):
+class GoogleSearch(PyXavi, Command):
 
-    def __init__(self, config: Config = None, params: dict = None):
+    def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
     def get_google_search_response_to_a_prompt(self, prompt: str) -> str:
@@ -43,7 +45,51 @@ class GoogleSearch(PyXavi):
             )
         )
 
-        self._xlog.debug(f"Google Maps response: {response.text}")
+        self._xlog.debug(f"Google Search response: {response.text}")
         if len(response.candidates) > 1:
             self._xlog.debug("Discarded other candidates to the answer:" + "\n\n>".join(response.candidates))
         return response.text
+    
+    def callback_google_search_response_to_a_prompt(self, main_instance, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_google_search_response_to_a_prompt` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_google_search_response_to_a_prompt`.
+
+        """
+        dd(args)
+        search_term = args.get("prompt", "unknown") if args else "unknown"
+        main_instance._xlog.info(f"The term searched in Google from the callback is: {search_term}")
+
+        try:
+            main_instance._xlog.error(f"🔎 Showing Google searched term on eInk: [{search_term}]")
+            main_instance.show_arbitrary_text_on_eink(
+                icon="🔎 ",
+                text=search_term,
+                font_size=EinkCanvas.FONT_BIG_SIZE)
+        except Exception as e:
+            main_instance._xlog.error(f"🛑 Error showing Google searched term on eInk: {e}")
+            main_instance._xlog.error(full_stack())
+
+    def get_tool_definition(self) -> list[callable]:
+        """
+        Returns the methods of the class that will be used as tools by the chatbot.
+
+        It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
+        """
+        return [self.get_google_search_response_to_a_prompt]
+
+    def get_callback_by_given_function_name(self, function_name: str) -> callable:
+        """
+        Gets the callback function for a given function name.
+
+        It expects the function_name because a class may provide multiple functions as tools.
+
+        Args:
+            function_name: The name of the function to get the callback for.
+        """
+        if function_name == "get_google_search_response_to_a_prompt":
+            return self.callback_google_search_response_to_a_prompt
+        return self.default_empty_callback

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Main pitxu executable
+
+# Get the directory of the current script
+# Allows to reference other files relative to this script's location
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+# Main purpose: To be called from the serviced, from the service file
+# Additional purpose: To be called directly to start pitxu in foreground for debugging
+# Sould control the exit codes, as we may restart from pitxu itself
+start_pitxu_foreground() {
+    cd "$DIR/.." && poetry run main
+    EXIT_CODE=$?
+    return $EXIT_CODE
+}
+
+# Commandline to start the service
+start_pitxu_background() {
+	sudo systemctl start pitxu
+}
+
+# Commandline to stop the service
+stop_pitxu_background() {
+	sudo systemctl stop pitxu
+}
+
+# Commandline to restart the service
+restart_pitxu_background() {
+    sudo systemctl restart pitxu
+}
+
+status_pitxu_background() {
+    sudo systemctl status pitxu
+}
+
+logs_journalctl_pitxu_background() {
+    sudo journalctl -u pitxu -f
+}
+
+clear_pitxu_screen() {
+     cd "$DIR/.." && poetry run clear
+}
+
+sounddevices() {
+     cd "$DIR/.." && poetry run sounddevices
+}
+
+
+if [[ $# -eq 0 ]] ; then
+    # No arguments provided, we start pitxu
+    start_pitxu_foreground
+    PITXU_EXIT_CODE=$?
+    exit $PITXU_EXIT_CODE
+fi
+
+case "$1" in
+    "start") start_pitxu_background ;;
+    "stop") stop_pitxu_background ;;
+    "restart") restart_pitxu_background ;;
+    "status") status_pitxu_background ;;
+    "logs") logs_journalctl_pitxu_background ;;
+    "clear") clear_pitxu_screen ;;
+    "sounddevices") sounddevices ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices]" ;;
+    *) echo "Command unknown" ;;
+esac
+
+FINAL_EXIT_CODE=$?
+exit $FINAL_EXIT_CODE

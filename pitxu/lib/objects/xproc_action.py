@@ -25,6 +25,10 @@ class XprocAction:
     READY: str = "READY"
     SOFT_CLEAR: str = "SOFT_CLEAR"
     EINK_CLEAR: str = "EINK_CLEAR"
+    SHOW_IMAGE_EINK: str = "SHOW_IMAGE_EINK"    # Do not use.
+    SHOW_IDLE_EINK: str = "SHOW_IDLE_EINK"
+    SHOW_TALKING_ARBITRARY_EINK: str = "SHOW_TALKING_ARBITRARY_EINK"
+    SHOW_ARBITRARY_TEXT_EINK: str = "SHOW_ARBITRARY_TEXT_EINK"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"
@@ -32,4 +36,7 @@ class XprocAction:
     # Matrix LED
     LED: str = "LED"
     LED_CLEAR: str = "LED_CLEAR"
+    INIT_STEP: str = "INIT_STEP"
+    THINKING: str = "THINKING"
+    SHOW_IMAGE_LED: str = "SHOW_IMAGE_LED"
 

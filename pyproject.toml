@@ -7,14 +7,14 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pyxavi = "^1.2.0"
+pyxavi = "^1.3.1"
 google-genai = "^1.16"
 python-dotenv = "^1.1"
 spidev = [{version="^3.7", markers="sys_platform=='linux'"}]
 gpiozero = [{version="^2.0", markers="sys_platform=='linux'"}]
 "rpi.gpio" = [{version="^0.7", markers="sys_platform=='linux'"}]
 lgpio = [{version="^0.2.2.0", markers="sys_platform=='linux'"}]
-pillow = "^11.2.1"
+pillow = "^12.0.0"
 emoji = "^2.15.0"
 pyaudio = "^0.2.14"
 sounddevice = "^0.5.2"
@@ -22,19 +22,25 @@ vosk = [
     {url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.42/vosk-0.3.42-py3-none-macosx_10_6_universal2.whl", markers="sys_platform=='darwin'"},
     {url = "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-0.3.45-py3-none-manylinux2014_aarch64.whl", markers="sys_platform=='linux'"}
 ]
-numpy = [{version="^2.3.4", markers="sys_platform=='darwin'"}]
+numpy = "^2.3.4"
 onnxruntime = [{version="^1.23.2", markers="sys_platform=='darwin'"}]
 piper-tts = [{version="^1.3.0", markers="sys_platform=='linux'"}]
 psutil = "^7.0.0"
 "luma.led_matrix" = "^1.7.1"
 ipdata = "^4.0.7"
 ollama = "^0.6.1"
+geopy = "^2.4.1"
+gemini-tool-agent = "^0.1.5"
+fastmcp = "^2.13.1"
+nest-asyncio = "^1.6.0"
 
 [tool.poetry.scripts]
 main = "runner:run"
 sounddevices = "runner:query_sound_devices"
 clear = "runner:clear_displays"
 test_matrix = "runner:test_matrix"
+test_eink_multiline = "runner:test_eink_multiline"
+battery_status = "runner:battery_status"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"

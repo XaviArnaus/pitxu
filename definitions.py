@@ -5,12 +5,23 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_DIR = os.path.join(ROOT_DIR, "config")
 
 # Process Names in the Pool
-PROCESS_SPEAKER = "speaker_process"
-PROCESS_EINK = "eink_process"
-PROCESS_MATRIX = "matrix_process"
+QUEUE_SPEAKER = "speaker_queue"
+QUEUE_EINK = "eink_queue"
+QUEUE_MATRIX = "matrix_queue"
 
 # Shared memory flag positions
-SHARED_MEMORY_NAME = "pitxu_shared_memory"
+SHARED_MEMORY_FLAGS = "pitxu_shared_memory_flags"
 SHARED_SPEAKER_BUSY = 0
 SHARED_EINK_BUSY = 1
 SHARED_MATRIX_BUSY = 2
+SHARED_MICROPHONE_MUTED = 3
+SHARED_CHATBOT_BUSY = 4
+SHARED_CHATBOT_ANSWER_IS_ERROR = 5
+SHARED_EINK_IDLE_MODE = 6
+
+# Shared memory vu meter positions
+SHARED_MEMORY_VU_METER = "pitxu_shared_memory_vu_meter"
+SHARED_VU_COL_1 = 0
+SHARED_VU_COL_2 = 1
+SHARED_VU_COL_3 = 2
+SHARED_VU_COL_4 = 3

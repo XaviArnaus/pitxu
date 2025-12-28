@@ -16,11 +16,15 @@ display:
     big: 22
     medium: 14
     small: 10
+    huge: 40
 
 # Configuration fo the Max7219 matrix led
 matrix_led:
   # [Bool] Generates a PNG instead of outcoming through the eInk Display
   mock: True
+  # [Bool] Discard mocked images (avoids generating tons of PNGs while testing).
+  # Only works if mock is True
+  discard_mocked_images: True
   # [Integer] The intensity of the leds, from 0 to 255
   intensity: 40
   # Size of the display

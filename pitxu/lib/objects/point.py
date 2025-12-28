@@ -1,4 +1,4 @@
-from pyxavi.config import Config
+from __future__ import annotations
 
 class Point:
 
@@ -15,14 +15,17 @@ class Point:
     def equals_to(self, point):
         return True if self.x == point.x and self.y == point.y else False
     
+    def is_greater_or_equal_than(self, point) -> bool:
+        return True if self.x >= point.x and self.y >= point.y else False
+    
     def to_image_point(self) -> tuple:
         return (self.x, self.y)
     
-    def is_valid(self, config: Config) -> bool:
+    def is_valid(self, display_size: Point = None) -> bool:
         min_x = 0
         min_y = 0
-        max_x = config.get("display.size.x", self.DEFAULT_MAX_X)
-        max_y = config.get("display.size.y", self.DEFAULT_MAX_Y)
+        max_x = display_size.x if display_size else self.DEFAULT_MAX_X
+        max_y = display_size.y if display_size else self.DEFAULT_MAX_Y
         return True if self.x >= min_x and \
                         self.x <= max_x and \
                         self.y >= min_y and \

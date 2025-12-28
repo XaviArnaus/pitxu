@@ -1,4 +1,5 @@
-from .emulated_canvas import EmulatedCanvas
+from .emulated_canvas import EmulatedCanvas, HandableEmulatedCanvas
+from .handable_canvas import HandableCanvas
 from .device_wrapper import DeviceWrapper
 from .max7219 import Max7219
 from .macros import Macros

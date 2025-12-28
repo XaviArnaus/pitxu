@@ -65,6 +65,14 @@ clear:
 test_matrix:
 	@$(POETRY) run test_matrix
 
+.PHONY: test_eink_multiline
+test_eink_multiline:
+	@$(POETRY) run test_eink_multiline
+
+.PHONY: battery_status
+battery_status:
+	@$(POETRY) run battery_status
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

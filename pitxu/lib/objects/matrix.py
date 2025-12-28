@@ -33,7 +33,7 @@ class Matrix:
     def get_points(self) -> list[Point]:
         return self.points
     
-    def is_valid(self, config: Config) -> bool:
+    def is_valid(self, display_size: Point = None) -> bool:
 
         are_points_valid = []
         # column_index = 0
@@ -41,7 +41,7 @@ class Matrix:
         max_column_index = 0
         max_row_index = 0
         for point in self.points:
-            are_points_valid.append(point.is_valid(config))
+            are_points_valid.append(point.is_valid(display_size))
             max_column_index = max(point.x, max_column_index)
             max_row_index = max(point.x, max_row_index)
         

@@ -1,0 +1,82 @@
+(list[2])[
+  (FunctionCallPair){
+    "function_call": (FunctionCall){
+      "name": (str[40])"get_latitude_and_longitude_from_location",
+      "arguments": (dict[1]){"location": (str[19])"Dusseldorf, Germany"},
+      class methods: 
+    },
+    "function_response": (FunctionResponse){
+      "name": (str[40])"get_latitude_and_longitude_from_location",
+      "response": (dict[1]){
+        "result": (dict[2]){
+          "results": (list[1])[
+            (dict[20]){
+              "id": (int)2934246,
+              "name": (str[10])"Düsseldorf",
+              "latitude": (float)51.22172,
+              "longitude": (float)6.77616,
+              "elevation": (float)45.0,
+              "feature_code": (str[4])"PPLA",
+              "country_code": (str[2])"DE",
+              "admin1_id": (int)2861876,
+              "admin2_id": (int)2934245,
+              "admin3_id": (int)3231903,
+              "admin4_id": (int)6553022,
+              "timezone": (str[13])"Europe/Berlin",
+              "population": (int)620523,
+              "postcodes": (list[1])[(str[5])"40469"],
+              "country_id": (int)2921044,
+              "country": (str[7])"Germany",
+              "admin1": (str[22])"North Rhine-Westphalia",
+              "admin2": (str[19])"Düsseldorf District",
+              "admin3": (str[27])"Kreisfreie Stadt Düsseldorf",
+              "admin4": (str[10])"Düsseldorf"
+            }
+          ],
+          "generationtime_ms": (float)1.2661219
+        }
+      },
+      class methods: 
+    },
+    class methods: from_empty, get_names, has_call, has_response, is_valid, set_call, set_response
+  },
+  (FunctionCallPair){
+    "function_call": (FunctionCall){
+      "name": (str[30])"get_weather_forecast_for_today",
+      "arguments": (dict[2]){"longitude": (float)6.77616, "latitude": (float)51.22172},
+      class methods: 
+    },
+    "function_response": (FunctionResponse){
+      "name": (str[30])"get_weather_forecast_for_today",
+      "response": (dict[1]){
+        "result": (dict[11]){
+          "latitude": (float)51.214,
+          "longitude": (float)6.786,
+          "generationtime_ms": (float)0.09393692016601562,
+          "utc_offset_seconds": (int)0,
+          "timezone": (str[3])"GMT",
+          "timezone_abbreviation": (str[3])"GMT",
+          "elevation": (float)40.0,
+          "hourly_units": (dict[7]){"time": (str[7])"iso8601", "temperature_2m": (str[2])"°C", "relative_humidity_2m": (str[1])"%", "surface_pressure": (str[3])"hPa", "wind_speed_10m": (str[4])"km/h", "wind_direction_10m": (str[1])"°", "weathercode": (str[8])"wmo code"},
+          "hourly": (dict[7]){
+            "time": (list[24])[(str[16])"2025-11-29T00:00", (str[16])"2025-11-29T01:00", (str[16])"2025-11-29T02:00", (str[16])"2025-11-29T03:00", (str[16])"2025-11-29T04:00", (str[16])"2025-11-29T05:00", (str[16])"2025-11-29T06:00", (str[16])"2025-11-29T07:00", (str[16])"2025-11-29T08:00", (str[16])"2025-11-29T09:00", (str[16])"2025-11-29T10:00", (str[16])"2025-11-29T11:00", (str[16])"2025-11-29T12:00", (str[16])"2025-11-29T13:00", (str[16])"2025-11-29T14:00", (str[16])"2025-11-29T15:00", (str[16])"2025-11-29T16:00", (str[16])"2025-11-29T17:00", (str[16])"2025-11-29T18:00", (str[16])"2025-11-29T19:00", (str[16])"2025-11-29T20:00", (str[16])"2025-11-29T21:00", (str[16])"2025-11-29T22:00", (str[16])"2025-11-29T23:00"],
+            "temperature_2m": (list[24])[(float)8.7, (float)8.5, (float)7.9, (float)8.2, (float)8.2, (float)7.4, (float)7.1, (float)7.5, (float)7.7, (float)6.5, (float)7.9, (float)9.2, (float)9.3, (float)10.8, (float)9.9, (float)10.0, (float)9.8, (float)9.8, (float)10.0, (float)9.9, (float)10.3, (float)10.2, (float)10.2, (float)10.0],
+            "relative_humidity_2m": (list[24])[(int)91, (int)92, (int)91, (int)87, (int)92, (int)90, (int)88, (int)88, (int)85, (int)87, (int)86, (int)84, (int)83, (int)76, (int)82, (int)81, (int)83, (int)83, (int)84, (int)86, (int)84, (int)85, (int)85, (int)84],
+            "surface_pressure": (list[24])[(float)1008.1, (float)1007.8, (float)1008.3, (float)1008.1, (float)1007.5, (float)1007.6, (float)1007.2, (float)1007.4, (float)1007.1, (float)1006.9, (float)1006.3, (float)1005.6, (float)1004.3, (float)1003.6, (float)1003.1, (float)1002.9, (float)1002.3, (float)1002.1, (float)1001.4, (float)1001.3, (float)1001.2, (float)1001.2, (float)1000.6, (float)1000.9],
+            "wind_speed_10m": (list[24])[(float)6.8, (float)6.5, (float)9.4, (float)8.3, (float)6.8, (float)12.6, (float)10.1, (float)10.4, (float)11.9, (float)13.0, (float)11.9, (float)12.2, (float)18.0, (float)15.5, (float)14.8, (float)18.7, (float)20.2, (float)16.9, (float)16.6, (float)19.8, (float)19.8, (float)20.2, (float)20.5, (float)20.5],
+            "wind_direction_10m": (list[24])[(int)218, (int)223, (int)157, (int)145, (int)168, (int)134, (int)125, (int)129, (int)128, (int)139, (int)153, (int)163, (int)145, (int)158, (int)157, (int)144, (int)146, (int)143, (int)150, (int)155, (int)155, (int)153, (int)156, (int)161],
+            "weathercode": (list[24])[(int)0, (int)1, (int)2, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)1, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)3, (int)51, (int)3]
+          },
+          "daily_units": (dict[3]){"time": (str[7])"iso8601", "sunrise": (str[7])"iso8601", "sunset": (str[7])"iso8601"},
+          "daily": (dict[3]){
+            "time": (list[1])[(str[10])"2025-11-29"],
+            "sunrise": (list[1])[(str[16])"2025-11-29T07:12"],
+            "sunset": (list[1])[(str[16])"2025-11-29T15:30"]
+          }
+        }
+      },
+      class methods: 
+    },
+    class methods: from_empty, get_names, has_call, has_response, is_valid, set_call, set_response
+  }
+]
