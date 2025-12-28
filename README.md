@@ -347,7 +347,7 @@ sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
 3. Reload the systemd daemon and enable the service
 ```
 sudo systemctl daemon-reload
-sudo systemctl enable
+sudo systemctl enable pitxu
 ```
 
 Further updates do not need to repeat point 3, but if the filename changes.
