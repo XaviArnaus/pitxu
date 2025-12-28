@@ -87,8 +87,9 @@ class OllamaChatbot(PyXavi):
             # model="mistral",                              # ~7s, catalan sounds spanish.
             # model="stablelm-zephyr",                      # ~6s, bad in catalan.
             # was: model="hdnh2006/salamandra-7b-instruct",      # It's enough fast, ~2s, and good in catalan.
-            # model="gemma3:4b",                            # Mega slow. Avoid.
-            model="gemma3:1b",                        
+            # model="gemma3:4b",                            # RPi5: Mega slow. Avoid.
+            # model="gemma3:1b",                            # RPi5: Also slow
+            model="tinyllama:latest",                     
             messages=[
                 {"role": "system", "content": self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))},
                 {"role": "user", "content": question}
