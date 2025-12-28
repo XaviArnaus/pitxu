@@ -91,9 +91,11 @@ class OllamaChatbot(PyXavi):
             # model="gemma3:1b",                            # RPi5: Also slow
             model="tinyllama:latest",                     
             messages=[
-                {"role": "system", "content": self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))},
+                # {"role": "system", "content": self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))},
                 {"role": "user", "content": question}
-            ]
+            ],
+            stream=False
+
         )
         answer = response['message']['content']
 
