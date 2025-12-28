@@ -5,6 +5,8 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.command import SystemDate, SystemTime, WorldPosition, WorldWeather, WorldWikipedia, GoogleMaps, GoogleSearch
 
+from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
+
 import logging
 
 class OllamaChatbot(PyXavi):
@@ -15,6 +17,7 @@ class OllamaChatbot(PyXavi):
     """
 
     _ollama = None
+    _session_manager: ChatbotSessionManager = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(OllamaChatbot, self).init_pyxavi(config=config, params=params)
@@ -24,6 +27,7 @@ class OllamaChatbot(PyXavi):
         if (self._xconfig.get("chatbot.mock", True)):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
+        self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         
         # self._ollama = ollama.Client(
         #     host='http://localhost:11434',
@@ -58,6 +62,9 @@ class OllamaChatbot(PyXavi):
         #     )
         # )
     
+    def get_session_manager(self):
+        return self._session_manager
+    
     def ask(self, question: str) -> str:
 
         self._xlog.debug("Question: " + question)
@@ -66,7 +73,9 @@ class OllamaChatbot(PyXavi):
             return "Chatbot is Mocked. Check the config.\nQuestion: " + question
         else:
             try:
-                return self.chat_question(question)
+                answer = self.chat_question(question)
+                chatbot_response = self.build_chatbot_response(answer)
+                return chatbot_response
             except Exception as e:
                 return "The server returns an unexpected error: " + e
     
@@ -87,3 +96,13 @@ class OllamaChatbot(PyXavi):
 
         self._xlog.debug("Received answer: " + str(answer))
         return answer
+    
+    def build_chatbot_response(self, answer: str):
+        # Currently Ollama does not provide function calling or metadata.
+        from pitxu.lib.objects.chatbot_response import ChatbotResponse
+        return ChatbotResponse(
+            text=answer,
+            function_call_history=None,
+            error=None,
+            metadata=None
+        )

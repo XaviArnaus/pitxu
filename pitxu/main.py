@@ -236,125 +236,116 @@ class Main:
 
                 chatbot_count = 0
                 # Set up of all the session context we need for the Chatbot and the MCP tools
-                async with self._chatbot.get_session_manager() as chatbot_session_manager:
-                    self._show_init_phases(8)
+                #async with self._chatbot.get_session_manager() as chatbot_session_manager:
+                self._show_init_phases(8)
 
-                    # Initialise the Chatbot async context with all the tools from the session manager
-                    await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
-                    self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
-                    self._show_init_phases(9)
+                # Initialise the Chatbot async context with all the tools from the session manager
+                #await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
+                #self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+                self._show_init_phases(9)
 
-                    # Avoid calling the Chatbot when exiting
+                # Before we start with the loop, let's set the last interaction time to now
+                # It just started, there was a greating after all.
+                # Maybe the user wants to talk straight away without the trigger words.
+                self._last_interaction_datetime = datetime.now()
+
+                question = ""
+                dictate_count = 0
+                answer_count = 0
+                while(not self._text_has_exit_intention(question)):
+
+                    # Check the things to do every minute
+                    # This includes reminders checking and speaking them out.
+                    self.do_every_minute_tasks()
+
+                    # Show idle screen in eInk if not already showing it
+                    if not self.is_eink_in_idle_mode():
+                        self._show_idle()
+
+                    # Recognize what comes from the microphone
+                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                    question = self._dictate.recognize()
+                    if (question == None or question.strip() == ""):
+                        # Nothing recognized, nothing to process.
+                        continue
+
+                    # Still here? Then something got recognised.
+                    self._xlog.debug("💬 Recognised dictate")
+                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    dictate_count += 1
+
+                    # Mute microphone to avoid self-looping
+                    self.mute_microphone()
+
+                    # To keep track of the communication channels to ignore
+                    # Because the outcome of any chatbot's function call may be using them.
+                    comm_channels_to_ignore = []
+
+                    # Initialize answer
+                    answer = None
+
+                    # Avoid calling the Chatbot when we can exit directly.
                     if self._text_has_exit_intention(question):
                         # Just assume a goodbye
                         answer = self._goodbye_sentence
+                    elif self._text_intends_to_trigger_or_continue_an_interaction(question):
+                        # Here we start with the Chatbot.
+                        # We set it as busy in shared memory, so the Matrix can show the thinking effect
+                        self.set_chatbot_busy()
+                        self._show_thinking()
+                        # chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+                        chat_response: ChatbotResponse = self._chatbot.ask(question)
+                        # self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
+                        answer = chat_response.text
+                        # try:
+                        #     self._xlog.debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
+                        #     if chat_response.function_call_history.get_last().has_response():
+                        #         self._xlog.debug("🗣️ Received function call response. Reacting.")
+                        #         # Shutdown and Reboot interrupt the flow and directly shutdown,
+                        #         # calling `close_nicely()` from there.
+                        #         # Keep in mind that here we may have played with BUSY flags.
+                        #         comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
+                        #         # TODO: Feels like sometimes the flow does not come back here. Apparenty, the second time asking for the hour.
+                        # except Exception as e:
+                        #     self._xlog.error("🛑 Error reacting to function call: " + str(e))
+                        self.unset_chatbot_busy()
+                        self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
                     else:
-                        # Here we start with the Chatbot
-                        sw_chatbot = self._stopwatch.continue_or_start(name="chatbot" + str(chatbot_count))
-                        answer = self._chatbot.ask(question)
-                        self._xlog.debug("⏱️  Chatbot " + str(chatbot_count) + ": " + str(self._stopwatch.stop(sw_chatbot)))
-                        chatbot_count += 1
-                    # Before we start with the loop, let's set the last interaction time to now
-                    # It just started, there was a greating after all.
-                    # Maybe the user wants to talk straight away without the trigger words.
-                    self._last_interaction_datetime = datetime.now()
-
-                    question = ""
-                    dictate_count = 0
-                    answer_count = 0
-                    while(not self._text_has_exit_intention(question)):
-
-                        # Check the things to do every minute
-                        # This includes reminders checking and speaking them out.
-                        self.do_every_minute_tasks()
-
-                        # Show idle screen in eInk if not already showing it
-                        if not self.is_eink_in_idle_mode():
-                            self._show_idle()
-
-                        # Recognize what comes from the microphone
-                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                        question = self._dictate.recognize()
-                        if (question == None or question.strip() == ""):
-                            # Nothing recognized, nothing to process.
-                            continue
-
-                        # Still here? Then something got recognised.
-                        self._xlog.debug("💬 Recognised dictate")
-                        self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                        dictate_count += 1
-
-                        # Mute microphone to avoid self-looping
-                        self.mute_microphone()
-
-                        # To keep track of the communication channels to ignore
-                        # Because the outcome of any chatbot's function call may be using them.
-                        comm_channels_to_ignore = []
-
-                        # Initialize answer
-                        answer = None
-
-                        # Avoid calling the Chatbot when we can exit directly.
-                        if self._text_has_exit_intention(question):
-                            # Just assume a goodbye
-                            answer = self._goodbye_sentence
-                        elif self._text_intends_to_trigger_or_continue_an_interaction(question):
-                            # Here we start with the Chatbot.
-                            # We set it as busy in shared memory, so the Matrix can show the thinking effect
-                            self.set_chatbot_busy()
-                            self._show_thinking()
-                            chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
-                            self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
-                            answer = chat_response.text
-                            try:
-                                self._xlog.debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
-                                if chat_response.function_call_history.get_last().has_response():
-                                    self._xlog.debug("🗣️ Received function call response. Reacting.")
-                                    # Shutdown and Reboot interrupt the flow and directly shutdown,
-                                    # calling `close_nicely()` from there.
-                                    # Keep in mind that here we may have played with BUSY flags.
-                                    comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
-                                    # TODO: Feels like sometimes the flow does not come back here. Apparenty, the second time asking for the hour.
-                            except Exception as e:
-                                self._xlog.error("🛑 Error reacting to function call: " + str(e))
-                            self.unset_chatbot_busy()
-                            self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
-                        else:
-                            self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
-                        
-                        # Do we actully have any answer?
-                        if answer is not None and answer.strip() != "":
-                        
-                            # Clean the answer first, just in case
-                            answer = Text.remove_emojis(answer)
-                            answer = Text.remove_markdown(answer)
-                            answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
-
-                            # Answer
-                            sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                            # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
-                            #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
-                            self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
-                            self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                            answer_count += 1
-
-                            # If we were communicating an error, it's over and start new
-                            if self.is_chatbot_error():
-                                self.unset_chatbot_error()
-                            
-                            # Last thing to do is to remember this as the last interaction.
-                            # Has to happen at the very last otherwise the time is consumed by the possible answering process.
-                            self._last_interaction_datetime = datetime.now()
-
-                        # Unmute microphone to continue listening
-                        self.unmute_microphone()
+                        self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                     
-                    # We arrived here because the user wanted to exit the main loop
-                    # Make sure we leave the state properly
-                    self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)   
+                    # Do we actully have any answer?
+                    if answer is not None and answer.strip() != "":
+                    
+                        # Clean the answer first, just in case
+                        answer = Text.remove_emojis(answer)
+                        answer = Text.remove_markdown(answer)
+                        answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+
+                        # Answer
+                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                        # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
+                        #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
+                        self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
+                        self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                        answer_count += 1
+
+                        # If we were communicating an error, it's over and start new
+                        if self.is_chatbot_error():
+                            self.unset_chatbot_error()
+                        
+                        # Last thing to do is to remember this as the last interaction.
+                        # Has to happen at the very last otherwise the time is consumed by the possible answering process.
+                        self._last_interaction_datetime = datetime.now()
+
+                    # Unmute microphone to continue listening
+                    self.unmute_microphone()
+                
+                # We arrived here because the user wanted to exit the main loop
+                # Make sure we leave the state properly
+                self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
+                self.unset_eink_idle_mode()
+                self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)   
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
