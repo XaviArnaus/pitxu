@@ -96,7 +96,7 @@ class OllamaChatbot(PyXavi):
                 {"role": "user", "content": question}
             ],
             stream=False,
-            num_ctx=2048
+            options={"num_ctx": 2048},
 
         )
         answer = response['message']['content']
