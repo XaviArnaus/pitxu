@@ -24,6 +24,7 @@ class SystemPowerManagement(PyXavi, Command):
             The current battery level as a percentage
         '''
         voltage, capacity = self.ups.read_voltage_and_capacity()
+        self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
         return math.ceil(capacity)
 
     def is_power_cable_connected(self) -> bool:
