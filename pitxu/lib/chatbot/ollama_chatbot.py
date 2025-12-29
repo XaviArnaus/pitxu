@@ -90,7 +90,7 @@ class OllamaChatbot(PyXavi):
             # model="gemma3:4b",                            # RPi5: Mega slow. Avoid.
             # model="gemma3:1b",                            # RPi5: Also slow
             # model="tinyllama:latest",                     # RPi5: Everything appears to be ultra slow from Python, and pretty fast in CLI!!!
-            model="mistral:7b-instruct-q4_0",   
+            model="mistral:7b-instruct-q4_0",               # RPi5: Wow it is good!
             messages=[
                 # {"role": "system", "content": self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language"))},
                 {"role": "user", "content": question}
