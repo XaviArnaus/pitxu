@@ -229,7 +229,7 @@ class GeminiChatbot(PyXavi):
                         else:
                             outcome = ChatbotResponse(text=self._xconfig.get("language.api_error." + self._xparams.get("language")) + " " + str(message))
                         self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
-                        # Make him remember that he couldn't answer, even it was out fault (quota?)
+                        # Make him remember that he couldn't answer, even it was our fault (quota?)
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(
                                 text=question,

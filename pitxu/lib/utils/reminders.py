@@ -118,6 +118,65 @@ class Reminders(PyXavi, Command):
         else:
             self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
             return False
+
+    def update_reminder(self, date: str, time: str, new_text: str) -> dict | bool:
+        '''
+        Updates a specific reminder.
+
+        Args:
+            date: The date of the reminder in Year-Month-Day format.
+            time: The time of the reminder in HH:MM format.
+            new_text: The new text for the reminder.
+
+        Returns:
+            The updated reminder details as a JSON object or False if not found.
+        '''
+        self._xlog.info(f"📝 Updating a reminder for [{date}] at [{time}] to: {new_text}")
+        self.state.read_file()
+        reminder_key = f"{date}.{time}"
+        if self.state.key_exists(reminder_key, slugify_param_name=True):
+            self.state.set(reminder_key, new_text, slugify_param_name=True)
+            self.state.write_file()
+            self._xlog.info(f"📝 Reminder updated for [{date}] at [{time}]: {new_text}")
+            return {
+                "date": date,
+                "time": time,
+                "text": new_text
+            }
+        else:
+            self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
+            return False
+        
+    def move_reminder(self, old_date: str, old_time: str, new_date: str, new_time: str) -> dict | bool:
+        '''
+        Moves a specific reminder to a new date and time.
+
+        Args:
+            old_date: The current date of the reminder in Year-Month-Day format.
+            old_time: The current time of the reminder in HH:MM format.
+            new_date: The new date for the reminder in Year-Month-Day format.
+            new_time: The new time for the reminder in HH:MM format.
+        Returns:
+            The moved reminder details as a JSON object or False if not found.
+        '''
+        self._xlog.info(f"📝 Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
+        self.state.read_file()
+        old_reminder_key = f"{old_date}.{old_time}"
+        new_reminder_key = f"{new_date}.{new_time}"
+        if self.state.key_exists(old_reminder_key, slugify_param_name=True):
+            reminder_text = self.state.get(old_reminder_key, slugify_param_name=True)
+            self.state.set(new_reminder_key, reminder_text, slugify_param_name=True)
+            self.state.delete(old_reminder_key, slugify_param_name=True)
+            self.state.write_file()
+            self._xlog.info(f"📝 Reminder moved to [{new_date}] at [{new_time}]: {reminder_text}")
+            return {
+                "date": new_date,
+                "time": new_time,
+                "text": reminder_text
+            }
+        else:
+            self._xlog.info(f"📝 No reminder found for [{old_date}] at [{old_time}]")
+            return False
     
     def delete_past_reminders(self) -> int:
         '''

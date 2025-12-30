@@ -58,7 +58,8 @@ class FunctionCallHistory:
                         and part.function_response:
 
                         if temporary_pair.has_response():
-                            print("⚠️ Detected a new function response before having a call for the previous one. Discarding the previous incomplete pair.")
+                            print(f"⚠️ Detected a new function response [{part.function_response.name}] before having a call for the previous one [{temporary_pair.function_response.name}]. Discarding the previous incomplete pair.")
+                            dd(response.automatic_function_calling_history)
 
                         temporary_pair.set_response(FunctionResponse(
                             name=part.function_response.name,
@@ -70,7 +71,7 @@ class FunctionCallHistory:
                         and temporary_pair is not None:
 
                         if not temporary_pair.has_response():
-                            print("⚠️ Detected a function call without a previous function response. Discarding the call.")
+                            print(f"⚠️ Detected a function call [{part.function_call.name}] without a previous function response. Discarding the call.")
                             temporary_pair = FunctionCallPair.from_empty()
                             continue
 
