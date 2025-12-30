@@ -208,12 +208,12 @@ class StatefulReminders(PyXavi, Command):
         elif function_name == "delete_reminder":
             return self.show_delete_reminder
         elif function_name == "update_reminder":
-            return self.show_create_reminder
+            return self.show_create_remindergit a
         elif function_name == "move_reminder":
             return self.show_create_reminder
         return self.default_empty_callback
     
-# '2025-12-30':
-#     01-00: 'Project Idea: Use four lasers to project a visible frame onto the desk. This frame will show the camera''s exact field of view, allowing for perfect, screen-less positioning of objects for analysis.'
-#     01-15: 'Project Idea: Create an `email_myself(subject, body)` tool. It will use Python''s `smtplib` and a secure App Password to send notes and ideas directly to your email inbox.'
-#     01-30: Delete the lines of code related to the conversation response timeout.
+# '2025-12-31':
+#     13-00: 'Project Idea: Use four lasers to project a visible frame onto the desk. This frame will show the camera''s exact field of view, allowing for perfect, screen-less positioning of objects for analysis.'
+#     13-15: 'Project Idea: Create an `email_myself(subject, body)` tool. It will use Python''s `smtplib` and a secure App Password to send notes and ideas directly to your email inbox.'
+#     13-30: Delete the lines of code related to the conversation response timeout.
