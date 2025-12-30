@@ -44,21 +44,13 @@ def load_logger(config: Config, loglevel: int = None) -> logging:
 def run():
     try:
         # Instantiating
-        load_environment()
-        config = ConfigLoader.load_config_files()
-        logger = load_logger(config=config)
-        parameters = Dictionary({
-            "base_path": ROOT_DIR,
-            "api_key": os.getenv("API_KEY", None),
-            "app_version": importlib.metadata.version('pitxu')
-        })
+        config, logger, parameters = _initialize()
 
         # Delegate the run to Main
         logger.debug("Starting Main run")
         main = Main(config=config, params=parameters)
         asyncio.run(main.run())
         logger.info("End of the Main run")
-
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
@@ -166,6 +158,26 @@ def battery_status():
         logger.info(f"Power Loss/Adapter Failure State: {'FAIL' if pld_state == 0 else 'OK'}")
         logger.info("End of work.")
         ups.close()
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
+def send_email():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        from pitxu.lib.command.services.mail import ServiceMail
+        mail_service = ServiceMail(config=config, params=parameters)
+        subject = "Test Email from Pitxu"
+        body = "This is a test email sent from the Pitxu application."
+        if mail_service.send_email(subject=subject, body=body):
+            logger.info("Email sent successfully.")
+        else:
+            logger.error("Failed to send email.")
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)

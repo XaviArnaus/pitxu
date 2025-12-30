@@ -73,6 +73,10 @@ test_eink_multiline:
 battery_status:
 	@$(POETRY) run battery_status
 
+.PHONY: send_email
+send_email:
+	@$(POETRY) run send_email
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

@@ -1,4 +1,4 @@
-from pyxavi import Config, Logger, Dictionary
+from pyxavi import Config, Logger, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
