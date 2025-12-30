@@ -179,6 +179,11 @@ def _initialize():
     parameters = Dictionary({
         "base_path": ROOT_DIR,
         "api_key": os.getenv("API_KEY", None),
+        "mail": {
+            "user_address": os.getenv("EMAIL_USERADDRESS", None),
+            "user_name": os.getenv("EMAIL_USERNAME", None),
+            "password": os.getenv("EMAIL_PASSWORD", None),
+        },
         "app_version": importlib.metadata.version('pitxu')
     })
 

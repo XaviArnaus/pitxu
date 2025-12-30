@@ -1,0 +1,6 @@
+# Configuration for the services used in the application
+services:
+  mail:
+    host: smtp.example.com
+    port: 587
+    address_to: your_email_address@example.com
