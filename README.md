@@ -190,6 +190,13 @@ nano .env
 API_KEY=abcdefghijkl
 ```
 
+You can also add here the credentials for sending emails through a Gmail account. You have to previously activate 2-step verification and add Pitxu as a new App Password, and then use this password instead of the account's one.
+```
+EMAIL_USERADDRESS=bob.pitxu@arnaus.net
+EMAIL_USERNAME=bob.pitxu@arnaus.net
+EMAIL_PASSWORD=patati patata
+```
+
 
 # Run
 

@@ -9,3 +9,4 @@ from .world.wikipedia import WorldWikipedia
 from .google.maps import GoogleMaps
 from .google.search import GoogleSearch
 from .trivago.mcp_accommodation_search import TrivagoMCPAccommodationSearch
+from .services.mail import ServiceMail

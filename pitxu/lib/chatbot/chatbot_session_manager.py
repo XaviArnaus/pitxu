@@ -1,4 +1,4 @@
-from pyxavi import Config, Logger, Dictionary
+from pyxavi import Config, Logger, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -6,7 +6,8 @@ from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, Sys
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch,\
-                                StatefulReminders
+                                StatefulReminders,\
+                                ServiceMail
 
 class ChatbotSessionManager(PyXavi):
 
@@ -47,6 +48,7 @@ class ChatbotSessionManager(PyXavi):
             "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams),
             "volume": SystemVolume(config=self._xconfig, params=self._xparams),
             "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
+            "mail": ServiceMail(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")

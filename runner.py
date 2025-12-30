@@ -44,21 +44,13 @@ def load_logger(config: Config, loglevel: int = None) -> logging:
 def run():
     try:
         # Instantiating
-        load_environment()
-        config = ConfigLoader.load_config_files()
-        logger = load_logger(config=config)
-        parameters = Dictionary({
-            "base_path": ROOT_DIR,
-            "api_key": os.getenv("API_KEY", None),
-            "app_version": importlib.metadata.version('pitxu')
-        })
+        config, logger, parameters = _initialize()
 
         # Delegate the run to Main
         logger.debug("Starting Main run")
         main = Main(config=config, params=parameters)
         asyncio.run(main.run())
         logger.info("End of the Main run")
-
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
@@ -172,6 +164,26 @@ def battery_status():
     except Exception:
         print(full_stack())
 
+def send_email():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        from pitxu.lib.command.services.mail import ServiceMail
+        mail_service = ServiceMail(config=config, params=parameters)
+        subject = "Test Email from Pitxu"
+        body = "This is a test email sent from the Pitxu application."
+        if mail_service.send_email(subject=subject, body=body):
+            logger.info("Email sent successfully.")
+        else:
+            logger.error("Failed to send email.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def _initialize():
     load_environment()
     config = ConfigLoader.load_config_files()
@@ -179,6 +191,11 @@ def _initialize():
     parameters = Dictionary({
         "base_path": ROOT_DIR,
         "api_key": os.getenv("API_KEY", None),
+        "mail": {
+            "user_address": os.getenv("EMAIL_USERADDRESS", None),
+            "user_name": os.getenv("EMAIL_USERNAME", None),
+            "password": os.getenv("EMAIL_PASSWORD", None),
+        },
         "app_version": importlib.metadata.version('pitxu')
     })
 
