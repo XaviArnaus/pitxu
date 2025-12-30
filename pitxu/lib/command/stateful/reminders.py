@@ -86,15 +86,44 @@ class StatefulReminders(PyXavi, Command):
         '''
         self._xlog.info(f"📝 Request for Deleting a reminder for [{date}] at [{time}]")
         try:
+            reminder_deleted = self._reminders.get_reminder(date, time)
             success = self._reminders.delete_reminder(date, time)
             if success:
-                return self._xconfig.get("language.reminders.reminder_deleted." + self._xparams.get("language")) % (date, time)
+                # return self._xconfig.get("language.reminders.reminder_deleted." + self._xparams.get("language")) % (date, time)
+                return {
+                    "date": date,
+                    "time": time,
+                    "text": reminder_deleted["text"]
+                }
             else:
                 return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
         except Exception as e:
             self._xlog.error(f"🛑 Error deleting reminder for [{date}] [{time}]: {e}")
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_deletion_error." + self._xparams.get("language"))
+    
+    def get_reminder(self, date: str, time: str) -> dict | str:
+        '''
+        Retrieves a specific reminder.
+        
+        Args:
+            date: The date of the reminder in Year-Month-Day format.
+            time: The time of the reminder in HH:MM format.
+        
+        Returns:
+            The reminder in a JSON format or an error message as string.
+        '''
+        self._xlog.info(f"📝 Request for Retrieving a reminder for [{date}] at [{time}]")
+        try:
+            reminder = self._reminders.get_reminder(date, time)
+            if reminder:
+                return reminder
+            else:
+                return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error retrieving reminder for [{date}] [{time}]: {e}")
+            self._xlog.debug(full_stack())
+            return self._xconfig.get("language.reminders.reminder_retrieval_error." + self._xparams.get("language"))
     
     def update_reminder(self, date: str, time: str, new_text: str) -> str:
         '''
@@ -112,7 +141,11 @@ class StatefulReminders(PyXavi, Command):
         try:
             success = self._reminders.update_reminder(date, time, new_text)
             if success:
-                return self._xconfig.get("language.reminders.reminder_updated." + self._xparams.get("language")) % (date, time, new_text)
+                return {
+                    "date": date,
+                    "time": time,
+                    "text": new_text
+                }
             else:
                 return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
         except Exception as e:
@@ -137,7 +170,11 @@ class StatefulReminders(PyXavi, Command):
         try:
             success = self._reminders.move_reminder(old_date, old_time, new_date, new_time)
             if success:
-                return self._xconfig.get("language.reminders.reminder_moved." + self._xparams.get("language")) % (old_date, old_time, new_date, new_time)
+                return {
+                    "date": new_date,
+                    "time": new_time,
+                    "text": success["text"]
+                }
             else:
                 return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (old_date, old_time)
         except Exception as e:
@@ -169,16 +206,20 @@ class StatefulReminders(PyXavi, Command):
         except Exception as e:
             main_instance._xlog.error(f"🛑 Error showing Get Reminders for Date on eInk: {e}")
     
-    def show_delete_reminder(self, main_instance, value: any, args: dict = None) -> None:
+    def show_affected_reminder(self, main_instance, value: any, args: dict = None) -> None:
 
         try:
-            main_instance._xlog.debug(f"📝 Showing Delete Reminder on eInk: {value}")
+            main_instance._xlog.debug(f"📝 Showing Affected Reminder on eInk: {value}")
+
+            if isinstance(value, dict):
+                value = f"{value['date']} {value['time']}"
+
             main_instance.show_arbitrary_text_on_eink(
                 icon="📝",
                 text=value,
                 font_size=EinkCanvas.FONT_BIG_SIZE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Delete Reminder on eInk: {e}")
+            main_instance._xlog.error(f"🛑 Error showing Affected Reminder on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -190,7 +231,8 @@ class StatefulReminders(PyXavi, Command):
                 self.get_reminders_for_date,
                 self.delete_reminder,
                 self.update_reminder,
-                self.move_reminder]
+                self.move_reminder,
+                self.get_reminder]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -205,12 +247,11 @@ class StatefulReminders(PyXavi, Command):
             return self.show_create_reminder
         elif function_name == "get_reminders_for_date":
             return self.show_get_reminders_for_date
-        elif function_name == "delete_reminder":
-            return self.show_delete_reminder
-        elif function_name == "update_reminder":
-            return self.show_create_remindergit a
-        elif function_name == "move_reminder":
-            return self.show_create_reminder
+        elif function_name == "delete_reminder" or \
+                function_name == "update_reminder" or \
+                function_name == "move_reminder" or \
+                function_name == "get_reminder":
+            return self.show_affected_reminder
         return self.default_empty_callback
     
 # '2025-12-31':
