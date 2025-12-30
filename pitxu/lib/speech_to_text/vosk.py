@@ -48,7 +48,13 @@ class Vosk:
         else:
             SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", 0))
 
-            self._model = Model(lang=language)
+            model = self._xconfig.get("speech-to-text.model." + language, None)
+            if model is not None:
+                self._xlog.info("Vosk: Loading model from config: " + model)
+                self._model = Model(model_name=model)
+            else:
+                self._xlog.info("Vosk: Loading default model for language: " + language)
+                self._model = Model(lang=language)
 
             self.samplerate = self._get_samplerate()
             self.device = self._xconfig.get("speech-to-text.input_device", None)
