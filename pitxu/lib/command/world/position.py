@@ -2,8 +2,9 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.abstract.command import Command
 
-class WorldPosition(PyXavi):
+class WorldPosition(PyXavi, Command):
 
     URL = f"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1"
 
@@ -94,3 +95,24 @@ class WorldPosition(PyXavi):
         except Exception as e:
             self._xlog.error(f"🛑 Error getting geo coordinates for address {address}: {e}")
             return f"Error getting geo coordinates for address {address}: {e}"
+    
+    def get_tool_definition(self) -> list[callable]:
+        """
+        Returns the methods of the class that will be used as tools by the chatbot.
+
+        It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
+        """
+        return [self.get_latitude_and_longitude_from_location,
+                self.get_latitude_and_longitude_from_current_location,
+                self.get_latitude_and_longitude_from_address]
+
+    def get_callback_by_given_function_name(self, function_name: str) -> callable:
+        """
+        Gets the callback function for a given function name.
+
+        It expects the function_name because a class may provide multiple functions as tools.
+
+        Args:
+            function_name: The name of the function to get the callback for.
+        """
+        return self.default_empty_callback

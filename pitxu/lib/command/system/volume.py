@@ -48,7 +48,7 @@ class SystemVolume(PyXavi, Command):
             self._xlog.error(f"Error getting mute status: {e}")
             return False
     
-    def set_volume_level(self, volume: int):
+    def set_volume_level(self, volume: int) -> int:
         '''
         Sets the system volume level.
 
@@ -57,9 +57,11 @@ class SystemVolume(PyXavi, Command):
         '''
         try:
             check_output(f"pactl set-sink-volume @DEFAULT_SINK@ {volume}%", shell=True)
+            return volume
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
-    
+            return -1
+
     def set_mute_status(self, mute: bool) -> str:
         '''
         Sets the system mute status.
@@ -122,7 +124,10 @@ class SystemVolume(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_volume_level, self.set_mute_status, self.get_mute_status]
+        return [self.get_volume_level,
+                self.set_volume_level,
+                self.set_mute_status,
+                self.get_mute_status]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -133,7 +138,7 @@ class SystemVolume(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "get_volume_level":
+        if function_name == "get_volume_level" or function_name == "set_volume_level":
             return self.callback_volume_level
         elif function_name == "set_mute_status" or function_name == "get_mute_status":
             return self.callback_muting

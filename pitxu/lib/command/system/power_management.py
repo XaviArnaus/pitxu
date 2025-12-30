@@ -83,7 +83,10 @@ class SystemPowerManagement(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_battery_level]
+        return [self.get_battery_level,
+                self.is_power_cable_connected,
+                self.shutdown_local_machine,
+                self.reboot_local_machine]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
