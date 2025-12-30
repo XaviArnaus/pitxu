@@ -63,33 +63,40 @@ class ChatbotSessionManager(PyXavi):
 
         self._xlog.debug("ChatbotSessionManager: Setting up tools.")
         # The tools defined in self.tools and self.mcp_tools are used to define the functions available to the LLM as tools
-        self.tools = [
-                # Grounding workaround so it can use Google Search
-                self.clients["google_search"].get_google_search_response_to_a_prompt,
-                # Grounding workaround so it can use Google Maps
-                self.clients["google_maps"].get_google_maps_response_to_a_prompt,
-                # # Custom Commands
-                self.clients["system_date"].get_current_system_calendar_date_as_year_month_date,
-                self.clients["system_time"].get_current_system_clock_time_as_hours_and_minutes,
-                self.clients["power_management"].get_battery_level,
-                self.clients["power_management"].is_power_cable_connected,
-                self.clients["power_management"].shutdown_local_machine,
-                self.clients["power_management"].reboot_local_machine,
-                self.clients["volume"].get_volume_level,
-                self.clients["volume"].get_mute_status,
-                self.clients["volume"].set_volume_level,
-                self.clients["volume"].set_mute_status,
-                self.clients["world_position"].get_latitude_and_longitude_from_location,
-                self.clients["world_position"].get_latitude_and_longitude_from_current_location,
-                self.clients["world_position"].get_latitude_and_longitude_from_address, 
-                self.clients["world_weather"].get_weather_forecast_for_today,
-                self.clients["world_weather"].get_weather_forecast_for_next_days,
-                self.clients["world_wikipedia"].get_summary_from_wikipedia_by_term,
-                self.clients["reminders"].create_reminder,
-                self.clients["reminders"].delete_reminder,
-                self.clients["reminders"].get_reminders_for_date,
-            ]
-        
+        # self.tools = [
+        #         # Grounding workaround so it can use Google Search
+        #         self.clients["google_search"].get_google_search_response_to_a_prompt,
+        #         # Grounding workaround so it can use Google Maps
+        #         self.clients["google_maps"].get_google_maps_response_to_a_prompt,
+        #         # # Custom Commands
+        #         self.clients["system_date"].get_current_system_calendar_date_as_year_month_date,
+        #         self.clients["system_time"].get_current_system_clock_time_as_hours_and_minutes,
+        #         self.clients["power_management"].get_battery_level,
+        #         self.clients["power_management"].is_power_cable_connected,
+        #         self.clients["power_management"].shutdown_local_machine,
+        #         self.clients["power_management"].reboot_local_machine,
+        #         self.clients["volume"].get_volume_level,
+        #         self.clients["volume"].get_mute_status,
+        #         self.clients["volume"].set_volume_level,
+        #         self.clients["volume"].set_mute_status,
+        #         self.clients["world_position"].get_latitude_and_longitude_from_location,
+        #         self.clients["world_position"].get_latitude_and_longitude_from_current_location,
+        #         self.clients["world_position"].get_latitude_and_longitude_from_address, 
+        #         self.clients["world_weather"].get_weather_forecast_for_today,
+        #         self.clients["world_weather"].get_weather_forecast_for_next_days,
+        #         self.clients["world_wikipedia"].get_summary_from_wikipedia_by_term,
+        #         self.clients["reminders"].create_reminder,
+        #         self.clients["reminders"].delete_reminder,
+        #         self.clients["reminders"].get_reminders_for_date,
+        #         self.clients["reminders"].update_reminder,
+        #         self.clients["reminders"].move_reminder,
+        #     ]
+        self.tools = []
+        for client_name, client in self.clients.items():
+            if isinstance(client, Command):
+                tools_from_client = client.get_tool_definition()
+                self._xlog.debug(f"ChatbotSessionManager: Adding tools from client [{client_name}]: {len(tools_from_client)}")
+                self.tools.extend(tools_from_client)
         if self.ENABLE_TRIVAGO_MCP:
             self.tools.append(
                 # To embed a MCP tool, we need to pass the session. As simple as that.

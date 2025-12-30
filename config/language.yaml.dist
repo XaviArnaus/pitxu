@@ -160,3 +160,23 @@ language:
       es: "Recordatorio: %s"
       en-us: "Reminder: %s"
       de: "Erinnerung: %s"
+    reminder_update_error:
+      ca: "Ho sento, hi ha hagut un error en actualitzar el recordatori."
+      es: "Lo siento, ha habido un error al actualizar el recordatorio."
+      en-us: "I'm sorry, there was an error updating the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Aktualisieren der Erinnerung."
+    reminder_updated:
+      ca: "Recordatori actualitzat per al %s a les %s: '%s'."
+      es: "Recordatorio actualizado para el %s a las %s: '%s'."
+      en-us: "Reminder updated for %s at %s: '%s'."
+      de: "Erinnerung aktualisiert für den %s um %s: '%s'."
+    reminder_move_error:
+      ca: "Ho sento, hi ha hagut un error en moure el recordatori."
+      es: "Lo siento, ha habido un error al mover el recordatorio."
+      en-us: "I'm sorry, there was an error moving the reminder."
+      de: "Es tut mir leid, es gab einen Fehler beim Verschieben der Erinnerung."
+    reminder_moved:
+      ca: "Recordatori mogut de %s a les %s a %s a les %s."
+      es: "Recordatorio movido de %s a las %s a %s a las %s."
+      en-us: "Reminder moved from %s at %s to %s at %s."
+      de: "Erinnerung verschoben von %s um %s zu %s um %s."
