@@ -2,10 +2,10 @@
 language:
   # Trigger words to start an interaction
   trigger_words:
-    ca: ["hola bob", "ep bob", "ei bob", "bon dia bob", "bona tarda bob", "bona nit bob", "escolta bob", "bob"]
-    es: ["hola bob", "eh bob", "oye bob", "buenos días bob", "buenas tardes bob", "buenas noches bob", "escucha bob", "bob"]
-    en-us: ["hello bob", "hi bob", "hey bob", "good morning bob", "good afternoon bob", "good evening bob", "listen bob", "bob"]
-    de: ["hallo bob", "hi bob", "hey bob", "guten morgen bob", "guten tag bob", "guten abend bob", "hör zu bob", "bob"]
+    ca: ["hola oscar", "ep oscar", "ei oscar", "bon dia oscar", "bona tarda oscar", "bona nit oscar", "escolta oscar", "oscar"]
+    es: ["hola oscar", "eh oscar", "oye oscar", "buenos días oscar", "buenas tardes oscar", "buenas noches oscar", "escucha oscar", "oscar"]
+    en-us: ["hello oscar", "hi oscar", "hey oscar", "good morning oscar", "good afternoon oscar", "good evening oscar", "listen oscar", "oscar"]
+    de: ["hallo oscar", "hi oscar", "hey oscar", "guten morgen oscar", "guten tag oscar", "guten abend oscar", "hör zu oscar", "oscar"]
   # Exit words are used to identify the program termination
   exit_words:
     ca: ["sortir", "adéu"]
