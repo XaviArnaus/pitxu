@@ -51,6 +51,13 @@ class SystemPowerManagement(PyXavi, Command):
         # We fake this command, so that the `main` can handle the actual reboot
         return True
     
+    def restart_system(self):
+        '''
+        Restarts the system services without rebooting the machine.
+        '''
+        # We fake this command, so that the `main` can handle the actual restart
+        return True
+    
     def callback_battery_level(self, main_instance, value: any, args: dict = None) -> None:
         """
         Callback for `get_battery_level` that gets called AFTER chatbot from `main`.
@@ -86,7 +93,8 @@ class SystemPowerManagement(PyXavi, Command):
         return [self.get_battery_level,
                 self.is_power_cable_connected,
                 self.shutdown_local_machine,
-                self.reboot_local_machine]
+                self.reboot_local_machine,
+                self.restart_system]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """

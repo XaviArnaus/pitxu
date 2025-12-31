@@ -402,17 +402,6 @@ class Main(PyXavi):
 
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
-                    # Unset eInk idle mode to be able to show stuff if needed
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-                    # The chatbot is in "Thinking" mode, we need to unset it
-                    self.unset_chatbot_busy()
-                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
-                    self.unmute_microphone()
-                    # Now wait until busy processes are done
-                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
-                    # Finally, close nicely and shutdown
                     self.close_nicely()
                     try:
                         call("sudo nohup shutdown -h now", shell=True)
@@ -420,23 +409,14 @@ class Main(PyXavi):
                         self._xlog.error(f"Error during shutdown: {e}")
                 elif function_call_pair.function_name == "reboot_local_machine":
                     self._xlog.debug("♻️  Preparing for reboot...")
-                    # Unset eInk idle mode to be able to show stuff if needed
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-                    # The chatbot is in "Thinking" mode, we need to unset it
-                    self.unset_chatbot_busy()
-                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
-                    self.unmute_microphone()
-                    # Now wait until busy processes are done
-                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
-                    # Finally, close nicely and shutdown
                     self.close_nicely()
                     try:
                         call("sudo nohup reboot", shell=True)
                     except Exception as e:
                         self._xlog.error(f"Error during reboot: {e}")
-                
+                elif function_call_pair.function_name == "restart_system":
+                    self._xlog.debug("🔄 Preparing to restart system...")
+                    self.close_nicely()
                 elif function_call_pair.function_name == "change_system_language":
                     self._xlog.debug("🌐 Preparing to change system language...")
                     result = function_call_pair.function_response.response.get("result", False)
@@ -468,19 +448,9 @@ class Main(PyXavi):
                             # The very first thing is to set the language in the app's state.
                             self._state.set("language", result)
                             self._state.write_file()
-                            self._xlog.debug(f"🌐 System language changed to '{result}' successfully.")
+                            self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
 
                             # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
-                            self.unset_eink_idle_mode()
-                            self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                            self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-                            # The chatbot is in "Thinking" mode, we need to unset it
-                            self.unset_chatbot_busy()
-                            # And also reactivate the microphone because it keeps the state on shutdowns / reboots
-                            self.unmute_microphone()
-                            # Now wait until busy processes are done
-                            self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
-                            # Finally, close nicely and exit with the proper code
                             self.close_nicely()
                             self._xlog.info("🌐 Exiting with code 42 to indicate language change")
                             exit(42)
@@ -544,12 +514,23 @@ class Main(PyXavi):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._xlog.debug("Closing nicely...")
 
+        # -- From the shutdown triggers as outcome from function call -->
+
+        # The chatbot may be in "Thinking" mode, unset it anyways.
+        self.unset_chatbot_busy()
+
+        # Reactivate the microphone because it keeps the state on shutdowns / reboots.
+        # We never want it to be muted when starting.
+        self.unmute_microphone()
+
+        # -- End of the shutdown triggers as outcome from function call -->
+
         # Persist state
         self.persist_state()
 
         # Stop eInk idle mode if active
-        self.unset_eink_idle_mode()
-        self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+        if self.is_eink_in_idle_mode():
+            self.unset_eink_idle_mode()
 
         # Clean the displays
         self.clear_displays()
