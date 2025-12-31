@@ -13,7 +13,7 @@ from datetime import datetime
 class SystemDate(PyXavi, Command):
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super().init_pyxavi(config=config, params=params)
+        super(SystemDate, self).init_pyxavi(config=config, params=params)
 
     format = "%Y-%m-%d"  # E.g., 2023-12-25
     displayed_format = "%d.%m.%Y"  # E.g., 25.12.2023

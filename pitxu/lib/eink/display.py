@@ -45,7 +45,7 @@ class Display(Xprocess):
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
         # Initialize the macros statics
-        self._macros.load_or_create_statics()
+        self._macros.load_or_create_statics(display=self._display)
     
     def finish(self):
         self._xlog.debug("Closing eInk display")
@@ -170,8 +170,10 @@ class Display(Xprocess):
                 # self.remove_following_repetitions_from_queue()
 
                 # wait one second
-                time.sleep(1)
-                seconds_waited += 1
+                if are_eyes_open:
+                    time.sleep(1)
+                    seconds_waited += 1
+
                 # quit if the idle mode is unset from outside
                 #   (because we also use the flag in the other direction)
                 if not self.is_eink_idle_mode():

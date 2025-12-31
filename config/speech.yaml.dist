@@ -6,6 +6,17 @@ speech-to-text:
   input_device: 0
   # [Integer] Vosk internal log level. -1 to disable.
   internal_logging: -1
+  # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+  # See https://alphacephei.com/vosk/models
+  model:
+    # Catalan
+    ca: vosk-model-small-ca-0.4
+    # Spanish
+    es: vosk-model-es-0.42
+    # English
+    en-us: vosk-model-en-us-0.22
+    # German
+    de: vosk-model-de-0.21
 
 # Configurations for the Text-to-Speech
 text-to-speech:

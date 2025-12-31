@@ -12,7 +12,7 @@ class SystemTime(PyXavi, Command):
     format = "%H:%M"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super().init_pyxavi(config=config, params=params)
+        super(SystemTime, self).init_pyxavi(config=config, params=params)
 
     def get_current_system_clock_time_as_hours_and_minutes(self) -> str:
         '''

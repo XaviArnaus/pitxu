@@ -2,10 +2,10 @@
 language:
   # Trigger words to start an interaction
   trigger_words:
-    ca: ["hola bob", "ep bob", "ei bob", "bon dia bob", "bona tarda bob", "bona nit bob", "escolta bob", "bob"]
-    es: ["hola bob", "eh bob", "oye bob", "buenos días bob", "buenas tardes bob", "buenas noches bob", "escucha bob", "bob"]
-    en-us: ["hello bob", "hi bob", "hey bob", "good morning bob", "good afternoon bob", "good evening bob", "listen bob", "bob"]
-    de: ["hallo bob", "hi bob", "hey bob", "guten morgen bob", "guten tag bob", "guten abend bob", "hör zu bob", "bob"]
+    ca: ["hola oscar", "ep oscar", "ei oscar", "bon dia oscar", "bona tarda oscar", "bona nit oscar", "escolta oscar", "oscar"]
+    es: ["hola oscar", "eh oscar", "oye oscar", "buenos días oscar", "buenas tardes oscar", "buenas noches oscar", "escucha oscar", "oscar"]
+    en-us: ["hello oscar", "hi oscar", "hey oscar", "good morning oscar", "good afternoon oscar", "good evening oscar", "listen oscar", "oscar"]
+    de: ["hallo oscar", "hi oscar", "hey oscar", "guten morgen oscar", "guten tag oscar", "guten abend oscar", "hör zu oscar", "oscar"]
   # Exit words are used to identify the program termination
   exit_words:
     ca: ["sortir", "adéu"]
@@ -59,6 +59,32 @@ language:
     es: "Lo siento, no puedo darte una respuesta ahora."
     en-us: "I'm sorry, I can't give you an answer right now."
     de: "Es tut mir leid, ich kann dir gerade keine Antwort geben."
+  language_not_supported:
+    ca: "L'idioma '%s' no està suportat."
+    es: "El idioma '%s' no está soportado."
+    en-us: "The language '%s' is not supported."
+    de: "Die Sprache '%s' wird nicht unterstützt."
+  languages_per_language:
+    ca:
+      en-us: "anglès"
+      ca: "català"
+      es: ["espanyol", "castellà"]
+      de: "alemany"
+    es:
+      en-us: "inglés"
+      ca: "catalán"
+      es: ["español", "castellano"]
+      de: "alemán"
+    en-us:
+      en-us: "English"
+      ca: "Catalan"
+      es: "Spanish"
+      de: "German"
+    de:
+      en-us: "Englisch"
+      ca: "Katalanisch"
+      es: "Spanisch"
+      de: "Deutsch"
   # Common text replacements to normalize output
   text_replacements:
     ca:

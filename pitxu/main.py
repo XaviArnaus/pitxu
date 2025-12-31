@@ -1,11 +1,12 @@
 from multiprocessing import JoinableQueue, shared_memory
 from subprocess import call
 
-from pyxavi import Logger, Config, Dictionary, Storage
+from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
 
 import logging
 from functools import partial
 
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
@@ -27,10 +28,8 @@ import sounddevice
 import time
 from datetime import datetime
 
-class Main:
+class Main(PyXavi):
 
-    _xconfig: Config = None
-    _xlog: logging = None
     _state: Storage = None
     
     _last_processed_minute: int = -1
@@ -77,29 +76,23 @@ class Main:
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
-        # Possible runtime parameters
-        self._xparams = params
+        super(Main, self).init_pyxavi(config=config, params=params)
 
-        # Config is mandatory
-        if config is None:
-            raise RuntimeError("Config can not be None")
-        self._xconfig = config
-
-        # Common Logger
-        self._xlog = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+        # Logger in params for other classes to use
         self._xparams.set("logger", self._xlog)
-
-        # Initial Language
-        self._xparams.set("language", config.get("app.default_language", self.CATALAN))
 
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+
+        # Initial Language. 1st from the state, then from the config, and last default to Catalan.
+        language = self._state.get("language", config.get("app.default_language", self.CATALAN))
+        self._xparams.set("language", language)
 
         # Initialize Maintenance utility
         self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
 
         # Supported Languages
-        self._supported_languages = config.get("languages.supported_languages")
+        self._supported_languages = config.get("app.supported_languages")
 
         # Process Pool (initialisation of process handling)
         self._process_pool = XprocessPool(config=self._xconfig, params=self._xparams)
@@ -109,20 +102,6 @@ class Main:
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
-
-    def load_language(self, new_language: str):
-        # Ensure that the language is supported
-        if new_language not in self._supported_languages:
-            raise RuntimeError("Language [" + new_language + "] is not supported")
-        
-        # Define the language to use
-        self._xparams.set("language", new_language)
-
-        # Reload the models now that we have a new language defined
-        self._load_models()
-
-        # Reload all language statics, like the exit words and the greeting / goodbye sentences
-        self._load_language_statics()
 
     def _load_models(self):
         
@@ -405,9 +384,84 @@ class Main:
             communication_channels_to_ignore: list[str] = []
             if function_call_pair.has_response():
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
+                
+                # We must start by the specifics. If none of them match, we go to the generic error handling.
+                if function_call_pair.function_name == "error":
+                    self._xlog.debug("🚨  Showing the ERROR in the eInk")
+
+                    self.unset_eink_idle_mode()
+                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+
+                    self.show_arbitrary_text_on_eink(
+                        icon="🚨",
+                        text=function_call_pair.function_response.response.get("result", "unknown"),
+                        font_size=EinkCanvas.FONT_BIG_SIZE)
+
+                    communication_channels_to_ignore.append(self.COMM_DISPLAY)
+
+                elif function_call_pair.function_name == "shutdown_local_machine":
+                    self._xlog.debug("💤 Preparing for shutdown...")
+                    self.close_nicely()
+                    try:
+                        call("sudo nohup shutdown -h now", shell=True)
+                    except Exception as e:
+                        self._xlog.error(f"Error during shutdown: {e}")
+                elif function_call_pair.function_name == "reboot_local_machine":
+                    self._xlog.debug("♻️  Preparing for reboot...")
+                    self.close_nicely()
+                    try:
+                        call("sudo nohup reboot", shell=True)
+                    except Exception as e:
+                        self._xlog.error(f"Error during reboot: {e}")
+                elif function_call_pair.function_name == "restart_system":
+                    self._xlog.debug("🔄 Preparing to restart system...")
+                    self.close_nicely()
+                elif function_call_pair.function_name == "change_system_language":
+                    self._xlog.debug("🌐 Preparing to change system language...")
+                    result = function_call_pair.function_response.response.get("result", False)
+                    intended_language = function_call_pair.function_call.arguments.get("new_language", "unknown")
+
+                    if isinstance(result, bool) and result is False:
+                        # This means that the language change failed internally. Most likely because we could not understand
+                        # the requested language or it is not supported.
+                        result = self._xconfig.get(f"language.language_not_supported.{self._xparams.get('language')}") % intended_language
+
+                    if isinstance(result, str) and result not in self._supported_languages:
+                        # This means that the result of the function returned anything but a supported language.
+                        # Most likely is an error string. Simply let it say it.
+                        self._xlog.debug("🚨 Showing the ERROR in the eInk")
+
+                        self.unset_eink_idle_mode()
+                        self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+                        self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
+
+                        self.show_arbitrary_text_on_eink(
+                            icon="🚨",
+                            text=result,
+                            font_size=EinkCanvas.FONT_BIG_SIZE)
+
+                        communication_channels_to_ignore.append(self.COMM_DISPLAY)
+                    else:
+                        # We have here the new desired language code.
+                        try:
+                            # The very first thing is to set the language in the app's state.
+                            self._state.set("language", result)
+                            self._state.write_file()
+                            self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
+
+                            # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
+                            self.close_nicely()
+                            self._xlog.info("🌐 Exiting with code 42 to indicate language change")
+                            exit(42)
+                        except Exception as e:
+                            self._xlog.error(f"🛑 Failed to change system language to '{result}': {e}")
+                    # Whatever we did, reactivate the microphone
+                    self.unmute_microphone()
+                
                 # Here we can parse the function response and act accordingly
                 # For example, if the function call is to get the current time, we can display it on an eInk screen
-                if function_call_pair.function_name in self._chatbot_client_callbacks.keys():
+                elif function_call_pair.function_name in self._chatbot_client_callbacks.keys():
                     # Generic callback execution for other functions that have a defined callback
 
                     value = function_call_pair.function_response.response.get("result", "unknown")
@@ -427,63 +481,13 @@ class Main:
                     )()
 
                     communication_channels_to_ignore.append(self.COMM_DISPLAY)
-                
-                elif function_call_pair.function_name == "error":
-                    self._xlog.debug("🚨  Showing the ERROR in the eInk")
-
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-
-                    self.show_arbitrary_text_on_eink(
-                        icon="🚨",
-                        text=function_call_pair.function_response.response.get("result", "unknown"),
-                        font_size=EinkCanvas.FONT_BIG_SIZE)
-
-                    communication_channels_to_ignore.append(self.COMM_DISPLAY)
-
-                elif function_call_pair.function_name == "shutdown_local_machine":
-                    self._xlog.debug("💤 Preparing for shutdown...")
-                    # Unset eInk idle mode to be able to show stuff if needed
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-                    # The chatbot is in "Thinking" mode, we need to unset it
-                    self.unset_chatbot_busy()
-                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
-                    self.unmute_microphone()
-                    # Now wait until busy processes are done
-                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
-                    # Finally, close nicely and shutdown
-                    self.close_nicely()
-                    try:
-                        call("sudo nohup shutdown -h now", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during shutdown: {e}")
-                elif function_call_pair.function_name == "reboot_local_machine":
-                    self._xlog.debug("♻️  Preparing for reboot...")
-                    # Unset eInk idle mode to be able to show stuff if needed
-                    self.unset_eink_idle_mode()
-                    self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-                    self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-                    # The chatbot is in "Thinking" mode, we need to unset it
-                    self.unset_chatbot_busy()
-                    # And also reactivate the microphone because it keeps the state on shutdowns / reboots
-                    self.unmute_microphone()
-                    # Now wait until busy processes are done
-                    self._process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
-                    # Finally, close nicely and shutdown
-                    self.close_nicely()
-                    try:
-                        call("sudo nohup reboot", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during reboot: {e}")
 
             # Finally we return the communication channels to ignore
             # Because we're actually using them here.
             return communication_channels_to_ignore
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
+            self._xlog.debug(full_stack())
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -510,12 +514,23 @@ class Main:
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._xlog.debug("Closing nicely...")
 
+        # -- From the shutdown triggers as outcome from function call -->
+
+        # The chatbot may be in "Thinking" mode, unset it anyways.
+        self.unset_chatbot_busy()
+
+        # Reactivate the microphone because it keeps the state on shutdowns / reboots.
+        # We never want it to be muted when starting.
+        self.unmute_microphone()
+
+        # -- End of the shutdown triggers as outcome from function call -->
+
         # Persist state
         self.persist_state()
 
         # Stop eInk idle mode if active
-        self.unset_eink_idle_mode()
-        self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
+        if self.is_eink_in_idle_mode():
+            self.unset_eink_idle_mode()
 
         # Clean the displays
         self.clear_displays()

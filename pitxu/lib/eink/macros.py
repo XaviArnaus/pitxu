@@ -29,7 +29,7 @@ class Macros:
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
     
-    def load_or_create_statics(self,):
+    def load_or_create_statics(self, display: EinkDisplay):
         '''
         Loads or creates the static images used in the macros.
         Currently, only the eyes images.
@@ -44,11 +44,13 @@ class Macros:
 
         if self._statics["eyes_open"] is None:
             self._xlog.info("Creating static image for eyes open")
+            # The next line provokes an unwanted eInk refresh, but feels needed to have the correct working image
             display = EinkDisplay(config=self._xconfig, params=self._xparams)
             self._statics["eyes_open"] = self._draw_eyes_open(display)
 
         if self._statics["eyes_closed"] is None:
             self._xlog.info("Creating static image for eyes closed")
+            # The next line provokes an unwanted eInk refresh, but feels needed to have the correct working image
             display = EinkDisplay(config=self._xconfig, params=self._xparams)
             self._statics["eyes_closed"] = self._draw_eyes_closed(display)
     
