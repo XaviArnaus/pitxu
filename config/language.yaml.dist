@@ -59,6 +59,32 @@ language:
     es: "Lo siento, no puedo darte una respuesta ahora."
     en-us: "I'm sorry, I can't give you an answer right now."
     de: "Es tut mir leid, ich kann dir gerade keine Antwort geben."
+  language_not_supported:
+    ca: "L'idioma '%s' no està suportat."
+    es: "El idioma '%s' no está soportado."
+    en-us: "The language '%s' is not supported."
+    de: "Die Sprache '%s' wird nicht unterstützt."
+  languages_per_language:
+    ca:
+      en-us: "anglès"
+      ca: "català"
+      es: ["espanyol", "castellà"]
+      de: "alemany"
+    es:
+      en-us: "inglés"
+      ca: "catalán"
+      es: ["español", "castellano"]
+      de: "alemán"
+    en-us:
+      en-us: "English"
+      ca: "Catalan"
+      es: "Spanish"
+      de: "German"
+    de:
+      en-us: "Englisch"
+      ca: "Katalanisch"
+      es: "Spanisch"
+      de: "Deutsch"
   # Common text replacements to normalize output
   text_replacements:
     ca:

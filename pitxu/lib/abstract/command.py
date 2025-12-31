@@ -42,5 +42,5 @@ class Command:
         """
         return self.default_empty_callback
 
-    def default_empty_callback(self):
+    def default_empty_callback(self, main_instance = None, value: any = None, args: dict = None):
         pass

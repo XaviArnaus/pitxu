@@ -2,7 +2,7 @@ from pyxavi import Config, Logger, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume,\
+from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume, SystemLanguage,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch,\
@@ -45,6 +45,7 @@ class ChatbotSessionManager(PyXavi):
             "world_weather": WorldWeather(config=self._xconfig, params=self._xparams),
             "system_time": SystemTime(config=self._xconfig, params=self._xparams),
             "system_date": SystemDate(config=self._xconfig, params=self._xparams),
+            "system_language": SystemLanguage(config=self._xconfig, params=self._xparams),
             "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams),
             "volume": SystemVolume(config=self._xconfig, params=self._xparams),
             "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
