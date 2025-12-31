@@ -4,3 +4,5 @@ services:
     host: smtp.example.com
     port: 587
     address_to: your_email_address@example.com
+  print:
+    printer: Brother_MFC_L2700DW_series
