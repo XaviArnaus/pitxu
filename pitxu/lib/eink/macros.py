@@ -290,7 +290,7 @@ class Macros:
         
         # First create a canvas
         #canvas = display.create_canvas(reset_base_image=True)
-        canvas = display.create_canvas(reset_base_image=False)
+        canvas = display.create_canvas(reset_base_image=True)
 
         # Left eye arc
         canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
@@ -319,7 +319,7 @@ class Macros:
         
         # First create a canvas
         # canvas = display.create_canvas(reset_base_image=True)
-        canvas = display.create_canvas(reset_base_image=False)
+        canvas = display.create_canvas(reset_base_image=True)
 
         # Left eye arc
         canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
