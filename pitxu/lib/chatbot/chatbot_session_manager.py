@@ -7,7 +7,7 @@ from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, Sys
                                 GoogleMaps, GoogleSearch,\
                                 TrivagoMCPAccommodationSearch,\
                                 StatefulReminders,\
-                                ServiceMail
+                                ServiceMail, ServicePrint
 
 class ChatbotSessionManager(PyXavi):
 
@@ -49,6 +49,7 @@ class ChatbotSessionManager(PyXavi):
             "volume": SystemVolume(config=self._xconfig, params=self._xparams),
             "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
             "mail": ServiceMail(config=self._xconfig, params=self._xparams),
+            "print": ServicePrint(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")
