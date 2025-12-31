@@ -11,17 +11,37 @@ class WorldPosition(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_latitude_and_longitude_from_location(self, location: str) -> str:
+    def get_latitude_and_longitude_from_location(self, location: str) -> str | bool:
         '''
         Gets the geographical coordinates (latitude and longitude) from a location string.
 
         Returns:
             The latitude and longitude in JSON format.
         '''
-        self._xlog.debug(f"Getting geo coordinates for location: {location}")
+        retries = -1
+        while retries < 1:
+            retries += 1
+            self._xlog.debug(f"Getting geo coordinates for location: {location}. Try #{retries}")
 
-        url = WorldPosition.URL % location
-        return ApiRequest.do(url)
+            url = WorldPosition.URL % location
+            result = ApiRequest.do(url)
+            results = result.get("results", [])
+            if len(results) == 0:
+                self._xlog.warning(f"No results found for location: {location}. Retrying with some extra cleaning.")
+                # Try to clean the location a bit and retry
+                location_cleaned = location.split(",")[0]  # Remove anything after a comma
+                location_cleaned = location_cleaned.replace(" near ", " ")  # Remove ' near '
+                location_cleaned = location_cleaned.replace(" close to ", " ")  # Remove ' close to '
+                location_cleaned = location_cleaned.strip()
+                location = location_cleaned
+                continue
+            else:
+                return results
+        
+        if len(results) == 0:
+            self._xlog.error(f"🛑 Error getting geo coordinates for location {location}: No results found after retries.")
+            return False
+
 
     def get_latitude_and_longitude_from_current_location(self) -> str:
         '''

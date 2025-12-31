@@ -75,15 +75,16 @@ class WorldWeather(PyXavi, Command):
             url = WorldWeather.URL % (str(latitude), str(longitude), str(1))
             response = ApiRequest.do(url)
             now = datetime.now().hour
-            temperature = response.get("hourly", {}).get("temperature_2m", [])[now]
-            humidity = response.get("hourly", {}).get("relative_humidity_2m", [])[now]
-            pressure = response.get("hourly", {}).get("surface_pressure", [])[now]
-            wind_speed = response.get("hourly", {}).get("wind_speed_10m", [])[now]
-            wind_direction = response.get("hourly", {}).get("wind_direction_10m", [])[now]
-            weather_code = response.get("hourly", {}).get("weathercode", [])[now]
+            temperature = response.get("hourly", {}).get("temperature_2m", [])
+            humidity = response.get("hourly", {}).get("relative_humidity_2m", [])
+            pressure = response.get("hourly", {}).get("surface_pressure", [])
+            wind_speed = response.get("hourly", {}).get("wind_speed_10m", [])
+            wind_direction = response.get("hourly", {}).get("wind_direction_10m", [])
+            weather_code = response.get("hourly", {}).get("weathercode", [])
             sunrise = response.get("daily", {}).get("sunrise", [])[0]
             sunset = response.get("daily", {}).get("sunset", [])[0]
             return {
+                "current_hour": now,
                 "temperature": temperature,
                 "humidity": humidity,
                 "pressure": pressure,
@@ -128,13 +129,14 @@ class WorldWeather(PyXavi, Command):
         main_instance._xlog.info(f"The weather forecast for today in the callback is: {value}")
 
         try:
+            now = value.get("current_hour", datetime.now().hour)
             # Get the values from out time range that belongs to now
-            temperature = value.get("temperature", "")
-            humidity = value.get("humidity", "")
-            # pressure = value.get("pressure", "")
-            wind_speed = value.get("wind_speed", "")
-            # wind_direction = value.get("wind_direction", "")
-            weather_code = value.get("weather_code", 0)
+            temperature = value.get("temperature", [])[now]
+            humidity = value.get("humidity", [])[now]
+            # pressure = value.get("pressure", [])[now]
+            wind_speed = value.get("wind_speed", [])[now]
+            # wind_direction = value.get("wind_direction", [])[now]
+            weather_code = value.get("weather_code", [])[now]
             weather_emoji = self.map_code_to_emoji.get(weather_code, "❓")
 
             # Create a summary string
