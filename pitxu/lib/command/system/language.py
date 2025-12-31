@@ -43,7 +43,16 @@ class SystemLanguage(PyXavi, Command):
         Returns:
             The language code used in the system.
         '''
-        language_map = self._xconfig.get(f"language.languages_per_language.{self._xparams.get('language')}", {})
+        original_language_map = self._xconfig.get(f"language.languages_per_language", {})
+        language_map = {}
+        for lang_code, lang_map in original_language_map.items():
+            if lang_code not in language_map:
+                language_map[lang_code] = []
+            if isinstance(lang_map, list):
+                language_map[lang_code].extend(lang_map)
+            else:
+                language_map[lang_code].append(lang_map)
+
         language_code = None
         for code, spoken in language_map.items():
             if isinstance(spoken, list):
