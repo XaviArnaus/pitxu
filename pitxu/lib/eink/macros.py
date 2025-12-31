@@ -44,12 +44,14 @@ class Macros:
 
         if self._statics["eyes_open"] is None:
             self._xlog.info("Creating static image for eyes open")
-            # display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            # The next line provokes an unwanted eInk refresh, but feels needed to have the correct working image
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
             self._statics["eyes_open"] = self._draw_eyes_open(display)
 
         if self._statics["eyes_closed"] is None:
             self._xlog.info("Creating static image for eyes closed")
-            # display = EinkDisplay(config=self._xconfig, params=self._xparams)
+            # The next line provokes an unwanted eInk refresh, but feels needed to have the correct working image
+            display = EinkDisplay(config=self._xconfig, params=self._xparams)
             self._statics["eyes_closed"] = self._draw_eyes_closed(display)
     
     def get_display_size(self) -> Point:
@@ -290,7 +292,7 @@ class Macros:
         
         # First create a canvas
         #canvas = display.create_canvas(reset_base_image=True)
-        canvas = display.create_canvas(reset_base_image=True)
+        canvas = display.create_canvas(reset_base_image=False)
 
         # Left eye arc
         canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
@@ -319,7 +321,7 @@ class Macros:
         
         # First create a canvas
         # canvas = display.create_canvas(reset_base_image=True)
-        canvas = display.create_canvas(reset_base_image=True)
+        canvas = display.create_canvas(reset_base_image=False)
 
         # Left eye arc
         canvas.arc([(30, 20), (100, 90)], start=180, end=0, fill=0, width=4)
