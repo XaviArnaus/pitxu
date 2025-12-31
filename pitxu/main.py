@@ -6,6 +6,7 @@ from pyxavi import Logger, Config, Dictionary, Storage
 import logging
 from functools import partial
 
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
@@ -27,10 +28,8 @@ import sounddevice
 import time
 from datetime import datetime
 
-class Main:
+class Main(PyXavi):
 
-    _xconfig: Config = None
-    _xlog: logging = None
     _state: Storage = None
     
     _last_processed_minute: int = -1
@@ -77,16 +76,9 @@ class Main:
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
-        # Possible runtime parameters
-        self._xparams = params
+        super(Main, self).init_pyxavi(config=config, params=params)
 
-        # Config is mandatory
-        if config is None:
-            raise RuntimeError("Config can not be None")
-        self._xconfig = config
-
-        # Common Logger
-        self._xlog = Logger(config=config, base_path=params.get("base_path", "")).get_logger()
+        # Logger in params for other classes to use
         self._xparams.set("logger", self._xlog)
 
         # Initial Language

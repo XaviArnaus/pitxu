@@ -170,8 +170,10 @@ class Display(Xprocess):
                 # self.remove_following_repetitions_from_queue()
 
                 # wait one second
-                time.sleep(1)
-                seconds_waited += 1
+                if are_eyes_open:
+                    time.sleep(1)
+                    seconds_waited += 1
+
                 # quit if the idle mode is unset from outside
                 #   (because we also use the flag in the other direction)
                 if not self.is_eink_idle_mode():
