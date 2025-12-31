@@ -45,7 +45,7 @@ class Display(Xprocess):
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
 
         # Initialize the macros statics
-        self._macros.load_or_create_statics()
+        self._macros.load_or_create_statics(display=self._display)
     
     def finish(self):
         self._xlog.debug("Closing eInk display")
