@@ -184,6 +184,26 @@ def send_email():
     except Exception:
         print(full_stack())
 
+def print():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        from pitxu.lib.command.services.print import ServicePrint
+        print_service = ServicePrint(config=config, params=parameters)
+        subject = "Test Print from Pitxu"
+        body = f"{subject}\n\nThis is a test print sent from the Pitxu application."
+        if print_service.print(text=body):
+            logger.info("Print sent successfully.")
+        else:
+            logger.error("Failed to send print.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def _initialize():
     load_environment()
     config = ConfigLoader.load_config_files()
