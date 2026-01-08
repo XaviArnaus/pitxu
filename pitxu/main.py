@@ -577,6 +577,12 @@ class Main(PyXavi):
         self._process_pool.send(QUEUE_EINK, XprocAction.STARTUP)
     
     def _show_init_phases(self, step: int):
+        # Maybe one of the phases means to use the matrix, so we wait for it to finish.
+        # COMMENTED OUT because the communicate() method already does this waiting when needed.
+        # self._process_pool.wait_for_queue_to_empty(QUEUE_MATRIX)
+        # self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
+
+        # And now show the step/phase
         self._process_pool.send(QUEUE_MATRIX, XprocAction.INIT_STEP, str(step))
     
     def _show_thinking(self):
