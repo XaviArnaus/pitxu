@@ -169,7 +169,7 @@ class Main(PyXavi):
         # Startup splash. It should be understood as a "Loading..." screen.
         self._startup_splash()
         self._show_init_phases(2)
-        time.sleep(2)
+        time.sleep(3)
 
         # At this point, we better wait for all queues to be empty.
         # This basically involves eInk (for the splash).
@@ -201,11 +201,8 @@ class Main(PyXavi):
                 # Welcome greeting
                 self._xlog.debug("Say Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
-                # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
-                # self.communicate(self._greeting_sentence, [self.COMM_TTS, self.COMM_DISPLAY])
                 self._show_idle()
-                self.communicate(self._greeting_sentence, [self.COMM_TTS])
-
+                self.communicate(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
                 self._show_init_phases(7)
 
@@ -304,8 +301,6 @@ class Main(PyXavi):
 
                             # Answer
                             sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                            # With the new function call reactions, we maybe don't want anymore to show the text in the screen anymore
-                            #self.communicate(answer, list(set([self.COMM_TTS, self.COMM_DISPLAY]) - set(comm_channels_to_ignore)))
                             self.communicate(answer, list(set([self.COMM_TTS]) - set(comm_channels_to_ignore)))
                             self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                             answer_count += 1
@@ -334,7 +329,7 @@ class Main(PyXavi):
         # However it happened, just close nicely.
         self.close_nicely()
     
-    def communicate(self, text: str, channels: list):
+    def communicate(self, text: str, channels: list = None):
         """
         Communicates to the user using the channels defined.
 
@@ -342,6 +337,10 @@ class Main(PyXavi):
         It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
         speeding up the overall run.
         """
+
+        # By default, use only TTS
+        if channels is None:
+            channels = [self.COMM_TTS]
 
         # In case we want TTS, we need to pause the mic
         # this is done within the TTS process via a shared memory flag that tells the STT to pause
@@ -705,7 +704,7 @@ class Main(PyXavi):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
-            self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ". Running every-minute tasks.")
+            self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ".")
             # Get the possible reminder for the current date and time
             date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
             time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
@@ -737,7 +736,7 @@ class Main(PyXavi):
         current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
-            self._xlog.debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f". Running every-second tasks.")
+            self._xlog.debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
             
             # If the matrix is idle, show interaction holding percentage if applicable
             if not self.is_matrix_busy():
@@ -754,5 +753,5 @@ class Main(PyXavi):
                         # Interaction time is over, and we were showing the percentage
                         self._last_processed_interaction_percentage = -1
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        self._process_pool.send(QUEUE_MATRIX, XprocAction.SOFT_CLEAR)
+                        self._process_pool.send(QUEUE_MATRIX, XprocAction.LED_CLEAR)
                     
