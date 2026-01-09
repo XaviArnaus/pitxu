@@ -235,6 +235,10 @@ class Main(PyXavi):
                         # This includes reminders checking and speaking them out.
                         self.do_every_minute_tasks()
 
+                        # Check the things to do every second
+                        # This includes checking for interaction holding time
+                        self.do_every_second_tasks()
+
                         # Show idle screen in eInk if not already showing it
                         if not self.is_eink_in_idle_mode():
                             self._show_idle()
@@ -732,7 +736,7 @@ class Main(PyXavi):
 
     def do_every_second_tasks(self):
         current_second = time.localtime().tm_sec
-        if current_second != self._last_processed_second:
+        if current_second > self._last_processed_second:
             self._last_processed_second = current_second
             self._xlog.debug("🕐 New second detected: " + str(current_second) + ". Running every-second tasks.")
             
