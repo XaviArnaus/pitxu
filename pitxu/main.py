@@ -33,6 +33,7 @@ class Main(PyXavi):
     _state: Storage = None
     
     _last_processed_minute: int = -1
+    _last_processed_second: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
 
@@ -667,6 +668,9 @@ class Main(PyXavi):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
     
+    def is_microphone_muted(self) -> bool:
+        return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+    
     def set_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
         self._xlog.debug("🤖 Setting Chatbot as busy.")
@@ -674,6 +678,9 @@ class Main(PyXavi):
     def unset_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._xlog.debug("🤖 Unsetting Chatbot as busy.")
+    
+    def is_chatbot_busy(self) -> bool:
+        return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_BUSY)
     
     def is_chatbot_error(self) -> bool:
         return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR)
@@ -720,3 +727,26 @@ class Main(PyXavi):
                 self._reminders.delete_reminder(date_str, time_str)
                 # Reset the last interaction time, as we just spoke
                 self._last_interaction_datetime = datetime.now()
+    
+    # ------- Stuff to do every second -------
+
+    def do_every_second_tasks(self):
+        current_second = time.localtime().tm_sec
+        if current_second != self._last_processed_second:
+            self._last_processed_second = current_second
+            self._xlog.debug("🕐 New second detected: " + str(current_second) + ". Running every-second tasks.")
+            
+            # Are we waiting for an user interaction with the mic open?
+            if not self.is_chatbot_busy() and not self.is_microphone_muted():
+                # Calculate how much left in percentages the time to hold the interaction
+                if self._last_interaction_datetime is not None:
+                    seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
+                    if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+                        percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+                        self._xlog.debug("⏳ Interaction ongoing. " + str(percent_left) + "% time left.")
+                        self._process_pool.send(QUEUE_MATRIX, XprocAction.INTERACTION_HOLDING_PERCENTAGE, str(percent_left))
+                    else:
+                        # Time is over, reset the interaction holding
+                        self._xlog.debug("⏳ Interaction time is over. Resetting.")
+                        self._process_pool.send(QUEUE_MATRIX, XprocAction.INTERACTION_HOLDING_PERCENTAGE, "0")
+                    

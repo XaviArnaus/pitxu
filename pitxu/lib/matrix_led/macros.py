@@ -212,3 +212,21 @@ class Macros:
             canvas.point((i,i), self.ON)
             canvas.point((7 - i,i), self.ON)
         self._handable_canvas.send_to_device()
+    
+    def show_interaction_holding_percentage(self, percentage: int):
+        '''
+        Shows on the Matrix LED a percentage bar indicating how much time is left
+        for the user to hold the interaction (i.e., speak).
+
+        Args:
+            percentage: The percentage of time left (0-100).
+        '''
+        canvas = self._handable_canvas.get()
+        canvas.rectangle((0,0,7,7), self.OFF)
+
+        # Calculate how many columns to light up
+        columns_to_light = math.ceil((percentage / 100) * 8)
+        for x in range(0, columns_to_light):
+            canvas.point((x,7), self.ON)
+        
+        self._handable_canvas.send_to_device()

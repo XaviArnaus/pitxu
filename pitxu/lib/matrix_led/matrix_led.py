@@ -51,6 +51,11 @@ class MatrixLed(Xprocess):
         if action == XprocAction.THINKING:
             self.show_kitt_scanner_while_thinking()
         
+        if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
+            percentage = int(param)
+            self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on Matrix LED")
+            self._macros.show_interaction_holding_percentage(percentage)
+        
         # Clears the screen
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             self.clear()
