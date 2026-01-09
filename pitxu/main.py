@@ -34,6 +34,7 @@ class Main(PyXavi):
     
     _last_processed_minute: int = -1
     _last_processed_second: int = -1
+    _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
 
@@ -589,12 +590,6 @@ class Main(PyXavi):
         self._process_pool.send(QUEUE_EINK, XprocAction.STARTUP)
     
     def _show_init_phases(self, step: int):
-        # Maybe one of the phases means to use the matrix, so we wait for it to finish.
-        # COMMENTED OUT because the communicate() method already does this waiting when needed.
-        # self._process_pool.wait_for_queue_to_empty(QUEUE_MATRIX)
-        # self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
-
-        # And now show the step/phase
         self._process_pool.send(QUEUE_MATRIX, XprocAction.INIT_STEP, str(step))
     
     def _show_thinking(self):
@@ -701,6 +696,9 @@ class Main(PyXavi):
     def unset_eink_idle_mode(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)
     
+    def is_matrix_busy(self):
+        return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MATRIX_BUSY)
+
     # ------- Stuff to do every minute -------
 
     def do_every_minute_tasks(self):
@@ -735,22 +733,26 @@ class Main(PyXavi):
     # ------- Stuff to do every second -------
 
     def do_every_second_tasks(self):
-        current_second = time.localtime().tm_sec
+
+        current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
-            self._xlog.debug("🕐 New second detected: " + str(current_second) + ". Running every-second tasks.")
+            self._xlog.debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f". Running every-second tasks.")
             
-            # Are we waiting for an user interaction with the mic open?
-            if not self.is_chatbot_busy() and not self.is_microphone_muted():
-                # Calculate how much left in percentages the time to hold the interaction
+            # If the matrix is idle, show interaction holding percentage if applicable
+            if not self.is_matrix_busy():
+                # Show the interaction holding percentage if we're expecting an interaction
                 if self._last_interaction_datetime is not None:
+                    # Calculate how much left in percentages the time to hold the interaction
                     seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
                     if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                         percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                        self._xlog.debug("⏳ Interaction ongoing. " + str(percent_left) + "% time left.")
+                        self._last_processed_interaction_percentage = percent_left
+                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
                         self._process_pool.send(QUEUE_MATRIX, XprocAction.INTERACTION_HOLDING_PERCENTAGE, str(percent_left))
-                    else:
-                        # Time is over, reset the interaction holding
-                        self._xlog.debug("⏳ Interaction time is over. Resetting.")
-                        self._process_pool.send(QUEUE_MATRIX, XprocAction.INTERACTION_HOLDING_PERCENTAGE, "0")
+                    elif self._last_processed_interaction_percentage >= 0:
+                        # Interaction time is over, and we were showing the percentage
+                        self._last_processed_interaction_percentage = -1
+                        self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
+                        self._process_pool.send(QUEUE_MATRIX, XprocAction.SOFT_CLEAR)
                     
