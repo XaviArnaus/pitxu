@@ -54,7 +54,9 @@ class MatrixLed(Xprocess):
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             percentage = int(param)
             self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on Matrix LED")
+            # self._macros.open_canvas()
             self._macros.show_interaction_holding_percentage(percentage)
+            # self._macros.close_canvas()
         
         # Clears the screen
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
