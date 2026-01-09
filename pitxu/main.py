@@ -216,6 +216,10 @@ class Main(PyXavi):
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
                     self._show_init_phases(9)
 
+                    # We consider this point as the end of the initialisation phases
+                    # Clean the Matrix led from the points showing the init phases
+                    self._clear_matrix()
+
                     # Before we start with the loop, let's set the last interaction time to now
                     # It just started, there was a greating after all.
                     # Maybe the user wants to talk straight away without the trigger words.
