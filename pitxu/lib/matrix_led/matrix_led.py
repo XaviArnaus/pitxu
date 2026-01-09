@@ -68,7 +68,7 @@ class MatrixLed(Xprocess):
         self._macros.open_canvas()
         while True:
             if not self.is_speaker_busy():
-                self._xlog.info(f"👄 Stopping KITT mouth on Matrix LED.")
+                self._xlog.info(f"👄 Stopping KITT mouth on Matrix LED: Speaker not busy")
                 break
             
             if self.read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR):
