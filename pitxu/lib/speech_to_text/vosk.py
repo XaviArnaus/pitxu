@@ -43,11 +43,6 @@ class Vosk:
 
         language = self._xparams.get("language")
 
-        # Specific words to recognize
-        specific_words: list = self._xconfig.get("language.specific_words." + language, [])
-        chatbot_name: str = self._xconfig.get("chatbot.name", "Pitxu")
-        specific_words.append(chatbot_name.lower())
-
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
@@ -64,12 +59,8 @@ class Vosk:
             self.samplerate = self._get_samplerate()
             self.device = self._xconfig.get("speech-to-text.input_device", None)
 
-            if self._xconfig.get("speech-to-text.use_specific_words", False) and len(specific_words) > 0:
-                self._xlog.debug("Vosk: initializing KaldiRecognizer with specific words: " + str(specific_words))
-                self._recognizer = KaldiRecognizer(self._model, self.samplerate, json.dumps(specific_words))
-            else:
-                self._xlog.debug("Vosk: initializing KaldiRecognizer without specific words")
-                self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+            self._xlog.debug("Vosk: initializing KaldiRecognizer")
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
 
         self._xlog.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
         self._queue = queue.Queue()

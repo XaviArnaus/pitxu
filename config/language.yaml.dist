@@ -12,13 +12,6 @@ language:
     es: ["salir", "adios"]
     en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
     de: ["tschüss", "beenden", "ende"]
-  # Specific words that the STT should recognize better (lowercase, no accents).
-  # The chatbot name is already included automatically.
-  specific_words:
-    ca: []
-    es: []
-    en-us: []
-    de: []
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"
