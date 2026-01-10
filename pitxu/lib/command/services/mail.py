@@ -6,7 +6,6 @@ from pitxu.lib.eink import EinkCanvas
 
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 class ServiceMail(PyXavi, Command):
 
@@ -15,19 +14,19 @@ class ServiceMail(PyXavi, Command):
     
     def send_email(self, subject: str, body: str) -> bool:
         '''
-        Sends an email to the specified address.
-
-        ⚠️ Starting from September 30, 2024, Google no longer supports "Less secure apps".
-        This solves the issue: https://stackoverflow.com/a/76439245
+        Send an email to the internally defined address, with the given subject and body.
 
         Args:
-            to_address: The recipient's email address.
-            subject: The subject of the email.
-            body: The body of the email.
+            subject (str): The subject of the email.
+            body (str): The body of the email.
 
         Returns:
-            True if the email was sent successfully, False otherwise.
+            bool: True if the email was sent successfully, False otherwise.
         '''
+
+        # ⚠️ Starting from September 30, 2024, Google no longer supports "Less secure apps".
+        # This solves the issue: https://stackoverflow.com/a/76439245
+
         try:
 
             server = self._xconfig.get("services.mail.host")
@@ -46,19 +45,6 @@ class ServiceMail(PyXavi, Command):
             debug_info += f"\n  To Address: {to_address}"
             debug_info += f"\n  Subject: {subject}"
             self._xlog.debug(debug_info)
-
-            # msg = MIMEMultipart()
-            # msg['From'] = from_address
-            # msg['To'] = to_address
-            # msg['Subject'] = subject
-
-            # msg.attach(MIMEText(body, 'plain'))
-
-            # server = smtplib.SMTP(smtp_server, smtp_port)
-            # server.starttls()
-            # server.login(smtp_username, smtp_password)
-            # server.send_message(msg)
-            # server.quit()
 
             msg = MIMEText(body)
             msg['Subject'] = subject

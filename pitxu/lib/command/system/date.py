@@ -18,12 +18,12 @@ class SystemDate(PyXavi, Command):
     format = "%Y-%m-%d"  # E.g., 2023-12-25
     displayed_format = "%d.%m.%Y"  # E.g., 25.12.2023
 
-    def get_current_system_calendar_date_as_year_month_date(self) -> str:
+    def get_local_system_date(self) -> str:
         '''
-        Gets the current system date. The time is not included.
+        Get the local system date in Year-Month-Day format.
         
         Returns:
-            The current date in Year-Month-Day format
+            str: The current date in Year-Month-Day format
         '''
         try:
             return time.strftime(self.format, time.localtime())
@@ -33,7 +33,7 @@ class SystemDate(PyXavi, Command):
     
     def callback_show_date(self, main_instance, value: any, args: dict = None) -> None:
         """
-        Callback for `get_current_system_calendar_date_as_year_month_date` that gets called AFTER chatbot from `main`.
+        Callback for `get_local_system_date` that gets called AFTER chatbot from `main`.
 
         With this, we have the `main` context to play with for the given function call.
         For example, show the date in the eInk while we TTS the anwer from the Chatbot.
@@ -45,7 +45,7 @@ class SystemDate(PyXavi, Command):
 
         Args:
             main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `get_current_system_calendar_date_as_year_month_date`.
+            value: The value returned from the Chatbot AFTER it ran `get_local_system_date`.
 
         """
         main_instance._xlog.info(f"The current date in the callback is: {value}")
@@ -69,7 +69,7 @@ class SystemDate(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_current_system_calendar_date_as_year_month_date]
+        return [self.get_local_system_date]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -80,6 +80,6 @@ class SystemDate(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "get_current_system_calendar_date_as_year_month_date":
+        if function_name == "get_local_system_date":
             return self.callback_show_date
         return self.default_empty_callback

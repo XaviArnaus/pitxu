@@ -62,12 +62,20 @@ class WorldWeather(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_weather_forecast_for_today(self, latitude: float, longitude: float) -> str:
+    def get_weather_forecast_for_today(self, latitude: float, longitude: float) -> dict:
         '''
-        Gets the weather forecast for a specific location.
+        Get the weather forecast for the current date (per hour) in the given latitude and longitude.
+
+        To provide the information to the user, select the corresponding hour from the returned data.
+        This corresponding hour can be found in the "current_hour" field of the returned JSON.
+        Therefore, if the current hour is 14 (2 PM), select the 14th index from every array.
+
+        Args:
+            latitude (float): The latitude of the location.
+            longitude (float): The longitude of the location.
 
         Returns:
-            The weather forecast information in JSON format.
+            dict: The weather forecast information in JSON format.
         '''
         try:
             self._xlog.debug(f"Getting weather forecast for today at location: {latitude}, {longitude}")
@@ -100,7 +108,12 @@ class WorldWeather(PyXavi, Command):
     
     def get_weather_forecast_for_next_days(self, latitude: float, longitude: float, days: int) -> str:
         '''
-        Gets the weather forecast for a specific location.
+        Get the weather forecast for the next given days from the current date, in the given latitude and longitude.
+
+        Args:
+            latitude (float): The latitude of the location.
+            longitude (float): The longitude of the location.
+            days (int): The number of days from the current date to get the forecast for.
 
         Returns:
             The weather forecast information in JSON format.

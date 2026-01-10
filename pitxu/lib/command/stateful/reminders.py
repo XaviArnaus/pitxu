@@ -19,15 +19,15 @@ class StatefulReminders(PyXavi, Command):
 
     def create_reminder(self, date: str, time: str, reminder_text: str) -> str:
         '''
-        Creates a reminder for a specific date.
+        Create a reminder for a specific date and time, with a specified text.
         
         Args:
-            date: The date for the reminder in Year-Month-Day format.
-            time: The time for the reminder in HH:MM format.
-            reminder_text: The text of the reminder.
+            date (str): The date for the reminder in Year-Month-Day format.
+            time (str): The time for the reminder in HH:MM format.
+            reminder_text (str): The text of the reminder.
         
         Returns:
-            A confirmation message or an error message.
+            str: A confirmation message or an error message.
         '''
         try:
             self._xlog.info(f"📝 Request for Creating a reminder for [{date}] at [{time}]: {reminder_text}")
@@ -56,13 +56,13 @@ class StatefulReminders(PyXavi, Command):
         
     def get_reminders_for_date(self, date: str) -> list[str]:
         '''
-        Retrieves all reminders for a specific date.
+        Retrieve all reminders for a specific date.
         
         Args:
-            date: The date to retrieve reminders for in Year-Month-Day format.
+            date (str): The date to retrieve reminders for in Year-Month-Day format.
         
         Returns:
-            A list of reminders for the specified date in a JSON format or an error message as string.
+            list[str]: A list of reminders for the specified date in a JSON format or an error message as string.
         '''
 
         self._xlog.info(f"📝 Request for Retrieving reminders for [{date}]")
@@ -75,14 +75,14 @@ class StatefulReminders(PyXavi, Command):
     
     def delete_reminder(self, date: str, time: str) -> str:
         '''
-        Deletes a specific reminder.
+        Delete a specific reminder by date and time.
         
         Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
+            date (str): The date of the reminder in Year-Month-Day format.
+            time (str): The time of the reminder in HH:MM format.
         
         Returns:
-            A confirmation message or an error message.
+            dict | str: If successful, returns a JSON with the deleted reminder details; otherwise, an error message.
         '''
         self._xlog.info(f"📝 Request for Deleting a reminder for [{date}] at [{time}]")
         try:
@@ -104,14 +104,14 @@ class StatefulReminders(PyXavi, Command):
     
     def get_reminder(self, date: str, time: str) -> dict | str:
         '''
-        Retrieves a specific reminder.
+        Retrieve a specific reminder by date and time.
         
         Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
+            date (str): The date of the reminder in Year-Month-Day format.
+            time (str): The time of the reminder in HH:MM format.
         
         Returns:
-            The reminder in a JSON format or an error message as string.
+            dict | str: The reminder in a JSON format or an error message as string.
         '''
         self._xlog.info(f"📝 Request for Retrieving a reminder for [{date}] at [{time}]")
         try:
@@ -127,15 +127,15 @@ class StatefulReminders(PyXavi, Command):
     
     def update_reminder(self, date: str, time: str, new_text: str) -> str:
         '''
-        Updates the text of a specific reminder.
+        Update the text of a specific reminder by date and time.
         
         Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
-            new_text: The new text for the reminder.
+            date (str): The date of the reminder in Year-Month-Day format.
+            time (str): The time of the reminder in HH:MM format.
+            new_text (str): The new text for the reminder.
         
         Returns:
-            A confirmation message or an error message.
+            dict | str: If successful, returns a JSON with the updated reminder details; otherwise, an error message.
         '''
         self._xlog.info(f"📝 Request for Updating a reminder for [{date}] at [{time}] to: {new_text}")
         try:
@@ -155,16 +155,16 @@ class StatefulReminders(PyXavi, Command):
     
     def move_reminder(self, old_date: str, old_time: str, new_date: str, new_time: str) -> str:
         '''
-        Moves a reminder from one date and time to another.
+        Move a reminder from one date and time to another.
         
         Args:
-            old_date: The current date of the reminder in Year-Month-Day format.
-            old_time: The current time of the reminder in HH:MM format.
-            new_date: The new date for the reminder in Year-Month-Day format.
-            new_time: The new time for the reminder in HH:MM format.
+            old_date (str): The current date of the reminder in Year-Month-Day format.
+            old_time (str): The current time of the reminder in HH:MM format.
+            new_date (str): The new date for the reminder in Year-Month-Day format.
+            new_time (str): The new time for the reminder in HH:MM format.
 
         Returns:
-            A confirmation message or an error message.
+            dict | str: If successful, returns a JSON with the moved reminder details; otherwise, an error message.
         '''
         self._xlog.info(f"📝 Request for Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
         try:
