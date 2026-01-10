@@ -403,6 +403,10 @@ sudo usermod -a -G systemd-journal xavier
 systemctl restart systemd-journald
 ```
 
+## Maybe replace Vosk by Whisper
+
+https://github.com/FR33TR1ST/VoiceAssistant/blob/5e046b16a9ae32ba6e8aa5d595cffb9cbf221a6d/Voice_Asistant.py
+
 
 # 😄 Fun fact
 

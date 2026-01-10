@@ -14,7 +14,7 @@ speech-to-text:
     # Spanish
     es: vosk-model-es-0.42
     # English
-    en-us: vosk-model-en-us-0.22
+    en-us: vosk-model-small-en-us-0.15
     # German
     de: vosk-model-de-0.21
 

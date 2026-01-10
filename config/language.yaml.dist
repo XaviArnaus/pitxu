@@ -1,17 +1,24 @@
 # General settings about language
 language:
-  # Trigger words to start an interaction
+  # Trigger words to start an interaction (lowercase, no accents)
   trigger_words:
     ca: ["hola oscar", "ep oscar", "ei oscar", "bon dia oscar", "bona tarda oscar", "bona nit oscar", "escolta oscar", "oscar"]
     es: ["hola oscar", "eh oscar", "oye oscar", "buenos días oscar", "buenas tardes oscar", "buenas noches oscar", "escucha oscar", "oscar"]
     en-us: ["hello oscar", "hi oscar", "hey oscar", "good morning oscar", "good afternoon oscar", "good evening oscar", "listen oscar", "oscar"]
     de: ["hallo oscar", "hi oscar", "hey oscar", "guten morgen oscar", "guten tag oscar", "guten abend oscar", "hör zu oscar", "oscar"]
-  # Exit words are used to identify the program termination
+  # Exit words are used to identify the program termination (lowercase, no accents)
   exit_words:
-    ca: ["sortir", "adéu"]
-    es: ["salir", "adiós"]
+    ca: ["sortir", "adeu"]
+    es: ["salir", "adios"]
     en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
     de: ["tschüss", "beenden", "ende"]
+  # Specific words that the STT should recognize better (lowercase, no accents).
+  # The chatbot name is already included automatically.
+  specific_words:
+    ca: []
+    es: []
+    en-us: []
+    de: []
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"
