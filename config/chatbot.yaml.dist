@@ -2,6 +2,8 @@
 chatbot:
   # [Bool] Avoids the communication to the LLM server
   mock: True
+  # [String] Name of the chatbot
+  name: "Oscar"
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction: 
     ca: |
