@@ -17,6 +17,8 @@ speech-to-text:
     en-us: vosk-model-small-en-us-0.15
     # German
     de: vosk-model-de-0.21
+  # [Bool] Whether to use specific words to improve recognition.
+  use_specific_words: False
 
 # Configurations for the Text-to-Speech
 text-to-speech:

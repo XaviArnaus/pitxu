@@ -63,8 +63,8 @@ class Vosk:
 
             self.samplerate = self._get_samplerate()
             self.device = self._xconfig.get("speech-to-text.input_device", None)
-        
-            if len(specific_words) > 0:
+
+            if self._xconfig.get("speech-to-text.use_specific_words", False) and len(specific_words) > 0:
                 self._xlog.debug("Vosk: initializing KaldiRecognizer with specific words: " + str(specific_words))
                 self._recognizer = KaldiRecognizer(self._model, self.samplerate, json.dumps(specific_words))
             else:
