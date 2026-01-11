@@ -13,7 +13,7 @@ case "$1" in
         if [[ $# -eq 2 ]] ; then
             pactl set-sink-volume @DEFAULT_SINK@ "$2"
         else
-            echo "Usage: volume set <value>"
+            echo "Usage example: volume set 75%"
         fi
         ;;
     "mute") pactl set-sink-mute @DEFAULT_SINK@ toggle ;;
