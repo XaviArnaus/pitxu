@@ -12,6 +12,9 @@ class SystemVolume(PyXavi, Command):
     MUTED = "muted"
     UNMUTED = "unmuted"
 
+    # Whatever the volume we want, we add this to avoid being too low
+    SINK_VOLUME_ADDITION = 50
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
@@ -26,7 +29,9 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True).decode()
             #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
             #balance 0.00
-            volume = int(call_output.split("/")[1].strip().rstrip("%"))
+            volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
+            if volume < 0:
+                volume = 0
             return volume
         except Exception as e:
             self._xlog.error(f"Error getting volume level: {e}")
@@ -56,6 +61,9 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
+            # Unless we want to set volume to 0, we add the addition
+            if volume != 0:
+                volume += self.SINK_VOLUME_ADDITION
             check_output(f"pactl set-sink-volume @DEFAULT_SINK@ {volume}%", shell=True)
             return volume
         except Exception as e:
