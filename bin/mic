@@ -9,6 +9,13 @@ fi
 case "$1" in
     "up") pactl set-source-volume @DEFAULT_SOURCE@ +10% ;;
     "down") pactl set-source-volume @DEFAULT_SOURCE@ -10% ;;
+    "set") 
+        if [[ $# -eq 2 ]] ; then
+            pactl set-source-volume @DEFAULT_SOURCE@ "$2"
+        else
+            echo "Usage example: mic set 75%"
+        fi
+        ;;
     "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;
     *) echo "Command unknown" ;;
 esac
