@@ -4,6 +4,7 @@ import importlib.metadata
 import sounddevice
 import asyncio
 import logging
+import json
 
 from pyxavi.terminal_color import TerminalColor
 from pyxavi.config import Config
@@ -134,7 +135,8 @@ def query_sound_devices():
 
         # Delegate the run to Main
         logger.debug("Querying SoundDevice")
-        print(sounddevice.query_devices())
+        device_list = sounddevice.query_devices()
+        print(json.dumps(device_list, indent=4))
         logger.info("End of work.")
 
 
@@ -184,7 +186,7 @@ def send_email():
     except Exception:
         print(full_stack())
 
-def print():
+def send_to_printer():
     try:
         # Instantiating
         config, logger, parameters = _initialize()

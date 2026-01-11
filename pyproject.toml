@@ -41,7 +41,7 @@ test_matrix = "runner:test_matrix"
 test_eink_multiline = "runner:test_eink_multiline"
 battery_status = "runner:battery_status"
 send_email = "runner:send_email"
-print = "runner:print"
+send_to_printer = "runner:send_to_printer"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"

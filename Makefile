@@ -77,9 +77,9 @@ battery_status:
 send_email:
 	@$(POETRY) run send_email
 
-.PHONY: print
-print:
-	@$(POETRY) run print
+.PHONY: send_to_printer
+send_to_printer:
+	@$(POETRY) run send_to_printer
 
 .PHONY: where-is-python
 where-is-python:

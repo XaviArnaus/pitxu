@@ -11,7 +11,7 @@ class ServicePrint(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(ServicePrint, self).init_pyxavi(config=config, params=params)
     
-    def print(self, text: str) -> bool:
+    def send_to_printer(self, text: str) -> bool:
         '''
         Prints the given text using the configured printer.
 
@@ -78,7 +78,7 @@ class ServicePrint(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.print]
+        return [self.send_to_printer]
     
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -89,5 +89,5 @@ class ServicePrint(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "print":
+        if function_name == "send_to_printer":
             return self.callback_print
