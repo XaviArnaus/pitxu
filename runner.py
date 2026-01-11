@@ -135,8 +135,9 @@ def query_sound_devices():
 
         # Delegate the run to Main
         logger.debug("Querying SoundDevice")
-        device_list = sounddevice.query_devices()
-        print(json.dumps(device_list, indent=4))
+        print()
+        print(sounddevice.query_devices())
+        print()
         logger.info("End of work.")
 
 
