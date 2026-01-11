@@ -65,7 +65,7 @@ class SystemVolume(PyXavi, Command):
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
             check_output(f"pactl set-sink-volume @DEFAULT_SINK@ {volume}%", shell=True)
-            return volume
+            return volume - self.SINK_VOLUME_ADDITION
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
             return -1
