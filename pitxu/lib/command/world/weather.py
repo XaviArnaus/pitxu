@@ -62,23 +62,25 @@ class WorldWeather(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_weather_forecast_for_today(self, latitude: float, longitude: float) -> dict:
+    def get_weather_forecast_for_today(self, latitude: float, longitude: float, requested_hour: int = None) -> dict:
         '''
         Get the weather forecast for the current date (per hour) in the given latitude and longitude.
 
         To provide the information to the user, select the corresponding hour from the returned data.
-        This corresponding hour can be found in the "current_hour" field of the returned JSON.
+        If no specific hour is requested, use the current hour of the day.
+        The current hour can be found in the "current_hour" field of the returned JSON.
         Therefore, if the current hour is 14 (2 PM), select the 14th index from every array.
 
         Args:
             latitude (float): The latitude of the location.
             longitude (float): The longitude of the location.
+            requested_hour (int, optional): The specific hour to retrieve the forecast for. If not provided, the current hour will be used.
 
         Returns:
             dict: The weather forecast information in JSON format.
         '''
         try:
-            self._xlog.debug(f"Getting weather forecast for today at location: {latitude}, {longitude}")
+            self._xlog.debug(f"Getting weather forecast for today at [{str(requested_hour)}] at location: {latitude}, {longitude}")
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(1))
             response = ApiRequest.do(url)
@@ -140,16 +142,20 @@ class WorldWeather(PyXavi, Command):
 
         """
         main_instance._xlog.info(f"The weather forecast for today in the callback is: {value}")
+        requested_hour = args.get("requested_hour", None) if args else None
+        if requested_hour is not None:
+            main_instance._xlog.debug(f"The requested hour for the weather forecast in the callback is: {requested_hour}")
 
         try:
-            now = value.get("current_hour", datetime.now().hour)
+            if requested_hour is None:
+                requested_hour = value.get("current_hour", datetime.now().hour)
             # Get the values from out time range that belongs to now
-            temperature = value.get("temperature", [])[now]
-            humidity = value.get("humidity", [])[now]
-            # pressure = value.get("pressure", [])[now]
-            wind_speed = value.get("wind_speed", [])[now]
-            # wind_direction = value.get("wind_direction", [])[now]
-            weather_code = value.get("weather_code", [])[now]
+            temperature = value.get("temperature", [])[requested_hour]
+            humidity = value.get("humidity", [])[requested_hour]
+            # pressure = value.get("pressure", [])[requested_hour]
+            wind_speed = value.get("wind_speed", [])[requested_hour]
+            # wind_direction = value.get("wind_direction", [])[requested_hour]
+            weather_code = value.get("weather_code", [])[requested_hour]
             weather_emoji = self.map_code_to_emoji.get(weather_code, "❓")
 
             # Create a summary string
