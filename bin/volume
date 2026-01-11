@@ -9,6 +9,13 @@ fi
 case "$1" in
     "up") pactl set-sink-volume @DEFAULT_SINK@ +10% ;;
     "down") pactl set-sink-volume @DEFAULT_SINK@ -10% ;;
+    "set") 
+        if [[ $# -eq 2 ]] ; then
+            pactl set-sink-volume @DEFAULT_SINK@ "$2"
+        else
+            echo "Usage: volume set <value>"
+        fi
+        ;;
     "mute") pactl set-sink-mute @DEFAULT_SINK@ toggle ;;
     *) echo "Command unknown" ;;
 esac

@@ -219,6 +219,7 @@ Works very decent, no very significant difference with MacOS
 - From Piper 1.2.0 to 1.3.0 the API for `sintetize_stream_raw()` changed to `sintentize()` and the subsequent loop a bit as well.
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
+- [⚠️ NOT SURE] Changing the USB audio device changed also the system default device. The project still works because in `config/speech.yaml` we define in and out to use a specific device, but the command `volume` (in `bin/volume`) queries and sets the volume for the default sink `@DEFAULT_SINK@`. This means that `volume` and `mute` bin commands, as well as the Chatbot tool `volume.py` interact with the wrong sink.
 
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
