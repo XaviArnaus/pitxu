@@ -1,5 +1,5 @@
 from pitxu.lib.ups.ups import UPS
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -16,44 +16,55 @@ class SystemPowerManagement(PyXavi, Command):
 
         self.ups = UPS(config=config, params=params)
 
-    def get_battery_level(self) -> str:
+    def get_battery_level(self) -> int:
         '''
-        Gets the current battery level
+        Get the current battery level
 
         Returns:
-            The current battery level as a percentage
+            int: The current battery level as a percentage
         '''
-        voltage, capacity = self.ups.read_voltage_and_capacity()
-        self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
-        return math.ceil(capacity)
+        try:
+            voltage, capacity = self.ups.read_voltage_and_capacity()
+            self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
+            return math.ceil(capacity)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
+            self._xlog.debug(full_stack())
+            return -1
 
     def is_power_cable_connected(self) -> bool:
         '''
-        Checks if the power cable is connected
+        Check if the power cable is connected
 
         Returns:
-            True if the power cable is connected, False otherwise
+            bool: True if the power cable is connected, False otherwise
         '''
         return self.ups.is_power_cable_connected()
     
 
     def shutdown_local_machine(self):
         '''
-        Shuts down the local machine. Beware: This will immediately power off the machine.
+        Shut down the local machine.
+        
+        Beware: This will immediately power off the machine.
+        Ask always for confirmation before calling this method.
         '''
         # We fake this command, so that the `main` can handle the actual shutdown
         return True
 
     def reboot_local_machine(self):
         '''
-        Reboots the local machine. Beware: This will immediately reboot the machine.
+        Reboot the local machine.
+        
+        Beware: This will immediately reboot the machine.
+        Ask always for confirmation before calling this method.
         '''
         # We fake this command, so that the `main` can handle the actual reboot
         return True
     
     def restart_system(self):
         '''
-        Restarts the system services without rebooting the machine.
+        Restart the system services without rebooting the machine.
         '''
         # We fake this command, so that the `main` can handle the actual restart
         return True

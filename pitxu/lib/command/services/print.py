@@ -13,17 +13,18 @@ class ServicePrint(PyXavi, Command):
     
     def send_to_printer(self, text: str) -> bool:
         '''
-        Prints the given text using the configured printer.
-
-        To do so, it creates a temporary text file, sends it to the printer using the `lp` command,
-        and then deletes the temporary file.
+        Print the given text using the locally configured printer.
 
         Args:
-            text: The text to print.
+            text (str): The text to print.
 
         Returns:
-            True if the text was printed successfully, False otherwise.
+            bool: True if the text was printed successfully, False otherwise.
         '''
+
+        # To do so, it creates a temporary text file, sends it to the printer using the `lp` command,
+        # and then deletes the temporary file.
+
         try:
 
             printer = self._xconfig.get("services.print.printer")

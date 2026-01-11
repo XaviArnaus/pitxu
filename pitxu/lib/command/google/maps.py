@@ -14,10 +14,13 @@ class GoogleMaps(PyXavi, Command):
 
     def get_google_maps_response_to_a_prompt(self, prompt: str) -> str:
         '''
-        Gets a response from Google Maps related to the given prompt.
+        Get a response from Google Maps related to the given prompt.
+
+        Args:
+            prompt (str): The prompt to send to Google Maps.
 
         Returns:
-            The Gemini response from Google Maps as a string.
+            str: The Gemini response from Google Maps as a string.
         '''
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.

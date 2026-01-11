@@ -11,10 +11,10 @@ class SystemLanguage(PyXavi, Command):
 
     def change_system_language(self, new_language: str) -> bool | str:
         '''
-        Gets the current system time. The date is not included.
+        Change the system language to the specified new language.
 
         Returns:
-            The current time in Hour:Minute format
+            bool | str: Returns the new language code if the language was changed successfully, False otherwise.
         '''
         try:
             self._xlog.info(f"Changing system language to: {new_language}")
@@ -35,7 +35,7 @@ class SystemLanguage(PyXavi, Command):
     
     def _map_language_spoken_to_code(self, language_spoken: str) -> str:
         '''
-        Maps the language spoken to the language code used in the system.
+        Map the language spoken to the language code used in the system.
 
         Args:
             language_spoken: The language spoken by the user.
@@ -68,7 +68,7 @@ class SystemLanguage(PyXavi, Command):
 
     def get_tool_definition(self) -> list[callable]:
         """
-        Returns the methods of the class that will be used as tools by the chatbot.
+        Return the methods of the class that will be used as tools by the chatbot.
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
@@ -76,7 +76,7 @@ class SystemLanguage(PyXavi, Command):
     
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
-        Gets the callback function for a given function name.
+        Get the callback function for a given function name.
 
         It expects the function_name because a class may provide multiple functions as tools.
 

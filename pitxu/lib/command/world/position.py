@@ -11,12 +11,15 @@ class WorldPosition(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_latitude_and_longitude_from_location(self, location: str) -> str | bool:
+    def get_latitude_and_longitude_from_location(self, location: str) -> dict | bool:
         '''
-        Gets the geographical coordinates (latitude and longitude) from a location string.
+        Get the geographical coordinates (latitude and longitude) from the given location string.
+
+        Args:
+            location (str): The location string to get the coordinates for.
 
         Returns:
-            The latitude and longitude in JSON format.
+            dict | bool: The latitude and longitude in JSON format, or False if not found.
         '''
         retries = -1
         while retries < 1:
@@ -43,14 +46,14 @@ class WorldPosition(PyXavi, Command):
             return False
 
 
-    def get_latitude_and_longitude_from_current_location(self) -> str:
+    def get_latitude_and_longitude_from_current_location(self) -> dict | str:
         '''
-        Gets the geographical coordinates (latitude and longitude) from the current location of the device.
+        Get the geographical coordinates (latitude and longitude) from the current location of the local system.
 
         Returns:
-            The latitude and longitude in JSON format.
+            dict | str: The latitude and longitude in JSON format, or an error message.
         '''
-        self._xlog.debug("Getting geo coordinates for current location")
+        self._xlog.debug("Getting geo coordinates for current location of the local system.")
 
         try:
             # Results are very bad (I'm not in Berlin...)
@@ -84,12 +87,15 @@ class WorldPosition(PyXavi, Command):
             self._xlog.error(f"🛑 Error getting geo coordinates for current location: {e}")
             return f"Error getting geo coordinates for current location: {e}"
 
-    def get_latitude_and_longitude_from_address(self, address: str) -> str:
+    def get_latitude_and_longitude_from_address(self, address: str) -> dict | str:
         '''
-        Gets the geographical coordinates (latitude and longitude) from a given address.
+        Get the geographical coordinates (latitude and longitude) from a given address.
+
+        Args:
+            address (str): The address to get the coordinates for.
 
         Returns:
-            The latitude and longitude in JSON format.
+            dict | str: The latitude and longitude in JSON format, or an error message.
         '''
 
         self._xlog.debug(f"Getting geo coordinates for address: [{address}]")

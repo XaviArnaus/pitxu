@@ -16,10 +16,13 @@ class WorldWikipedia(PyXavi, Command):
 
     def get_summary_from_wikipedia_by_term(self, term: str) -> str:
         '''
-        Gets the summary from Wikipedia for a specific term.
+        Get the summary from Wikipedia for a specific term to search for.
+
+        Args:
+            term (str): The term to search for on Wikipedia.
 
         Returns:
-            The summary in plain text format.
+            str: The summary in plain text format, or a message indicating no summary is available.
         '''
 
         # These are the languages we support towards the ones supported by Wikipedia

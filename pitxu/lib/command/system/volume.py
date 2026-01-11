@@ -15,12 +15,12 @@ class SystemVolume(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-    def get_volume_level(self) -> int:
+    def get_local_system_speaker_volume_level(self) -> int:
         '''
-        Gets the current system volume level.
+        Get the local system speaker volume level.
 
         Returns:
-            The current volume level as a percentage (0-100)
+            int: The local system speaker volume level as a percentage (0-100)
         '''
         try:
             call_output = check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True).decode()
@@ -32,12 +32,12 @@ class SystemVolume(PyXavi, Command):
             self._xlog.error(f"Error getting volume level: {e}")
             return -1
     
-    def get_mute_status(self) -> bool:
+    def get_local_system_speaker_mute_status(self) -> bool:
         '''
-        Gets the current mute status of the system.
+        Get the local system speaker mute status.
 
         Returns:
-            True if the system is muted, False otherwise
+            bool: True if the local system speaker is muted, False otherwise
         '''
         try:
             call_output = check_output("pactl get-sink-mute @DEFAULT_SINK@", shell=True).decode()
@@ -48,12 +48,12 @@ class SystemVolume(PyXavi, Command):
             self._xlog.error(f"Error getting mute status: {e}")
             return False
     
-    def set_volume_level(self, volume: int) -> int:
+    def set_local_system_speaker_volume_level(self, volume: int) -> int:
         '''
-        Sets the system volume level.
+        Set the local system speaker volume level.
 
         Args:
-            volume: The desired volume level as a percentage (0-100)
+            volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
             check_output(f"pactl set-sink-volume @DEFAULT_SINK@ {volume}%", shell=True)
@@ -62,12 +62,12 @@ class SystemVolume(PyXavi, Command):
             self._xlog.error(f"Error setting volume level: {e}")
             return -1
 
-    def set_mute_status(self, mute: bool) -> str:
+    def set_local_system_speaker_mute_status(self, mute: bool) -> str:
         '''
-        Sets the system mute status.
+        Set the local system speaker mute status.
 
         Args:
-            mute: True to mute the system, False to unmute
+            mute (bool): True to mute the system, False to unmute
         '''
         try:
             mute_str = "1" if mute else "0"
@@ -78,11 +78,11 @@ class SystemVolume(PyXavi, Command):
     
     def callback_volume_level(self, main_instance, value: any, args: dict = None) -> None:
         """
-        Callback for `get_volume_level` that gets called AFTER chatbot from `main`.
+        Callback for `get_local_system_speaker_volume_level` that gets called AFTER chatbot from `main`.
 
         Args:
             main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `get_volume_level`.
+            value: The value returned from the Chatbot AFTER it ran `get_local_system_speaker_volume_level`.
 
         """
         main_instance._xlog.info(f"The volume level in the callback is: {value}")
@@ -99,11 +99,11 @@ class SystemVolume(PyXavi, Command):
     
     def callback_muting(self, main_instance, value: any, args: dict = None) -> None:
         """
-        Callback for `get_volume_level` that gets called AFTER chatbot from `main`.
+        Callback for `get_local_system_speaker_volume_level` that gets called AFTER chatbot from `main`.
 
         Args:
             main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `get_volume_level`.
+            value: The value returned from the Chatbot AFTER it ran `get_local_system_speaker_volume_level`.
 
         """
         main_instance._xlog.info(f"The volume level in the callback is: {value}")
@@ -124,10 +124,10 @@ class SystemVolume(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_volume_level,
-                self.set_volume_level,
-                self.set_mute_status,
-                self.get_mute_status]
+        return [self.get_local_system_speaker_volume_level,
+                self.set_local_system_speaker_volume_level,
+                self.set_local_system_speaker_mute_status,
+                self.get_local_system_speaker_mute_status]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -138,8 +138,8 @@ class SystemVolume(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "get_volume_level" or function_name == "set_volume_level":
+        if function_name == "get_local_system_speaker_volume_level" or function_name == "set_local_system_speaker_volume_level":
             return self.callback_volume_level
-        elif function_name == "set_mute_status" or function_name == "get_mute_status":
+        elif function_name == "set_local_system_speaker_mute_status" or function_name == "get_local_system_speaker_mute_status":
             return self.callback_muting
         return self.default_empty_callback
