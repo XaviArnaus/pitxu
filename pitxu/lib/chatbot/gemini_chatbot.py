@@ -167,6 +167,7 @@ class GeminiChatbot(PyXavi):
                             # Also the context may be too big if the previous conversation is large.
                             self._xlog.error("🛑 The server answered with an error. The finish reason is: " + outcome.error + 
                                              " and had " + (str(outcome.metadata.total_token_count) + " total tokens" if outcome.metadata and outcome.metadata.total_token_count is not None else ""))
+                            dd(response)
                             outcome.set_text(self._xconfig.get("language.empty_answer." + self._xparams.get("language")))
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                             # Make him remember that he couldn't answer
