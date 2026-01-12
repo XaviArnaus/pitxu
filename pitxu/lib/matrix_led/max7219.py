@@ -2,6 +2,7 @@ import os
 import logging
 
 from pyxavi import Config, Logger, Dictionary
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Point, Rectangle, Matrix
 from . import EmulatedCanvas, DeviceWrapper, HandableEmulatedCanvas, HandableCanvas
 
@@ -11,14 +12,10 @@ from luma.core.render import canvas
 from PIL import ImageDraw,ImageFont
 
 
-class Max7219:
+class Max7219(PyXavi):
     '''
     https://luma-led-matrix.readthedocs.io/en/latest/python-usage.html
     '''
-
-    _xparams: Dictionary = None
-    _xconfig: Config = None
-    _xlog: logging = None
 
     _serial: spi = None
     _device: DeviceWrapper = None
@@ -34,18 +31,8 @@ class Max7219:
     OFF: str = "black"    # This is an LED OFF
 
     def __init__(self, config: Config, params: Dictionary):
+        super(Max7219, self).init_pyxavi(config=config, params=params)
         # Never use the property `.bounding_box` from the emulated canvas
-
-        # Possible runtime parameters
-        self._xparams = params
-
-        # Config is mandatory
-        if config is None:
-            raise RuntimeError("Config can not be None")
-        self._xconfig = config
-
-        # Common Logger
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         # Max7219
         if (not self._xconfig.get("matrix_led.mock", True)):
@@ -78,27 +65,27 @@ class Max7219:
     
     def create_canvas(self) -> canvas:
         if (self._xconfig.get("matrix_led.mock", True)):
-            self._xlog.debug("Creating Matrix Emulation Canvas")
+            self._log_debug("Creating Matrix Emulation Canvas")
             return EmulatedCanvas(self._xconfig, self._xparams, self.EMULATION_MODE, self.EMULATION_SIZE)
         else:
-            self._xlog.debug("Creating Matrix Canvas")
+            self._log_debug("Creating Matrix Canvas")
             return canvas(self._device)
     
     def create_handable_canvas(self) -> HandableCanvas | HandableEmulatedCanvas:
         if (self._xconfig.get("matrix_led.mock", True)):
-            self._xlog.debug("Creating Matrix Emulation Handable Canvas")
+            self._log_debug("Creating Matrix Emulation Handable Canvas")
             return HandableEmulatedCanvas(self._xconfig, self._xparams, self.EMULATION_MODE, self.EMULATION_SIZE)
         else:
-            self._xlog.debug("Creating Matrix Handable Canvas")
+            self._log_debug("Creating Matrix Handable Canvas")
             return HandableCanvas(self._device)
     
     def clear(self, draw: ImageDraw = None) -> None:
-        self._xlog.debug("Clearing Matrix.")
+        self._log_debug("Clearing Matrix.")
         if draw:
             draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
         else:
             with self.create_canvas() as draw:
-                self._xlog.debug("The rectangle size is " + str(self.BOUNDING_BOX))
+                self._log_debug("The rectangle size is " + str(self.BOUNDING_BOX))
                 draw.rectangle(self.BOUNDING_BOX, outline=self.OFF, fill=self.OFF)
     
     def draw(self, list_of_activated_leds: list[Point] = []) -> None:        
@@ -112,7 +99,7 @@ class Max7219:
     
     def test(self):
         # Manually define the leds to light up
-        self._xlog.debug("Showing a test matrix")
+        self._log_debug("Showing a test matrix")
         matrix = Matrix(points=[
             Point(1,1),
             Point(6,1),

@@ -1,6 +1,6 @@
 import logging
 
-from pyxavi import Config, dd
+from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
@@ -113,7 +113,6 @@ class Display(Xprocess):
         while self.is_speaker_busy():
             time.sleep(1)
         time.sleep(1)  # small delay to ensure the user sees the image
-        self._xlog.info(f"👀 Finished showing arbitrary image on eInk.")
     
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
@@ -121,7 +120,6 @@ class Display(Xprocess):
         while self.is_speaker_busy():
             time.sleep(1)
         time.sleep(1)  # small delay to ensure the user sees the image
-        self._xlog.info(f"👀 Finished showing arbitrary text on eInk.")
     
     def show_arbitrary_text_on_eink(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
@@ -177,7 +175,7 @@ class Display(Xprocess):
                 # quit if the idle mode is unset from outside
                 #   (because we also use the flag in the other direction)
                 if not self.is_eink_idle_mode():
-                    self._xlog.debug(f"Received a idle mode cancel (idle is now [{self.is_eink_idle_mode()}]).")
+                    self._log_debug(f"Received a idle mode cancel (idle is now [{self.is_eink_idle_mode()}]).")
                     should_stop_idle = True
                     break
                 # show eyes open if not already shown
@@ -198,8 +196,6 @@ class Display(Xprocess):
         # Setting it from the main process.
         # if self.is_eink_idle_mode():
         #     self.unset_eink_idle_mode()
-        self._xlog.info(f"👀 Exiting idle screen on eInk.")
-
 
     def splash_startup(self):
         # Draw the startup splash screen

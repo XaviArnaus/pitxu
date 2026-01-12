@@ -34,12 +34,12 @@ class Reminders(PyXavi, Command):
         Returns:
             A boolean indicating success or failure.
         '''
-        self._xlog.info(f"📝 Creating a reminder for [{date}] at [{time}]: {reminder_text}")
+        self._log_debug(f"📝 Creating a reminder for [{date}] at [{time}]: {reminder_text}")
 
         # First check if there are existing reminders for that key
         reminder_key = f"{date}.{time}"
         if self.state.key_exists(reminder_key):
-            self._xlog.info(f"📝 Reminder already exists for [{date}] at [{time}]")
+            self._xlog.debug(f"📝 Reminder already exists for [{date}] at [{time}]")
             return False
 
         self.state.set(reminder_key, reminder_text, slugify_param_name=True)
@@ -59,10 +59,10 @@ class Reminders(PyXavi, Command):
             A list of reminders for the specified date in a JSON format
         '''
 
-        self._xlog.info(f"📝 Retrieving reminders for [{date}]")
+        self._log_debug(f"📝 Retrieving reminders for [{date}]")
         self.state.read_file()
         reminders = []
-        stored_reminders = self.state.get(date, {}, slugify_param_name=True)
+        stored_reminders: dict = self.state.get(date, {}, slugify_param_name=True)
         for time, reminder_text in stored_reminders.items():
             reminders.append({
                 "time": self._unslugify_time(time),
@@ -81,7 +81,7 @@ class Reminders(PyXavi, Command):
         Returns:
             A boolean indicating success or failure.
         '''
-        self._xlog.info(f"📝 Deleting a reminder for [{date}] at [{time}]")
+        self._log_debug(f"📝 Deleting a reminder for [{date}] at [{time}]")
         self.state.read_file()
         reminder_key = f"{date}.{time}"
         if self.state.key_exists(reminder_key, slugify_param_name=True):
@@ -90,7 +90,7 @@ class Reminders(PyXavi, Command):
             self._xlog.info(f"📝 Reminder deleted for [{date}] at [{time}]")
             return True
         else:
-            self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
+            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
             return False
     
     def get_reminder(self, date: str, time: str) -> dict | bool:
@@ -104,7 +104,7 @@ class Reminders(PyXavi, Command):
         Returns:
             The reminder details as a JSON object or False if not found.
         '''
-        self._xlog.info(f"📝 Retrieving a reminder for [{date}] at [{time}]")
+        self._log_debug(f"📝 Retrieving a reminder for [{date}] at [{time}]")
         self.state.read_file()
         reminder_key = f"{date}.{time}"
         if self.state.key_exists(reminder_key, slugify_param_name=True):
@@ -116,7 +116,7 @@ class Reminders(PyXavi, Command):
                 "text": reminder_text
             }
         else:
-            self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
+            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
             return False
 
     def update_reminder(self, date: str, time: str, new_text: str) -> dict | bool:
@@ -131,7 +131,7 @@ class Reminders(PyXavi, Command):
         Returns:
             The updated reminder details as a JSON object or False if not found.
         '''
-        self._xlog.info(f"📝 Updating a reminder for [{date}] at [{time}] to: {new_text}")
+        self._log_debug(f"📝 Updating a reminder for [{date}] at [{time}] to: {new_text}")
         self.state.read_file()
         reminder_key = f"{date}.{time}"
         if self.state.key_exists(reminder_key, slugify_param_name=True):
@@ -144,7 +144,7 @@ class Reminders(PyXavi, Command):
                 "text": new_text
             }
         else:
-            self._xlog.info(f"📝 No reminder found for [{date}] at [{time}]")
+            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
             return False
         
     def move_reminder(self, old_date: str, old_time: str, new_date: str, new_time: str) -> dict | bool:
@@ -159,7 +159,7 @@ class Reminders(PyXavi, Command):
         Returns:
             The moved reminder details as a JSON object or False if not found.
         '''
-        self._xlog.info(f"📝 Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
+        self._log_debug(f"📝 Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
         self.state.read_file()
         old_reminder_key = f"{old_date}.{old_time}"
         new_reminder_key = f"{new_date}.{new_time}"
@@ -175,7 +175,7 @@ class Reminders(PyXavi, Command):
                 "text": reminder_text
             }
         else:
-            self._xlog.info(f"📝 No reminder found for [{old_date}] at [{old_time}]")
+            self._log_debug(f"📝 No reminder found for [{old_date}] at [{old_time}]")
             return False
     
     def delete_past_reminders(self) -> int:
@@ -198,7 +198,7 @@ class Reminders(PyXavi, Command):
                 if reminder_datetime < now:
                     self.state.delete(f"{date_str}.{time_str}")
                     deleted_count += 1
-                    self._xlog.info(f"📝 Deleted past reminder for [{date_str}] at [{time_str}]")
+                    self._log_debug(f"📝 Deleted past reminder for [{date_str}] at [{time_str}]")
 
         if deleted_count > 0:
             self.state.write_file()

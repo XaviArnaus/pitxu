@@ -84,3 +84,8 @@ logger:
 
             # To terminate the style in the string. Mandatory!
             END:  '\033[0m'
+
+# This does not relate to the pyxavi.Logger, but to the Pitxu application logging settings
+logging:
+    # [Bool] Enables the Verbose Debug mode: Some modules will output extra debug information
+    verbose_debug: False

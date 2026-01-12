@@ -24,6 +24,7 @@ from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_
                         QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER
 
 
+import sys
 import sounddevice
 import time
 from datetime import datetime
@@ -199,7 +200,7 @@ class Main(PyXavi):
                 self._show_init_phases(6)
                 
                 # Welcome greeting
-                self._xlog.debug("Say Greetings")
+                self._log_debug("Say Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self._show_idle()
                 self.communicate(self._greeting_sentence)
@@ -249,7 +250,7 @@ class Main(PyXavi):
                             continue
 
                         # Still here? Then something got recognised.
-                        self._xlog.debug("💬 Recognised dictate")
+                        self._log_debug("💬 Recognised dictate: " + question)
                         self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
                         dictate_count += 1
 
@@ -276,9 +277,9 @@ class Main(PyXavi):
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
                             try:
-                                self._xlog.debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
+                                self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
                                 if chat_response.function_call_history.get_last().has_response():
-                                    self._xlog.debug("🗣️ Received function call response. Reacting.")
+                                    self._log_debug("🗣️ Received function call response. Reacting.")
                                     # Shutdown and Reboot interrupt the flow and directly shutdown,
                                     # calling `close_nicely()` from there.
                                     # Keep in mind that here we may have played with BUSY flags.
@@ -347,13 +348,13 @@ class Main(PyXavi):
 
         if self.COMM_TTS in channels:
             # Say the answer
-            self._xlog.debug("Say Communication")
+            self._log_debug("Say Communication")
             # We already have the TTS in a Process, listening for elements in the queue
             self._say(text)
 
         if self.COMM_DISPLAY in channels:
             # Show the answer
-            self._xlog.debug("Show Communication")
+            self._log_debug("Show Communication")
             self._show(text)
         
         # We want that the main thread waits until some of the actions finished in the subprocesses
@@ -459,13 +460,20 @@ class Main(PyXavi):
                             self._state.write_file()
                             self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
 
+                            # If we close the app now, the micrphone is still muted.
+                            self.unmute_microphone()
+
                             # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
                             self.close_nicely()
                             self._xlog.info("🌐 Exiting with code 42 to indicate language change")
-                            exit(42)
+                            # Feels like does not really exit, as logs show that afterwards it tries to unmute the microphone.
+                            # Trying now to change from exit(42) to sys.exit(42)
+                            sys.exit(42)
                         except Exception as e:
                             self._xlog.error(f"🛑 Failed to change system language to '{result}': {e}")
+
                     # Whatever we did, reactivate the microphone
+                    # Note that for changing the language, we unmuted first and then exit, so in this case it should not hit here.
                     self.unmute_microphone()
                 
                 # Here we can parse the function response and act accordingly
@@ -475,7 +483,7 @@ class Main(PyXavi):
 
                     value = function_call_pair.function_response.response.get("result", "unknown")
                     args = function_call_pair.function_call.arguments
-                    self._xlog.debug("📺 Show the function response in the eInk: " + str(value))
+                    self._xlog.debug("📺 Executing callback with value: " + str(value))
                     self.unset_eink_idle_mode()
                     self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
                     self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
@@ -521,7 +529,7 @@ class Main(PyXavi):
     
     def close_nicely(self):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
-        self._xlog.debug("Closing nicely...")
+        self._log_debug("Closing nicely...")
 
         # -- From the shutdown triggers as outcome from function call -->
 
@@ -553,7 +561,6 @@ class Main(PyXavi):
 
         # ------ Final logs ------
 
-        self._xlog.debug("We should be now nicely closed")
         self._xlog.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
 
         # Here comes anything that we want to do before leaving
@@ -568,9 +575,9 @@ class Main(PyXavi):
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
 
     def clear_displays(self):
-        self._xlog.debug("Clearing the eInk.")
+        self._log_debug("Clearing the eInk.")
         self._clear_display()
-        self._xlog.debug("Clearing the LED Matrix.")
+        self._log_debug("Clearing the LED Matrix.")
         self._clear_matrix()
 
     # ------- Communication with Queues ---------
@@ -660,22 +667,22 @@ class Main(PyXavi):
     
     def mute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
-        self._xlog.debug("🔇 Muting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+        self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
     
     def unmute_microphone(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
-        self._xlog.debug("🔊 Unmuting the microphone. Now is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+        self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
     
     def is_microphone_muted(self) -> bool:
         return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
     
     def set_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
-        self._xlog.debug("🤖 Setting Chatbot as busy.")
+        self._log_debug("🤖 Setting Chatbot as busy.")
     
     def unset_chatbot_busy(self):
         self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
-        self._xlog.debug("🤖 Unsetting Chatbot as busy.")
+        self._log_debug("🤖 Unsetting Chatbot as busy.")
     
     def is_chatbot_busy(self) -> bool:
         return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_BUSY)
@@ -704,13 +711,13 @@ class Main(PyXavi):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
-            self._xlog.debug("🕐 New minute detected: " + str(current_minute) + ".")
+            self._log_debug("🕐 New minute detected: " + str(current_minute) + ".")
             # Get the possible reminder for the current date and time
             date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
             time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
             reminder: dict = self._reminders.get_reminder(date_str, time_str)
             if reminder is not False:
-                self._xlog.debug("📝 Reminder found for now: " + str(reminder))
+                self._log_debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
                 self.unset_eink_idle_mode()
@@ -736,7 +743,7 @@ class Main(PyXavi):
         current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
-            self._xlog.debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+            self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
             
             # If the matrix is idle, show interaction holding percentage if applicable
             if not self.is_matrix_busy():

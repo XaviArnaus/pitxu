@@ -1,20 +1,12 @@
 from PIL import ImageDraw,ImageFont
 
-from pyxavi.config import Config
-from pyxavi.logger import Logger
-from pyxavi.dictionary import Dictionary
-from . import EinkDisplay
-from ..objects import Rectangle, Line, Point
+from pyxavi import Config, Dictionary
+from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.eink.eink import EinkDisplay
+from pitxu.lib.objects import Rectangle, Line, Point
 
-from pyxavi import dd
 
-import logging
-
-class Macros:
-
-    _xconfig: Config = None
-    _xlog: logging = None
-    _xparams: Dictionary = None
+class Macros(PyXavi):
 
     _display_size: Point = None
     _statics: dict[str, EinkDisplay] = {
@@ -24,9 +16,8 @@ class Macros:
     }
 
     def __init__(self, config: Config, params: Dictionary):
-        self._xparams = params
-        self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+        super(Macros, self).init_pyxavi(config=config, params=params)
+
         self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
     
     def load_or_create_statics(self, display: EinkDisplay):
@@ -118,9 +109,8 @@ class Macros:
                 new_text += current_line
                 return new_text
         except ValueError as e:
-                self._xlog.error(f"Error wrapping text: {e}")
-                dd(text)
-                return text
+            self._xlog.error(f"Error wrapping text [{text}]: {e}")
+            return text
     
     def startup_splash(self, display: EinkDisplay):
 
@@ -247,12 +237,12 @@ class Macros:
         """
 
         if display is None:
-            self._xlog.debug("👀 Displaying precomputed static image for eyes open")
+            self._log_debug("👀 Displaying precomputed static image for eyes open")
 
             # Use the precomputed static image
             self._statics["eyes_open"].display(partial=True)
         else:
-            self._xlog.debug("👀 Drawing eyes open on given display")
+            self._log_debug("👀 Drawing eyes open on given display")
 
             # Draw the eyes open (as partial=True) on the given display
             display = self._draw_eyes_open(display)
@@ -269,12 +259,12 @@ class Macros:
         """
 
         if display is None:
-            self._xlog.debug("👀 Displaying precomputed static image for eyes closed")
+            self._log_debug("👀 Displaying precomputed static image for eyes closed")
 
             # Use the precomputed static image
             self._statics["eyes_closed"].display(partial=True)
         else:
-            self._xlog.debug("👀 Drawing eyes closed on given display")
+            self._log_debug("👀 Drawing eyes closed on given display")
 
             # Draw the eyes closed (as partial=True) on the given display
             display = self._draw_eyes_closed(display)

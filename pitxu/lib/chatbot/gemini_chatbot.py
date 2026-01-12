@@ -3,7 +3,7 @@ from google.genai import types
 from google.genai.errors import ServerError, ClientError, APIError
 from google.genai.chats import AsyncChat
 
-from pyxavi import Logger, Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
@@ -12,7 +12,7 @@ from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, 
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import logging, time, anyio, math
+import time, anyio, math
 import fastmcp
 from collections import Counter
 
@@ -143,7 +143,7 @@ class GeminiChatbot(PyXavi):
     
     async def ask_async(self, question: str) -> ChatbotResponse:
 
-            self._xlog.debug("❓ Question: " + question)
+            self._xlog.info("❓ Question: \n\n>> " + TerminalColor.RED_BRIGHT + question + TerminalColor.END + "\n")
 
             if (self._xconfig.get("chatbot.mock", True)):
                 return ChatbotResponse(text="Chatbot is Mocked. Check the config.\nQuestion: " + question)
@@ -167,7 +167,7 @@ class GeminiChatbot(PyXavi):
                             # Also the context may be too big if the previous conversation is large.
                             self._xlog.error("🛑 The server answered with an error. The finish reason is: " + outcome.error + 
                                              " and had " + (str(outcome.metadata.total_token_count) + " total tokens" if outcome.metadata and outcome.metadata.total_token_count is not None else ""))
-                            dd(response)
+                            dd(response, max_depth=4)
                             outcome.set_text(self._xconfig.get("language.empty_answer." + self._xparams.get("language")))
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                             # Make him remember that he couldn't answer
@@ -179,8 +179,8 @@ class GeminiChatbot(PyXavi):
                             )
                         else:
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
-                        self._xlog.debug("🗣️ Received answer: " + str(outcome.text))
-                        self._xlog.debug("💰 Tokens: " + str(outcome.metadata.total_token_count) if outcome.metadata and outcome.metadata.total_token_count is not None else "?")
+                        self._xlog.info("🗣️  Answer: \n\n>> " + TerminalColor.ORANGE_BRIGHT + str(outcome.text) + TerminalColor.END + "\n")
+                        self._log_debug("💰 Tokens: " + str(outcome.metadata.total_token_count) if outcome.metadata and outcome.metadata.total_token_count is not None else "?")
                         # We interrupt any retry loop returning directly here
                         return outcome
                     except APIError as e:

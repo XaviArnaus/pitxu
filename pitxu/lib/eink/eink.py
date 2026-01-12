@@ -1,10 +1,8 @@
 import sys
 import os
-import logging
 from datetime import datetime
-import time
 
-from PIL import Image,ImageDraw,ImageFont
+from PIL import Image, ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -117,10 +115,10 @@ class EinkDisplay(PyXavi):
 
         os = platform.system()        
         if (os.lower() != "linux"):
-            self._xlog.warning("OS is not Linux, auto mocking eInk")
+            self._xlog.debug("OS is not Linux, auto mocking eInk")
             return False
         if (self._xconfig.get("display.mock", True)):
-            self._xlog.warning("Mocking eInk by Config")
+            self._xlog.debug("Mocking eInk by Config")
             return False
         return True
         

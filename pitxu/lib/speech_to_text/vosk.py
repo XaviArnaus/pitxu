@@ -3,23 +3,20 @@ import logging
 import sys
 import json
 
-from pyxavi import Dictionary, Config, Logger
+from pyxavi import Dictionary, Config
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
 import sounddevice as sd
 
-class Vosk:
+class Vosk(PyXavi):
 
     ENGLISH: str = "en-us"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
-
-    _xconfig: Config = None
-    _xlog: logging = None
-    _xparams: Dictionary = None
 
     _model = None
     _queue = None
@@ -30,10 +27,8 @@ class Vosk:
     device = None
     samplerate = None
 
-    def __init__(self, config: Config, params: Dictionary):
-        self._xparams = params
-        self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+    def __init__(self, config: Config = None, params: Dictionary = None):
+        super(Vosk, self).init_pyxavi(config=config, params=params)
 
         self.initialize()
     
@@ -77,8 +72,11 @@ class Vosk:
             data = self._queue.get()
             if self._recognizer.AcceptWaveform(data):
                 result = json.loads(self._recognizer.Result())
-                self._xlog.info("Recognized text: " + result["text"].replace("\n", ""))
-                return result["text"]
+                result_text = str(result["text"]).replace("\n", "").strip()
+                if result_text == "":
+                    return None
+                self._xlog.debug(f"Vosk: Recognized text: {result_text}")
+                return result_text
             else:
                 result = json.loads(self._recognizer.PartialResult())
                 return None

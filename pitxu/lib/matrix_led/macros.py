@@ -1,22 +1,17 @@
-from pyxavi import Config, Logger, Dictionary
+from pyxavi import Config, Dictionary
 
+from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.matrix_led import Max7219, HandableCanvas, HandableEmulatedCanvas
-from ..objects import Rectangle, Line, Point, Matrix
+from ..objects import Point, Matrix
 
-from PIL import Image,ImageDraw,ImageFont
+import time, math
 
-import logging, time, math
-
-class Macros:
+class Macros(PyXavi):
     '''
     Class that builds higher level macros to draw on the Matrix LED display
 
     Remember that the LED Matrix is 8x8 pixels, (0,0) is top-left and (7,7) is bottom-right
     '''
-
-    _xconfig: Config = None
-    _xlog: logging = None
-    _xparams: Dictionary = None
 
     _max7219: Max7219 = None
 
@@ -26,9 +21,8 @@ class Macros:
     OFF: str = "black"
 
     def __init__(self, config: Config, params: Dictionary):
-        self._xparams = params
-        self._xconfig = config
-        self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+        super(Macros, self).init_pyxavi(config=config, params=params)
+
         # self._max7219 = Max7219(config=config, params=params)
         self._max7219 = params.get("matrix_device")
     
@@ -36,7 +30,7 @@ class Macros:
         # The resources needed to draw and print into the led matrix will self close
         # At the end of this context. No more worries.
         # TODO: Maybe we'd like to bring the eInk to this approach
-        self._xlog.debug("Starting the drawing")
+        self._log_debug("Starting the drawing")
         with self._max7219.create_canvas() as draw:
             matrix = Matrix(points=[
                 Point(1,1),
@@ -45,21 +39,11 @@ class Macros:
                 Point(6,6),
             ]).get_points()
             for point in matrix:
-                self._xlog.debug("Drawing point: " + str(point))
+                self._log_debug("Drawing point: " + str(point))
                 draw.point(point.to_image_point(), self.ON)
-
-            # Script of points
-            # do_something = []
-            # for i in range(0,7,1):
-            #     for j in range(0,7,1):
-            #         do_something.append(Point(i,j))
-            # for point in do_something:
-            #     self._xlog.debug("Drawing point: " + str(point))
-            #     draw.point(point.to_image_point(), self.ON)
-            #     time.sleep(0.1)
     
     def kitt_horizontal_effect(self, delay: float = 0.1):
-        self._xlog.debug("Starting KITT effect")
+        self._log_debug("Starting KITT effect")
 
         canvas = self._handable_canvas.get()
         canvas.rectangle((0,0,7,7), self.OFF)
@@ -81,7 +65,7 @@ class Macros:
     
     def open_canvas(self) -> HandableCanvas:
         if self._handable_canvas is None:
-            self._xlog.debug("Opening Handable Canvas")
+            self._log_debug("Opening Handable Canvas")
             self._handable_canvas = self._max7219.create_handable_canvas()
         return self._handable_canvas
     
@@ -202,7 +186,7 @@ class Macros:
             for y in range(0, rows):
                 cols = 8 if y < rows - 1 else step % 8
                 for x in range(0, cols):
-                    self._xlog.debug(f"Showing init step point at ({x},{y})")
+                    self._log_debug(f"Showing init step point at ({x},{y})")
                     canvas.point((x, y), self.ON)
     
     def show_cross(self):

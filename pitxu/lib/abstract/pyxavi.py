@@ -10,6 +10,9 @@ class PyXavi:
     _xlog: logging = None
     _xparams: Dictionary = None
 
+    # Do we want a very verbose debug logging?
+    VERBOSE_DEBUG: bool = False
+
     def init_pyxavi(self, config: Config = None, params: Dictionary = None, **kwargs):
         '''
         Initializes the PyXavi context (_xconfig, _xlog, _xparams)
@@ -43,3 +46,10 @@ class PyXavi:
         '''
         config = config if config is not None else self._xconfig
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
+
+        # Set verbose debug mode
+        self.VERBOSE_DEBUG = config.get("logging.verbose_debug", False)
+    
+    def _log_debug(self, message: str):
+        if self.VERBOSE_DEBUG:
+            self._xlog.debug(message)

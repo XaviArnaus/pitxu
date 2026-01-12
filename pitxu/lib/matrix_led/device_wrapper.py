@@ -60,9 +60,9 @@ class DeviceWrapper(max7219):
 
         os = platform.system()        
         if (os.lower() != "linux"):
-            self._xlog.warning("OS is not Linux, auto mocking LED Matrix")
+            self._xlog.debug("OS is not Linux, auto mocking LED Matrix")
             return False
         if (self._xconfig.get("matrix_led.mock", True)):
-            self._xlog.warning("Mocking LED Matrix by Config")
+            self._xlog.debug("Mocking LED Matrix by Config")
             return False
         return True
