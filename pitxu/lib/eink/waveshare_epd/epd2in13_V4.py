@@ -28,17 +28,22 @@
 #
 
 
-import logging
 from . import epdconfig
+
+from pyxavi import Config, Dictionary
+from pitxu.lib.abstract.pyxavi import PyXavi
 
 # Display resolution
 EPD_WIDTH       = 122
 EPD_HEIGHT      = 250
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
-class EPD:
-    def __init__(self):
+class EPD(PyXavi):
+
+    def __init__(self, config: Config = None, params: Dictionary = None):
+        super(EPD, self).init_pyxavi(config=config, params=params)
+
         self.reset_pin = epdconfig.RST_PIN
         self.dc_pin = epdconfig.DC_PIN
         self.busy_pin = epdconfig.BUSY_PIN
@@ -92,10 +97,10 @@ class EPD:
     parameter:
     '''
     def ReadBusy(self):
-        logger.debug("e-Paper busy")
+        self._log_debug("e-Paper busy")
         while(epdconfig.digital_read(self.busy_pin) == 1):      # 0: idle, 1: busy
             epdconfig.delay_ms(10)  
-        logger.debug("e-Paper busy release")
+        self._log_debug("e-Paper busy release")
 
     '''
     function : Turn On Display
@@ -253,7 +258,7 @@ class EPD:
             # image has correct dimensions, but needs to be rotated
             img = img.rotate(90, expand=True).convert('1')
         else:
-            logger.warning("Wrong image dimensions: must be " + str(self.width) + "x" + str(self.height))
+            self._xlog.warning("Wrong image dimensions: must be " + str(self.width) + "x" + str(self.height))
             # return a blank buffer
             return [0x00] * (int(self.width/8) * self.height)
 
@@ -329,7 +334,6 @@ class EPD:
             linewidth = int(self.width/8)
         else:
             linewidth = int(self.width/8) + 1
-        # logger.debug(linewidth)
         
         self.send_command(0x24)
         self.send_data2([color] * int(self.height * linewidth))  

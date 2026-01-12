@@ -149,7 +149,7 @@ class EinkDisplay(PyXavi):
             else:
                 self._xlog.warning("Could not find the lib directory at: " + libdir)
                 print("lib does not exists")
-            from waveshare_epd.epd2in13_V4 import EPD
+            from .waveshare_epd.epd2in13_V4 import EPD
 
             # Initialise the display controller
             self._xlog.debug("Initialising eInk controller")
