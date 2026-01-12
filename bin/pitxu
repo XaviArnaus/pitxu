@@ -34,7 +34,7 @@ status_pitxu_background() {
 }
 
 logs_journalctl_pitxu_background() {
-    sudo journalctl -u pitxu -f
+    sudo journalctl -o cat -u pitxu -f
 }
 
 clear_pitxu_screen() {
