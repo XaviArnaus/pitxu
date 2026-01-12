@@ -511,7 +511,7 @@ class Main(PyXavi):
     
     def _text_intends_to_trigger_or_continue_an_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = " ".join(question.lower().strip().split(" ")[0:5])
+        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
         for trigger_word in self._trigger_words:
             if trigger_word in first_words:
                 return True

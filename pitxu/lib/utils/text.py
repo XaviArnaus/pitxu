@@ -1,11 +1,14 @@
 import emoji
 import re
+import unicodedata
 
 class Text:
 
+    @staticmethod
     def remove_emojis(text: str) -> str:
         return Text._get_emoji_regexp().sub(r'', text)
 
+    @staticmethod
     def _get_emoji_regexp():
         # Sort emoji by length to make sure multi-character emojis are
         # matched first
@@ -13,6 +16,7 @@ class Text:
         pattern = '(' + '|'.join(re.escape(u) for u in emojis) + ')'
         return re.compile(pattern)
     
+    @staticmethod
     def remove_markdown(text:str) -> str:
         '''
         Removes basic markdown syntax from text.
@@ -29,6 +33,7 @@ class Text:
         text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'\1', text)
         return text
 
+    @staticmethod
     def replace_known_text(text: str, replacements: dict) -> str:
         '''
         Replaces known text patterns with their corresponding characters.
@@ -36,3 +41,11 @@ class Text:
         for old, new in replacements.items():
             text = text.replace(old, new)
         return text
+
+    @staticmethod
+    def remove_accents(text: str) -> str:
+        '''
+        Removes accents from characters in the text.
+        '''
+        nfkd_form = unicodedata.normalize('NFKD', text)
+        return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
