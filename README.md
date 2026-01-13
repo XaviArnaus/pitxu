@@ -336,6 +336,17 @@ PSU_MAX_CURRENT=5000
 
 Reboot
 
+## PiSugar Whisplay HAT
+
+https://github.com/PiSugar/WhisPlay
+
+```
+git clone https://github.com/PiSugar/Whisplay.git --depth 1
+cd Whisplay/Driver
+sudo bash install_wm8960_drive.sh
+sudo reboot
+```
+
 ## Some newbie Debian docs for setting up stuff
 
 ### Make Pitxu to start at boot
