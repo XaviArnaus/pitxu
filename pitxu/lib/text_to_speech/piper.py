@@ -1,4 +1,4 @@
-import logging
+import logging, time
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
@@ -63,6 +63,12 @@ class Piper(Xprocess):
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
+            # Emulate that we're doing something by waiting a second per 10 words
+            words = text.split(" ")
+            wait_time = max(1, len(words) / 10)
+            self._xlog.debug(f"Mocking TTS wait time for {wait_time} seconds")
+            time.sleep(wait_time)
+
         else:
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
