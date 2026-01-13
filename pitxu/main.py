@@ -595,7 +595,6 @@ class Main(PyXavi):
         self._process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
         # We have to wait until the speaker starts being busy, otherwise the mouth effect will self close
         while not self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_SPEAKER_BUSY):
-            self._log_debug("Waiting for speaker to become busy...")
             time.sleep(0.01)
         self._process_pool.send(QUEUE_MATRIX, XprocAction.SAY, message)
     
