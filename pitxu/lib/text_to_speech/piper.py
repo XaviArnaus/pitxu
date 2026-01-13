@@ -99,9 +99,12 @@ class Piper(Xprocess):
 
 
             self._output_stream.stop()
+        
+        self._log_debug("Finished saying communication")
             
         # Restore the speaker and microphone states
         self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        self._log_debug("Restore the speaker busy flag to False after finishing saying")
     
     def pause_mic(self):
         self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
