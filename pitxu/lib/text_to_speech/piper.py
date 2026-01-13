@@ -32,7 +32,7 @@ class Piper(Xprocess):
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
         self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
-        if self._xconfig.get("text-to-speech.piper.mock", True) is False:
+        if self._xconfig.get("text-to-speech.mock", True) is False:
             self._xlog.info("Creating Real Piper Output Stream")
             self._output_stream = sounddevice.OutputStream(
                 samplerate=self._voice.config.sample_rate,
