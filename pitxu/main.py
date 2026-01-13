@@ -201,12 +201,8 @@ class Main(PyXavi):
                                 callback=self._dictate.callback)
             else:
                 from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-                raw_input_stream = MockedRawInputStream(samplerate=self._dictate.samplerate,
-                                blocksize = 0, 
-                                device=self._dictate.device,
-                                dtype="int16", 
-                                channels=1,
-                                callback=self._dictate.callback)
+                raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
+
             with raw_input_stream as input_stream:
                 self._show_init_phases(6)
                 
