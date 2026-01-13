@@ -1,4 +1,4 @@
-import logging
+import logging, time
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
@@ -32,13 +32,19 @@ class Piper(Xprocess):
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
         self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
-        self._output_stream = sounddevice.OutputStream(
-            samplerate=self._voice.config.sample_rate,
-            blocksize=0,
-            channels=1,
-            dtype='int16'
-        )
-    
+        if self._xconfig.get("text-to-speech.piper.mock", True) is False:
+            self._xlog.info("Creating Real Piper Output Stream")
+            self._output_stream = sounddevice.OutputStream(
+                samplerate=self._voice.config.sample_rate,
+                blocksize=0,
+                channels=1,
+                dtype='int16'
+            )
+        else:
+            from pitxu.lib.text_to_speech.mocked_output_stream import MockedOutputStream
+            self._xlog.info("Creating Mocked Piper Output Stream")
+            self._output_stream = MockedOutputStream(config=self._xconfig, dictionary=self._xparams)
+
     def finish(self):
         self._xlog.debug("Closing output stream")
         self._output_stream.close()
@@ -57,6 +63,12 @@ class Piper(Xprocess):
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
+            # Emulate that we're doing something by waiting a second per 10 words
+            words = text.split(" ")
+            wait_time = max(1, len(words) / 10)
+            self._xlog.debug(f"Mocking TTS wait time for {wait_time} seconds")
+            time.sleep(wait_time)
+
         else:
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
             self._output_stream.start()
@@ -93,9 +105,12 @@ class Piper(Xprocess):
 
 
             self._output_stream.stop()
+        
+        self._log_debug("Finished saying communication")
             
         # Restore the speaker and microphone states
         self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        self._log_debug("Restore the speaker busy flag to False after finishing saying")
     
     def pause_mic(self):
         self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
