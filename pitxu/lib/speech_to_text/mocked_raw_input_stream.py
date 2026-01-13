@@ -5,14 +5,14 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 class MockedRawInputStream(PyXavi):
 
-    def __init__(self, config: Config, dictionary: Dictionary):
+    def __init__(self, config: Config = None, dictionary: Dictionary = None):
         """Initialize the mocked raw input stream.
 
         Args:
             config (Config): The configuration object.
             dictionary (Dictionary): The dictionary object.
         """
-        super(MockedRawInputStream, self).__init__(config, dictionary)
+        super(MockedRawInputStream, self).init_pyxavi(config=config, dictionary=dictionary)
 
     def __enter__(self):
         """Start  the stream in the beginning of a "with" statement."""
