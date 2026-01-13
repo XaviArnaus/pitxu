@@ -1,5 +1,3 @@
-import sounddevice
-
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 

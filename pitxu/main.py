@@ -193,6 +193,7 @@ class Main(PyXavi):
             # Correct format for Vosk is PCM 16khz 16bit mono
             raw_input_stream: sounddevice.RawInputStream = None
             if self._xconfig.get("speech_to_text.mock", True) is False:
+                self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
                 raw_input_stream = sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
                                 blocksize = 0, 
                                 device=self._dictate.device,
@@ -200,6 +201,7 @@ class Main(PyXavi):
                                 channels=1,
                                 callback=self._dictate.callback)
             else:
+                self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
                 from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
                 raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
 
