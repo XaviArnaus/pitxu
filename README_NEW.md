@@ -148,5 +148,24 @@ Add the following line into your `.bashrc`:
 export PATH="/home/user/pitxu/bin:$PATH"
 ```
 
+# Troubleshooting
+
+## The sound is just full of noise
+
+https://bbs.archlinux.org/viewtopic.php?id=185736
+
+Play with PulseAudio configuration. Reducing the block size helped me.
+
+Edit the Pulse audio configuration
+```
+sudo nano /etc/pulse/daemon.conf
+```
+
+and the following values fixed my issue
+```
+default-fragments = 5
+default-fragment-size-msec = 2
+```
+
 
 
