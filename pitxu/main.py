@@ -41,6 +41,7 @@ class Main(PyXavi):
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
+    _raw_input_stream: sounddevice.RawInputStream = None
 
     _process_pool: XprocessPool = None
 
@@ -111,6 +112,23 @@ class Main(PyXavi):
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
         self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+
+        # # Initialise the Raw Input Stream for microphone
+        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
+        # if self._xconfig.get("speech_to_text.mock", True) is False:
+        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
+        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
+        #     # Correct format for Vosk is PCM 16khz 16bit mono
+        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
+        #                     blocksize = 0, 
+        #                     device=self._dictate.device,
+        #                     dtype="int16", 
+        #                     channels=1,
+        #                     callback=self._dictate.callback)
+        # else:
+        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
+        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
+        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
 
         # Initialise Text-To-Speech.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
@@ -189,23 +207,14 @@ class Main(PyXavi):
         self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
         try:
-            # Read from microphone
-            # Correct format for Vosk is PCM 16khz 16bit mono
-            raw_input_stream: sounddevice.RawInputStream = None
-            if self._xconfig.get("speech_to_text.mock", True) is False:
-                self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
-                raw_input_stream = sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
-                                blocksize = 0, 
-                                device=self._dictate.device,
-                                dtype="int16", 
-                                channels=1,
-                                callback=self._dictate.callback)
-            else:
-                self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
-                from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-                raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
-
-            with raw_input_stream as input_stream:
+            # Read from microphone.
+            # with self._raw_input_stream() as input_stream:
+            with sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
+                            blocksize = 0, 
+                            device=self._dictate.device,
+                            dtype="int16", 
+                            channels=1,
+                            callback=self._dictate.callback) as input_stream:
                 self._show_init_phases(6)
                 
                 # Welcome greeting
