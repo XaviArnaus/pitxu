@@ -48,7 +48,7 @@ class Piper(Xprocess):
         self._output_stream = sounddevice.OutputStream(
                 samplerate=self._voice.config.sample_rate,
                 blocksize=0,
-                channels=2,
+                channels=1,
                 dtype='int16'
             )
 
