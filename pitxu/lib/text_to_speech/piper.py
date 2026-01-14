@@ -85,7 +85,7 @@ class Piper(Xprocess):
 
         else:
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
-            
+
             self._output_stream.start()
             # with self._output_stream:
             self._log_debug("Output stream started")
@@ -143,3 +143,38 @@ class Piper(Xprocess):
         # self.write_shared_memory_vu_meter_column(SHARED_VU_COL_4, amp_col_4)
         # # self._xlog.debug(f"📶 Amplitude: {amplitude.to_int(self.VU_METER_SCALE)} | VU Meter Columns: 1:{amp_col_1} 2:{amp_col_2} 3:{amp_col_3} 4:{amp_col_4}")
         # self._xlog.debug(f"📶 Amplitude: {amplitude.to_int(self.VU_METER_SCALE)} | VU Meter Columns: 1:0 2:{amp_col_2} 3:{amp_col_3} 4:{amp_col_4}")
+
+
+# 2026-01-14 22:47:15,506 [Piper-4     ] DEBUG    oscar        Initializing SharedMemoryManager
+# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading flags from Shared Memory
+# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading VU meter from Shared Memory
+# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run()
+# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [INITIALIZE]
+# 2026-01-14 22:47:15,507 [Piper-4     ] INFO     oscar        Initializing Piper Worker
+# 2026-01-14 22:47:15,510 [Piper-4     ] DEBUG    piper.voice  Guessing voice config path: /home/xavier/pitxu/storage/tts_models/ca_ES-upc_pau-x_low.onnx.json
+# 2026-01-14 22:47:16,899 [Piper-4     ] DEBUG    oscar        Creating Piper Output Stream with samplerate: 16000
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [SAY: Hola]
+# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Saying [Hola]
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,907 [Piper-4     ] DEBUG    oscar        Output stream started
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Xprocess [Matrix] run() received a [SAY: Hola]
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] INFO     oscar        👄 Showing KITT mouth on Matrix LED.
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Opening Handable Canvas
+# 2026-01-14 22:47:16,916 [MainProcess ] DEBUG    oscar        Waiting for queue speaker_queue to empty. Has now: 0 elements.
+# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        The queue speaker_queue is empty now. I've sleept 0s.
+# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        Waiting for the process speaker_busy to idle. It's now: BUSY.
+# 2026-01-14 22:47:16,917 [MatrixLed-3 ] DEBUG    oscar        Creating Matrix Emulation Handable Canvas
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.

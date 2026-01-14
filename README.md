@@ -220,6 +220,45 @@ Works very decent, no very significant difference with MacOS
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
+#### Whisplay
+
+https://github.com/waveshareteam/WM8960-Audio-HAT/issues/63
+My issue is similar to this one, until:
+```
+sudo dtoverlay -l
+```
+
+... that does not show `wm8960-soundcard`
+❓ I believe the overlay does not load.
+
+Anyways, there is sound there, just that the Piper model TTS for CA is at 16 kHz of samplerate and PulseAudio fails with a milion of `Resume failed, couldn't restore original sample settings.` when writing the bytes into the Stream. Other TTS models like EN works with no problems, at a sample rate of 22 kHz
+
+More (maybe) on this:
+- https://forums.raspberrypi.com/viewtopic.php?t=376693
+- https://gitlab.freedesktop.org/pulseaudio/pulseaudio/-/issues/374
+
+‼️ Trying the following to test 16 kHz
+```
+speaker-test -r 16000
+
+speaker-test 1.2.14
+
+Playback device is default
+Stream parameters are 16000Hz, S16_LE, 1 channels
+Using 16 octaves of pink noise
+Rate set to 16000Hz (requested 16000Hz)
+Buffer size range from 192 to 2097152
+Period size range from 64 to 699051
+Periods = 4
+was set period_size = 4000
+was set buffer_size = 16000
+ 0 - Front Left
+Time per period = 2.002118
+ 0 - Front Left
+Time per period = 3.001354
+```
+
+
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
@@ -339,6 +378,7 @@ Reboot
 ## PiSugar Whisplay HAT
 
 https://github.com/PiSugar/WhisPlay
+https://docs.pisugar.com/docs/product-wiki/whisplay/overview
 
 ```
 git clone https://github.com/PiSugar/Whisplay.git --depth 1
