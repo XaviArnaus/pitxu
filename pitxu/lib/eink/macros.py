@@ -18,7 +18,7 @@ class Macros(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
 
-        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+        self._display_size = Point(self._xconfig.get("eink.size.x"), self._xconfig.get("eink.size.y"))
     
     def load_or_create_statics(self, display: EinkDisplay):
         '''
@@ -134,7 +134,7 @@ class Macros(PyXavi):
         
         # Subtitle
         subtitle = "Chatbot: " + ("mocked" if self._xconfig.get("chatbot.mock", True) else "real") + \
-                    " | Display: " + ("mocked" if self._xconfig.get("display.mock", True) else "real") + \
+                    " | Display: " + ("mocked" if self._xconfig.get("eink.mock", True) else "real") + \
                     "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
                     " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real")
         canvas.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),

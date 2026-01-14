@@ -4,6 +4,8 @@ from pitxu.lib.objects.function_call import FunctionCallHistory, FunctionCallPai
 from google.genai.chats import GenerateContentResponse
 from google.genai.types import FinishReason, GenerateContentResponseUsageMetadata
 
+from pitxu.lib.objects.communication import ChatbotAnswer
+
 from pyxavi import dd
 
 class ChatbotResponse:
@@ -99,3 +101,27 @@ class ChatbotResponse:
             return response.usage_metadata
         except Exception as e:
             return None
+    
+    def to_chatbot_answer(self, question: str = None) -> ChatbotAnswer:
+        answer = ChatbotAnswer()
+        answer.question = question
+        answer.answer = self.text
+        answer.was_function_used = len(self.function_call_history.get_names()) > 0
+        if answer.was_function_used:
+            last_pair = self.function_call_history.get_last()
+            answer.last_function_name = last_pair.function_name
+            answer.last_function_arguments = last_pair.function_call.arguments
+            answer.last_function_result = last_pair.function_response.response
+        else:
+            answer.last_function_name = None
+            answer.last_function_arguments = None
+            answer.last_function_result = None
+
+        if self.error is not None:
+            answer.is_error = True
+            answer.error_message = str(self.error)
+        else:
+            answer.is_error = False
+            answer.error_message = None
+
+        return answer

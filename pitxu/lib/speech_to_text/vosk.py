@@ -53,6 +53,7 @@ class Vosk(PyXavi):
 
             self.samplerate = self._get_samplerate()
             self.device = self._xconfig.get("speech-to-text.input_device", None)
+            self._xlog.debug(f"Vosk: Samplerate {self.samplerate}, Device {self.device}")
 
             self._xlog.debug("Vosk: initializing KaldiRecognizer")
             self._recognizer = KaldiRecognizer(self._model, self.samplerate)

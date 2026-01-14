@@ -1,5 +1,30 @@
+# Configuration to choose how and which displays are used.
+displays:
+  # [Bool] Merge all displays into one single output.
+  # Useful for the case that we only have one physical display that should show everything.
+  merge_displays: True
+  # Configuration for when we don't merge displays
+  unmerged_displays:
+    # [String] Display to use for notifications.
+    # Values: the root keys of this file for each display.
+    # This is meant for idle (eyes) and showing text relating questions and answers from tools.
+    # Ideally use a densed pixel display, like the "eink" or "st7789p3"
+    notification_display: eink
+    # [String] Display to use for status updates.
+    # Values: the root keys of this file for each display.
+    # This is meant for showing simple status information, like "listening", "thinking", "speaking", etc.
+    # Ideally use a simple display and fast refresh rate, like the "matrix_led"
+    status_display: matrix_led
+  # Configuration for when we merge displays
+  merged_displays:
+    # [String] Display to use for both notifications and status updates.
+    # Values: the root keys of this file for each display.
+    # This is meant for showing everything on a single display.
+    # Ideally use a densed pixel display and fast refresh rating, like the "st7789p3"
+    main_display: st7789p3
+
 # Configuration fo the eInk Display
-display:
+eink:
   # [Bool] Generates a PNG instead of outcoming through the eInk Display
   mock: True
   # [Bool] Do a full clear while initializing
@@ -31,3 +56,18 @@ matrix_led:
   size:
     x: 8
     y: 8
+
+ST7789P3:
+  # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
+  mock: True
+  # Size of the display
+  size:
+    x: 240
+    y: 280
+  # [bool] Rotate the display 180 degrees or not.
+  rotate: False
+  # Configuration regarding the fonts
+  fonts:
+    big: 32
+    medium: 24
+    small: 16

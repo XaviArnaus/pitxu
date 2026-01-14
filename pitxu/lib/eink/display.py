@@ -42,7 +42,7 @@ class Display(Xprocess):
         self._xlog.info("Initializing Display Worker")
         self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
         self._macros = Macros(config=self._xconfig, params=self._xparams)
-        self._display_size = Point(self._xconfig.get("display.size.x"), self._xconfig.get("display.size.y"))
+        self._display_size = Point(self._xconfig.get("eink.size.x"), self._xconfig.get("eink.size.y"))
 
         # Initialize the macros statics
         self._macros.load_or_create_statics(display=self._display)
