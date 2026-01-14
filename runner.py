@@ -140,11 +140,57 @@ def query_sound_devices():
         print()
         logger.info("End of work.")
 
-
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
     except Exception:
         print(full_stack()) 
+
+# def test_sound_out():
+#     try:
+#         # Instantiating
+#         config, logger, parameters = _initialize()
+
+#         # Delegate the run to Main
+#         logger.debug("Testing SoundDevice")
+        
+#         import soundfile as sf
+#         import sounddevice as sd
+#         import threading
+
+#         def _play(sound):
+#             event =threading.Event()
+
+#             def callback(outdata, frames, time, status):
+#                 data = wf.buffer_read(frames, dtype='float32')
+#                 if len(outdata) > len(data):
+#                     outdata[:len(data)] = data
+#                     outdata[len(data):] = b'\x00' * (len(outdata) - len(data))
+#                     raise sd.CallbackStop
+#                 else:
+#                     outdata[:] = data
+
+#             with sf.SoundFile(sound) as wf:
+#                 stream = sd.RawOutputStream(samplerate=wf.samplerate,
+#                                             channels=wf.channels,
+#                                             callback=callback,
+#                                             blocksize=1024,
+#                                             finished_callback=event.set)
+#                 with stream:
+#                     event.wait()
+
+#         def _playsound(sound):
+#             new_thread = threading.Thread(target=_play, args=(sound,))
+#             new_thread.start()
+
+#         _playsound('sounds_file.wav')
+
+
+#         logger.info("End of work.")
+
+#     except RuntimeError as e:
+#         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+#     except Exception:
+#         print(full_stack()) 
 
 def battery_status():
     try:
