@@ -82,6 +82,7 @@ class Piper(Xprocess):
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
             for chunk in self._voice.synthesize(text):
+                self._log_debug("Processing audio chunk of size: " + str(len(chunk.audio_int16_bytes)) + " bytes")
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
                 
                 # # Update VU Meter columns in shared memory
@@ -109,7 +110,7 @@ class Piper(Xprocess):
                 # Make it to speak
                 self._output_stream.write(int_data)
 
-
+            self._log_debug("All audio chunks processed, stopping output stream")
             self._output_stream.stop()
         
         self._log_debug("Finished saying communication")
