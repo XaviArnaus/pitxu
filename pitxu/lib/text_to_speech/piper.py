@@ -44,10 +44,11 @@ class Piper(Xprocess):
         #     from pitxu.lib.text_to_speech.mocked_output_stream import MockedOutputStream
         #     self._xlog.info("Creating Mocked Piper Output Stream")
         #     self._output_stream = MockedOutputStream(config=self._xconfig, dictionary=self._xparams)
+        self._log_debug("Creating Piper Output Stream with samplerate: " + str(self._voice.config.sample_rate))
         self._output_stream = sounddevice.OutputStream(
                 samplerate=self._voice.config.sample_rate,
                 blocksize=0,
-                channels=1,
+                channels=2,
                 dtype='int16'
             )
 
