@@ -108,6 +108,7 @@ class Piper(Xprocess):
                 # self._xlog.debug(f"📶 Amplitude: {amplitude.to_int(self.VU_METER_SCALE)} | VU Meter Columns: 1:0 2:{amp_col_2} 3:{amp_col_3} 4:{amp_col_4}")
 
                 # Make it to speak
+                self._log_debug("Writing audio chunk to output stream")
                 self._output_stream.write(int_data)
 
             self._log_debug("All audio chunks processed, stopping output stream")
