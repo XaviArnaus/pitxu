@@ -24,6 +24,7 @@ class ST7789(PyXavi):
 
     backlight_mode: bool = True  # True 使用 PWM 调节亮度，False 使用简单开关控制
     backlight_pwm = None  # 用于 PWM 控制背光亮度的对象
+    spi: spidev.SpiDev = None
 
     def __init__(self, config: Config, params: Dictionary):
         super(ST7789, self).init_pyxavi(config=config, params=params)
@@ -32,6 +33,12 @@ class ST7789(PyXavi):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(False)
         GPIO.setup([self.DC_PIN, self.RST_PIN, self.LED_PIN], GPIO.OUT)
+
+        # Initialize SPI
+        self.spi = spidev.SpiDev()
+        self.spi.open(0, 0)
+        self.spi.max_speed_hz = 100_000_000
+        self.spi.mode = 0b00
     
         self.previous_frame = None
         self._detect_raspberry_pi_version()
