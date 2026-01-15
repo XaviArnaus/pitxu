@@ -22,6 +22,8 @@ class ST7789(PyXavi):
     RST_PIN = 7
     LED_PIN = 15
 
+    backlight_mode: bool = True  # True 使用 PWM 调节亮度，False 使用简单开关控制
+
     def __init__(self, config: Config, params: Dictionary):
         super(ST7789, self).init_pyxavi(config=config, params=params)
 
@@ -31,6 +33,7 @@ class ST7789(PyXavi):
         GPIO.setup([self.DC_PIN, self.RST_PIN, self.LED_PIN], GPIO.OUT)
     
         self.previous_frame = None
+        self._detect_raspberry_pi_version()
         self.set_backlight(0)
         self._reset_lcd()
         self._init_display()
@@ -200,6 +203,34 @@ class ST7789(PyXavi):
             raise ValueError("图像尺寸超出屏幕范围")
         self.set_window(x, y, x + width - 1, y + height - 1)
         self._send_data(pixel_data)
+    
+    def _detect_raspberry_pi_version(self):
+        """
+        检测树莓派硬件版本，并根据版本设置背光模式
+        """
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                lines = f.readlines()
+                model_name = None
+                for line in lines:
+                    if line.startswith("Model"):
+                        model_name = line.strip().split(":")[1].strip()
+                        break
+                if model_name:
+                    if "Zero" in model_name and "2" not in model_name:
+                        # 如果是 Zero 或 Zero W
+                        self.backlight_mode = False  # 使用简单开关模式
+                    else:
+                        # 其他型号（如 Zero 2 W, 3B, 4B 等）
+                        self.backlight_mode = True  # 使用 PWM 模式
+                    print(
+                        f"Detected hardware: {model_name}, Backlight mode: {'PWM' if self.backlight_mode else 'Simple Switch'}")
+                else:
+                    print("Model name not found in /proc/cpuinfo")
+                    self.backlight_mode = True  # 默认使用 PWM 模式
+        except Exception as e:
+            print(f"Error detecting hardware version: {e}")
+            self.backlight_mode = True  # 默认使用 PWM 模式
 
 
         
