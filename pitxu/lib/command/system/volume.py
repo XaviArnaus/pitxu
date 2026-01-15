@@ -18,6 +18,8 @@ class SystemVolume(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
+        self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
+
     def get_local_system_speaker_volume_level(self) -> int:
         '''
         Get the local system speaker volume level.
