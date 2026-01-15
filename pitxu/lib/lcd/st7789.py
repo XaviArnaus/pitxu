@@ -23,6 +23,7 @@ class ST7789(PyXavi):
     LED_PIN = 15
 
     backlight_mode: bool = True  # True 使用 PWM 调节亮度，False 使用简单开关控制
+    backlight_pwm = None  # 用于 PWM 控制背光亮度的对象
 
     def __init__(self, config: Config, params: Dictionary):
         super(ST7789, self).init_pyxavi(config=config, params=params)
@@ -34,7 +35,7 @@ class ST7789(PyXavi):
     
         self.previous_frame = None
         self._detect_raspberry_pi_version()
-        self.set_backlight(0)
+        self.set_backlight(self._xconfig.get("lcd.brightness", 50))
         self._reset_lcd()
         self._init_display()
         self.fill_screen(0)
