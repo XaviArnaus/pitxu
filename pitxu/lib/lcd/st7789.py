@@ -90,7 +90,7 @@ class ST7789(PyXavi):
     def _init_display(self):
         self._send_command(0x11)
         time.sleep(0.12)
-        USE_HORIZONTAL = 1
+        USE_HORIZONTAL = 0
         direction = {0: 0x00, 1: 0xC0, 2: 0x70,
                      3: 0xA0}.get(USE_HORIZONTAL, 0x00)
         self._send_command(0x36, direction)

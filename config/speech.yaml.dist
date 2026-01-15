@@ -24,6 +24,8 @@ text-to-speech:
   mock: False
   # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   output_device: 0
+  # Increase volume by this amount, on top of whatever volume percent we ask to be set.
+  add_to_output_volume: 0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan
