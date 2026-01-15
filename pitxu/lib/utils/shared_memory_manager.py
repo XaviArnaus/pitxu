@@ -3,8 +3,8 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_MICROPHONE_MUTED,\
-    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE,\
+from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
+    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE, SHARED_LCD_IDLE_MODE,\
     SHARED_MEMORY_VU_METER, SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4,\
     QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -17,6 +17,7 @@ class SharedMemoryManager(PyXavi):
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
+        "lcd_busy": SHARED_LCD_BUSY,
         # On purpose not including Microphone in the busy waiters, as it does not block other processes
         # "microphone_muted": SHARED_MICROPHONE_MUTED,
     }
@@ -30,10 +31,12 @@ class SharedMemoryManager(PyXavi):
         SHARED_EINK_BUSY: "eink_busy",
         SHARED_MATRIX_BUSY: "matrix_busy",
         SHARED_SPEAKER_BUSY: "speaker_busy",
+        SHARED_LCD_BUSY: "lcd_busy",
         SHARED_MICROPHONE_MUTED: "microphone_muted",
         SHARED_CHATBOT_BUSY: "chatbot_busy",
         SHARED_CHATBOT_ANSWER_IS_ERROR: "chatbot_answer_is_error",
         SHARED_EINK_IDLE_MODE: "eink_idle_mode",
+        SHARED_LCD_IDLE_MODE: "lcd_idle_mode",
     }
 
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
@@ -54,10 +57,11 @@ class SharedMemoryManager(PyXavi):
                 False,  # speaker is busy (pause mic)
                 False,  # e-ink is busy
                 False,  # matrix is busy
+                False,  # lcd is busy
                 False,  # microphone is muted
                 False,  # chatbot is busy
                 False,  # chatbot answer is error
-                False   # eink idle mode (showing idle eyes)
+                False,  # eink idle mode (showing idle eyes)
             ], name=SHARED_MEMORY_FLAGS)
             if self._shared_memory_flags is None:
                 self._xlog.error("Shared Memory Flags is None, cannot write flags")

@@ -52,6 +52,10 @@ class EinkDisplay(PyXavi):
             f"{EinkCanvas.FONT_BIG_SIZE}": self._canvas.FONT_BIG,
             f"{EinkCanvas.FONT_HUGE_SIZE}": self._canvas.FONT_HUGE
         }
+
+        self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
+        if os.path.exists(self.path_for_mocked_images) == False:
+            os.makedirs(self.path_for_mocked_images)
     
     def get_font_by_size(self, size: int) -> ImageFont:
         return self.font_by_size[f"{size}"]
@@ -80,9 +84,9 @@ class EinkDisplay(PyXavi):
             partial: Whether to use partial update or full update.
         """
         if (not self._is_gpio_allowed()):
-            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+            file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
             image.save(file_path)
-            file_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH + "_latest.png"
+            file_path = self.path_for_mocked_images + "_latest.png"
             image.save(file_path)
         else:
             self.flush_to_device(image, partial=partial)

@@ -46,6 +46,7 @@ logger:
             Display: CYAN_BRIGHT
             MatrixLed: MAGENTA_BRIGHT
             Piper: YELLOW_BRIGHT
+            Lcd: ORANGE_BRIGHT
         by_thread:
             MainThread: GREEN_BRIGHT
             Thread-1: CYAN_BRIGHT

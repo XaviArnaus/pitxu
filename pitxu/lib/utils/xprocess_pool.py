@@ -4,7 +4,7 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
@@ -21,12 +21,13 @@ class XprocessPool(PyXavi):
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
+        "lcd_busy": SHARED_LCD_BUSY,
     }   
 
     def __init__(self, config: Config, params: Dictionary):
 
         # Initialize the PyXavi parent
-        self.init_pyxavi(config=config, params=params)
+        super(XprocessPool, self).init_pyxavi(config=config, params=params)
 
         # Initialize the process and queue dictionaries
         self._process = {}
@@ -58,17 +59,20 @@ class XprocessPool(PyXavi):
         self._process[name].start()
         self.send(name, XprocAction.INITIALIZE)
     
-    def new(self, name: str, target):
+    def new(self, name: str, target, params: Dictionary = None):
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
         if name in self._process:
             self._xlog.warning("process [" + name + "] already exists in the pool. Overwriting.")
         
+        if params is None:
+            params = Dictionary()
+        
         queue = self._manager.JoinableQueue()
         self._queue[name] = queue
-        self._process[name] = target(config=self._xconfig, params=self._xparams, queue=queue)
-    
-    def new_and_start(self, name: str, target):
-        self.new(name, target)
+        self._process[name] = target(config=self._xconfig, params=self._xparams.merge(origin=params), queue=queue)
+
+    def new_and_start(self, name: str, target, params: Dictionary = None):
+        self.new(name, target, params=params)
         self._xlog.debug("Starting process [" + name + "] from the pool")
         self._process[name].start()
         self.send(name, XprocAction.INITIALIZE)
@@ -126,6 +130,9 @@ class XprocessPool(PyXavi):
         self._xlog.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
     
     def wait_for_queue_to_empty(self, queue_name: str):
+        if self.get_queue(queue_name) is None:
+            self._xlog.error("Queue " + queue_name + " does not exist. Cannot wait for it to empty. I'll continue.")
+            return
         self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
         sleep_seconds = 0.5
         total_sleeping = 0
@@ -147,13 +154,15 @@ class XprocessPool(PyXavi):
         # 2. Clean and close the queues, apparently better from the one that put().
         self._xlog.debug("Empty and close queues")
         for name, queue in self._queue.items():
-            self._clearAndDiscardQueue(queue)
+            if queue is not None:
+                self._clearAndDiscardQueue(queue)
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
         self._xlog.debug("Joining queues")
         for name, queue in self._queue.items():
-            queue.join()
+            if queue is not None:
+                queue.join()
 
         # 4. Terminate any leftover processes
         for name, process in self._process.items():

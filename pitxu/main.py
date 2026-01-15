@@ -16,12 +16,13 @@ from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display, EinkCanvas
 from pitxu.lib.matrix_led import MatrixLed
+from pitxu.lib.lcd.lcd import Lcd as Lcd
 from pitxu.lib.speech_to_text import Vosk
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction, ChatbotResponse, FunctionCallPair
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, \
                         SHARED_CHATBOT_BUSY, SHARED_EINK_IDLE_MODE, SHARED_CHATBOT_ANSWER_IS_ERROR, \
-                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD
 
 
 import sys
@@ -74,9 +75,10 @@ class Main(PyXavi):
     SPANISH: str = "es"
 
     # Shared memory flag positions
-    SHARED_SPEAKER_BUSY = 0
-    SHARED_EINK_BUSY = 1
-    SHARED_MATRIX_BUSY = 2
+    # SHARED_SPEAKER_BUSY = 0
+    # SHARED_EINK_BUSY = 1
+    # SHARED_MATRIX_BUSY = 2
+    # SHARED_LCD_BUSY = 3
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
@@ -169,10 +171,17 @@ class Main(PyXavi):
         self._xlog.info("Initialising eInk Display and Macros")
         self._process_pool.new_and_start(QUEUE_EINK, target=Display)
 
-        self._xlog.info("Initialising Matrix LED Display and Macros")
-        self._process_pool.new_and_start(QUEUE_MATRIX, target=MatrixLed)
-        # Needs an initial clear
-        self._clear_matrix()
+        # self._xlog.info("Initialising Matrix LED Display and Macros")
+        # self._process_pool.new_and_start(QUEUE_MATRIX, target=MatrixLed)
+        # # Needs an initial clear
+        # self._clear_matrix()
+
+        self._xlog.info("Initialising LCD Display and Macros")
+        self._process_pool.new_and_start(QUEUE_MATRIX, target=Lcd, params=Dictionary({
+        # self._process_pool.new_and_start(QUEUE_LCD, target=Lcd, params=Dictionary({
+            "device_config_prefix": "lcd",
+        }))
+
 
     async def run(self):
 

@@ -57,7 +57,7 @@ matrix_led:
     x: 8
     y: 8
 
-ST7789P3:
+lcd:
   # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
   mock: True
   # Size of the display
