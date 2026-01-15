@@ -27,10 +27,12 @@ text-to-speech:
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan
-    ca: ca_ES-upc_pau-x_low
+    # ca: ca_ES-upc_pau-x_low
+    ca: ca_ES-upc_ona-medium
     # Spanish
     es: es_ES-davefx-medium
     # English
     en-us: en_US-joe-medium
     # German
-    de: de_DE-karlsson-low
+    # de: de_DE-karlsson-low
+    de: de_DE-thorsten-medium
