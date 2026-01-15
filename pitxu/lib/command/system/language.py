@@ -54,6 +54,15 @@ class SystemLanguage(PyXavi, Command):
                 else:
                     language_map[lang_code].append(map)
 
+        also_language_codes = self._xconfig.get(f"language.language_codes_per_language", {})
+        for lang_code, map in also_language_codes.items():
+            if lang_code not in language_map:
+                language_map[lang_code] = []
+            if isinstance(map, list):
+                language_map[lang_code].extend(map)
+            else:
+                language_map[lang_code].append(map)
+
         language_code = None
         for code, spoken in language_map.items():
             if isinstance(spoken, list):

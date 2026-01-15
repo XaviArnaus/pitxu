@@ -85,6 +85,11 @@ language:
       ca: "Katalanisch"
       es: "Spanisch"
       de: "Deutsch"
+  language_codes_per_language:
+    en-us: "en"
+    ca: "ca"
+    es: "es"
+    de: "de"
   # Common text replacements to normalize output
   text_replacements:
     ca:
