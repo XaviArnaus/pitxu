@@ -207,6 +207,7 @@ class ST7789(PyXavi):
         self._send_data(buffer)
 
     def draw_image(self, x, y, width, height, pixel_data):
+        self._xlog.debug(f"Drawing image at ({x}, {y}) with size {width}x{height} over a screen of {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
         if (x + width > self.LCD_WIDTH) or (y + height > self.LCD_HEIGHT):
             raise ValueError("图像尺寸超出屏幕范围")
         self.set_window(x, y, x + width - 1, y + height - 1)
