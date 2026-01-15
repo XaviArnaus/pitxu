@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-import RPi.GPIO as GPIO
+import lgpio as GPIO
 import spidev
 import time
 
