@@ -121,7 +121,7 @@ class ST7789(PyXavi):
         time.sleep(0.12)
         # USE_HORIZONTAL = 1
         # USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1] else 1
-        USE_HORIZONTAL = 3
+        USE_HORIZONTAL = 1
         direction = {0: 0x00, 1: 0xC0, 2: 0x70,
                      3: 0xA0}.get(USE_HORIZONTAL, 0x00)
         self._send_command(0x36, direction)
@@ -188,20 +188,58 @@ class ST7789(PyXavi):
             for i in range(0, len(data), max_chunk):
                 self.spi.writebytes(data[i : i + max_chunk])
 
-    # def set_window(self, x0, y0, x1, y1, use_horizontal=0):
-    def set_window(self, x0, y0, x1, y1, use_horizontal=3):
+    # # def set_window(self, x0, y0, x1, y1, use_horizontal=0):
+    # def set_window(self, x0, y0, x1, y1, use_horizontal=3):
+    #     if use_horizontal in (0, 1):
+    #         self._send_command(0x2A, x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF)
+    #         self._send_command(
+    #             0x2B, (y0 + 20) >> 8, (y0 + 20) & 0xFF, (y1 +
+    #                                                      20) >> 8, (y1 + 20) & 0xFF
+    #         )
+    #     elif use_horizontal in (2, 3):
+    #         self._send_command(
+    #             0x2A, (x0 + 20) >> 8, (x0 + 20) & 0xFF, (x1 +
+    #                                                      20) >> 8, (x1 + 20) & 0xFF
+    #         )
+    #         self._send_command(0x2B, y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF)
+    #     self._send_command(0x2C)
+    
+    def set_window(self, x0, y0, x1, y1, use_horizontal=1):
         if use_horizontal in (0, 1):
-            self._send_command(0x2A, x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF)
             self._send_command(
-                0x2B, (y0 + 20) >> 8, (y0 + 20) & 0xFF, (y1 +
-                                                         20) >> 8, (y1 + 20) & 0xFF
+                0x2A,
+                x0 >> 8,
+                x0 & 0xFF,
+                x1 >> 8,
+                x1 & 0xFF)  # Here Waveshare sends x1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
+            self._send_command(
+                0x2B,
+                # Adding 20 to y0 and y1 to account for the corner height offset
+                # Let me try to remove it and see what happens
+                # (y0 + 20) >> 8,
+                # (y0 + 20) & 0xFF,
+                # (y1 + 20) >> 8,
+                # (y1 + 20) & 0xFF  
+                (y0) >> 8,
+                (y0) & 0xFF,
+                (y1) >> 8,
+                (y1) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
             )
         elif use_horizontal in (2, 3):
             self._send_command(
-                0x2A, (x0 + 20) >> 8, (x0 + 20) & 0xFF, (x1 +
-                                                         20) >> 8, (x1 + 20) & 0xFF
+                0x2A,
+                (x0 + 20) >> 8,
+                (x0 + 20) & 0xFF,
+                (x1 + 20) >> 8,
+                (x1 + 20) & 0xFF
             )
-            self._send_command(0x2B, y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF)
+            self._send_command(
+                0x2B,
+                y0 >> 8,
+                y0 & 0xFF,
+                y1 >> 8,
+                y1 & 0xFF
+            )
         self._send_command(0x2C)
 
     def draw_pixel(self, x, y, color):
