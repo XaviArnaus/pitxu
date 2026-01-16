@@ -13,12 +13,6 @@ from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
 
 from pitxu.lib.utils.config_loader import ConfigLoader
-from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
-from pitxu.lib.matrix_led import Max7219
-from pitxu.lib.lcd.st7789 import ST7789
-from pitxu.lib.objects.point import Point
-from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.canvas.macros import Macros as CanvasMacros
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -81,6 +75,8 @@ def clear_displays():
 
 def test_eink_multiline():
     try:
+        from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
+
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -117,6 +113,8 @@ def test_eink_multiline():
 
 def test_matrix():
     try:
+        from pitxu.lib.matrix_led import Max7219
+
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -134,6 +132,12 @@ def test_matrix():
 
 def test_lcd():
     try:
+        from pitxu.lib.lcd.st7789 import ST7789
+        from pitxu.lib.objects.point import Point
+        from pitxu.lib.canvas.canvas import Canvas
+        from PIL import ImageFont
+        # from pitxu.lib.canvas.macros import Macros as CanvasMacros
+
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -152,9 +156,9 @@ def test_lcd():
         canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
         draw = canvas.get_canvas()
         draw.fill(color=0x0000)
-        draw.text(position=Point(20, 20), text="Hello, Pitxu!", font_size=24, color=0x07E0)
-        draw.rectangle(top_left=Point(10, 10), bottom_right=Point(230, 100), color=0xF800, fill=False)
-        draw.circle(center=Point(120, 160), radius=30, color=0x001F, fill=True)
+        draw.text(position=Point(20, 20).to_image_point(), text="Hello, Pitxu!", font=canvas.FONT_MEDIUM, fill="white")
+        draw.rectangle(top_left=Point(10, 10).to_image_point(), bottom_right=Point(230, 100).to_image_point(), fill="red")
+        draw.circle(center=Point(120, 160).to_image_point(), radius=30, fill="blue")
         lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(canvas.get_image().tobytes()))
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
