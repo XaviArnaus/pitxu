@@ -19,6 +19,8 @@ class Macros(PyXavi):
     canvas: Canvas = None
     device: Device = None
 
+    LED_TO_LCD_OFFSET_X: int = 40  # Pixels to offset in X to avoid rounded corners
+
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
 
@@ -389,6 +391,8 @@ class Macros(PyXavi):
             "col_4": col_4,
         }
 
+        apply_offset = False
+
         # We go row by row from the middle point to the top and bottom extremes
         for y in range(0, 4):
 
@@ -411,20 +415,20 @@ class Macros(PyXavi):
                     #     canvas.point((7, 4 + y), self.ON)
                     if col_key == "col_3":
                         # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y))
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y), apply_offset=apply_offset)
                     elif col_key == "col_4":
                         # Column 4 and 5
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y))
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
             # We show this row to the device
             self.device.display(self.canvas.get_image())
@@ -453,21 +457,21 @@ class Macros(PyXavi):
                     #     canvas.point((7, 4 + y), self.OFF)
                     if col_key == "col_3":
                         # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y))
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y), apply_offset=apply_offset)
                     elif col_key == "col_4":
                         # Column 4 and 5
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y))
-                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y))
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
             # We show this row to the device
             self.device.display(self.canvas.get_image())
@@ -512,7 +516,7 @@ class Macros(PyXavi):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7))
         self.device.display(self.canvas.get_image())
 
-    def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None):
+    def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
         '''
         Draws a point on the LCD canvas representing a round LED point,
         emulating a 8x8 Matrix LED.
@@ -527,7 +531,7 @@ class Macros(PyXavi):
         # Take in account the rounded shape of the LCD.
         # The corners have 40 pixels (square of 40p with one edge very rounded), so the area usable needs to be adjusted.
         # Let's just shrink the width only for simplicity.
-        offset_x = 40
+        offset_x = self.LED_TO_LCD_OFFSET_X if apply_offset else 0
 
         # Each LED is represented by a 8x8 square on the LCD
         radius = 4  # Half of 8
