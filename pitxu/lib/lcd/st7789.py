@@ -236,25 +236,21 @@ class ST7789(PyXavi):
     def draw_image(self, image: Image.Image):
 
         original_width, original_height = image.size
-        self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # # We work with images in landscape but apparently the screen is in portrait
         image = image.rotate(90, expand=True)
         original_width, original_height = image.size
-        self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
         # if not Point(original_width, original_height).equals_to(self.user_screen_size):
         if not Point(original_width, original_height).equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
             image = self._preprocess_image(image)
             original_width, original_height = image.size
-            self._xlog.debug(f"Preprocessed to size {original_width}x{original_height}")
 
         # Now get the actual data that we'll send to the device
         pixel_data = self._convert_image_to_pixel_data_array(image)
 
         # Finally, send the data to the device
-        self._xlog.debug(f"Flushing image of size {original_width}x{original_height} to device")
         self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
@@ -295,7 +291,6 @@ class ST7789(PyXavi):
         return pixel_data
 
     def _flush_pixel_data_to_device(self, x, y, width, height, pixel_data):
-        self._xlog.debug(f"Drawing image at ({x}, {y}) with size {width}x{height} over a screen of {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
         if (x + width > self.LCD_WIDTH) or (y + height > self.LCD_HEIGHT):
             self._xlog.error("The image size is beyond the range of the screen")
             raise ValueError("The image size is beyond the range of the screen")
