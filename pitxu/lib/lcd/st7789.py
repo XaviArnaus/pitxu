@@ -57,7 +57,7 @@ class ST7789(PyXavi):
             self.user_screen_size = Point(self.LCD_WIDTH, self.LCD_HEIGHT)
             self.use_horizontal = 0
         
-        self.use_horizontal = 0
+        self.use_horizontal = 3
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
