@@ -180,7 +180,7 @@ def test_lcd():
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         # Clear screen
-        lcd.fill_screen(0)
+        # lcd.fill_screen(0)
         logger.info("End of work.")
 
     except RuntimeError as e:
