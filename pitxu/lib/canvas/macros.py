@@ -527,19 +527,16 @@ class Macros(PyXavi):
         # Take in account the rounded shape of the LCD.
         # The corners have 20 pixels, so the area usable needs to be adjusted.
         # Let's just shrink the width only for simplicity.
-        screen_usable_x_start = 20
-        screen_usable_x_end = self._display_size.x - 20
-        display_width = screen_usable_x_end - screen_usable_x_start
-        display_height = self._display_size.y - 20
+        offset_x = 20
 
         # Each LED is represented by a 8x8 square on the LCD
         radius = 4  # Half of 8
 
         # We need to convert the point from a 8x8 Matrix LED to LCD coordinates, based on the full LCD size.
         # And also correct the radius to be relative to the LCD size.
-        x = point.x * (display_width // 8)
-        y = point.y * (display_height // 8)
-        radius = min(display_width // 16, display_height // 16)
+        x = point.x * (self._display_size.x // 8) + offset_x // 2
+        y = point.y * (self._display_size.y // 8)
+        radius = min(self._display_size.x // 16, self._display_size.y // 16)
 
         draw.circle(
             Point(x + radius, y + radius).to_image_point(),
