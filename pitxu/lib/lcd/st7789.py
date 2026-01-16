@@ -121,7 +121,7 @@ class ST7789(PyXavi):
         time.sleep(0.12)
         # USE_HORIZONTAL = 1
         # USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1] else 1
-        USE_HORIZONTAL = 2
+        USE_HORIZONTAL = 3
         direction = {0: 0x00, 1: 0xC0, 2: 0x70,
                      3: 0xA0}.get(USE_HORIZONTAL, 0x00)
         self._send_command(0x36, direction)
@@ -189,7 +189,7 @@ class ST7789(PyXavi):
                 self.spi.writebytes(data[i : i + max_chunk])
 
     # def set_window(self, x0, y0, x1, y1, use_horizontal=0):
-    def set_window(self, x0, y0, x1, y1, use_horizontal=2):
+    def set_window(self, x0, y0, x1, y1, use_horizontal=3):
         if use_horizontal in (0, 1):
             self._send_command(0x2A, x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF)
             self._send_command(
