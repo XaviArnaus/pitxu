@@ -41,20 +41,24 @@ class ST7789(PyXavi):
             if self.user_screen_size.equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
                 self.use_horizontal = 0 if self.user_screen_size.y > self.user_screen_size.x else 1
                 self._xlog.debug(f"Given screensize of {self.user_screen_size} equals device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
-                                 "vertical" if self.use_horizontal == 0 else "horizontal")
+                                 ("vertical" if self.use_horizontal == 0 else "horizontal"))
             # If the sizes are the transposed as the default device ones
             elif self.user_screen_size.equals_to(Point(self.LCD_HEIGHT, self.LCD_WIDTH)):
                 self.use_horizontal = 1 if self.user_screen_size.x > self.user_screen_size.y else 0
                 self._xlog.debug(f"Given screensize of {self.user_screen_size} transposed device's {Point(self.LCD_HEIGHT, self.LCD_WIDTH)} -> " +\
-                                 "vertical" if self.use_horizontal == 0 else "horizontal")
+                                 ("vertical" if self.use_horizontal == 0 else "horizontal"))
             # The sizes actually do not actually fit, and this is not allowed
             else:
                 self._xlog.error(f"Given screensize of {self.user_screen_size} does not match device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)}, even transposed. Aborting.")
                 raise ValueError
+        else:
+            self._xlog.warning(f"Didn't receive 'screen_size' from params, taking the default ones from the driver: {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
+            self.user_screen_size = Point(self.LCD_WIDTH, self.LCD_HEIGHT)
+            self.use_horizontal = 0
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
-        GPIO.setwarnings(False)
+        GPIO.setwarnings(True)
         GPIO.setup([self.DC_PIN, self.RST_PIN, self.LED_PIN], GPIO.OUT)
         GPIO.output(self.LED_PIN, GPIO.LOW)  # 使能背光
 

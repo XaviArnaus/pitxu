@@ -13,6 +13,7 @@ class Maintenance(PyXavi):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_EINK_PATH = "mocked/eink/"
     DEFAULT_MOCKED_MATRIX_PATH = "mocked/matrix/"
+    DEFAULT_MOCKED_LCD_PATH = "mocked/lcd/"
     DEFAULT_EXCLUDED_FILENAMES = [".keep"]
 
     def __init__(self, config: Config = None, params: Dictionary = None):
@@ -20,7 +21,8 @@ class Maintenance(PyXavi):
 
         self._mocked_files_folders = [
             self._xconfig.get("storage.mocked_files.eink", self.DEFAULT_MOCKED_EINK_PATH),
-            self._xconfig.get("storage.mocked_files.led_matrix", self.DEFAULT_MOCKED_MATRIX_PATH)
+            self._xconfig.get("storage.mocked_files.led_matrix", self.DEFAULT_MOCKED_MATRIX_PATH),
+            self._xconfig.get("storage.mocked_files.lcd", self.DEFAULT_MOCKED_LCD_PATH)
         ]
         self._excluded_filenames = self._xconfig.get("storage.mocked_files.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
