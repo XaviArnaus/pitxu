@@ -57,7 +57,7 @@ class ST7789(PyXavi):
             self.user_screen_size = Point(self.LCD_WIDTH, self.LCD_HEIGHT)
             self.use_horizontal = 0
         
-        self.use_horizontal = 1
+        self.use_horizontal = 0
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
@@ -227,10 +227,10 @@ class ST7789(PyXavi):
                 # (y0) & 0xFF,
                 # (y1) >> 8,
                 # (y1) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
-                (y0 + 40) >> 8,
-                (y0 + 40) & 0xFF,
-                (y1 + 40) >> 8,
-                (y1 + 40) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
+                (y0 + 20) >> 8,
+                (y0 + 20) & 0xFF,
+                (y1 + 20) >> 8,
+                (y1 + 20) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
             )
         elif use_horizontal in (2, 3):
             self._send_command(
