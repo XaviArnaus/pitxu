@@ -520,6 +520,7 @@ class Macros(PyXavi):
         columns_to_light = math.ceil((percentage / 100) * 8)
         for x in range(0, columns_to_light):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7))
+        self._xlog.debug(f"Displaying interaction percent {percentage}% ({columns_to_light} columns)")
         self.device.display(self.canvas.get_image())
 
     def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
