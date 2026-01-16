@@ -32,6 +32,11 @@ class Lcd(Xprocess):
 
     def initialize(self):
         self._xlog.info("Initializing LCD Worker")
+
+        # Just have the display size handy
+        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
+        self._xparams.set("screen_size", self._display_size)
+
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)
         self._xparams.set("device", self.device)
@@ -40,8 +45,6 @@ class Lcd(Xprocess):
         self._xparams.set("canvas", self.canvas)
         # The macros to do higher level operations, require the device and the canvas via the Xparams
         self._macros = Macros(config=self._xconfig, params=self._xparams)
-        # Just have the display size handy
-        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
         # Initialize the macros statics
         # Commented out until we decide how to merge the eInk and Matrix macros into LCD.
         # self._macros.load_or_create_statics()

@@ -84,8 +84,7 @@ class Canvas(PyXavi):
 
         # Getting the screen size from params or config
         if params.key_exists("screen_size"):
-            self._xlog.debug(f"Screen size provided in params: {params.get('screen_size').x}" +
-                             f"x{params.get('screen_size').y}")
+            self._xlog.debug(f"Screen size provided in params: {params.get('screen_size').x}x{params.get('screen_size').y}")
             self._screen_size = params.get("screen_size")
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".size")):
             self._xlog.debug(f"Screen size provided in config: " +
@@ -112,9 +111,20 @@ class Canvas(PyXavi):
 
         # Initialise fonts
         self._initialise_fonts()
-    
-    def get_font_by_size(self, size: int) -> ImageFont:
-        return self.font_by_size[f"{size}"]
+
+        # Summary of the loaded configuration
+        self._xlog.debug("Canvas loaded with the following configuration:")
+        self._xlog.debug(f"  Device config prefix: {self.DEVICE_CONFIG_PREFIX}")
+        self._xlog.debug(f"  Screen size: {self._screen_size.x}x{self._screen_size.y}")
+        self._xlog.debug(f"  Font file: {self.FONT_FILE}")
+        self._xlog.debug(f"  Color mode: {self.COLOR_MODE}")
+        self._xlog.debug(f"  Font Tiny size: {self.FONT_SIZE_TINY}")
+        self._xlog.debug(f"  Font Small size: {self.FONT_SIZE_SMALL}")
+        self._xlog.debug(f"  Font Small Emoji size: {self.FONT_SIZE_SMALL_EMOJI}")
+        self._xlog.debug(f"  Font Medium size: {self.FONT_SIZE_MEDIUM}")
+        self._xlog.debug(f"  Font Big size: {self.FONT_SIZE_BIG}")
+        self._xlog.debug(f"  Font Huge size: {self.FONT_SIZE_HUGE}")
+        self._xlog.debug(f"  Font Ultra size: {self.FONT_SIZE_ULTRA}")
 
     def get_canvas(self, reset_base_image = True):
         if reset_base_image:

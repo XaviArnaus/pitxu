@@ -1,6 +1,8 @@
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+from pitxu.lib.objects.point import Point
+
 import RPi.GPIO as GPIO
 import spidev
 import time
@@ -26,8 +28,29 @@ class ST7789(PyXavi):
     backlight_pwm = None  # 用于 PWM 控制背光亮度的对象
     spi: spidev.SpiDev = None
 
+    use_horizontal: int = 0
+    user_screen_size: Point = None
+
     def __init__(self, config: Config, params: Dictionary):
         super(ST7789, self).init_pyxavi(config=config, params=params)
+
+        # Getting the screen size in order.
+        if params.key_exists("screen_size"):
+            self.user_screen_size = params.get("screen_size")
+            # If the sizes are the same as the default device ones
+            if self.user_screen_size.equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
+                self.use_horizontal = 0 if self.user_screen_size.y > self.user_screen_size.x else 1
+                self._xlog.debug(f"Given screensize of {self.user_screen_size} equals device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
+                                 "vertical" if self.use_horizontal == 0 else "horizontal")
+            # If the sizes are the transposed as the default device ones
+            elif self.user_screen_size.equals_to(Point(self.LCD_HEIGHT, self.LCD_WIDTH)):
+                self.use_horizontal = 1 if self.user_screen_size.x > self.user_screen_size.y else 0
+                self._xlog.debug(f"Given screensize of {self.user_screen_size} transposed device's {Point(self.LCD_HEIGHT, self.LCD_WIDTH)} -> " +\
+                                 "vertical" if self.use_horizontal == 0 else "horizontal")
+            # The sizes actually do not actually fit, and this is not allowed
+            else:
+                self._xlog.error(f"Given screensize of {self.user_screen_size} does not match device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)}, even transposed. Aborting.")
+                raise ValueError
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
