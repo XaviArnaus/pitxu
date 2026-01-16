@@ -152,60 +152,47 @@ def test_lcd():
         lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
+        
+        for text in ["Without\nCanvas class", "With\nCanvas class"]:
+
+            # Clear screen
+            lcd.fill_screen(0)
+
+            # Prepare the classes
+            logger.debug(f"Drawing {text}...")
+            if text == "Without\nCanvas class":
+                image = Image.new("RGB", expected_screen_size.to_image_point(), "black")
+                draw = ImageDraw.Draw(image)
+            else:
+                canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": expected_screen_size})))
+                draw = canvas.get_canvas()
+
+            colors = ["red", "green", "blue", "yellow", "purple"]
+            for i in range(5):
+                draw.rectangle(
+                    xy=Rectangle(
+                        Point(i * 10, i * 10),
+                        Point(expected_screen_size.x - (i * 10), expected_screen_size.y - (i * 10))
+                    ).to_image_rectangle(),
+                    fill=colors[i]
+                )
+            draw.text(
+                xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
+                text=text,
+                font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
+                fill="white",
+                anchor="mm",
+                align="center")
+            
+            if text == "With\nCanvas class":
+                image = canvas.get_image()
+
+            lcd.draw_image(image)
+            logger.debug("Pausing 2 seconds to let it show")
+            time.sleep(2)
+
         # Clear screen
-        lcd.fill_screen(0)
-        # Draw something Not using Canvas
-        logger.debug("Drawing NOT using Canvas...")
-        image = Image.new("RGB", expected_screen_size.to_image_point(), "black")
-        draw = ImageDraw.Draw(image)
-        colors = ["red", "green", "blue", "yellow", "purple"]
-        for i in range(5):
-            draw.rectangle(
-                xy=Rectangle(
-                    Point(i * 10, i * 10),
-                    Point(expected_screen_size.x - (i * 10), expected_screen_size.y - (i * 10))
-                ).to_image_rectangle(),
-                fill=colors[i]
-            )
-        draw.text(
-            xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
-            text="Without\nCanvas class",
-            font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
-            fill="white",
-            anchor="mm",
-            align="center")
-        lcd.draw_image(image)
-        logger.debug("Pausing 2 seconds to let it show")
-        time.sleep(2)
-        # Clear screen
-        lcd.fill_screen(0)
-        # Draw something using Canvas
-        logger.debug("Drawing using Canvas...")
-        canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": expected_screen_size})))
-        draw = canvas.get_canvas()
-        image = Image.new("RGB", expected_screen_size.to_image_point(), "black")
-        draw = ImageDraw.Draw(image)
-        colors = ["red", "green", "blue", "yellow", "purple"]
-        for i in range(5):
-            draw.rectangle(
-                xy=Rectangle(
-                    Point(i * 10, i * 10),
-                    Point(expected_screen_size.x - (i * 10), expected_screen_size.y - (i * 10))
-                ).to_image_rectangle(),
-                fill=colors[i]
-            )
-        draw.text(
-            xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
-            text="With\nCanvas class",
-            font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
-            fill="white",
-            anchor="mm",
-            align="center")
-        lcd.draw_image(image)
-        logger.debug("Pausing 2 seconds to let it show")
-        time.sleep(2)
-        # Clear screen
-        lcd.fill_screen(0)
+        # lcd.fill_screen(0)
         logger.info("End of work.")
 
     except RuntimeError as e:
