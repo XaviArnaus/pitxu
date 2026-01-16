@@ -142,9 +142,11 @@ def test_lcd():
         # Instantiating
         config, logger, parameters = _initialize()
 
+        expected_screen_size = Point(280, 240)
+
         # Delegate the run to Main
         logger.debug("Testing LCD display")
-        lcd = ST7789(config=config, params=parameters.merge(Dictionary({"screen_size": Point(280, 240)})))
+        lcd = ST7789(config=config, params=parameters.merge(Dictionary({"screen_size": expected_screen_size})))
         logger.debug("Drawing a white cross over black background...")
         lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
         lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
@@ -156,20 +158,24 @@ def test_lcd():
         logger.debug("Drawing NOT using Canvas...")
         # canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
         # draw = canvas.get_canvas()
-        image = Image.new("RGB", (lcd.LCD_WIDTH, lcd.LCD_HEIGHT))
+        image = Image.new("RGB", (lcd.LCD_WIDTH, lcd.LCD_HEIGHT), "black")
         draw = ImageDraw.Draw(image)
+        colors = ["red", "green", "blue", "yellow", "purple"]
+        for i in range(5):
+            draw.rectangle(
+                xy=Rectangle(
+                    Point(i * 10, i * 10),
+                    Point(expected_screen_size.x + (i * 10), expected_screen_size.y + (i * 10))
+                ).to_image_rectangle(),
+                fill=colors[i]
+            )
         draw.text(
-            xy=Point(20, 20).to_image_point(), 
-            text="Hello, Pitxu!", 
-            font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25), 
-            fill="white")
-        draw.rectangle(
-            xy=Rectangle(Point(10, 10), Point(230, 100)).to_image_rectangle(),
-            fill="red")
-        draw.circle(
-            xy=Point(120, 160).to_image_point(), 
-            radius=30, 
-            fill="blue")
+            xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
+            text="Hello, Pitxu!",
+            font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
+            fill="white",
+            anchor="mm",
+            align="center")
         lcd.draw_image(image)
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
