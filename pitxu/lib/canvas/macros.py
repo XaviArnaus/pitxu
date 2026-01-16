@@ -329,13 +329,13 @@ class Macros(PyXavi):
     def soft_clear(self):
 
         # First create a canvas
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas()
 
         # Create a background color rectangle with the sizes of the screen
         self._soft_clear_rectangle(draw=draw)
 
         # Flush the image (generated from the canvas) to the device
-        self.device.display(self.canvas.get_image(), partial=False)
+        self.device.display(self.canvas.get_image())
 
     def _soft_clear_rectangle(self, draw: ImageDraw.ImageDraw, color: str = None):
         '''
@@ -356,8 +356,9 @@ class Macros(PyXavi):
     def kitt_horizontal_effect(self, delay: float = 0.1):
         self._log_debug("Starting KITT effect")
 
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas()
         self._soft_clear_rectangle(draw=draw)
+        image = self.canvas.get_image()
 
         apply_offset = False
 
@@ -366,14 +367,14 @@ class Macros(PyXavi):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
-            self.device.display(self.canvas.get_image())
+            self.device.display(image)
             time.sleep(delay)
         # Move left
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
-            self.device.display(self.canvas.get_image())
+            self.device.display(image)
             time.sleep(delay)
     
     def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.03):
@@ -383,8 +384,10 @@ class Macros(PyXavi):
         Be careful, it relies on having a HandableCanvas instance opened previously, and
         needs to be closed afterwards.
         '''
-        draw = self.canvas.create_canvas_over_new_image()
-        # self._soft_clear_rectangle(draw=draw)
+        draw = self.canvas.get_canvas()
+        self._soft_clear_rectangle(draw=draw)
+        # The "draw" object is linked to the canvas, so we can get the image from there
+        # It gets updated as we draw on it, so is more efficient than getting it each time
         image = self.canvas.get_image()
 
         max_values = {
@@ -478,12 +481,12 @@ class Macros(PyXavi):
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
             # We show this row to the device
-            self.device.display(self.canvas.get_image())
+            self.device.display(image)
             time.sleep(delay)
 
     def show_init_step(self, step):
 
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas()
         self._soft_clear_rectangle(draw=draw)
         rows = math.floor(step / 8) + 1
         rows = rows if rows > 1 else 1
@@ -494,7 +497,7 @@ class Macros(PyXavi):
         self.device.display(self.canvas.get_image())
     
     def show_cross(self):
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas()
         self._soft_clear_rectangle(draw=draw)
         for i in range(0,8):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
@@ -510,7 +513,7 @@ class Macros(PyXavi):
         Args:
             percentage: The percentage of time left (0-100).
         '''
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas()
         self._soft_clear_rectangle(draw=draw)
 
         # Calculate how many columns to light up
