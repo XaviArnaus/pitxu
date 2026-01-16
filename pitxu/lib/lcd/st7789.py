@@ -279,6 +279,9 @@ class ST7789(PyXavi):
     
     def draw_image(self, image: Image.Image):
 
+        # We work with images in landscape but apparently the screen is in portrait
+        image = image.rotate(270, expand=True)
+
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
         original_width, original_height = image.size
         if not Point(original_width, original_height).equals_to(self.user_screen_size):
