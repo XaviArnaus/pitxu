@@ -17,8 +17,8 @@ class ST7789(PyXavi):
     """
 
     # LCD 参数
-    LCD_WIDTH = 280
-    LCD_HEIGHT = 240
+    LCD_WIDTH = 240
+    LCD_HEIGHT = 280
     CornerHeight = 20  # The pixels occupied by the fillet height
     DC_PIN = 13
     RST_PIN = 7
@@ -204,7 +204,7 @@ class ST7789(PyXavi):
     #         self._send_command(0x2B, y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF)
     #     self._send_command(0x2C)
     
-    def set_window(self, x0, y0, x1, y1, use_horizontal=1):
+    def set_window(self, x0, y0, x1, y1, use_horizontal=0):
         if use_horizontal in (0, 1):
             self._send_command(
                 0x2A,
