@@ -91,8 +91,8 @@ class ST7789(PyXavi):
     def _init_display(self, use_horizontal=0):
         self._send_command(0x11)
         time.sleep(0.12)
-        USE_HORIZONTAL = 1
-        # USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1] else 1
+        # USE_HORIZONTAL = 1
+        USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1] else 1
         direction = {0: 0x00, 1: 0xC0, 2: 0x70,
                      3: 0xA0}.get(USE_HORIZONTAL, 0x00)
         self._send_command(0x36, direction)
