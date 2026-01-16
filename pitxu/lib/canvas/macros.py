@@ -356,7 +356,7 @@ class Macros(PyXavi):
     def kitt_horizontal_effect(self, delay: float = 0.1):
         self._log_debug("Starting KITT effect")
 
-        draw = self.canvas.get_canvas()
+        draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
         image = self.canvas.get_image()
 
@@ -384,7 +384,7 @@ class Macros(PyXavi):
         Be careful, it relies on having a HandableCanvas instance opened previously, and
         needs to be closed afterwards.
         '''
-        draw = self.canvas.get_canvas()
+        draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
         # The "draw" object is linked to the canvas, so we can get the image from there
         # It gets updated as we draw on it, so is more efficient than getting it each time
@@ -486,7 +486,7 @@ class Macros(PyXavi):
 
     def show_init_step(self, step):
 
-        draw = self.canvas.get_canvas()
+        draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
         rows = math.floor(step / 8) + 1
         rows = rows if rows > 1 else 1
@@ -497,7 +497,7 @@ class Macros(PyXavi):
         self.device.display(self.canvas.get_image())
     
     def show_cross(self):
-        draw = self.canvas.get_canvas()
+        draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
         for i in range(0,8):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
@@ -513,7 +513,7 @@ class Macros(PyXavi):
         Args:
             percentage: The percentage of time left (0-100).
         '''
-        draw = self.canvas.get_canvas()
+        draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
 
         # Calculate how many columns to light up

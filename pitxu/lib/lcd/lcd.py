@@ -247,23 +247,28 @@ class Lcd(Xprocess):
                 self._macros.kitt_speaking_effect_vu_meter(col_1_value, col_2_value, col_3_value, col_4_value)
     
     def show_kitt_scanner_while_thinking(self):
-        self._xlog.info(f"🤖 Showing KITT thinking on Matrix LED.")
+        self._xlog.info(f"🤖 Showing KITT thinking on Matrix LCD.")
         # self._macros.open_canvas()
         while True:
             if not self.is_chatbot_busy():
-                self._xlog.info(f"🤖 Stopping KITT thinking on Matrix LED.")
+                self._xlog.info(f"🤖 Stopping KITT thinking on Matrix LCD.")
                 break
             self._macros.kitt_horizontal_effect()
         # self._macros.close_canvas()
     
     def show(self, text: str):
-        self._xlog.info(f"🚥 Drawing on Matrix LED: {text}")
+        self._xlog.info(f"🚥 Drawing on Matrix LCD: {text}")
         self._macros.draw_something()
     
     def init_step(self, step: int):
-        self._xlog.info(f"🚥 Showing init step {step} on Matrix LED")
+        self._xlog.info(f"🚥 Showing init step {step} on Matrix LCD")
         # For now, just show the step number as a message
         self._macros.show_init_step(step)
+    
+    def interaction_holding_percentage(self, percentage: int):
+        percentage = int(percentage)
+        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
+        self._macros.show_interaction_holding_percentage(percentage)
 
     # ------- Communication with Flags ---------
 
