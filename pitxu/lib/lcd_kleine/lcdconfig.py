@@ -37,6 +37,7 @@ from gpiozero import *
 
 class RaspberryPi:
     def __init__(self,spi_bus=0, spi_device=0,spi_freq=40000000,rst = 27,dc = 25,bl = 18,bl_freq=1000,i2c=None,i2c_freq=100000):
+        print("\n\nRaspberry Pi GPIO Init\n\n")
         self.np=np
         self.INPUT = False
         self.OUTPUT = True
