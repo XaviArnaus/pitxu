@@ -15,6 +15,7 @@ from pyxavi.debugger import full_stack
 from pitxu.lib.utils.config_loader import ConfigLoader
 from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
 from pitxu.lib.matrix_led import Max7219
+from pitxu.lib.lcd.st7789 import ST7789
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -119,6 +120,25 @@ def test_matrix():
         # Delegate the run to Main
         logger.debug("Testing LED Matrix display")
         Max7219(config=config, params=parameters).test()
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
+        logger.info("End of work.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
+def test_lcd():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Testing LCD display")
+        lcd = ST7789(config=config, params=parameters)
+        lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
+        lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         logger.info("End of work.")
