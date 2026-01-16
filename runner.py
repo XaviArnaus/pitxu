@@ -158,7 +158,8 @@ def test_lcd():
         logger.debug("Drawing NOT using Canvas...")
         # canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
         # draw = canvas.get_canvas()
-        image = Image.new("RGB", (lcd.LCD_WIDTH, lcd.LCD_HEIGHT), "black")
+        # image = Image.new("RGB", (lcd.LCD_WIDTH, lcd.LCD_HEIGHT), "black")
+        image = Image.new("RGB", expected_screen_size.to_image_point(), "black")
         draw = ImageDraw.Draw(image)
         colors = ["red", "green", "blue", "yellow", "purple"]
         for i in range(5):
