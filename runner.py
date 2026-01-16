@@ -165,7 +165,7 @@ def test_lcd():
             draw.rectangle(
                 xy=Rectangle(
                     Point(i * 10, i * 10),
-                    Point(expected_screen_size.x + (i * 10), expected_screen_size.y + (i * 10))
+                    Point(expected_screen_size.x - (i * 10), expected_screen_size.y - (i * 10))
                 ).to_image_rectangle(),
                 fill=colors[i]
             )
