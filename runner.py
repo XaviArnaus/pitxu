@@ -134,6 +134,7 @@ def test_lcd():
     try:
         from pitxu.lib.lcd.st7789 import ST7789
         from pitxu.lib.objects.point import Point
+        from pitxu.lib.objects.rectangle import Rectangle
         from pitxu.lib.canvas.canvas import Canvas
         from PIL import ImageFont
         # from pitxu.lib.canvas.macros import Macros as CanvasMacros
@@ -155,9 +156,9 @@ def test_lcd():
         logger.debug("Drawing using Canvas...")
         canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
         draw = canvas.get_canvas()
-        draw.text(position=Point(20, 20).to_image_point(), text="Hello, Pitxu!", font=canvas.FONT_MEDIUM, fill="white")
-        draw.rectangle(top_left=Point(10, 10).to_image_point(), bottom_right=Point(230, 100).to_image_point(), fill="red")
-        draw.circle(center=Point(120, 160).to_image_point(), radius=30, fill="blue")
+        draw.text(xy=Point(20, 20).to_image_point(), text="Hello, Pitxu!", font=canvas.FONT_MEDIUM, fill="white")
+        draw.rectangle(xy=Rectangle(Point(10, 10),Point(230, 100)).to_image_rectangle(), fill="red")
+        draw.circle(xy=Point(120, 160).to_image_point(), radius=30, fill="blue")
         lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(canvas.get_image().tobytes()))
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
