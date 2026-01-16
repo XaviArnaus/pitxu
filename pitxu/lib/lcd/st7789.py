@@ -33,6 +33,7 @@ class ST7789(PyXavi):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(False)
         GPIO.setup([self.DC_PIN, self.RST_PIN, self.LED_PIN], GPIO.OUT)
+        GPIO.output(self.LED_PIN, GPIO.LOW)  # 使能背光
 
         # Initialize SPI
         self.spi = spidev.SpiDev()
