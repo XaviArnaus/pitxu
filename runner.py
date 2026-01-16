@@ -155,7 +155,6 @@ def test_lcd():
         logger.debug("Drawing using Canvas...")
         canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
         draw = canvas.get_canvas()
-        draw.fill(color=0x0000)
         draw.text(position=Point(20, 20).to_image_point(), text="Hello, Pitxu!", font=canvas.FONT_MEDIUM, fill="white")
         draw.rectangle(top_left=Point(10, 10).to_image_point(), bottom_right=Point(230, 100).to_image_point(), fill="red")
         draw.circle(center=Point(120, 160).to_image_point(), radius=30, fill="blue")
