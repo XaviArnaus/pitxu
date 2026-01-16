@@ -17,6 +17,8 @@ from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
 from pitxu.lib.matrix_led import Max7219
 from pitxu.lib.lcd.st7789 import ST7789
 from pitxu.lib.objects.point import Point
+from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.canvas.macros import Macros as CanvasMacros
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -141,6 +143,19 @@ def test_lcd():
         logger.debug("Drawing a white cross over black background...")
         lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
         lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
+        logger.debug("Pausing 2 seconds to let it show")
+        time.sleep(2)
+        # Clear screen
+        lcd.fill_screen(0)
+        # Draw something using Canvas
+        logger.debug("Drawing using Canvas...")
+        canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
+        draw = canvas.get_canvas()
+        draw.fill(color=0x0000)
+        draw.text(position=Point(20, 20), text="Hello, Pitxu!", font_size=24, color=0x07E0)
+        draw.rectangle(top_left=Point(10, 10), bottom_right=Point(230, 100), color=0xF800, fill=False)
+        draw.circle(center=Point(120, 160), radius=30, color=0x001F, fill=True)
+        lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(canvas.get_image().tobytes()))
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         logger.info("End of work.")
