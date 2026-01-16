@@ -17,8 +17,8 @@ class ST7789(PyXavi):
     """
 
     # LCD 参数
-    LCD_WIDTH = 240
-    LCD_HEIGHT = 280
+    LCD_WIDTH = 280
+    LCD_HEIGHT = 240
     CornerHeight = 20  # 圆角高度占的像素
     DC_PIN = 13
     RST_PIN = 7
