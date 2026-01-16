@@ -169,7 +169,7 @@ def test_lcd():
             )
         draw.text(
             xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
-            text="Without Canvas class",
+            text="Without\nCanvas class",
             font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
             fill="white",
             anchor="mm",
@@ -196,7 +196,7 @@ def test_lcd():
             )
         draw.text(
             xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
-            text="With Canvas class",
+            text="With\nCanvas class",
             font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
             fill="white",
             anchor="mm",
