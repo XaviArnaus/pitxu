@@ -19,13 +19,13 @@ class ST7789(PyXavi):
     # LCD 参数
     LCD_WIDTH = 280
     LCD_HEIGHT = 240
-    CornerHeight = 20  # 圆角高度占的像素
+    CornerHeight = 20  # The pixels occupied by the fillet height
     DC_PIN = 13
     RST_PIN = 7
     LED_PIN = 15
 
-    backlight_mode: bool = True  # True 使用 PWM 调节亮度，False 使用简单开关控制
-    backlight_pwm = None  # 用于 PWM 控制背光亮度的对象
+    backlight_mode: bool = True  # True uses PWM to adjust brightness, False uses simple switch control
+    backlight_pwm = None  # Object for PWM control of backlight brightness
     spi: spidev.SpiDev = None
 
     use_horizontal: int = 0
@@ -60,7 +60,7 @@ class ST7789(PyXavi):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(True)
         GPIO.setup([self.DC_PIN, self.RST_PIN, self.LED_PIN], GPIO.OUT)
-        GPIO.output(self.LED_PIN, GPIO.LOW)  # 使能背光
+        GPIO.output(self.LED_PIN, GPIO.LOW)  # Enable backlight
 
         # Initialize SPI
         self.spi = spidev.SpiDev()
@@ -92,20 +92,20 @@ class ST7789(PyXavi):
 
     def set_backlight_mode(self, mode):
         """
-        设置背光模式
-        :param mode: True 使用 PWM 调节亮度，False 使用简单开关控制
+        Set the backlight mode
+        :param mode: True uses PWM to adjust brightness, False uses simple switch control
         """
         if mode == self.backlight_mode:
-            return  # 模式未改变，无需操作
+            return  # Mode has not changed, no need to operate
 
-        if mode:  # 切换到 PWM 模式
+        if mode:  # Switch to PWM mode
             self.backlight_pwm = GPIO.PWM(self.LED_PIN, 1000)
             self.backlight_pwm.start(100)
-        else:  # 切换到简单开关模式
+        else:  # Switch to simple switch mode
             if self.backlight_pwm is not None:
                 self.backlight_pwm.stop()
                 self.backlight_pwm = None
-            GPIO.output(self.LED_PIN, GPIO.HIGH)  # 确保背光打开
+            GPIO.output(self.LED_PIN, GPIO.HIGH)  # Ensure backlight is on
         self.backlight_mode = mode
 
     def _reset_lcd(self):
@@ -279,13 +279,14 @@ class ST7789(PyXavi):
     def draw_image(self, x, y, width, height, pixel_data):
         self._xlog.debug(f"Drawing image at ({x}, {y}) with size {width}x{height} over a screen of {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
         if (x + width > self.LCD_WIDTH) or (y + height > self.LCD_HEIGHT):
-            raise ValueError("图像尺寸超出屏幕范围")
+            self._xlog.error("The image size is beyond the range of the screen")
+            raise ValueError("The image size is beyond the range of the screen")
         self.set_window(x, y, x + width - 1, y + height - 1)
         self._send_data(pixel_data)
     
     def _detect_raspberry_pi_version(self):
         """
-        检测树莓派硬件版本，并根据版本设置背光模式
+        Detect the Raspberry Pi hardware version and set the backlight mode according to the version
         """
         try:
             with open("/proc/cpuinfo", "r") as f:
@@ -298,17 +299,17 @@ class ST7789(PyXavi):
                 if model_name:
                     if "Zero" in model_name and "2" not in model_name:
                         # 如果是 Zero 或 Zero W
-                        self.backlight_mode = False  # 使用简单开关模式
+                        self.backlight_mode = False  # Use simple switch mode
                     else:
                         # 其他型号（如 Zero 2 W, 3B, 4B 等）
-                        self.backlight_mode = True  # 使用 PWM 模式
+                        self.backlight_mode = True  # Use PWM mode
                         self._xlog.debug(f"Detected hardware: {model_name}, Backlight mode: {'PWM' if self.backlight_mode else 'Simple Switch'}")
                 else:
                     self._xlog.warning("Model name not found in /proc/cpuinfo")
-                    self.backlight_mode = True  # 默认使用 PWM 模式
+                    self.backlight_mode = True  # Use PWM mode by default
         except Exception as e:
             self._xlog.error(f"Error detecting hardware version: {e}")
-            self.backlight_mode = True  # 默认使用 PWM 模式
+            self.backlight_mode = True  # Use PWM mode by default
 
 
         
