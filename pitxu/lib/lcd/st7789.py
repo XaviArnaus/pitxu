@@ -285,7 +285,7 @@ class ST7789(PyXavi):
         self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # # We work with images in landscape but apparently the screen is in portrait
-        image = image.rotate(90)
+        image = image.rotate(90, expand=True)
         original_width, original_height = image.size
         self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
