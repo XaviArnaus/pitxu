@@ -35,30 +35,6 @@ class ST7789(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super(ST7789, self).init_pyxavi(config=config, params=params)
 
-        # Getting the screen size in order.
-        if params.key_exists("screen_size"):
-            self.user_screen_size = params.get("screen_size")
-            # If the sizes are the same as the default device ones
-            if self.user_screen_size.equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
-                self.use_horizontal = 0 if self.user_screen_size.y > self.user_screen_size.x else 1
-                self._xlog.debug(f"Given screen size of {self.user_screen_size} equals device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
-                                 ("vertical" if self.use_horizontal == 0 else "horizontal"))
-            # If the sizes are the transposed as the default device ones
-            elif self.user_screen_size.equals_to(Point(self.LCD_HEIGHT, self.LCD_WIDTH)):
-                self.use_horizontal = 1 if self.user_screen_size.x > self.user_screen_size.y else 0
-                self._xlog.debug(f"Given screen size of {self.user_screen_size} transposed device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
-                                 ("vertical" if self.use_horizontal == 0 else "horizontal"))
-            # The sizes actually do not actually fit, and this is not allowed
-            else:
-                self._xlog.error(f"Given screen size of {self.user_screen_size} does not match device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)}, even transposed. Aborting.")
-                raise ValueError
-        else:
-            self._xlog.warning(f"Didn't receive 'screen_size' from params, taking the default ones from the driver: {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
-            self.user_screen_size = Point(self.LCD_WIDTH, self.LCD_HEIGHT)
-            self.use_horizontal = 0
-        
-        self.use_horizontal = 0
-
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(True)
@@ -75,7 +51,6 @@ class ST7789(PyXavi):
         self._detect_raspberry_pi_version()
         self.set_backlight(self._xconfig.get("lcd.brightness", 50))
         self._reset_lcd()
-        # self._init_display(self.use_horizontal)
         self._init_display()
         self.fill_screen(0)
     
@@ -189,25 +164,9 @@ class ST7789(PyXavi):
             max_chunk = 4096
             for i in range(0, len(data), max_chunk):
                 self.spi.writebytes(data[i : i + max_chunk])
-
-    # # def set_window(self, x0, y0, x1, y1, use_horizontal=0):
-    # def set_window(self, x0, y0, x1, y1, use_horizontal=3):
-    #     if use_horizontal in (0, 1):
-    #         self._send_command(0x2A, x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF)
-    #         self._send_command(
-    #             0x2B, (y0 + 20) >> 8, (y0 + 20) & 0xFF, (y1 +
-    #                                                      20) >> 8, (y1 + 20) & 0xFF
-    #         )
-    #     elif use_horizontal in (2, 3):
-    #         self._send_command(
-    #             0x2A, (x0 + 20) >> 8, (x0 + 20) & 0xFF, (x1 +
-    #                                                      20) >> 8, (x1 + 20) & 0xFF
-    #         )
-    #         self._send_command(0x2B, y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF)
-    #     self._send_command(0x2C)
     
-    def set_window(self, x0, y0, x1, y1, use_horizontal=0):
-        use_horizontal = self.use_horizontal
+    def set_window(self, x0, y0, x1, y1, use_horizontal=None):
+        use_horizontal = self.use_horizontal if use_horizontal is None else use_horizontal
         if use_horizontal in (0, 1):
             self._send_command(
                 0x2A,
@@ -218,15 +177,6 @@ class ST7789(PyXavi):
             self._send_command(
                 0x2B,
                 # Adding 20 to y0 and y1 to account for the corner height offset
-                # If I remove it, the image is drawn shifted up by 20 pixels
-                # (y0 + 20) >> 8,
-                # (y0 + 20) & 0xFF,
-                # (y1 + 20) >> 8,
-                # (y1 + 20) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
-                # (y0) >> 8,
-                # (y0) & 0xFF,
-                # (y1) >> 8,
-                # (y1) & 0xFF  # Here Waveshare sends y1 - 1, but WhisPlay does it in the draw_image() method when calling set_window()
                 (y0 + 20) >> 8,
                 (y0 + 20) & 0xFF,
                 (y1 + 20) >> 8,
@@ -312,26 +262,6 @@ class ST7789(PyXavi):
         Preprocess the image to fit the screen size by resizing and cropping while maintaining aspect ratio.
         """
         screen_width, screen_height = self.LCD_WIDTH, self.LCD_HEIGHT
-        # img_width, img_height = image.size
-
-        # # Calculate the scaling factor to maintain aspect ratio
-        # scale_factor = max(screen_width / img_width, screen_height / img_height)
-
-        # # Resize the image with the scaling factor
-        # new_width = int(img_width * scale_factor)
-        # new_height = int(img_height * scale_factor)
-        # resized_img = image.resize((new_width, new_height))
-
-        # # Calculate cropping box to center the image
-        # offset_x = (new_width - screen_width) // 2
-        # offset_y = (new_height - screen_height) // 2
-
-        # # Crop the image to fit screen size
-        # cropped_img = resized_img.crop(
-        #     (offset_x, offset_y, offset_x + screen_width, offset_y + screen_height))
-
-        
-    
         original_width, original_height = image.size
         aspect_ratio = original_width / original_height
         screen_aspect_ratio = screen_width / screen_height
