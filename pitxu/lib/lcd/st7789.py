@@ -283,9 +283,9 @@ class ST7789(PyXavi):
         self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # We work with images in landscape but apparently the screen is in portrait
-        image = image.rotate(90, expand=True)
-        original_width, original_height = image.size
-        self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
+        # image = image.rotate(90, expand=True)
+        # original_width, original_height = image.size
+        # self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
         # if not Point(original_width, original_height).equals_to(self.user_screen_size):
@@ -305,7 +305,7 @@ class ST7789(PyXavi):
         """
         Preprocess the image to fit the screen size by resizing and cropping while maintaining aspect ratio.
         """
-        screen_width, screen_height = self.user_screen_size.x, self.user_screen_size.y
+        screen_width, screen_height = self.LCD_WIDTH, self.LCD_HEIGHT
         img_width, img_height = image.size
 
         # Calculate the scaling factor to maintain aspect ratio
