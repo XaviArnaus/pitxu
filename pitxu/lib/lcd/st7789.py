@@ -312,24 +312,45 @@ class ST7789(PyXavi):
         Preprocess the image to fit the screen size by resizing and cropping while maintaining aspect ratio.
         """
         screen_width, screen_height = self.LCD_WIDTH, self.LCD_HEIGHT
-        img_width, img_height = image.size
+        # img_width, img_height = image.size
 
-        # Calculate the scaling factor to maintain aspect ratio
-        scale_factor = max(screen_width / img_width, screen_height / img_height)
+        # # Calculate the scaling factor to maintain aspect ratio
+        # scale_factor = max(screen_width / img_width, screen_height / img_height)
 
-        # Resize the image with the scaling factor
-        new_width = int(img_width * scale_factor)
-        new_height = int(img_height * scale_factor)
-        resized_img = image.resize((new_width, new_height))
+        # # Resize the image with the scaling factor
+        # new_width = int(img_width * scale_factor)
+        # new_height = int(img_height * scale_factor)
+        # resized_img = image.resize((new_width, new_height))
 
-        # Calculate cropping box to center the image
-        offset_x = (new_width - screen_width) // 2
-        offset_y = (new_height - screen_height) // 2
+        # # Calculate cropping box to center the image
+        # offset_x = (new_width - screen_width) // 2
+        # offset_y = (new_height - screen_height) // 2
 
-        # Crop the image to fit screen size
-        cropped_img = resized_img.crop(
-            (offset_x, offset_y, offset_x + screen_width, offset_y + screen_height))
+        # # Crop the image to fit screen size
+        # cropped_img = resized_img.crop(
+        #     (offset_x, offset_y, offset_x + screen_width, offset_y + screen_height))
 
+        
+    
+        original_width, original_height = image.size
+        aspect_ratio = original_width / original_height
+        screen_aspect_ratio = screen_width / screen_height
+
+        if aspect_ratio > screen_aspect_ratio:
+            new_height = screen_height
+            new_width = int(new_height * aspect_ratio)
+            resized_img = image.resize((new_width, new_height))
+            offset_x = (new_width - screen_width) // 2
+            cropped_img = resized_img.crop(
+                (offset_x, 0, offset_x + screen_width, screen_height))
+        else:
+            new_width = screen_width
+            new_height = int(new_width / aspect_ratio)
+            resized_img = image.resize((new_width, new_height))
+            offset_y = (new_height - screen_height) // 2
+            cropped_img = resized_img.crop(
+                (0, offset_y, screen_width, offset_y + screen_height))
+        
         return cropped_img
 
     def _convert_image_to_pixel_data_array(self, image: Image.Image) -> bytearray:
