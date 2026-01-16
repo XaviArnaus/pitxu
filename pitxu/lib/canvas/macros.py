@@ -525,9 +525,9 @@ class Macros(PyXavi):
             color = self.canvas.COLOR_RED
         
         # Take in account the rounded shape of the LCD.
-        # The corners have 20 pixels, so the area usable needs to be adjusted.
+        # The corners have 40 pixels (square of 40p with one edge very rounded), so the area usable needs to be adjusted.
         # Let's just shrink the width only for simplicity.
-        offset_x = 20
+        offset_x = 40
 
         # Each LED is represented by a 8x8 square on the LCD
         radius = 4  # Half of 8
@@ -536,7 +536,7 @@ class Macros(PyXavi):
         # And also correct the radius to be relative to the LCD size.
         x = point.x * (self._display_size.x // 8) + offset_x // 2
         y = point.y * (self._display_size.y // 8)
-        radius = min(self._display_size.x // 16, self._display_size.y // 16)
+        radius = min(self._display_size.x + offset_x // 16, self._display_size.y // 16)
 
         draw.circle(
             Point(x + radius, y + radius).to_image_point(),
