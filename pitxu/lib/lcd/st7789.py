@@ -40,16 +40,16 @@ class ST7789(PyXavi):
             # If the sizes are the same as the default device ones
             if self.user_screen_size.equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
                 self.use_horizontal = 0 if self.user_screen_size.y > self.user_screen_size.x else 1
-                self._xlog.debug(f"Given screensize of {self.user_screen_size} equals device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
+                self._xlog.debug(f"Given screen size of {self.user_screen_size} equals device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
                                  ("vertical" if self.use_horizontal == 0 else "horizontal"))
             # If the sizes are the transposed as the default device ones
             elif self.user_screen_size.equals_to(Point(self.LCD_HEIGHT, self.LCD_WIDTH)):
                 self.use_horizontal = 1 if self.user_screen_size.x > self.user_screen_size.y else 0
-                self._xlog.debug(f"Given screensize of {self.user_screen_size} transposed device's {Point(self.LCD_HEIGHT, self.LCD_WIDTH)} -> " +\
+                self._xlog.debug(f"Given screen size of {self.user_screen_size} transposed device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)} -> " +\
                                  ("vertical" if self.use_horizontal == 0 else "horizontal"))
             # The sizes actually do not actually fit, and this is not allowed
             else:
-                self._xlog.error(f"Given screensize of {self.user_screen_size} does not match device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)}, even transposed. Aborting.")
+                self._xlog.error(f"Given screen size of {self.user_screen_size} does not match device's {Point(self.LCD_WIDTH, self.LCD_HEIGHT)}, even transposed. Aborting.")
                 raise ValueError
         else:
             self._xlog.warning(f"Didn't receive 'screen_size' from params, taking the default ones from the driver: {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
@@ -72,7 +72,7 @@ class ST7789(PyXavi):
         self._detect_raspberry_pi_version()
         self.set_backlight(self._xconfig.get("lcd.brightness", 50))
         self._reset_lcd()
-        self._init_display()
+        self._init_display(self.use_horizontal)
         self.fill_screen(0)
     
     def set_backlight(self, brightness):
@@ -261,13 +261,12 @@ class ST7789(PyXavi):
                     else:
                         # 其他型号（如 Zero 2 W, 3B, 4B 等）
                         self.backlight_mode = True  # 使用 PWM 模式
-                    print(
-                        f"Detected hardware: {model_name}, Backlight mode: {'PWM' if self.backlight_mode else 'Simple Switch'}")
+                        self._xlog.debug(f"Detected hardware: {model_name}, Backlight mode: {'PWM' if self.backlight_mode else 'Simple Switch'}")
                 else:
-                    print("Model name not found in /proc/cpuinfo")
+                    self._xlog.warning("Model name not found in /proc/cpuinfo")
                     self.backlight_mode = True  # 默认使用 PWM 模式
         except Exception as e:
-            print(f"Error detecting hardware version: {e}")
+            self._xlog.error(f"Error detecting hardware version: {e}")
             self.backlight_mode = True  # 默认使用 PWM 模式
 
 
