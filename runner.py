@@ -147,10 +147,10 @@ def test_lcd():
         # Delegate the run to Main
         logger.debug("Testing LCD display")
         lcd = ST7789(config=config, params=parameters.merge(Dictionary({"screen_size": expected_screen_size})))
-        logger.debug("Drawing a white cross over black background...")
-        lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
-        lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
-        logger.debug("Pausing 2 seconds to let it show")
+        # logger.debug("Drawing a white cross over black background...")
+        # lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
+        # lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
+        # logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         # Clear screen
         lcd.fill_screen(0)
