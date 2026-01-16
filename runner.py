@@ -136,7 +136,7 @@ def test_lcd():
         from pitxu.lib.objects.point import Point
         from pitxu.lib.objects.rectangle import Rectangle
         from pitxu.lib.canvas.canvas import Canvas
-        from PIL import ImageFont
+        from PIL import ImageFont, ImageDraw, Image
         # from pitxu.lib.canvas.macros import Macros as CanvasMacros
 
         # Instantiating
@@ -153,13 +153,24 @@ def test_lcd():
         # Clear screen
         lcd.fill_screen(0)
         # Draw something using Canvas
-        logger.debug("Drawing using Canvas...")
-        canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
-        draw = canvas.get_canvas()
-        draw.text(xy=Point(20, 20).to_image_point(), text="Hello, Pitxu!", font=canvas.FONT_MEDIUM, fill="white")
-        draw.rectangle(xy=Rectangle(Point(10, 10),Point(230, 100)).to_image_rectangle(), fill="red")
-        draw.circle(xy=Point(120, 160).to_image_point(), radius=30, fill="blue")
-        lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(canvas.get_image().tobytes()))
+        logger.debug("Drawing NOT using Canvas...")
+        # canvas = Canvas(config=config, params=parameters.merge(Dictionary({"screen_size": Point(lcd.LCD_WIDTH, lcd.LCD_HEIGHT)})))
+        # draw = canvas.get_canvas()
+        image = Image.new("RGB", (lcd.LCD_WIDTH, lcd.LCD_HEIGHT))
+        draw = ImageDraw.Draw(image)
+        draw.text(
+            xy=Point(20, 20).to_image_point(), 
+            text="Hello, Pitxu!", 
+            font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25), 
+            fill="white")
+        draw.rectangle(
+            xy=Rectangle(Point(10, 10), Point(230, 100)).to_image_rectangle(),
+            fill="red")
+        draw.circle(
+            xy=Point(120, 160).to_image_point(), 
+            radius=30, 
+            fill="blue")
+        lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(image.tobytes()))
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         logger.info("End of work.")
