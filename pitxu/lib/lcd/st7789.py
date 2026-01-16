@@ -289,7 +289,7 @@ class ST7789(PyXavi):
         self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # # We work with images in landscape but apparently the screen is in portrait
-        image = image.rotate(90)
+        image = image.rotate(90, expand=True)
         original_width, original_height = image.size
         self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
@@ -340,19 +340,18 @@ class ST7789(PyXavi):
             new_height = screen_height
             new_width = int(new_height * aspect_ratio)
             resized_img = image.resize((new_width, new_height))
-            # offset_x = (new_width - screen_width) // 2
-            # cropped_img = resized_img.crop(
-            #     (offset_x, 0, offset_x + screen_width, screen_height))
+            offset_x = (new_width - screen_width) // 2
+            cropped_img = resized_img.crop(
+                (offset_x, 0, offset_x + screen_width, screen_height))
         else:
             new_width = screen_width
             new_height = int(new_width / aspect_ratio)
             resized_img = image.resize((new_width, new_height))
-            # offset_y = (new_height - screen_height) // 2
-            # cropped_img = resized_img.crop(
-            #     (0, offset_y, screen_width, offset_y + screen_height))
+            offset_y = (new_height - screen_height) // 2
+            cropped_img = resized_img.crop(
+                (0, offset_y, screen_width, offset_y + screen_height))
         
-        # return cropped_img
-        return resized_img
+        return cropped_img
 
     def _convert_image_to_pixel_data_array(self, image: Image.Image) -> bytearray:
         original_width, original_height = image.size
