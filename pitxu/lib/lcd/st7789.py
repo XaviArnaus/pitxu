@@ -2,6 +2,7 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.objects.point import Point
+from PIL import Image
 
 import RPi.GPIO as GPIO
 import spidev
@@ -275,8 +276,58 @@ class ST7789(PyXavi):
         for _ in range(self.LCD_WIDTH * self.LCD_HEIGHT):
             buffer.extend([high, low])
         self._send_data(buffer)
+    
+    def draw_image(self, image: Image.Image):
 
-    def draw_image(self, x, y, width, height, pixel_data):
+        # Ensure that the image fits into the screen. Otherwise, preprocess it.
+        original_width, original_height = image.size
+        if not Point(original_width, original_height).equals_to(self.user_screen_size):
+            image = self._preprocess_image(image)
+            original_width, original_height = image.size
+
+        # Now get the actual data that we'll send to the device
+        pixel_data = self._convert_image_to_pixel_data_array(image)
+
+        # Finally, send the data to the device
+        self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
+
+    def _preprocess_image(self, image: Image.Image) -> Image.Image:
+        """
+        Preprocess the image to fit the screen size by resizing and cropping while maintaining aspect ratio.
+        """
+        screen_width, screen_height = self.user_screen_size.x, self.user_screen_size.y
+        img_width, img_height = image.size
+
+        # Calculate the scaling factor to maintain aspect ratio
+        scale_factor = max(screen_width / img_width, screen_height / img_height)
+
+        # Resize the image with the scaling factor
+        new_width = int(img_width * scale_factor)
+        new_height = int(img_height * scale_factor)
+        resized_img = image.resize((new_width, new_height))
+
+        # Calculate cropping box to center the image
+        offset_x = (new_width - screen_width) // 2
+        offset_y = (new_height - screen_height) // 2
+
+        # Crop the image to fit screen size
+        cropped_img = resized_img.crop(
+            (offset_x, offset_y, offset_x + screen_width, offset_y + screen_height))
+
+        return cropped_img
+
+    def _convert_image_to_pixel_data_array(self, image: Image.Image) -> bytearray:
+        original_width, original_height = image.size
+        pixel_data = []
+        for y in range(original_height):
+            for x in range(original_width):
+                r, g, b = image.getpixel((x, y))
+                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                pixel_data.extend([(rgb565 >> 8) & 0xFF, rgb565 & 0xFF])
+
+        return pixel_data
+
+    def _flush_pixel_data_to_device(self, x, y, width, height, pixel_data):
         self._xlog.debug(f"Drawing image at ({x}, {y}) with size {width}x{height} over a screen of {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
         if (x + width > self.LCD_WIDTH) or (y + height > self.LCD_HEIGHT):
             self._xlog.error("The image size is beyond the range of the screen")

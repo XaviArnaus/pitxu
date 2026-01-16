@@ -170,9 +170,11 @@ def test_lcd():
             xy=Point(120, 160).to_image_point(), 
             radius=30, 
             fill="blue")
-        lcd.draw_image(0, 0, lcd.LCD_WIDTH, lcd.LCD_HEIGHT, bytearray(image.tobytes()))
+        lcd.draw_image(image)
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
+        # Clear screen
+        lcd.fill_screen(0)
         logger.info("End of work.")
 
     except RuntimeError as e:
