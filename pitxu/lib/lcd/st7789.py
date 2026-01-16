@@ -121,8 +121,7 @@ class ST7789(PyXavi):
         self._send_command(0x11)
         time.sleep(0.12)
         # USE_HORIZONTAL = 1
-        # USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1] else 1
-        USE_HORIZONTAL = 1
+        USE_HORIZONTAL = use_horizontal if use_horizontal in [0,1,2,3] else 1
         direction = {0: 0x00, 1: 0xC0, 2: 0x70,
                      3: 0xA0}.get(USE_HORIZONTAL, 0x00)
         self._send_command(0x36, direction)
@@ -206,6 +205,7 @@ class ST7789(PyXavi):
     #     self._send_command(0x2C)
     
     def set_window(self, x0, y0, x1, y1, use_horizontal=0):
+        use_horizontal = self.use_horizontal
         if use_horizontal in (0, 1):
             self._send_command(
                 0x2A,
@@ -283,7 +283,7 @@ class ST7789(PyXavi):
         self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # We work with images in landscape but apparently the screen is in portrait
-        image = image.rotate(90, expand=True)
+        image = image.rotate(270, expand=True)
         original_width, original_height = image.size
         self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
