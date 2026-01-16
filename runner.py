@@ -16,6 +16,7 @@ from pitxu.lib.utils.config_loader import ConfigLoader
 from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
 from pitxu.lib.matrix_led import Max7219
 from pitxu.lib.lcd.st7789 import ST7789
+from pitxu.lib.objects.point import Point
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
@@ -136,7 +137,8 @@ def test_lcd():
 
         # Delegate the run to Main
         logger.debug("Testing LCD display")
-        lcd = ST7789(config=config, params=parameters)
+        lcd = ST7789(config=config, params=parameters.merge(Dictionary({"screen_size": Point(280, 240)})))
+        logger.debug("Drawing a white cross over black background...")
         lcd.draw_line(0, 0, lcd.LCD_WIDTH - 1, lcd.LCD_HEIGHT - 1, color=0xFFFF)  # Diagonal line
         lcd.draw_line(0, lcd.LCD_HEIGHT - 1, lcd.LCD_WIDTH - 1, 0, color=0xFFFF)  # Diagonal line
         logger.debug("Pausing 2 seconds to let it show")
