@@ -58,14 +58,28 @@ def run():
 
 def clear_displays():
     try:
+        from pitxu.lib.eink import EinkDisplay
+        from pitxu.lib.matrix_led import Max7219
+        from pitxu.lib.lcd.st7789 import ST7789
         # Instantiating
         config, logger, parameters = _initialize()
 
         # Delegate the run to Main
-        logger.debug("Clearing eInk display")
-        EinkDisplay(config=config, params=parameters).clear()
-        logger.debug("Clearing LED Matrix display")
-        Max7219(config=config, params=parameters).clear()
+        try:
+            logger.debug("Clearing eInk display")
+            EinkDisplay(config=config, params=parameters).clear()
+        except Exception as e:
+            logger.warning(f"Could not clear eInk display: {str(e)}")
+        try:
+            logger.debug("Clearing LED Matrix display")
+            Max7219(config=config, params=parameters).clear()
+        except Exception as e:
+            logger.warning(f"Could not clear LED Matrix display: {str(e)}")
+        try:
+            logger.debug("Clearing LCD display")
+            ST7789(config=config, params=parameters).clear()
+        except Exception as e:
+            logger.warning(f"Could not clear LCD display: {str(e)}")
         logger.info("End of work.")
 
     except RuntimeError as e:
@@ -192,7 +206,7 @@ def test_lcd():
             time.sleep(2)
 
         # Clear screen
-        # lcd.fill_screen(0)
+        lcd.fill_screen(0)
         logger.info("End of work.")
 
     except RuntimeError as e:
