@@ -56,6 +56,8 @@ class ST7789(PyXavi):
             self._xlog.warning(f"Didn't receive 'screen_size' from params, taking the default ones from the driver: {self.LCD_WIDTH}x{self.LCD_HEIGHT}")
             self.user_screen_size = Point(self.LCD_WIDTH, self.LCD_HEIGHT)
             self.use_horizontal = 0
+        
+        self.use_horizontal = 2
 
         # Initialize GPIO
         GPIO.setmode(GPIO.BOARD)
