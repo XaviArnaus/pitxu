@@ -97,6 +97,10 @@ class ST7789(PyXavi):
         time.sleep(0.1)
         GPIO.output(self.RST_PIN, GPIO.HIGH)
         time.sleep(0.12)
+    
+    def clear(self):
+        # Paint the entire screen black
+        self.fill_screen(0)
 
     def _init_display(self, use_horizontal=0):
         self._send_command(0x11)

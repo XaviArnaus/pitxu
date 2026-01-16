@@ -47,7 +47,8 @@ class DeviceWrapper(PyXavi, Device):
     
     def clear(self):
         if (self.is_spi_allowed()):
-            self.device._reset_lcd()
+            # self.device._reset_lcd() -> Apparently this causes the LCD to stop working.
+            self.device.clear()
         else:
             pass
     

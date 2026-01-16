@@ -788,4 +788,6 @@ class Main(PyXavi):
                         self._last_processed_interaction_percentage = -1
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         self._process_pool.send(QUEUE_MATRIX, XprocAction.LED_CLEAR)
+            else:
+                self._xlog.debug("🤖 Matrix is busy, not showing interaction holding percentage.")
                     
