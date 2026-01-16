@@ -279,6 +279,8 @@ class ST7789(PyXavi):
     
     def draw_image(self, image: Image.Image):
 
+        self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
+
         # We work with images in landscape but apparently the screen is in portrait
         image = image.rotate(90, expand=True)
 
@@ -288,11 +290,13 @@ class ST7789(PyXavi):
         if not Point(original_width, original_height).equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
             image = self._preprocess_image(image)
             original_width, original_height = image.size
+            self._xlog.debug(f"Preprocessed to size {original_width}x{original_height}")
 
         # Now get the actual data that we'll send to the device
         pixel_data = self._convert_image_to_pixel_data_array(image)
 
         # Finally, send the data to the device
+        self._xlog.debug(f"Flushing image of size {original_width}x{original_height} to device")
         self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
