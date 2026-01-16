@@ -38,9 +38,7 @@ class DeviceWrapper(PyXavi, Device):
 
     def display(self, image: Image.Image, partial: bool = True):
         if (self.is_spi_allowed()):
-            self.device.draw_image(
-                0, 0, self.device.LCD_WIDTH, self.device.LCD_HEIGHT,
-                bytearray(image.tobytes()))
+            self.device.draw_image(image.tobytes())
         else:
             file_path = self.path_for_mocked_images + time.strftime("%Y%m%d-%H%M%S") + ".png"
             image.save(file_path)
