@@ -279,13 +279,15 @@ class ST7789(PyXavi):
     
     def draw_image(self, image: Image.Image):
 
+        original_width, original_height = image.size
         self._xlog.debug(f"Received image of size {original_width}x{original_height} to draw")
 
         # We work with images in landscape but apparently the screen is in portrait
         image = image.rotate(90, expand=True)
+        original_width, original_height = image.size
+        self._xlog.debug(f"Rotated image so now size is {original_width}x{original_height}")
 
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
-        original_width, original_height = image.size
         # if not Point(original_width, original_height).equals_to(self.user_screen_size):
         if not Point(original_width, original_height).equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
             image = self._preprocess_image(image)
