@@ -359,18 +359,20 @@ class Macros(PyXavi):
         draw = self.canvas.create_canvas_over_new_image()
         self._soft_clear_rectangle(draw=draw)
 
+        apply_offset = False
+
         # Move right
         for x in range(8):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3))
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4))
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
             self.device.display(self.canvas.get_image())
             time.sleep(delay)
         # Move left
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3))
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4))
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
             self.device.display(self.canvas.get_image())
             time.sleep(delay)
     
@@ -382,7 +384,8 @@ class Macros(PyXavi):
         needs to be closed afterwards.
         '''
         draw = self.canvas.create_canvas_over_new_image()
-        self._soft_clear_rectangle(draw=draw)
+        # self._soft_clear_rectangle(draw=draw)
+        image = self.canvas.get_image()
 
         max_values = {
             # "col_1": col_1,
@@ -431,7 +434,8 @@ class Macros(PyXavi):
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
             # We show this row to the device
-            self.device.display(self.canvas.get_image())
+            # self.device.display(self.canvas.get_image())
+            self.device.display(image)
             time.sleep(delay)
         
         # And now we move the bars down again to zero
@@ -486,7 +490,6 @@ class Macros(PyXavi):
         for y in range(0, rows):
             cols = 8 if y < rows - 1 else step % 8
             for x in range(0, cols):
-                self._log_debug(f"Showing init step point at ({x},{y})")
                 self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
         self.device.display(self.canvas.get_image())
     

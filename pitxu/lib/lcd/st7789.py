@@ -3,6 +3,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.objects.point import Point
 from PIL import Image
+import numpy as np
 
 import RPi.GPIO as GPIO
 import spidev
@@ -53,6 +54,9 @@ class ST7789(PyXavi):
         self._reset_lcd()
         self._init_display()
         self.fill_screen(0)
+
+        # Initialize numpy
+        self.np=np
     
     def set_backlight(self, brightness):
         if self.backlight_mode:  # 如果是 PWM 模式
@@ -248,10 +252,11 @@ class ST7789(PyXavi):
             original_width, original_height = image.size
 
         # Now get the actual data that we'll send to the device
-        pixel_data = self._convert_image_to_pixel_data_array(image)
+        # pixel_data = self._convert_image_to_pixel_data_array(image)
 
         # Finally, send the data to the device
-        self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
+        # self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
+        self._flush_image_to_device(image)
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """
@@ -278,6 +283,37 @@ class ST7789(PyXavi):
                 (0, offset_y, screen_width, offset_y + screen_height))
         
         return cropped_img
+    
+    def _flush_image_to_device(self, image: Image.Image, x=0, y=0):
+        imwidth, imheight = image.size
+        if imwidth == self.LCD_HEIGHT and imheight ==  self.LCD_WIDTH:
+            img = self.np.asarray(image)
+            pix = self.np.zeros((self.LCD_WIDTH, self.LCD_HEIGHT,2), dtype = self.np.uint8)
+            #RGB888 >> RGB565
+            pix[...,[0]] = self.np.add(self.np.bitwise_and(img[...,[0]],0xF8),self.np.right_shift(img[...,[1]],5))
+            pix[...,[1]] = self.np.add(self.np.bitwise_and(self.np.left_shift(img[...,[1]],3),0xE0), self.np.right_shift(img[...,[2]],3))
+            pix = pix.flatten().tolist()
+            
+            self._send_command(0x36, 0x70)
+            # self.data(0x70) 
+            self.set_window(0, 0, self.LCD_HEIGHT, self.LCD_WIDTH)
+            # self.digital_write(self.DC_PIN,True)
+            self._send_data(pix)
+            
+        else :
+            img = self.np.asarray(image)
+            pix = self.np.zeros((imheight,imwidth , 2), dtype = self.np.uint8)
+            
+            pix[...,[0]] = self.np.add(self.np.bitwise_and(img[...,[0]],0xF8),self.np.right_shift(img[...,[1]],5))
+            pix[...,[1]] = self.np.add(self.np.bitwise_and(self.np.left_shift(img[...,[1]],3),0xE0), self.np.right_shift(img[...,[2]],3))
+
+            pix = pix.flatten().tolist()
+
+            self._send_command(0x36, 0x00)
+            # self.data(0x00) 
+            self.set_window(0, 0, self.LCD_WIDTH, self.LCD_HEIGHT)
+            # self.digital_write(self.DC_PIN,True)
+            self._send_data(pix)
 
     def _convert_image_to_pixel_data_array(self, image: Image.Image) -> bytearray:
         original_width, original_height = image.size

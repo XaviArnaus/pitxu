@@ -158,7 +158,7 @@ class Canvas(PyXavi):
                 background_color = self.COLOR_WHITE
 
             self._working_image = Image.new(self.COLOR_MODE, (self._screen_size.x, self._screen_size.y), background_color)
-            self._xlog.debug(f"Created new working image of size {self._working_image.size} and mode {self.COLOR_MODE}")
+            self._log_debug(f"Created new working image of size {self._working_image.size} and mode {self.COLOR_MODE}")
 
         return self._working_image
     
