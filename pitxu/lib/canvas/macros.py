@@ -545,10 +545,10 @@ class Macros(PyXavi):
 
         # We need to convert the point from a 8x8 Matrix LED to LCD coordinates, based on the full LCD size.
         # And also correct the radius to be relative to the LCD size.
-        x = point.x * ((self._display_size.x - (2 * offset_x)) // 8) + (offset_x // 2 + 1)
+        x = point.x * ((self._display_size.x - offset_x) // 8) + (offset_x // 2 + 1)
         y = point.y * (self._display_size.y // 8)
         # radius = min(self._display_size.x + (2 * offset_x) // 16, self._display_size.y // 16)
-        radius = (self._display_size.x - (2 * offset_x)) // 16
+        radius = (self._display_size.x - offset_x) // 16
 
         draw.circle(
             Point(x + radius, y + radius).to_image_point(),

@@ -62,8 +62,8 @@ lcd:
   mock: True
   # Size of the display
   size:
-    x: 240
-    y: 280
+    x: 280
+    y: 240
   # [bool] Rotate the display 180 degrees or not.
   rotate: False
   # Configuration regarding the fonts
