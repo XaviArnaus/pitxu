@@ -230,11 +230,10 @@ def test_mouth_in_lcd():
         logger.debug("Testing the KITT mouth as LEDs in the LCD display")
         parameters = parameters.merge(Dictionary({"screen_size": expected_screen_size}))
         device = DeviceWrapper(config=config, params=parameters)
+        parameters.set("device", device)
         canvas = Canvas(config=config, params=parameters)
-        macros = Macros(config=config, params=parameters.merge(Dictionary({
-            "canvas": canvas,
-            "device": device
-        })))
+        parameters.set("canvas", canvas)
+        macros = Macros(config=config, params=parameters)
 
         for i in range(0,10):
             macros.kitt_speaking_effect_vu_meter(0,0,2,4)
