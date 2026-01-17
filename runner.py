@@ -236,7 +236,7 @@ def test_mouth_in_lcd():
         macros = Macros(config=config, params=parameters)
 
         for i in range(0,10):
-            macros.kitt_speaking_effect_vu_meter_v2(0,0,2,4)
+            macros.kitt_speaking_effect_vu_meter_v2(0,0,2,4, 0)
 
         # Clear screen
         device.clear()
