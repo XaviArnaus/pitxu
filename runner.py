@@ -214,6 +214,40 @@ def test_lcd():
     except Exception:
         print(full_stack()) 
 
+def test_mouth_in_lcd():
+    try:
+        from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+        from pitxu.lib.canvas.canvas import Canvas
+        from pitxu.lib.canvas.macros import Macros
+        from pitxu.lib.objects.point import Point
+
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        expected_screen_size = Point(280, 240)
+
+        # Delegate the run to Main
+        logger.debug("Testing the KITT mouth as LEDs in the LCD display")
+        parameters = parameters.merge(Dictionary({"screen_size": expected_screen_size}))
+        device = DeviceWrapper(config=config, params=parameters)
+        canvas = Canvas(config=config, params=parameters)
+        macros = Macros(config=config, params=parameters.merge(Dictionary({
+            "canvas": canvas,
+            "device": device
+        })))
+
+        for i in range(0,10):
+            macros.kitt_speaking_effect_vu_meter(0,0,2,4)
+
+        # Clear screen
+        device.clear()
+        logger.info("End of work.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack()) 
+
 def query_sound_devices():
     try:
         # Instantiating
