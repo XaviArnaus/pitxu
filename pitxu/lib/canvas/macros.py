@@ -482,7 +482,7 @@ class Macros(PyXavi):
 
             # We show this row to the device
             self.device.display(image)
-            # time.sleep(delay)
+            time.sleep(delay)
 
     def show_init_step(self, step):
 
