@@ -483,6 +483,85 @@ class Macros(PyXavi):
             # We show this row to the device
             self.device.display(image)
             time.sleep(delay)
+    
+    def kitt_speaking_effect_vu_meter_v2(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.03):
+        '''
+        KITT speaking effect using VU Meter columns
+
+        Be careful, it relies on having a HandableCanvas instance opened previously, and
+        needs to be closed afterwards.
+        '''
+        draw = self.canvas.get_canvas(reset_base_image = False)
+        self._soft_clear_rectangle(draw=draw)
+        # The "draw" object is linked to the canvas, so we can get the image from there
+        # It gets updated as we draw on it, so is more efficient than getting it each time
+        image = self.canvas.get_image()
+
+        max_values = {
+            # "col_1": col_1,
+            "col_2": col_2,
+            "col_3": col_3,
+            "col_4": col_4,
+        }
+
+        apply_offset = False
+
+        # We go row by row from the middle point to the top and bottom extremes
+        for y in range(0, 4):
+
+            # We go through each column to see if we need to light it at this row
+            for col_key, col_value in max_values.items():
+                if col_key == "col_3":
+                    if col_value > y:
+                        # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y), apply_offset=apply_offset)
+                elif col_key == "col_4":
+                    if col_value > y:
+                        # Column 4 and 5
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
+
+            # We show this row to the device
+            # self.device.display(self.canvas.get_image())
+            self.device.display(image)
+            time.sleep(delay)
+        
+        # And now we move the bars down again to zero
+        for y in range(3, -1, -1):
+
+            # We go through each column to see if we need to turn off at this row
+            for col_key, col_value in max_values.items():
+                if col_key == "col_3":
+                    if col_value > y:
+                        # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(1, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(6, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                elif col_key == "col_4":
+                    if col_value > y:
+                        # Column 4 and 5
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+                        self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
+
+            # We show this row to the device
+            self.device.display(image)
+            time.sleep(delay)
 
     def show_init_step(self, step):
 
@@ -547,7 +626,7 @@ class Macros(PyXavi):
         # And also correct the radius to be relative to the LCD size.
         x = point.x * ((self._display_size.x - offset_x) // 8) + (offset_x // 2 + 1)
         y = point.y * ((self._display_size.y - 1) // 8)
-        radius = min((self._display_size.x - offset_x) // 16, self._display_size.y // 16)
+        radius = min((self._display_size.x - offset_x) // 16, (self._display_size.y - 1) // 16)
         # radius = (self._display_size.x - offset_x) // 16
 
         draw.circle(
