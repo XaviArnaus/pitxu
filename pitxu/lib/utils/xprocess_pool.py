@@ -100,7 +100,10 @@ class XprocessPool(PyXavi):
     
     def send(self, queue_name: str, action: XprocAction, param: str = None):
         if queue_name in self._queue:
-            self._queue[queue_name].put((action, param))
+            try:
+                self._queue[queue_name].put((action, param))
+            except BrokenPipeError as e:
+                self._xlog.error("Failed to send message to queue [" + queue_name + "]: " + str(e))
         else:
             self._xlog.error("queue [" + queue_name + "] does not exist in the pool.")
 
