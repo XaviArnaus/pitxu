@@ -119,7 +119,7 @@ class Main(PyXavi):
         This allows the service to stop gracefully when receiving a termination signal,
         that happens with systemctl stop or reboot commands.
         """
-        self._xlog.warning('SIGTERM received, closing the application')
+        self._xlog.warning('SIGTERM received in Main, closing nicely now...')
         self.close_nicely()
 
     def _load_models(self):

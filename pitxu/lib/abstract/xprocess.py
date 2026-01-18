@@ -36,7 +36,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         This allows the service to stop gracefully when receiving a termination signal,
         that happens with systemctl stop or reboot commands.
         """
-        self._xlog.warning('SIGTERM received, closing the application')
+        self._xlog.warning('SIGTERM received from Xprocess [' + self._PROCESS_NAME + '], closing the subprocess')
         self.finish()
 
     def get_queue(self) -> JoinableQueue:
