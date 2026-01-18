@@ -1,0 +1,20 @@
+ALSA:
+
+Jan 18 20:52:55 oscar pulseaudio[5364]: ALSA woke us up to write new data to the device, but there was actually nothing to write.
+Jan 18 20:52:55 oscar pulseaudio[5364]: Most likely this is a bug in the ALSA driver 'snd_soc_simple_card'. Please report this issue to the ALSA developers.
+Jan 18 20:52:55 oscar pulseaudio[5364]: We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() returned 0 or another value < min_avail.
+
+Jan 18 21:07:40 oscar pulseaudio[7428]: Failed to find a working profile.
+Jan 18 21:07:40 oscar pulseaudio[7428]: Failed to load module "module-alsa-card" (argument: "device_id="1" name="platform-107c701400.hdmi" card_name="alsa_card.platform-107c701400.hdmi" namereg_fail=false tsched=no fixed_latency_range=no ignore_dB=no deferred_volume=yes use_ucm=yes avoid_resampling=no card_properties="module-udev-detect.discovered=1""): initialization failed.
+Jan 18 21:07:40 oscar pulseaudio[7428]: Failed to find a working profile.
+Jan 18 21:07:40 oscar pulseaudio[7428]: Failed to load module "module-alsa-card" (argument: "device_id="2" name="platform-107c706400.hdmi" card_name="alsa_card.platform-107c706400.hdmi" namereg_fail=false tsched=no fixed_latency_range=no ignore_dB=no deferred_volume=yes use_ucm=yes avoid_resampling=no card_properties="module-udev-detect.discovered=1""): initialization failed.
+
+Jan 18 21:07:42 oscar pulseaudio[7428]: Unable to contact D-Bus: org.freedesktop.DBus.Error.NotSupported: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+Jan 18 21:07:42 oscar pulseaudio[7428]: Unable to contact D-Bus: org.freedesktop.DBus.Error.NotSupported: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+Jan 18 21:07:42 oscar pactl[7452]: Failure: No such entity
+Jan 18 21:07:42 oscar systemd[1]: pitxu.service: Found left-over process 7428 (pulseaudio) in control group while starting unit. Ignoring.
+Jan 18 21:07:42 oscar systemd[1]: pitxu.service: This usually indicates unclean termination of a previous run, or service implementation deficiencies.
+
+Expression 'alsa_snd_pcm_poll_descriptors_revents( self->pcm, pfds, self->nfds, &revents )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 3665
+Expression 'PaAlsaStreamComponent_EndPolling( &self->capture, capturePfds, &pollCapture, &xrun )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 3887
+Expression 'PaAlsaStream_WaitForFrames( stream, &framesAvail, &xrun )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 4285
