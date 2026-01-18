@@ -61,7 +61,8 @@ class Piper(Xprocess):
 
     def finish(self):
         self._xlog.debug("Closing output stream")
-        self._output_stream.close()
+        if self._output_stream is not None:
+            self._output_stream.close()
         self._xlog.debug("Done finishing Piper Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
