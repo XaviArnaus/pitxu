@@ -3,7 +3,7 @@ from subprocess import call
 
 from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
 
-import logging
+import signal
 from functools import partial
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -84,6 +84,9 @@ class Main(PyXavi):
 
         super(Main, self).init_pyxavi(config=config, params=params)
 
+        # Handle SIGTERM for graceful shutdown
+        signal.signal(signal.SIGTERM, self._handle_sigterm)
+
         # Logger in params for other classes to use
         self._xparams.set("logger", self._xlog)
 
@@ -108,6 +111,16 @@ class Main(PyXavi):
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
+    
+    def _handle_sigterm(self, sig, frame):
+        """
+        Handle SIGTERM signal
+
+        This allows the service to stop gracefully when receiving a termination signal,
+        that happens with systemctl stop or reboot commands.
+        """
+        self._xlog.warning('SIGTERM received, closing the application')
+        self.close_nicely()
 
     def _load_models(self):
         
