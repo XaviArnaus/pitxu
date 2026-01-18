@@ -62,6 +62,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # chatbot is busy
                 False,  # chatbot answer is error
                 False,  # eink idle mode (showing idle eyes)
+                False   # lcd idle mode
             ], name=SHARED_MEMORY_FLAGS)
             if self._shared_memory_flags is None:
                 self._xlog.error("Shared Memory Flags is None, cannot write flags")
