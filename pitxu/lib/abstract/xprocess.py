@@ -25,7 +25,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         self._queue = queue
 
         # Handle SIGTERM for graceful shutdown
-        signal.signal(signal.SIGTERM, self._handle_sigterm)
+        # signal.signal(signal.SIGTERM, self._handle_sigterm)
 
         super(Xprocess, self).__init__()
     
