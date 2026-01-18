@@ -5,6 +5,7 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
+import signal
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
@@ -23,7 +24,20 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
         self._queue = queue
 
+        # Handle SIGTERM for graceful shutdown
+        signal.signal(signal.SIGTERM, self._handle_sigterm)
+
         super(Xprocess, self).__init__()
+    
+    def _handle_sigterm(self, sig, frame):
+        """
+        Handle SIGTERM signal
+
+        This allows the service to stop gracefully when receiving a termination signal,
+        that happens with systemctl stop or reboot commands.
+        """
+        self._xlog.warning('SIGTERM received, closing the application')
+        self.finish()
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
