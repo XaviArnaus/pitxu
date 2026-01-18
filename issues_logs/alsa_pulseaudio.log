@@ -18,3 +18,5 @@ Jan 18 21:07:42 oscar systemd[1]: pitxu.service: This usually indicates unclean 
 Expression 'alsa_snd_pcm_poll_descriptors_revents( self->pcm, pfds, self->nfds, &revents )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 3665
 Expression 'PaAlsaStreamComponent_EndPolling( &self->capture, capturePfds, &pollCapture, &xrun )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 3887
 Expression 'PaAlsaStream_WaitForFrames( stream, &framesAvail, &xrun )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 4285
+
+Jan 18 21:07:42 oscar pactl[7452]: Failure: No such entity
