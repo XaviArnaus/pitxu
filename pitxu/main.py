@@ -587,6 +587,10 @@ class Main(PyXavi):
         self._process_pool.wait_for_all_queues_to_empty()
         self._process_pool._shared_memory.wait_for_all_busy_process_to_idle()
 
+        # Close Vosk
+        if self._dictate is not None:
+            self._dictate.close()
+
         # Finish all related multiprocess stuff
         self._process_pool.finish_leftover_processes()
 

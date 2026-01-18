@@ -3,7 +3,7 @@ import logging
 import sys
 import json
 
-from pyxavi import Dictionary, Config
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
@@ -18,8 +18,8 @@ class Vosk(PyXavi):
     GERMAN: str = "de"
     SPANISH: str = "es"
 
-    _model = None
-    _queue = None
+    _model: Model = None
+    _queue: queue.Queue = None
     _recognizer: KaldiRecognizer = None
 
     _shared_memory: SharedMemoryManager = None
@@ -66,20 +66,29 @@ class Vosk(PyXavi):
         self._xlog.info("Done Initializing Vosk STT")
     
     def recognize(self) -> str:
-        if self._xconfig.get("speech-to-text.mock", True):
-            return input("Type your question: [\"exit\" to leave]: \n")
-        else:
-            data = self._queue.get()
-            if self._recognizer.AcceptWaveform(data):
-                result = json.loads(self._recognizer.Result())
-                result_text = str(result["text"]).replace("\n", "").strip()
-                if result_text == "":
-                    return None
-                self._xlog.debug(f"Vosk: Recognized text: {result_text}")
-                return result_text
+        try:
+            if self._xconfig.get("speech-to-text.mock", True):
+                return input("Type your question: [\"exit\" to leave]: \n")
             else:
-                result = json.loads(self._recognizer.PartialResult())
-                return None
+                data = self._queue.get()
+                if self._recognizer.AcceptWaveform(data):
+                    result = json.loads(self._recognizer.Result())
+                    result_text = str(result["text"]).replace("\n", "").strip()
+                    if result_text == "":
+                        return None
+                    self._xlog.debug(f"Vosk: Recognized text: {result_text}")
+                    return result_text
+                else:
+                    result = json.loads(self._recognizer.PartialResult())
+                    return None
+        except queue.ShutDown:
+            self._xlog.info("Vosk: Queue shutdown signal received, stopping recognition")
+            self.close()
+        except Exception as e:
+            self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
+            self._xlog.error(full_stack())
+            self.close()
+            return None
     
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")
@@ -126,6 +135,20 @@ class Vosk(PyXavi):
         speaker_is_busy = self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
 
         return mic_is_muted or speaker_is_busy
+
+    def close(self):
+        self._xlog.info("Closing Vosk STT")
+
+        if self._recognizer is not None:
+            del self._recognizer
+        
+        if self._model is not None:
+            del self._model
+        
+        if self._queue is not None:
+            self._queue.shutdown()
+
+        self._xlog.info("Vosk STT closed")
 
 
         
