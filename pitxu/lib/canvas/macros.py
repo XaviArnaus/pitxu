@@ -527,3 +527,21 @@ class Macros(PyXavi):
             radius=radius,
             fill=color,
             outline=color)
+    
+    def draw_on_display(self):
+        '''
+        This is the main method to draw all components on the display.
+        '''
+
+        draw = self.canvas.get_canvas(reset_base_image = False)
+        self._soft_clear_rectangle(draw=draw)
+        # The "draw" object is linked to the canvas, so we can get the image from there
+        # It gets updated as we draw on it, so is more efficient than getting it each time
+        image = self.canvas.get_image()
+
+        # Here all the components with the related logic
+        # ...
+
+        # Finally, we show the image on the device
+        self.device.display(image)
+        
