@@ -142,13 +142,16 @@ class Vosk(PyXavi):
         self._xlog.info("Closing Vosk STT")
 
         if self._recognizer is not None:
+            self._xlog.debug("Deleting Vosk recognizer")
             del self._recognizer
         
         if self._model is not None:
+            self._xlog.debug("Deleting Vosk model")
             del self._model
         
         if self._queue is not None:
-            self._queue.join()
+            self._xlog.debug("Deleting Vosk queue")
+            del self._queue
 
         self._xlog.info("Vosk STT closed")
 
