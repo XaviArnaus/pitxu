@@ -122,12 +122,17 @@ class XprocessPool(PyXavi):
         # Now wait until the displays finish being busy
         self._xlog.debug("Waiting for all queues to get empty")
         queue_sizes = "Current queues size: \n"
+        queues_to_wait_for = []
         for name, queue in self._queue.items():
-            queue_sizes += "- " + name + ": " + str(queue.qsize()) + "\n"
+            try:
+                queue_sizes += "- " + name + ": " + str(queue.qsize()) + "\n"
+                queues_to_wait_for.append(queue)
+            except BrokenPipeError:
+                queue_sizes += "- " + name + ": BrokenPipeError\n"
         self._xlog.debug(queue_sizes)
         sleep_seconds = 0.5
         total_sleeping = 0
-        while any(queue.qsize() > 0 for queue in self._queue.values()):
+        while any(queue.qsize() > 0 for queue in queues_to_wait_for):
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
         self._xlog.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
@@ -136,7 +141,11 @@ class XprocessPool(PyXavi):
         if self.get_queue(queue_name) is None:
             self._xlog.error("Queue " + queue_name + " does not exist. Cannot wait for it to empty. I'll continue.")
             return
-        self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
+        try:
+            self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
+        except BrokenPipeError:
+            self._xlog.error("Queue " + queue_name + " BrokenPipeError when checking size. Cannot wait for it to empty. I'll continue.")
+            return
         sleep_seconds = 0.5
         total_sleeping = 0
         while self.get_queue(queue_name).qsize() > 0:
