@@ -97,6 +97,9 @@ class Vosk(PyXavi):
             self._xlog.info("Vosk: Queue shutdown signal received, stopping recognition")
             self.close()
             raise e
+        except VoskException as ve:
+            # It's handled in Main, don't even log it here
+            raise e
         except Exception as e:
             self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
             self._xlog.error(full_stack())
