@@ -107,7 +107,9 @@ class XprocessPool(PyXavi):
             try:
                 self._queue[queue_name].put((action, param))
             except BrokenPipeError as e:
-                self._xlog.error("Failed to send message to queue [" + queue_name + "]: " + str(e))
+                self._xlog.error("Queue [" + queue_name + "] is in BrokenPipe state " + str(e))
+            except ConnectionResetError as e:
+                self._xlog.error("Queue [" + queue_name + "] is in ConnectionReset state " + str(e))
         else:
             self._xlog.error("queue [" + queue_name + "] does not exist in the pool.")
 
