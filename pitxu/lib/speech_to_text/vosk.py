@@ -27,6 +27,8 @@ class Vosk(PyXavi):
     device = None
     samplerate = None
 
+    is_active: bool = False
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Vosk, self).init_pyxavi(config=config, params=params)
 
@@ -64,12 +66,18 @@ class Vosk(PyXavi):
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
 
+        # Keeping track that Vosk is active
+        self.is_active = True
+
         self._xlog.info("Done Initializing Vosk STT")
     
     def recognize(self) -> str:
         try:
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
+            elif self.is_active == False:
+                self._xlog.warning("Vosk is not active, skipping recognition")
+                return None
             else:
                 data = self._queue.get()
                 if self._recognizer.AcceptWaveform(data):
@@ -152,6 +160,9 @@ class Vosk(PyXavi):
         if self._queue is not None:
             self._xlog.debug("Deleting Vosk queue")
             del self._queue
+        
+        # Remember that Vosk is not active anymore
+        self.is_active = False
 
         self._xlog.info("Vosk STT closed")
 
