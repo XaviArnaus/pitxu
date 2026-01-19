@@ -219,6 +219,8 @@ class XprocessPool(PyXavi):
             pass    
         except ValueError:  # in case of closed
             pass
+        except BrokenPipeError:  # in case of closed
+            pass
         # queue.close()
         # theoretically a new item could be placed by the
         # other process by the time the interpreter is on this line,

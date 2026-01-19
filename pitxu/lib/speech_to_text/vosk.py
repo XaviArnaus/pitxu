@@ -93,13 +93,13 @@ class Vosk(PyXavi):
                 else:
                     result = json.loads(self._recognizer.PartialResult())
                     return None
-        except queue.ShutDown:
-            self._xlog.info("Vosk: Queue shutdown signal received, stopping recognition")
-            self.close()
-            raise e
+        except queue.ShutDown as e:
+            raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
         except VoskException as ve:
             # It's handled in Main, don't even log it here
-            raise e
+            raise ve
+        except BrokenPipeError as bpe:
+            raise VoskException("Vosk BrokenPipeError: " + str(bpe))
         except Exception as e:
             self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
             self._xlog.error(full_stack())
