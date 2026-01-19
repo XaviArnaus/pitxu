@@ -166,10 +166,10 @@ class XprocessPool(PyXavi):
     
     def reset_busy_flag_from_related_queue(self, queue: str):
         if queue not in self._shared_flags_per_queue:
-            self._xlog.error("Queue " + queue + " does not have a related shared flag. Cannot reset busy flag.")
+            self._xlog.error(f"Queue {queue} does not have a related shared flag. Cannot reset busy flag.")
             return
         flag_name = self._shared_flags_per_queue[queue]
-        self._xlog.debug("Resetting busy flag " + flag_name + " related to queue " + queue)
+        self._xlog.debug(f"Resetting busy flag {flag_name} related to queue {queue}")
         self._shared_memory.write_shared_memory_flag(flag_name, False)
     
     def finish_leftover_processes(self):
