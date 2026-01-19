@@ -4,11 +4,12 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY,\
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD
 
 
 class XprocessPool(PyXavi):
@@ -22,7 +23,13 @@ class XprocessPool(PyXavi):
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
         "lcd_busy": SHARED_LCD_BUSY,
-    }   
+    }
+    _shared_flags_per_queue: dict[str, str] = {
+        QUEUE_EINK: SHARED_EINK_BUSY,
+        QUEUE_MATRIX: SHARED_MATRIX_BUSY,
+        QUEUE_SPEAKER: SHARED_SPEAKER_BUSY,
+        QUEUE_LCD: SHARED_LCD_BUSY,
+    }
 
     def __init__(self, config: Config, params: Dictionary):
 
@@ -131,6 +138,7 @@ class XprocessPool(PyXavi):
                 queues_to_wait_for.append(queue)
             except BrokenPipeError:
                 queue_sizes += "- " + name + ": BrokenPipeError\n"
+                self.reset_busy_flag_from_related_queue(name)
         self._xlog.debug(queue_sizes)
         sleep_seconds = 0.5
         total_sleeping = 0
@@ -147,6 +155,7 @@ class XprocessPool(PyXavi):
             self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
         except BrokenPipeError:
             self._xlog.error("Queue " + queue_name + " BrokenPipeError when checking size. Cannot wait for it to empty. I'll continue.")
+            self.reset_busy_flag_from_related_queue(queue_name)
             return
         sleep_seconds = 0.5
         total_sleeping = 0
@@ -154,6 +163,14 @@ class XprocessPool(PyXavi):
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
         self._xlog.debug("The queue " + queue_name + " is empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def reset_busy_flag_from_related_queue(self, queue: str):
+        if queue not in self._shared_flags_per_queue:
+            self._xlog.error("Queue " + queue + " does not have a related shared flag. Cannot reset busy flag.")
+            return
+        flag_name = self._shared_flags_per_queue[queue]
+        self._xlog.debug("Resetting busy flag " + flag_name + " related to queue " + queue)
+        self._shared_memory.write_shared_memory_flag(flag_name, False)
     
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
