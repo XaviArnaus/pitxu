@@ -45,8 +45,30 @@ class SharedMemoryManager(PyXavi):
         self._xlog.debug("Initializing SharedMemoryManager")
 
         super(SharedMemoryManager, self).__init__()
-
+    
     def initialize_new_shared_memory_flags(self):
+        # First of all, try to initialize new shared memory, in case it does not exist yet
+        if self._shared_memory_flags is not None:
+            self._xlog.debug("Shared Memory Flags already initialized")
+            return
+        self._initialize_new_shared_memory_flags()
+
+        # Now, if the shared memory was not created, try to load existing one
+        if self._shared_memory_flags is None:
+            self._xlog.error("Shared Memory Flags is None, will try to clean previous state and retry")
+            self._shared_memory_flags = shared_memory.SharedMemory(name=SHARED_MEMORY_FLAGS, create=False)
+            self._xlog.debug("Cleaning previous Shared Memory Flags")
+            self._shared_memory_flags.unlink()
+            time.sleep(1)
+            self._xlog.debug("Retrying to initialize new Shared Memory Flags")
+            self._initialize_new_shared_memory_flags()
+        
+        # Final check
+        if self._shared_memory_flags is None:
+            self._xlog.error("Shared Memory Flags is None, cannot write flags, bubbling up the error")
+            raise Exception("Shared Memory Flags is None, cannot write flags")
+
+    def _initialize_new_shared_memory_flags(self):
         '''
         Initializes the shared memory for inter-process communication.
         '''
@@ -64,12 +86,32 @@ class SharedMemoryManager(PyXavi):
                 False,  # eink idle mode (showing idle eyes)
                 False   # lcd idle mode
             ], name=SHARED_MEMORY_FLAGS)
-            if self._shared_memory_flags is None:
-                self._xlog.error("Shared Memory Flags is None, cannot write flags")
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))
     
     def initialize_new_shared_memory_vu_meter(self):
+        # First of all, try to initialize new shared memory, in case it does not exist yet
+        if self._shared_memory_flags is not None:
+            self._xlog.debug("Shared Memory Flags already initialized")
+            return
+        self._initialize_new_shared_memory_flags()
+
+        # Now, if the shared memory was not created, try to load existing one
+        if self._shared_memory_flags is None:
+            self._xlog.error("Shared Memory Flags is None, will try to clean previous state and retry")
+            self._shared_memory_flags = shared_memory.SharedMemory(name=SHARED_MEMORY_VU_METER, create=False)
+            self._xlog.debug("Cleaning previous Shared Memory Flags")
+            self._shared_memory_flags.unlink()
+            time.sleep(1)
+            self._xlog.debug("Retrying to initialize new Shared Memory Flags")
+            self._initialize_new_shared_memory_flags()
+        
+        # Final check
+        if self._shared_memory_flags is None:
+            self._xlog.error("Shared Memory Flags is None, cannot write flags, bubbling up the error")
+            raise Exception("Shared Memory Flags is None, cannot write flags")
+    
+    def _initialize_new_shared_memory_vu_meter(self):
         '''
         Initializes the shared memory for inter-process communication.
         '''
