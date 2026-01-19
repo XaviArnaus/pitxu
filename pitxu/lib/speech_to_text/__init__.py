@@ -1,1 +1,1 @@
-from .vosk import Vosk
+from .vosk import Vosk, VoskException

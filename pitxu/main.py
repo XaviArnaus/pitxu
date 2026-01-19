@@ -17,7 +17,7 @@ from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.eink import Display, EinkCanvas
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd as Lcd
-from pitxu.lib.speech_to_text import Vosk
+from pitxu.lib.speech_to_text import Vosk, VoskException
 from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.objects import XprocAction, ChatbotResponse, FunctionCallPair
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, \
@@ -366,6 +366,8 @@ class Main(PyXavi):
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
+        except VoskException as ve:
+            self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
         except Exception as e:
             self._xlog.error("🛑 Error in Main run loop: " + str(e))
             self._xlog.error(full_stack())  

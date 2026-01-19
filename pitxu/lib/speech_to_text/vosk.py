@@ -11,6 +11,9 @@ from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 from vosk import Model, KaldiRecognizer, SetLogLevel
 import sounddevice as sd
 
+class VoskException(Exception):
+    pass
+
 class Vosk(PyXavi):
 
     ENGLISH: str = "en-us"
@@ -76,8 +79,8 @@ class Vosk(PyXavi):
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
             elif self.is_active == False:
-                self._xlog.warning("Vosk is not active, skipping recognition")
-                return None
+                # self._xlog.warning("Vosk is not active, skipping recognition")
+                raise VoskException("Vosk is not active, cannot recognize audio")
             else:
                 data = self._queue.get()
                 if self._recognizer.AcceptWaveform(data):
