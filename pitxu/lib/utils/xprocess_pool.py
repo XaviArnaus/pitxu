@@ -193,7 +193,10 @@ class XprocessPool(PyXavi):
         self._xlog.debug("Joining queues")
         for name, queue in self._queue.items():
             if queue is not None:
-                queue.join()
+                try:
+                    queue.join()
+                except BrokenPipeError:  # in case of closed
+                    pass
 
         # 4. Terminate any leftover processes
         for name, process in self._process.items():
