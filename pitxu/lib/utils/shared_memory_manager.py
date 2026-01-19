@@ -91,26 +91,26 @@ class SharedMemoryManager(PyXavi):
     
     def initialize_new_shared_memory_vu_meter(self):
         # First of all, try to initialize new shared memory, in case it does not exist yet
-        if self._shared_memory_flags is not None:
-            self._xlog.debug("Shared Memory Flags already initialized")
+        if self._shared_memory_vu_meter is not None:
+            self._xlog.debug("Shared Memory VU Meter already initialized")
             return
         self._initialize_new_shared_memory_vu_meter()
 
         # Now, if the shared memory was not created, try to load existing one
-        if self._shared_memory_flags is None:
-            self._xlog.error("Shared Memory Flags is None, will try to clean previous state and retry")
-            self._shared_memory_flags = shared_memory.SharedMemory(name=SHARED_MEMORY_VU_METER, create=False)
-            self._xlog.debug("Cleaning previous Shared Memory Flags")
-            self._shared_memory_flags.unlink()
+        if self._shared_memory_vu_meter is None:
+            self._xlog.error("Shared Memory VU Meter is None, will try to clean previous state and retry")
+            self._shared_memory_vu_meter = shared_memory.SharedMemory(name=SHARED_MEMORY_VU_METER, create=False)
+            self._xlog.debug("Cleaning previous Shared Memory VU Meter")
+            self._shared_memory_vu_meter.unlink()
             time.sleep(1)
-            self._xlog.debug("Retrying to initialize new Shared Memory Flags")
+            self._xlog.debug("Retrying to initialize new Shared Memory VU Meter")
             self._initialize_new_shared_memory_vu_meter()
         
         # Final check
-        if self._shared_memory_flags is None:
-            self._xlog.error("Shared Memory Flags is None, cannot write flags, bubbling up the error")
-            raise Exception("Shared Memory Flags is None, cannot write flags")
-    
+        if self._shared_memory_vu_meter is None:
+            self._xlog.error("Shared Memory VU Meter is None, cannot write flags, bubbling up the error")
+            raise Exception("Shared Memory VU Meter is None, cannot write flags")
+
     def _initialize_new_shared_memory_vu_meter(self):
         '''
         Initializes the shared memory for inter-process communication.
