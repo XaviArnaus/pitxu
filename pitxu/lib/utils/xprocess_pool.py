@@ -235,4 +235,6 @@ class XprocessPool(PyXavi):
         except ValueError:  # too many times called, do not care
         #  since all remaining will not be processed due to failure state
             pass
+        except BrokenPipeError:  # in case of closed
+            pass
 

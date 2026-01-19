@@ -94,7 +94,7 @@ class SharedMemoryManager(PyXavi):
         if self._shared_memory_flags is not None:
             self._xlog.debug("Shared Memory Flags already initialized")
             return
-        self._initialize_new_shared_memory_flags()
+        self._initialize_new_shared_memory_vu_meter()
 
         # Now, if the shared memory was not created, try to load existing one
         if self._shared_memory_flags is None:
@@ -104,7 +104,7 @@ class SharedMemoryManager(PyXavi):
             self._shared_memory_flags.unlink()
             time.sleep(1)
             self._xlog.debug("Retrying to initialize new Shared Memory Flags")
-            self._initialize_new_shared_memory_flags()
+            self._initialize_new_shared_memory_vu_meter()
         
         # Final check
         if self._shared_memory_flags is None:
