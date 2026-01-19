@@ -52,6 +52,8 @@ class Main(PyXavi):
     _queue_speech: JoinableQueue = None
     _shared_memory: shared_memory.ShareableList = None
 
+    _is_pitxu_active: bool = True
+
     _chatbot_client_callbacks: dict[str, callable] = None
 
     _maintenance: Maintenance = None
@@ -573,6 +575,11 @@ class Main(PyXavi):
         return False
     
     def close_nicely(self):
+
+        if not self._is_pitxu_active:
+            self._log_debug("Already closed nicely, skipping.")
+            return
+
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
 
@@ -608,6 +615,9 @@ class Main(PyXavi):
         # Finish all related multiprocess stuff
         self._process_pool.finish_leftover_processes()
 
+        # Mark as not active anymore
+        self._is_pitxu_active = False
+
         # ------ Final logs ------
 
         self._xlog.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
@@ -616,6 +626,10 @@ class Main(PyXavi):
         self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
         self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
+
+        # And now, simply exit
+        self._xlog.info("Exiting now. Goodbye!")
+        sys.exit(0)
     
     def persist_state(self):
 
