@@ -366,6 +366,9 @@ class Main(PyXavi):
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
+        except Exception as e:
+            self._xlog.error("🛑 Error in Main run loop: " + str(e))
+            self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.
         self.close_nicely()
