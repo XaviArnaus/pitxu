@@ -89,7 +89,8 @@ def clear_displays():
 
 def test_eink_multiline():
     try:
-        from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
+        from pitxu.lib.eink import EinkDisplay, Macros
+        from pitxu.lib.canvas.canvas import Canvas
 
         # Instantiating
         config, logger, parameters = _initialize()
@@ -102,18 +103,18 @@ def test_eink_multiline():
             display = eink, 
             text = "This is a test", 
             icon = "⚠️", 
-            font_size = EinkCanvas.FONT_BIG_SIZE, 
+            font_size = Canvas.FONT_SIZE_BIG, 
             header = "Single Line Test", 
-            font_header_size = EinkCanvas.FONT_BIG_SIZE)
+            font_header_size = Canvas.FONT_SIZE_BIG)
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         macros.arbitrary_text_with_icon(
             display = eink, 
             text = "This is a test of multiline text rendering on the eInk display.", 
             icon = "⚠️", 
-            font_size = EinkCanvas.FONT_BIG_SIZE, 
+            font_size = Canvas.FONT_SIZE_BIG, 
             header = "Multiline Test", 
-            font_header_size = EinkCanvas.FONT_BIG_SIZE)
+            font_header_size = Canvas.FONT_SIZE_BIG)
         logger.debug("Pausing 2 seconds to let it show")
         time.sleep(2)
         logger.debug("Clearing eInk display")
@@ -237,6 +238,39 @@ def test_mouth_in_lcd():
 
         for i in range(0,10):
             macros.kitt_speaking_effect_vu_meter(0,0,2,4, 0.01)
+
+        # Clear screen
+        device.clear()
+        logger.info("End of work.")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
+def test_thinking_in_lcd():
+    try:
+        from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+        from pitxu.lib.canvas.canvas import Canvas
+        from pitxu.lib.canvas.macros import Macros
+        from pitxu.lib.objects.point import Point
+
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        expected_screen_size = Point(280, 240)
+
+        # Delegate the run to Main
+        logger.debug("Testing the KITT mouth as LEDs in the LCD display")
+        parameters = parameters.merge(Dictionary({"screen_size": expected_screen_size}))
+        device = DeviceWrapper(config=config, params=parameters)
+        parameters.set("device", device)
+        canvas = Canvas(config=config, params=parameters)
+        parameters.set("canvas", canvas)
+        macros = Macros(config=config, params=parameters)
+
+        for i in range(0,5):
+            macros.kitt_horizontal_effect()
 
         # Clear screen
         device.clear()
@@ -372,7 +406,7 @@ def send_to_printer():
     except Exception:
         print(full_stack())
 
-def _initialize():
+def _initialize() -> tuple[Config, logging, Dictionary]:
     load_environment()
     config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)

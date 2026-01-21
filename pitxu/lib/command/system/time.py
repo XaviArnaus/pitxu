@@ -1,10 +1,11 @@
-import time
+import time, logging
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
 
 
 class SystemTime(PyXavi, Command):
@@ -27,7 +28,7 @@ class SystemTime(PyXavi, Command):
             self._xlog.error(f"Error getting current time: {e}")
             return "Error"
 
-    def callback_show_time(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_show_time(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_local_system_clock_time` that gets called AFTER chatbot from `main`.
         
@@ -44,16 +45,17 @@ class SystemTime(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_local_system_clock_time`.
         
         """
-        main_instance._xlog.info(f"The current time in the callback is: {value}")
+        log.debug(f"The current time in the callback is: {value}")
 
         try:
-            main_instance._xlog.error(f"🕒 Showing time on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.info(f"🕒 Showing time on Foreground Display: {value}")
+            interaction.show_arbitrary_text_on_eink(
                 icon="🕒",
                 text=value,
-                font_size=EinkCanvas.FONT_HUGE_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing time on eInk: {e}")
+            log.error(f"🛑 Error showing time on Foreground Display: {e}")
+            log.debug(full_stack())
 
     def get_tool_definition(self) -> list[callable]:
         """

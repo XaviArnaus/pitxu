@@ -1,5 +1,3 @@
-
-
 class Command:
     """
     Abstract base class for all commands.
@@ -42,5 +40,5 @@ class Command:
         """
         return self.default_empty_callback
 
-    def default_empty_callback(self, main_instance = None, value: any = None, args: dict = None):
+    def default_empty_callback(self, log, interaction, value: any = None, args: dict = None):
         pass

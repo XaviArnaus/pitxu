@@ -13,16 +13,23 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     _queue: JoinableQueue = None
     _shared_memory: SharedMemoryManager = None
+    _busy_flag: int = None
 
     _current_action: XprocAction = None
 
-    def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, **kwargs):
+    def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, busy_flag: int = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
 
         self._PROCESS_NAME = self.get_process_name()
         self._xlog.debug("Initializing Xprocess [" + self._PROCESS_NAME + "]")
 
+        if queue is None:
+            raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a JoinableQueue instance, got None.")
         self._queue = queue
+
+        if busy_flag is None:
+            raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a busy_flag index, got None.")
+        self._busy_flag = busy_flag
 
         # Handle SIGTERM for graceful shutdown
         # signal.signal(signal.SIGTERM, self._handle_sigterm)
@@ -41,6 +48,9 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
+
+    def get_busy_flag(self) -> int:
+        return self._busy_flag
 
     def get_current_processing_action(self) -> XprocAction:
         return self._current_action
@@ -65,8 +75,14 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 # Let's remember the current action
                 self._current_action = action
 
-                # This is the old way, to be deprecated
+                # We mark the process as busy
+                self.set_busy()
+
+                # Run the context-aware run_with_context() first
                 self.run_with_context(self._xconfig, self._xlog, action, param)
+
+                # We're not busy anymore
+                self.unset_busy()
 
                 # Executes the own do() passing the context.
                 if action == XprocAction.DO:
@@ -75,6 +91,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 # Initializes the model from within the Process.
                 # This is the only way to avoid Model Session issues
                 if action == XprocAction.INITIALIZE:
+                    self._log_debug("Performing the initialize() for process [" + self._PROCESS_NAME + "] from the SubProcess")
                     self.initialize()
 
                 # We don't need to finish the subprocess from main explicitly, it will end when the job
@@ -136,3 +153,18 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def write_shared_memory_vu_meter_column(self, index: int, value: bool):
         self._shared_memory.write_shared_memory_vu_meter_column(index, value)
+    
+    # Display busy control: is it already busy?
+    def is_busy(self):
+        # return self.read_shared_memory_flag(SHARED_LCD_BUSY)
+        return self.read_shared_memory_flag(self._busy_flag)
+    
+    # Display busy control: set as busy
+    def set_busy(self):
+        # self.write_shared_memory_flag(SHARED_LCD_BUSY, True)
+        self.write_shared_memory_flag(self._busy_flag, True)
+
+    # Display busy control: unset as busy
+    def unset_busy(self):
+        # self.write_shared_memory_flag(SHARED_LCD_BUSY, False)
+        self.write_shared_memory_flag(self._busy_flag, False)

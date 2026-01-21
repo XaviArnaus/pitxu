@@ -2,7 +2,10 @@ from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 import tempfile, subprocess
 
@@ -48,7 +51,7 @@ class ServicePrint(PyXavi, Command):
             self._xlog.debug(full_stack())
             return False
     
-    def callback_print(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_print(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `print` that gets called AFTER chatbot from `main`.
 
@@ -59,19 +62,19 @@ class ServicePrint(PyXavi, Command):
         """
         try:
             if value:
-                main_instance._xlog.debug("🖨️ Text printed.")
-                main_instance.show_arbitrary_text_on_eink(
+                log.debug("🖨️ Text printed.")
+                interaction.show_arbitrary_text_on_eink(
                     icon="🖨️",
                     text="Text printed ✅",
-                    font_size=EinkCanvas.FONT_BIG_SIZE)
+                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
             else:
-                main_instance._xlog.error("🛑 Failed to print text.")
-                main_instance.show_arbitrary_text_on_eink(
+                log.error("🛑 Failed to print text.")
+                interaction.show_arbitrary_text_on_eink(
                     icon="🖨️",
                     text="Failed to print text ❌",
-                    font_size=EinkCanvas.FONT_BIG_SIZE)
+                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error in print callback: {e}")
+            log.error(f"🛑 Error in print callback: {e}")
     
     def get_tool_definition(self) -> list[callable]:
         """

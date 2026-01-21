@@ -1,27 +1,19 @@
 # Configuration to choose how and which displays are used.
 displays:
-  # [Bool] Merge all displays into one single output.
-  # Useful for the case that we only have one physical display that should show everything.
-  merge_displays: True
-  # Configuration for when we don't merge displays
-  unmerged_displays:
-    # [String] Display to use for notifications.
-    # Values: the root keys of this file for each display.
-    # This is meant for idle (eyes) and showing text relating questions and answers from tools.
-    # Ideally use a densed pixel display, like the "eink" or "st7789p3"
-    notification_display: eink
-    # [String] Display to use for status updates.
-    # Values: the root keys of this file for each display.
-    # This is meant for showing simple status information, like "listening", "thinking", "speaking", etc.
-    # Ideally use a simple display and fast refresh rate, like the "matrix_led"
-    status_display: matrix_led
-  # Configuration for when we merge displays
-  merged_displays:
-    # [String] Display to use for both notifications and status updates.
-    # Values: the root keys of this file for each display.
-    # This is meant for showing everything on a single display.
-    # Ideally use a densed pixel display and fast refresh rating, like the "st7789p3"
-    main_display: st7789p3
+  # [List] List of displays available to be used.
+  # The root keys of this file are the available displays, but needs to be said explicitly here.
+  available_displays:
+    - eink
+    - matrix_led
+    - lcd
+  # [String] The display to use for foreground notifications. Must be one of the available displays.
+  # Foreground notifications are those that need to be shown immediately, like questions and answers from tools.
+  # foreground_display: lcd
+  foreground_display: eink
+  # [String] The display to use for background notifications. Must be one of the available displays.
+  # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
+  # background_display: lcd
+  background_display: matrix_led
 
 # Configuration fo the eInk Display
 eink:
@@ -38,10 +30,13 @@ eink:
   rotate: True
   # Configuration regarding the fonts
   fonts:
+    ultra: 85
+    huge: 45
     big: 22
     medium: 14
     small: 10
-    huge: 40
+    small_emoji: 9
+    tiny: 8
 
 # Configuration fo the Max7219 matrix led
 matrix_led:
@@ -68,6 +63,10 @@ lcd:
   rotate: False
   # Configuration regarding the fonts
   fonts:
-    big: 32
+    ultra: 85
+    huge: 45
+    big: 28
     medium: 24
-    small: 16
+    small: 20
+    small_emoji: 16
+    tiny: 16

@@ -81,6 +81,8 @@ class Canvas(PyXavi):
         # This is useful to let the device to have its own config section
         if params.key_exists("device_config_prefix"):
             self.DEVICE_CONFIG_PREFIX = params.get("device_config_prefix")
+        else:
+            raise ValueError("'Device config prefix' not provided in params. Cannot continue.")
 
         # Getting the screen size from params or config
         if params.key_exists("screen_size"):
@@ -105,9 +107,9 @@ class Canvas(PyXavi):
         
         # Getting the image color mode from params or config or default
         if params.key_exists("color_mode"):
-            self.COLOR_MODE = params.get("color_mode")
+            self.COLOR_MODE = str(params.get("color_mode"))
         else:
-            self.COLOR_MODE = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".image.mode", self.COLOR_MODE)
+            self.COLOR_MODE = str(self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".image.mode", self.COLOR_MODE))
 
         # Initialise fonts
         self._initialise_fonts()
@@ -157,10 +159,22 @@ class Canvas(PyXavi):
             if self.COLOR_MODE == "1" and clear_background:
                 background_color = self.COLOR_WHITE
 
-            self._working_image = Image.new(self.COLOR_MODE, (self._screen_size.x, self._screen_size.y), background_color)
+            self._working_image = Image.new(str(self.COLOR_MODE), (self._screen_size.x, self._screen_size.y), background_color)
             self._log_debug(f"Created new working image of size {self._working_image.size} and mode {self.COLOR_MODE}")
 
         return self._working_image
+
+    def get_font_by_size(self, size: int) -> ImageFont:
+        """
+        Returns the font object for the given size.
+
+        If the size does not exist, returns the medium font.
+        """
+        if f"{size}" in self.font_by_size:
+            return self.font_by_size[f"{size}"]
+        else:
+            self._xlog.warning(f"Font size {size} not found. Returning medium font size {self.FONT_SIZE_MEDIUM}.")
+            return self.FONT_MEDIUM
     
     def _reset_image(self):
         """

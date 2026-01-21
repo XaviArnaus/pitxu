@@ -3,7 +3,7 @@ from PIL import Image
 
 from pyxavi import Config
 
-from pitxu.lib.abstract.xprocess import Xprocess
+from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
 from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
@@ -12,7 +12,7 @@ from pitxu.lib.objects import XprocAction
 from definitions import SHARED_LCD_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
     SHARED_LCD_IDLE_MODE
 
-class Lcd(Xprocess):
+class Lcd(XprocessDisplayBackground):
     '''
     Class to control the behaviour of the LCD display inside a sub-process (child)
     '''
@@ -22,13 +22,16 @@ class Lcd(Xprocess):
     macros: Macros = None
     _display_size: Point = None
 
-    _can_show_kitt_mouth: bool = True
-
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
     def get_process_name(self) -> str:
         return "LCD"
+
+    def get_canvas_handler(self) -> Canvas | None:
+        if self.canvas is not None:
+            return self.canvas
+        return None
 
     def initialize(self):
         self._xlog.info("Initializing LCD Worker")
@@ -52,78 +55,6 @@ class Lcd(Xprocess):
     def finish(self):
         self._xlog.info("Finalizing LCD Worker")
 
-    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
-        # We're busy
-        self.set_lcd_busy()
-
-        # ---------- eInk-like actions ----------
-
-        if action == XprocAction.SHOW and param != "":
-            self.show(param)
-        
-        if action == XprocAction.SHOW_IMAGE_EINK and param:
-            # Here, param is expected to be an instance of ImageDraw
-            self.show_arbitrary_image_while_speaking(param)
-        
-        if action == XprocAction.SHOW_TALKING_ARBITRARY_EINK and param:
-            self.show_arbitrary_text_while_speaking(param)
-        
-        if action == XprocAction.SHOW_ARBITRARY_TEXT_EINK and param:
-            self.show_arbitrary_text_on_lcd(param)
-
-        # Shows the Idle splash screen
-        if action == XprocAction.SHOW_IDLE_EINK:
-            self.idle()
-
-        # Shows the Ready splash screen
-        if action == XprocAction.READY:
-            self.splash_ready()
-        
-        # Shows the Startup splash screen
-        if action == XprocAction.STARTUP:
-            self.splash_startup()
-        
-        # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
-            self.clear()
-        
-        # Clears the screen using a partial white
-        if action == XprocAction.SOFT_CLEAR:
-            self.soft_clear()
-
-        # ---------- matrix-led-like actions ----------
-
-        # Shows the message received
-        if action == XprocAction.LED and param != "":
-            self.show(param)
-        
-        # Show KITT mouth while speaking
-        if action == XprocAction.SAY:
-            self.show_kitt_mouth_while_speaking()
-        
-        # Show KITT scanner while thinking
-        if action == XprocAction.THINKING:
-            self.show_kitt_scanner_while_thinking()
-        
-        if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
-            percentage = int(param)
-            self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
-            # self._macros.open_canvas()
-            self._macros.show_interaction_holding_percentage(percentage)
-            # self._macros.close_canvas()
-        
-        # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
-            self.clear()
-        
-        if action == XprocAction.INIT_STEP and param != "":
-            step = int(param)
-            # For now, just show the step number as a message
-            self.init_step(step)
-        
-        # Now we're not
-        self.unset_lcd_busy()
-    
     # ------- eInk-like functions ---------
 
     def show(self, text: str):
@@ -271,10 +202,6 @@ class Lcd(Xprocess):
         self._macros.show_interaction_holding_percentage(percentage)
 
     # ------- Communication with Flags ---------
-
-    # KITT mouth control: is it allowed or are we doing something else?
-    def is_kitt_mouth_allowed(self):
-        return self._can_show_kitt_mouth
     
     # KITT mouth control: internally, even allowed, we only show it when the speaker is busy.
     def is_speaker_busy(self):
@@ -283,20 +210,23 @@ class Lcd(Xprocess):
     def is_chatbot_busy(self):
         return self.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
 
-    # LCD busy control: is it already busy?
-    def is_lcd_busy(self):
-        # return self.read_shared_memory_flag(SHARED_LCD_BUSY)
-        return self.read_shared_memory_flag(SHARED_MATRIX_BUSY)
+    # # LCD busy control: is it already busy?
+    # REMOVEME: This is now handled in the parent Xprocess
+    # def is_lcd_busy(self):
+    #     # return self.read_shared_memory_flag(SHARED_LCD_BUSY)
+    #     return self.read_shared_memory_flag(SHARED_MATRIX_BUSY)
     
-    # LCD busy control: set as busy
-    def set_lcd_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, True)
-        self.write_shared_memory_flag(SHARED_MATRIX_BUSY, True)
+    # # LCD busy control: set as busy
+    # REMOVEME: This is now handled in the parent Xprocess
+    # def set_lcd_busy(self):
+    #     # self.write_shared_memory_flag(SHARED_LCD_BUSY, True)
+    #     self.write_shared_memory_flag(SHARED_MATRIX_BUSY, True)
 
-    # LCD busy control: unset as busy
-    def unset_lcd_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, False)
-        self.write_shared_memory_flag(SHARED_MATRIX_BUSY, False)
+    # # LCD busy control: unset as busy
+    # REMOVEME: This is now handled in the parent Xprocess
+    # def unset_lcd_busy(self):
+    #     # self.write_shared_memory_flag(SHARED_LCD_BUSY, False)
+    #     self.write_shared_memory_flag(SHARED_MATRIX_BUSY, False)
 
     # LCD idle mode control: is it in idle mode?
     def is_lcd_idle_mode(self):

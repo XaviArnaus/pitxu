@@ -1,8 +1,10 @@
 from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas, Macros
-from pitxu.lib.objects import Point, Rectangle
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 from google import genai
 from google.genai import types
@@ -53,7 +55,7 @@ class GoogleSearch(PyXavi, Command):
             self._xlog.debug("Discarded other candidates to the answer:" + "\n\n>".join(response.candidates))
         return response.text
     
-    def callback_google_search_response_to_a_prompt(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_google_search_response_to_a_prompt(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_google_search_response_to_a_prompt` that gets called AFTER chatbot from `main`.
 
@@ -64,17 +66,17 @@ class GoogleSearch(PyXavi, Command):
         """
         dd(args)
         search_term = args.get("prompt", "unknown") if args else "unknown"
-        main_instance._xlog.info(f"The term searched in Google from the callback is: {search_term}")
+        log.info(f"The term searched in Google from the callback is: {search_term}")
 
         try:
-            main_instance._xlog.error(f"🔎 Showing Google searched term on eInk: [{search_term}]")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"🔎 Showing Google searched term on eInk: [{search_term}]")
+            interaction.show_arbitrary_text_on_eink(
                 icon="🔎 ",
                 text=search_term,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Google searched term on eInk: {e}")
-            main_instance._xlog.error(full_stack())
+            log.error(f"🛑 Error showing Google searched term on eInk: {e}")
+            log.error(full_stack())
 
     def get_tool_definition(self) -> list[callable]:
         """

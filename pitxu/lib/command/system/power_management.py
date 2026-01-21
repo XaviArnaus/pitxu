@@ -3,7 +3,10 @@ from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 import math
 
@@ -79,7 +82,7 @@ class SystemPowerManagement(PyXavi, Command):
         # We fake this command, so that the `main` can handle the actual restart
         return True
     
-    def callback_battery_level(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_battery_level(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_battery_level` that gets called AFTER chatbot from `main`.
 
@@ -88,7 +91,7 @@ class SystemPowerManagement(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_battery_level`.
 
         """
-        main_instance._xlog.info(f"The battery level in the callback is: {value}")
+        log.info(f"The battery level in the callback is: {value}")
 
         try:
             if float(value) < 30.0:
@@ -97,13 +100,13 @@ class SystemPowerManagement(PyXavi, Command):
                 icon = "🔋"
 
             # New approach, using the existing display instance via main
-            main_instance._xlog.error(f"🔋 Showing battery level on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"🔋 Showing battery level on eInk: {value}")
+            interaction.show_arbitrary_text_on_eink(
                 icon=icon,
                 text=f"{value} %",
-                font_size=EinkCanvas.FONT_HUGE_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing battery level on eInk: {e}")
+            log.error(f"🛑 Error showing battery level on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """

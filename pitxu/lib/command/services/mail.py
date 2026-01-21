@@ -2,7 +2,10 @@ from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 import smtplib
 from email.mime.text import MIMEText
@@ -63,7 +66,7 @@ class ServiceMail(PyXavi, Command):
             self._xlog.debug(full_stack())
             return False
     
-    def callback_send_email(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_send_email(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `send_email` that gets called AFTER chatbot from `main`.
 
@@ -74,19 +77,19 @@ class ServiceMail(PyXavi, Command):
         """
         try:
             if value:
-                main_instance._xlog.debug("📧 Email sent.")
-                main_instance.show_arbitrary_text_on_eink(
+                log.debug("📧 Email sent.")
+                interaction.show_arbitrary_text_on_eink(
                     icon="📧",
                     text="Email sent ✅",
-                    font_size=EinkCanvas.FONT_BIG_SIZE)
+                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
             else:
-                main_instance._xlog.error("🛑 Failed to send email.")
-                main_instance.show_arbitrary_text_on_eink(
+                log.error("🛑 Failed to send email.")
+                interaction.show_arbitrary_text_on_eink(
                     icon="📧",
                     text="Failed to send email ❌",
-                    font_size=EinkCanvas.FONT_BIG_SIZE)
+                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error in email callback: {e}")
+            log.error(f"🛑 Error in email callback: {e}")
     
     def get_tool_definition(self) -> list[callable]:
         """

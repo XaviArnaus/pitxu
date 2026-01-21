@@ -6,6 +6,8 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
+from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
+from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY,\
@@ -62,9 +64,7 @@ class XprocessPool(PyXavi):
     
     def add_and_start(self, name: str, process: Xprocess):
         self.add(name, process)
-        self._xlog.debug("Starting process [" + name + "] from the pool")
-        self._process[name].start()
-        self.send(name, XprocAction.INITIALIZE)
+        self.start(name)
     
     def new(self, name: str, target, params: Dictionary = None):
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
@@ -76,15 +76,40 @@ class XprocessPool(PyXavi):
         
         queue = self._manager.JoinableQueue()
         self._queue[name] = queue
-        self._process[name] = target(config=self._xconfig, params=self._xparams.merge(origin=params), queue=queue)
+        self._process[name] = target(
+            config=self._xconfig, 
+            params=self._xparams.merge(origin=params), 
+            queue=queue,
+            busy_flag=self._shared_flags_per_queue.get(name, None)
+        )
 
     def new_and_start(self, name: str, target, params: Dictionary = None):
         self.new(name, target, params=params)
-        self._xlog.debug("Starting process [" + name + "] from the pool")
-        self._process[name].start()
-        self.send(name, XprocAction.INITIALIZE)
+        self.start(name)
 
-    def get_process(self, name: str):
+        if params is not None and params.get("initialize_from_main", True) is True:
+            self.initialize_from_main(name)
+    
+    def start(self, name: str):
+        if name in self._process:
+            self._xlog.debug("Starting process [" + name + "] from the pool")
+            self._process[name].start()
+            self.send(name, XprocAction.INITIALIZE)
+            # Now that we have the subprocess created and started, we can initialize it from the main thread,
+            # so we can also count on having its internal structures ready.
+            self._xlog.debug("Performing the initialize() for process [" + name + "] from the main Process")
+            self._process[name].initialize()
+        else:
+            self._xlog.error("process [" + name + "] does not exist in the pool.")
+    
+    def initialize_from_main(self, name: str):
+        if name in self._process:
+            self._xlog.debug("Performing the initialize() for process [" + name + "] from the main Process")
+            self._process[name].initialize()
+        else:
+            self._xlog.error("process [" + name + "] does not exist in the pool.")
+
+    def get_process(self, name: str) -> Xprocess | XprocessDisplayBackground | XprocessDisplayForeground | None:
         if name in self._process:
             return self._process[name]
         else:
@@ -171,6 +196,12 @@ class XprocessPool(PyXavi):
         flag_name = self._shared_flags_per_queue[queue]
         self._xlog.debug(f"Resetting busy flag {flag_name} related to queue {queue}")
         self._shared_memory.write_shared_memory_flag(flag_name, False)
+    
+    def get_busy_flag_from_related_queue(self, queue: str) -> int:
+        if queue not in self._shared_flags_per_queue:
+            self._xlog.error(f"Queue {queue} does not have a related shared flag. Cannot get busy flag.")
+            return -1
+        return self._shared_flags_per_queue[queue]
     
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.

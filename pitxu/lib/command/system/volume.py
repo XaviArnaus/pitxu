@@ -2,7 +2,10 @@ from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 from subprocess import check_output
 
@@ -86,7 +89,7 @@ class SystemVolume(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"Error setting mute status: {e}")
     
-    def callback_volume_level(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_volume_level(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_local_system_speaker_volume_level` that gets called AFTER chatbot from `main`.
 
@@ -95,19 +98,19 @@ class SystemVolume(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_local_system_speaker_volume_level`.
 
         """
-        main_instance._xlog.info(f"The volume level in the callback is: {value}")
+        log.info(f"The volume level in the callback is: {value}")
 
         try:
             # New approach, using the existing display instance via main
-            main_instance._xlog.error(f"🔊 Showing volume level on eInk: [{value}]")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"🔊 Showing volume level on eInk: [{value}]")
+            interaction.show_arbitrary_text_on_eink(
                 icon="🔊",
                 text=f"{value} %",
-                font_size=EinkCanvas.FONT_HUGE_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
-    
-    def callback_muting(self, main_instance, value: any, args: dict = None) -> None:
+            log.error(f"🛑 Error showing volume level on eInk: {e}")
+
+    def callback_muting(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_local_system_speaker_volume_level` that gets called AFTER chatbot from `main`.
 
@@ -116,17 +119,17 @@ class SystemVolume(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_local_system_speaker_volume_level`.
 
         """
-        main_instance._xlog.info(f"The volume level in the callback is: {value}")
+        log.info(f"The volume level in the callback is: {value}")
 
         try:
 
             # New approach, using the existing display instance via main
-            main_instance._xlog.error(f"🔊 Showing mute status on eInk: [{value}]")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"🔊 Showing mute status on eInk: [{value}]")
+            interaction.show_arbitrary_text_on_eink(
                 icon="🔇" if value == self.MUTED or value == True else "🔈",
-                font_size=EinkCanvas.FONT_HUGE_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing volume level on eInk: {e}")
+            log.error(f"🛑 Error showing volume level on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """

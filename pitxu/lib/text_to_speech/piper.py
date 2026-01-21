@@ -74,7 +74,8 @@ class Piper(Xprocess):
 
         # While talking we set the speaker busy flag and mute the microphone, keeping track of its previous state
         # So that we can restore it to what it was before
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
+        # REMOVEME: This is now handled in the parent Xprocess
+        # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
@@ -114,8 +115,9 @@ class Piper(Xprocess):
         self._log_debug("Finished saying communication")
             
         # Restore the speaker and microphone states
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
-        self._log_debug("Restore the speaker busy flag to False after finishing saying")
+        # REMOVEME: This is now handled in the parent Xprocess
+        # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        # self._log_debug("Restore the speaker busy flag to False after finishing saying")
     
     def pause_mic(self):
         self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)

@@ -6,7 +6,7 @@ from PIL import Image, ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.eink.canvas import EinkCanvas
+from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.objects import Point
 
 class EinkDisplay(PyXavi):
@@ -14,7 +14,8 @@ class EinkDisplay(PyXavi):
     _epd = None
     _pic_dir: str = None
     _screen_size: Point = None
-    _canvas: EinkCanvas = None
+    # _canvas: EinkCanvas = None
+    _canvas: Canvas = None
 
     font_by_size = {}
 
@@ -36,7 +37,8 @@ class EinkDisplay(PyXavi):
         self._initialise_display()
 
         # Initialise the Canvas
-        self._canvas = EinkCanvas(screen_size=self._screen_size, config=self._xconfig, params=self._xparams)
+        # self._canvas = EinkCanvas(screen_size=self._screen_size, config=self._xconfig, params=self._xparams)
+        self._canvas = Canvas(config=self._xconfig, params=self._xparams)
 
         # Before migrating all the code, shortcut it here
         self.FONT_SMALL = self._canvas.FONT_SMALL
@@ -47,10 +49,10 @@ class EinkDisplay(PyXavi):
         self.COLOR_WHITE = self._canvas.COLOR_WHITE
 
         self.font_by_size = {
-            f"{EinkCanvas.FONT_SMALL_SIZE}": self._canvas.FONT_SMALL,
-            f"{EinkCanvas.FONT_MEDIUM_SIZE}": self._canvas.FONT_MEDIUM,
-            f"{EinkCanvas.FONT_BIG_SIZE}": self._canvas.FONT_BIG,
-            f"{EinkCanvas.FONT_HUGE_SIZE}": self._canvas.FONT_HUGE
+            f"{Canvas.FONT_SIZE_SMALL}": self._canvas.FONT_SMALL,
+            f"{Canvas.FONT_SIZE_MEDIUM}": self._canvas.FONT_MEDIUM,
+            f"{Canvas.FONT_SIZE_BIG}": self._canvas.FONT_BIG,
+            f"{Canvas.FONT_SIZE_HUGE}": self._canvas.FONT_HUGE
         }
 
         self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
@@ -61,21 +63,22 @@ class EinkDisplay(PyXavi):
         return self.font_by_size[f"{size}"]
 
     def create_canvas(self, reset_base_image = True):
-        return self._canvas.create_canvas(reset_base_image=reset_base_image)
+        # return self._canvas.create_canvas(reset_base_image=reset_base_image)
+        return self._canvas.get_canvas(reset_base_image=reset_base_image)
     
     def get_image(self, clear_background: bool = True) -> Image.Image:
         return self._canvas.get_image(clear_background=clear_background)
     
-    def display(self, partial: bool = True):
-        """
-        Displays the current working image on the eInk display.
+    # def display(self, partial: bool = True):
+    #     """
+    #     Displays the current working image on the eInk display.
 
-        Args:
-            partial: Whether to use partial update or full update.
-        """
-        self.display_arbitrary_image(self._canvas.get_image(), partial=partial)
+    #     Args:
+    #         partial: Whether to use partial update or full update.
+    #     """
+    #     self.display_arbitrary_image(self._canvas.get_image(), partial=partial)
     
-    def display_arbitrary_image(self, image: Image.Image, partial: bool = True):
+    def display(self, image: Image.Image, partial: bool = True):
         """
         Displays an arbitrary image on the eInk display.
 

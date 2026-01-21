@@ -1,18 +1,16 @@
-import logging
-
-from pyxavi import Config
-
-from pitxu.lib.abstract.xprocess import Xprocess
-from pitxu.lib.eink import EinkDisplay, Macros, EinkCanvas
+from pyxavi import dd
+from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
+from pitxu.lib.eink.eink import EinkDisplay
+# from pitxu.lib.eink.macros import Macros
+from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.objects.point import Point
-from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_SPEAKER_BUSY, SHARED_EINK_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_EINK_IDLE_MODE
 
 from PIL import Image
 import time
-import io
 
-class Display(Xprocess):
+class Display(XprocessDisplayForeground):
     '''
     Class to control the behaviour of the eInk display inside a sub-process (child)
 
@@ -21,6 +19,7 @@ class Display(Xprocess):
 
     _display: EinkDisplay = None
     _macros: Macros = None
+    _canvas: Canvas = None
     _display_size: Point = None
 
     DEFAULT_STROKE: int = 1
@@ -33,6 +32,11 @@ class Display(Xprocess):
     def get_process_name(self) -> str:
         return "Display"
 
+    def get_canvas_handler(self) -> Canvas | None:
+        if self._canvas is not None:
+            return self._canvas
+        return None
+
     def get_display_handler(self) -> EinkDisplay | None:
         if self._display is not None:
             return self._display
@@ -40,63 +44,26 @@ class Display(Xprocess):
 
     def initialize(self):
         self._xlog.info("Initializing Display Worker")
-        self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
-        self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("eink.size.x"), self._xconfig.get("eink.size.y"))
+        self._xparams.set("screen_size", self._display_size)
+        self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
+        self._xparams.set("device", self._display)
+        self._canvas = Canvas(config=self._xconfig, params=self._xparams)
+        self._xparams.set("canvas", self._canvas)
+        self._macros = Macros(config=self._xconfig, params=self._xparams)
 
         # Initialize the macros statics
-        self._macros.load_or_create_statics(display=self._display)
+        self._macros.load_or_create_statics()
     
     def finish(self):
         self._xlog.debug("Closing eInk display")
         self._display.close()
         self._xlog.debug("Done finishing Display Worker")
     
-    def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
-        # We're busy
-        self.set_eink_busy()
-
-        # Shows the message received
-        if action == XprocAction.SHOW and param != "":
-            self.show(param)
-        
-        if action == XprocAction.SHOW_IMAGE_EINK and param:
-            # Here, param is expected to be an instance of ImageDraw
-            self.show_arbitrary_image_while_speaking(param)
-        
-        if action == XprocAction.SHOW_TALKING_ARBITRARY_EINK and param:
-            self.show_arbitrary_text_while_speaking(param)
-        
-        if action == XprocAction.SHOW_ARBITRARY_TEXT_EINK and param:
-            self.show_arbitrary_text_on_eink(param)
-
-        # Shows the Idle splash screen
-        if action == XprocAction.SHOW_IDLE_EINK:
-            self.idle()
-
-        # Shows the Ready splash screen
-        if action == XprocAction.READY:
-            self.splash_ready()
-        
-        # Shows the Startup splash screen
-        if action == XprocAction.STARTUP:
-            self.splash_startup()
-        
-        # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
-            self.clear()
-        
-        # Clears the screen using a partial white
-        if action == XprocAction.SOFT_CLEAR:
-            self.soft_clear()
-        
-        # Now we're not
-        self.unset_eink_busy()
-    
     def show(self, text: str):
         # Draw the text bubble
         self._xlog.info(f"👀 Showing text bubble on eInk.")
-        self._macros.draw_text_bubble(display=self._display, text=text, font=self._display.FONT_MEDIUM)
+        self._macros.draw_text_bubble(text=text, font=self._display.FONT_MEDIUM)
     
     def show_arbitrary_image_while_speaking(self, image_bytes: dict):
         # Show a given image on the eInk display
@@ -124,17 +91,16 @@ class Display(Xprocess):
     def show_arbitrary_text_on_eink(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
         self._macros.arbitrary_text_with_icon(
-            display=self._display,
             text=param.get("text", None),
             icon=param.get("icon", None),
-            font_size=param.get("font_size", EinkCanvas.FONT_BIG_SIZE),
+            font_size=param.get("font_size", Canvas.FONT_SIZE_BIG),
             header=param.get("header", None),
-            font_header_size=param.get("font_header_size", EinkCanvas.FONT_HUGE_SIZE))
+            font_header_size=param.get("font_header_size", Canvas.FONT_SIZE_HUGE))
 
     def splash_ready(self):
         # Draw the ready splash screen
         self._xlog.info(f"👀 Showing ready splash screen on eInk.")
-        self._macros.eyes_open(display=self._display)
+        self._macros.eyes_open()
 
     def idle(self):
         # Draw the idle screen
@@ -150,7 +116,7 @@ class Display(Xprocess):
         # Draw first the eyes archs
         # self._macros.initial_eyes(display=self._display)
         # self._macros.initial_eyes()
-        self._macros.soft_clear(display=self._display)
+        self._macros.soft_clear()
 
         # It repeats until the speaker is busy
         should_stop_idle = False
@@ -200,7 +166,7 @@ class Display(Xprocess):
     def splash_startup(self):
         # Draw the startup splash screen
         self._xlog.info(f"👀 Showing startup splash screen on eInk.")
-        self._macros.startup_splash(display=self._display)
+        self._macros.startup_splash()
     
     def clear(self):
         # Clear the display
@@ -208,16 +174,19 @@ class Display(Xprocess):
     
     def soft_clear(self):
         # Clear the display using a white rectangle as a partial
-        self._macros.soft_clear(display=self._display)
+        self._macros.soft_clear()
 
-    def is_eink_busy(self):
-        return self.read_shared_memory_flag(SHARED_EINK_BUSY)
+    # def is_eink_busy(self):
+    # REMOVEME: This is now handled in the parent Xprocess
+    #     return self.read_shared_memory_flag(SHARED_EINK_BUSY)
     
-    def set_eink_busy(self):
-        self.write_shared_memory_flag(SHARED_EINK_BUSY, True)
+    # def set_eink_busy(self):
+    # REMOVEME: This is now handled in the parent Xprocess
+    #     self.write_shared_memory_flag(SHARED_EINK_BUSY, True)
 
-    def unset_eink_busy(self):
-        self.write_shared_memory_flag(SHARED_EINK_BUSY, False)
+    # def unset_eink_busy(self):
+    # REMOVEME: This is now handled in the parent Xprocess
+    #     self.write_shared_memory_flag(SHARED_EINK_BUSY, False)
 
     def set_eink_idle_mode(self):
         self.write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)

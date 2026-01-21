@@ -5,6 +5,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Rectangle, Line, Point
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.abstract.device import Device
+from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
 
 import time, math
 
@@ -20,6 +21,15 @@ class Macros(PyXavi):
     device: Device = None
 
     LED_TO_LCD_OFFSET_X: int = 40  # Pixels to offset in X to avoid rounded corners
+
+    BACKGROUND_DEFAULT: str = "default"
+    LED_EFFECT_LOOP_ITERATIONS: dict = {
+        BackgroundComm.THINKING: 16,
+        BackgroundComm.SPEAKING: 8,
+        BackgroundComm.INITIAL_STEPS: 1,
+        BackgroundComm.HOLDER_PERCENTAGE: 1,
+        BACKGROUND_DEFAULT: 1
+    }
 
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
@@ -131,7 +141,15 @@ class Macros(PyXavi):
     def startup_splash(self) -> ImageDraw.ImageDraw:
 
         # First create a canvas
-        draw = self.canvas.create_canvas_over_new_image()
+        draw = self.canvas.get_canvas(reset_base_image=False)
+
+        # Draw the startup splash
+        self.draw_startup_splash(draw=draw)
+        
+        # Flush the image (generated from the canvas) to the device
+        self.device.display(self.canvas.get_image())
+    
+    def draw_startup_splash(self, draw: ImageDraw.ImageDraw):
 
         # Main title
         title = self._xconfig.get("app.name")
@@ -150,18 +168,20 @@ class Macros(PyXavi):
         
         # Subtitle
         subtitle = "Chatbot: " + ("mocked" if self._xconfig.get("chatbot.mock", True) else "real") + \
-                    " | Display: " + ("mocked" if self._xconfig.get("eink.mock", True) else "real") + \
+                    " | eInk: " + ("mocked" if self._xconfig.get("eink.mock", True) else "real") + \
+                    "\nLED Matrix: " + ("mocked" if self._xconfig.get("matrix_led.mock", True) else "real") + \
+                    " | LCD: " + ("mocked" if self._xconfig.get("lcd.mock", True) else "real") + \
                     "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
-                    " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real")
+                    " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real") + \
+                    "\nUPS: " + ("mocked" if self._xconfig.get("ups.mocked", True) else "real") + \
+                    " | GPIO: " + ("real" if self._xconfig.get("gpio.enabled", False) else "mocked")
+                    
         draw.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = self.canvas.FONT_MEDIUM, 
                     fill = self.canvas.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
-        
-        # Flush the image (generated from the canvas) to the device
-        self.device.display(self.canvas.get_image())
 
     def ready_splash(self) -> ImageDraw.ImageDraw:
         '''
@@ -181,16 +201,21 @@ class Macros(PyXavi):
         # Flush the image (generated from the canvas) to the device
         self.device.display(self.canvas.get_image())
 
-    def arbitrary_text_centered(self, text: str) :
+    def arbitrary_text_centered(self, text: str):
 
-        canvas = self.canvas.create_canvas_over_new_image()
-        canvas.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
+        draw = self.canvas.get_canvas(reset_base_image=False)
+
+        self.draw_arbitrary_text_centered(draw=draw, text=text)
+        
+        self.device.display(self.canvas.get_image())
+    
+    def draw_arbitrary_text_centered(self, draw: ImageDraw.ImageDraw, text: str):
+        draw.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
                     text = text,
                     font = self.canvas.FONT_HUGE,
                     fill = self.canvas.COLOR_BLACK,
                     anchor = "mm",
                     align = "center")
-        self.device.display(self.canvas.get_image())
 
     def arbitrary_text_with_icon(
             self,
@@ -201,7 +226,27 @@ class Macros(PyXavi):
             font_header_size: int = 32,
             padding: int = 5) -> str:
 
-        canvas = self.canvas.create_canvas_over_new_image()
+        self.draw_arbitrary_text_with_icon(
+            draw = self.canvas.get_canvas(reset_base_image=True),
+            text = text,
+            icon = icon,
+            font_size = font_size,
+            header = header,
+            font_header_size = font_header_size,
+            padding = padding)
+        
+        # Flush the image (generated from the canvas) to the device
+        self.device.display(self.canvas.get_image())
+    
+    def draw_arbitrary_text_with_icon(
+            self,
+            draw: ImageDraw.ImageDraw,
+            text: str = None, 
+            icon: str = None, 
+            font_size: int = 24, 
+            header: str = None, 
+            font_header_size: int = 32,
+            padding: int = 5) -> str:
 
         # calculate anchor points and emojis for header and text
         if header and text:
@@ -217,7 +262,7 @@ class Macros(PyXavi):
             text_emoji = icon + " " if icon else ""
 
         if header:
-            canvas.text(header_anchor.to_image_point(),
+            draw.text(header_anchor.to_image_point(),
                 text = f"{header_emoji}{header}",
                 font = self.canvas.get_font_by_size(font_header_size),
                 fill = self.canvas.COLOR_BLACK,
@@ -228,21 +273,17 @@ class Macros(PyXavi):
             font = self.canvas.get_font_by_size(font_size)
             padding = 5
             value = self.wrap_text_if_needed(
-                canvas=canvas,
+                canvas=draw,
                 text=f"{text_emoji}{text}",
                 max_width=self._display_size.x - (2 * padding),
                 font=font
             )
-            canvas.multiline_text(text_anchor.to_image_point(),
+            draw.multiline_text(text_anchor.to_image_point(),
                 text = value,
                 font = font,
                 fill = self.canvas.COLOR_BLACK,
                 anchor = "mm",
                 align = "center")
-        
-        # Flush the image (generated from the canvas) to the device
-        self.device.display(self.canvas.get_image())
-        
     
     def eyes_open(self):
         """
@@ -360,22 +401,51 @@ class Macros(PyXavi):
         self._soft_clear_rectangle(draw=draw)
         image = self.canvas.get_image()
 
+        # Move right
+        for i in range(8):
+            self.draw_kitt_horizontal_effect_left(draw=draw, step=i)
+
+            self.device.display(image)
+            time.sleep(delay)
+
+        # Move left
+        for i in range(8):
+            self.draw_kitt_horizontal_effect_right(draw=draw, step=i)
+
+            self.device.display(image)
+            time.sleep(delay)
+    
+    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, step: int = None):
+        counter = 0
         apply_offset = False
 
-        # Move right
         for x in range(8):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
-            self.device.display(image)
-            time.sleep(delay)
-        # Move left
+        
+            # We count which is the current step for the drawing.
+            # If we have reached the step, we stop drawing more.
+            if step is not None and counter >= step:
+                return
+            else:
+                counter += 1
+    
+    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, step: int = None):
+        counter = 0
+        apply_offset = False
+
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw, color=self.canvas.COLOR_BLACK)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
-            self.device.display(image)
-            time.sleep(delay)
+        
+            # We count which is the current step for the drawing.
+            # If we have reached the step, we stop drawing more.
+            if step is not None and counter >= step:
+                return
+            else:
+                counter += 1
     
     def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.01):
         '''
@@ -397,6 +467,25 @@ class Macros(PyXavi):
             "col_4": col_4,
         }
 
+        # Drawing the bars up. In this this method we draw all the steps at once
+        for i in range(4):
+            self.draw_kitt_speaking_effect_vu_meter(draw=draw, max_values=max_values, step=i)
+
+            # We show this row to the device
+            # self.device.display(self.canvas.get_image())
+            self.device.display(image)
+            time.sleep(delay)
+        
+        # And now we move the bars down again to zero
+        for i in range(4):
+            self.clear_kitt_speaking_effect_vu_meter(draw=draw, max_values=max_values, step=i)
+        
+            # We show this row to the device
+            self.device.display(image)
+            time.sleep(delay)
+
+    def draw_kitt_speaking_effect_vu_meter(self, draw: ImageDraw.ImageDraw, max_values: dict, step: int = None):
+        counter = 0
         apply_offset = False
 
         # We go row by row from the middle point to the top and bottom extremes
@@ -422,13 +511,20 @@ class Macros(PyXavi):
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), apply_offset=apply_offset)
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
+                
+            # We count which is the current step for the drawing.
+            # If we have reached the step, we stop drawing more.
+            # This way we can flush to the device in the steps we want.
+            if step is not None and counter >= step:
+                return
+            else:
+                counter += 1
+    
+    def clear_kitt_speaking_effect_vu_meter(self, draw: ImageDraw.ImageDraw, max_values: dict, step: int = None):
+        counter = 0
+        apply_offset = False
 
-            # We show this row to the device
-            # self.device.display(self.canvas.get_image())
-            self.device.display(image)
-            time.sleep(delay)
-        
-        # And now we move the bars down again to zero
+         # And now we move the bars down again to zero
         for y in range(3, -1, -1):
 
             # We go through each column to see if we need to turn off at this row
@@ -451,31 +547,46 @@ class Macros(PyXavi):
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(3, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), color=self.canvas.COLOR_BLACK, apply_offset=apply_offset)
-
-            # We show this row to the device
-            self.device.display(image)
-            time.sleep(delay)
+            
+            # We count which is the current step for the drawing.
+            # If we have reached the step, we stop drawing more.
+            # This way we can flush to the device in the steps we want.
+            if step is not None and counter >= step:
+                return
+            else:
+                counter += 1
 
     def show_init_step(self, step):
 
         draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
+        
+        self.draw_init_step(draw=draw, step=step)
+
+        self.device.display(self.canvas.get_image())
+    
+    def draw_init_step(self, draw: ImageDraw.ImageDraw, step):
+
         rows = math.floor(step / 8) + 1
         rows = rows if rows > 1 else 1
         for y in range(0, rows):
             cols = 8 if y < rows - 1 else step % 8
             for x in range(0, cols):
                 self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
-        self.device.display(self.canvas.get_image())
     
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
+        
+        self.draw_cross(draw=draw)
+
+        self.device.display(self.canvas.get_image())
+    
+    def draw_cross(self, draw: ImageDraw.ImageDraw):
         for i in range(0,8):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(7 - i, i))
-        self.device.display(self.canvas.get_image())
     
     def show_interaction_holding_percentage(self, percentage: int):
         '''
@@ -488,12 +599,24 @@ class Macros(PyXavi):
         draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)
 
+        self.draw_interaction_holding_percentage(draw=draw, percentage=percentage)
+
+        self.device.display(self.canvas.get_image())
+    
+    def draw_interaction_holding_percentage(self, draw: ImageDraw.ImageDraw, percentage: int):
+        '''
+        Draws on the given canvas a percentage bar indicating how much time is left
+        for the user to hold the interaction (i.e., speak).
+
+        Args:
+            draw: The canvas to draw on.
+            percentage: The percentage of time left (0-100).
+        '''
+
         # Calculate how many columns to light up
         columns_to_light = math.ceil((percentage / 100) * 8)
         for x in range(0, columns_to_light):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7))
-        self._xlog.debug(f"Displaying interaction percent {percentage}% ({columns_to_light} columns)")
-        self.device.display(self.canvas.get_image())
 
     def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
         '''
@@ -528,7 +651,12 @@ class Macros(PyXavi):
             fill=color,
             outline=color)
     
-    def draw_on_display(self):
+    # ------ Main method (and helpers) to show on LCD display -------
+
+    def show_on_lcd_display(self, 
+                            background_interaction: str = None,
+                            foreground_interaction: str = None,
+                            parameter: any = None):
         '''
         This is the main method to draw all components on the display.
         '''
@@ -539,9 +667,72 @@ class Macros(PyXavi):
         # It gets updated as we draw on it, so is more efficient than getting it each time
         image = self.canvas.get_image()
 
-        # Here all the components with the related logic
-        # ...
+        # We need to draw from background to foreground.
+        # At this point, LED effects are the most background, so we draw them first.
+
+        # Some of the LED effects are loops, so we need to handle the drawing via a loop
+        # And then flush to the display at each step.
+        if background_interaction is not None:
+            iterations = self.LED_EFFECT_LOOP_ITERATIONS.get(background_interaction, 1)\
+                            if background_interaction in self.LED_EFFECT_LOOP_ITERATIONS\
+                            else self.LED_EFFECT_LOOP_ITERATIONS.get(self.BACKGROUND_DEFAULT, 1)
+            for i in range(iterations):
+
+                if background_interaction == BackgroundComm.THINKING:
+                    step = i % 8
+                    if i < 8:
+                        self.draw_kitt_horizontal_effect_right(draw=draw, step=step )
+                    else:
+                        self.draw_kitt_horizontal_effect_left(draw=draw, step=step)
+                elif background_interaction == BackgroundComm.SPEAKING:
+                    # For speaking, we simulate some VU meter values
+                    self.draw_kitt_speaking_effect_vu_meter(draw=draw, max_values=parameter, step=i + 1)
+                elif background_interaction == BackgroundComm.INITIAL_STEPS:
+                    self.draw_init_step(draw=draw, step=parameter)
+                elif background_interaction == BackgroundComm.HOLDER_PERCENTAGE:
+                    self.draw_interaction_holding_percentage(draw=draw, percentage=parameter)
+                elif background_interaction == BackgroundComm.ERROR:
+                    self.draw_cross(draw=draw)
+                else:
+                    self._xlog.warning(f"Unknown interaction [{background_interaction}] for drawing on LCD display, discarding.")
+        
+        # There are no loops for foreground interactions yet, so we just draw them once.
+        # Still, we may not receive any foreground interaction.
+        if foreground_interaction is not None:
+            
+            # Whatever we print here, make it over a semi-transparent frame
+            self.draw_foreground_frame(draw=draw)
+
+            if foreground_interaction == ForegroundComm.ARBITRARY_TEXT:
+                self.draw_arbitrary_text_centered(draw=draw, text=parameter)
+            elif foreground_interaction == ForegroundComm.ARBITRARY_TEXT_ICON:
+                self.draw_arbitrary_text_with_icon(draw=draw, 
+                                                    text=parameter.get("text"),
+                                                    icon=parameter.get("icon"),
+                                                    font_size=parameter.get("font_size", 24),
+                                                    header=parameter.get("header"),
+                                                    font_header_size=parameter.get("font_header_size", 32),
+                                                    padding=parameter.get("padding", 5))
+            else:
+                self._xlog.warning(f"Unknown interaction [{foreground_interaction}] for drawing on LCD display, discarding.")
 
         # Finally, we show the image on the device
         self.device.display(image)
+    
+    def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 5):
+        '''
+        Draws a foreground frame on the given canvas.
+
+        https://stackoverflow.com/a/43620169/1973860
+        '''
+        TINT_COLOR = (0, 0, 0)  # Black
+        TRANSPARENCY = .25  # Degree of transparency, 0-100%
+        OPACITY = int(255 * TRANSPARENCY)
+
+        point_1 = Point(padding, padding)
+        point_2 = Point(self._display_size.x - padding - 1, self._display_size.y - padding - 1)
+        draw.rectangle(
+            Rectangle(point_1, point_2).to_image_rectangle(),
+            outline=self.canvas.COLOR_BLACK,
+            fill=TINT_COLOR+(OPACITY,))
         
