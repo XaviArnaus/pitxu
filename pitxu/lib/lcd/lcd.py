@@ -196,7 +196,7 @@ class Lcd(XprocessDisplayBackground):
             if not self.is_chatbot_busy():
                 self._xlog.info(f"🤖 Stopping KITT thinking on Matrix LCD.")
                 break
-            self._macros.kitt_horizontal_effect()
+            self._macros.kitt_horizontal_effect(should_stop=(not self.is_chatbot_busy()))
         # self._macros.close_canvas()
     
     def show(self, text: str):
