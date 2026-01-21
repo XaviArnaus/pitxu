@@ -147,6 +147,10 @@ class Interaction(PyXavi):
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
 
+        # As long as we can't stop inmediately the animations on the Background Display,
+        # we need to wait until it's idle before starting a new speech interaction.
+        self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
+
         # Speech is a direct process command.
         self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
 

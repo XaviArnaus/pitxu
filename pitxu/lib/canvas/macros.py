@@ -405,20 +405,12 @@ class Macros(PyXavi):
         for i in range(8):
             self.draw_kitt_horizontal_effect_left(draw=draw, step=i)
 
-            if should_stop:
-                self._log_debug("KITT effect stopped on demand")
-                return
-
             self.device.display(image)
             time.sleep(delay)
 
         # Move left
         for i in range(8):
             self.draw_kitt_horizontal_effect_right(draw=draw, step=i)
-
-            if should_stop:
-                self._log_debug("KITT effect stopped on demand")
-                return
 
             self.device.display(image)
             time.sleep(delay)
