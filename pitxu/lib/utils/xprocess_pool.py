@@ -61,10 +61,13 @@ class XprocessPool(PyXavi):
             self._xlog.warning("process [" + name + "] already exists in the pool. Overwriting.")
         self._process[name] = process
         self._queue[name] = process.get_queue()
-    
-    def add_and_start(self, name: str, process: Xprocess):
+
+    def add_and_start(self, name: str, process: Xprocess, params: Dictionary = None):
         self.add(name, process)
         self.start(name)
+
+        if params is not None and params.get("initialize_from_main", True) is True:
+            self.initialize_from_main(name)
     
     def new(self, name: str, target, params: Dictionary = None):
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
@@ -95,17 +98,13 @@ class XprocessPool(PyXavi):
             self._xlog.debug("Starting process [" + name + "] from the pool")
             self._process[name].start()
             self.send(name, XprocAction.INITIALIZE)
-            # Now that we have the subprocess created and started, we can initialize it from the main thread,
-            # so we can also count on having its internal structures ready.
-            self._xlog.debug("Performing the initialize() for process [" + name + "] from the main Process")
-            self._process[name].initialize()
         else:
             self._xlog.error("process [" + name + "] does not exist in the pool.")
     
     def initialize_from_main(self, name: str):
         if name in self._process:
-            self._xlog.debug("Performing the initialize() for process [" + name + "] from the main Process")
-            self._process[name].initialize()
+            self._xlog.debug("Performing the initialize_from_main_process() for process [" + name + "] from the main Process")
+            self._process[name].initialize_from_main_process()
         else:
             self._xlog.error("process [" + name + "] does not exist in the pool.")
 

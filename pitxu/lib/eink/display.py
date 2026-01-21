@@ -43,7 +43,7 @@ class Display(XprocessDisplayForeground):
         return None
 
     def initialize(self):
-        self._xlog.info("Initializing Display Worker")
+        self._xlog.info("Initializing eInk Worker")
         self._display_size = Point(self._xconfig.get("eink.size.x"), self._xconfig.get("eink.size.y"))
         self._xparams.set("screen_size", self._display_size)
         self._display = EinkDisplay(config=self._xconfig, params=self._xparams)
@@ -54,6 +54,13 @@ class Display(XprocessDisplayForeground):
 
         # Initialize the macros statics
         self._macros.load_or_create_statics()
+    
+    def initialize_from_main_process(self):
+        self._xlog.info("Initializing eInk Worker from Main Process")
+        self._display_size = Point(self._xconfig.get("eink.size.x"), self._xconfig.get("eink.size.y"))
+
+        self._xparams.set("screen_size", self._display_size)
+        self._canvas = Canvas(config=self._xconfig, params=self._xparams)
     
     def finish(self):
         self._xlog.debug("Closing eInk display")

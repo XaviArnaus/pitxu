@@ -51,6 +51,18 @@ class Lcd(XprocessDisplayBackground):
         # Initialize the macros statics
         # Commented out until we decide how to merge the eInk and Matrix macros into LCD.
         # self._macros.load_or_create_statics()
+    
+    def initialize_from_main_process(self):
+        self._xlog.info("Initializing LCD Worker from Main Process")
+
+        # Just have the display size handy
+        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
+        self._xparams.set("screen_size", self._display_size)
+
+        # The canvas to draw on, but basically to let it be available in the main process
+        # and deliver font sizes.
+        self.canvas = Canvas(config=self._xconfig, params=self._xparams)
+        self._xparams.set("canvas", self.canvas)
 
     def finish(self):
         self._xlog.info("Finalizing LCD Worker")

@@ -27,6 +27,13 @@ class MatrixLed(XprocessDisplayBackground):
         self._macros = Macros(config=self._xconfig, params=self._xparams)
         self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
     
+    def initialize_from_main_process(self):
+        self._xlog.info("Initializing Matrix Worker from Main Process")
+
+        # Just have the display size handy
+        self._display_size = Point(self._xconfig.get("matrix_led.size.x"), self._xconfig.get("matrix_led.size.y"))
+        self._xparams.set("screen_size", self._display_size)
+    
     def finish(self):
         self._xlog.info("Closing possible open canvas")
         self._macros.close_canvas()
