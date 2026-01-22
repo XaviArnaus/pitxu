@@ -81,7 +81,7 @@ class Vosk(PyXavi):
             elif self.is_active == False:
                 # self._xlog.warning("Vosk is not active, skipping recognition")
                 raise VoskException("Vosk is not active, cannot recognize audio")
-            else:
+            elif self.is_active and self._queue is not None:
                 data = self._queue.get()
                 if self._recognizer.AcceptWaveform(data):
                     result = json.loads(self._recognizer.Result())
