@@ -119,6 +119,7 @@ language:
       "etc.": "etcetera."
       "°C": "degrees"
       "km/h": "kilometers per hour"
+      "e.g.": "for example"
     de:
       "&amp;": "und"
       "&lt;": "kleiner als"

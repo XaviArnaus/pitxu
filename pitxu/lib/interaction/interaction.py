@@ -60,6 +60,8 @@ class Interaction(PyXavi):
         "lcd": (Lcd, QUEUE_LCD)
     }
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Interaction, self).init_pyxavi(config=config, params=params)
 
@@ -147,17 +149,17 @@ class Interaction(PyXavi):
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
 
+        # We need to start from a clean state, at least from the background display point of view.
+        self.clear_background_display()
+
         # As long as we can't stop inmediately the animations on the Background Display,
         # we need to wait until it's idle before starting a new speech interaction.
+        # TODO: Seems like it is waiting forever to THINKING state to end. Why? Most likelky we never unset it. Checking.
         self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
 
         # Speech is a direct process command.
         self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
 
-        # We have to wait until the speaker starts being busy, otherwise the mouth effect will self close
-        while not self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_SPEAKER_BUSY):
-            time.sleep(0.01)
-        
         # The background display depends on the configuration.
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
 
@@ -182,11 +184,11 @@ class Interaction(PyXavi):
     # def show(self, message: str):
     #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW, message)
     
-    def startup_splash(self):
+    def startup_splash(self, for_seconds: float = 3.0):
         """
         Show the startup splash screen on the Foreground display.
         """
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP)
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP, str(for_seconds))
 
     def show_init_phases(self, step: int):
         """
@@ -198,15 +200,11 @@ class Interaction(PyXavi):
         """
         Show the idle mode on the Foreground display.
         """
-        # Currently this only applies to eInk
-        if self._get_active_foreground_display_queue() != QUEUE_EINK:
-            self._xlog.debug("👀 Idle mode requested but foreground display is not eInk. Ignoring.")
-            return
         self._xlog.debug("👀 Starting idle mode from Interaction class")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_IDLE_EINK)
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_IDLE)
     
-    def show_arbitrary_text_on_eink(
+    def show_arbitrary_text_on_foreground(
             self,
             icon: str = None,
             text: str = None,
@@ -220,7 +218,7 @@ class Interaction(PyXavi):
 
         TODO: This should be generalized to other displays.
         """
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_EINK, {
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
             "icon": icon,
             "text": text,
             "font_size": font_size,
@@ -229,7 +227,7 @@ class Interaction(PyXavi):
             "padding": padding
         })
 
-    def show_arbitrary_text_on_eink_while_speaking(
+    def show_arbitrary_text_on_foreground_while_speaking(
             self,
             icon: str = None,
             text: str = None,
@@ -240,10 +238,8 @@ class Interaction(PyXavi):
         ):
         """
         Shows arbitrary text on the eInk display only while speaking.
-
-        TODO: This should be generalized to other displays.
         """
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_TALKING_ARBITRARY_EINK, {
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_TALKING, {
             "icon": icon,
             "text": text,
             "font_size": font_size,
@@ -275,7 +271,8 @@ class Interaction(PyXavi):
 
     def clear_background_display(self):
         # TODO: This should be unified into a XprocAction.SOFT_CLEAR / XprocAction.CLEAR
-        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.LED_CLEAR)
+        # self.process_pool.send(self._get_active_background_display_queue(), XprocAction.LED_CLEAR)
+        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
     
     # --------- (Proxy) Functions to wait for queues to be empty and busy flags to idle ---------
 

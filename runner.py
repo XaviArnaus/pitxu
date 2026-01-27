@@ -222,6 +222,8 @@ def test_mouth_in_lcd():
         from pitxu.lib.canvas.macros import Macros
         from pitxu.lib.objects.point import Point
 
+        MODE_IN_USE = "paint" # Valid values: "paint", "direct"
+
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -229,15 +231,49 @@ def test_mouth_in_lcd():
 
         # Delegate the run to Main
         logger.debug("Testing the KITT mouth as LEDs in the LCD display")
-        parameters = parameters.merge(Dictionary({"screen_size": expected_screen_size}))
+        parameters = parameters.merge(Dictionary({
+            "screen_size": expected_screen_size,
+            "device_config_prefix": "lcd"
+        }))
         device = DeviceWrapper(config=config, params=parameters)
         parameters.set("device", device)
         canvas = Canvas(config=config, params=parameters)
         parameters.set("canvas", canvas)
         macros = Macros(config=config, params=parameters)
+        parameters.set("macros", macros)
+        
+        if MODE_IN_USE == "direct":
+            logger.debug("Using direct mode to draw KITT mouth while speaking...")
+            # Direct mode, no painter
+            for i in range(0,2):
+                macros.kitt_speaking_effect_vu_meter(0,0,2,4, 0.01)
+        else:
+            from pitxu.lib.canvas.painter import Painter
+            from pitxu.lib.interaction.CommConstants import BackgroundComm
 
-        for i in range(0,10):
-            macros.kitt_speaking_effect_vu_meter(0,0,2,4, 0.01)
+            painter = Painter(config=config, params=parameters)
+
+            logger.debug("Using painter mode to draw KITT mouth while speaking...")
+            # Painter mode
+
+            # Setting what to show and start the painting loop
+            painter.set_background_interaction(BackgroundComm.SPEAKING, parameter={
+                "col_1": 0,
+                "col_2": 0,
+                "col_3": 2,
+                "col_4": 4,
+            })
+            painter.start_or_resume_paint()
+
+            # Emulating now some time until the speaker is not busy anymore
+            logger.debug("Emulating KITT mouth while speaking for 0.5 seconds...")
+            time.sleep(0.5)
+
+            # Reached here? Stop the painting
+            painter.stop()
+
+            # We could have done a close, that stops and cleans up.
+            painter.close()
 
         # Clear screen
         device.clear()
@@ -406,7 +442,7 @@ def send_to_printer():
     except Exception:
         print(full_stack())
 
-def _initialize() -> tuple[Config, logging, Dictionary]:
+def _initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()
     config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)

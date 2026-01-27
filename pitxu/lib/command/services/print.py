@@ -63,13 +63,13 @@ class ServicePrint(PyXavi, Command):
         try:
             if value:
                 log.debug("🖨️ Text printed.")
-                interaction.show_arbitrary_text_on_eink(
+                interaction.show_arbitrary_text_on_foreground(
                     icon="🖨️",
                     text="Text printed ✅",
                     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
             else:
                 log.error("🛑 Failed to print text.")
-                interaction.show_arbitrary_text_on_eink(
+                interaction.show_arbitrary_text_on_foreground(
                     icon="🖨️",
                     text="Failed to print text ❌",
                     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)

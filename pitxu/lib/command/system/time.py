@@ -45,11 +45,10 @@ class SystemTime(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_local_system_clock_time`.
         
         """
-        log.debug(f"The current time in the callback is: {value}")
 
         try:
             log.info(f"🕒 Showing time on Foreground Display: {value}")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🕒",
                 text=value,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)

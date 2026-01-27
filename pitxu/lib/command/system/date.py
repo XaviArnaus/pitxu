@@ -58,7 +58,7 @@ class SystemDate(PyXavi, Command):
             value = date_obj.strftime(self.displayed_format)
 
             log.error(f"📆 Showing date on Foreground Display: {value}")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon="📆",
                 text=value,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)

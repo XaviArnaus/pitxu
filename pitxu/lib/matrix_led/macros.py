@@ -178,13 +178,13 @@ class Macros(PyXavi):
             self._handable_canvas.send_to_device()
             time.sleep(delay)
 
-    def show_init_step(self, step):
+    def show_init_phase(self, phase):
 
         with self._max7219.create_canvas() as canvas:
-            rows = math.floor(step / 8) + 1
+            rows = math.floor(phase / 8) + 1
             rows = rows if rows > 1 else 1
             for y in range(0, rows):
-                cols = 8 if y < rows - 1 else step % 8
+                cols = 8 if y < rows - 1 else phase % 8
                 for x in range(0, cols):
                     self._log_debug(f"Showing init step point at ({x},{y})")
                     canvas.point((x, y), self.ON)

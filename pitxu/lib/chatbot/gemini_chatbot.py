@@ -69,6 +69,8 @@ class GeminiChatbot(PyXavi):
 
     _mcp_trivago_client: fastmcp.Client = None
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(GeminiChatbot, self).init_pyxavi(config=config, params=params)
 

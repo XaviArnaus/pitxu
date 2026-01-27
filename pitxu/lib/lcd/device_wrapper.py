@@ -57,9 +57,9 @@ class DeviceWrapper(PyXavi, Device):
 
         os = platform.system()        
         if (os.lower() != "linux"):
-            self._xlog.debug("OS is not Linux, auto mocking LCD")
+            self._log_debug("OS is not Linux, auto mocking LCD")
             return False
         if (self._xconfig.get("lcd.mock", True)):
-            self._xlog.debug("Mocking LCD by Config")
+            self._log_debug("Mocking LCD by Config")
             return False
         return True

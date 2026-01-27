@@ -80,6 +80,8 @@ class Main(PyXavi):
     # SHARED_MATRIX_BUSY = 2
     # SHARED_LCD_BUSY = 3
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
 
         super(Main, self).init_pyxavi(config=config, params=params)
@@ -88,7 +90,7 @@ class Main(PyXavi):
         signal.signal(signal.SIGTERM, self._handle_sigterm)
 
         # Logger in params for other classes to use
-        self._xparams.set("logger", self._xlog)
+        # self._xparams.set("logger", self._xlog)
 
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
@@ -220,9 +222,9 @@ class Main(PyXavi):
         self._interaction.show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        self._interaction.startup_splash()
+        self._interaction.startup_splash(for_seconds=5.0)
         self._interaction.show_init_phases(2)
-        time.sleep(3)
+        time.sleep(5)
 
         # At this point, we better wait for all queues to be empty.
         # This basically involves eInk (for the splash).
@@ -330,6 +332,7 @@ class Main(PyXavi):
                             chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
+                            self._interaction.unset_chatbot_busy()
                             try:
                                 self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
                                 if chat_response.function_call_history.get_last().has_response():
@@ -337,13 +340,19 @@ class Main(PyXavi):
                                     # Shutdown and Reboot interrupt the flow and directly shutdown,
                                     # calling `close_nicely()` from there.
                                     # Keep in mind that here we may have played with BUSY flags.
-                                    comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
+                                    # comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
+                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
                                     # TODO: Feels like sometimes the flow does not come back here. Apparenty, the second time asking for the hour.
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
-                            self._interaction.unset_chatbot_busy()
                             # REMOVEME: Now this is managed by the Interaction class
                             # self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
+
+                            # This waiting happens BEFORE we reached the answering phase with the interaction.say().
+                            # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
+                            # It will be waiting forever because the TTS has not started yet.
+                            # - Commenting it out to see how it goes.
+                            # - Uncommenting again because seems like the block happens in interaction.say() instead.
                             self._interaction.wait_for_foreground_display_queue_to_empty()
                         else:
                             self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
@@ -464,7 +473,7 @@ class Main(PyXavi):
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
-                    self._interaction.show_arbitrary_text_on_eink(
+                    self._interaction.show_arbitrary_text_on_foreground(
                         icon="🚨",
                         text=function_call_pair.function_response.response.get("result", "unknown"),
                         font_size=Canvas.FONT_SIZE_BIG)
@@ -508,7 +517,7 @@ class Main(PyXavi):
                         self._interaction.wait_for_foreground_display_queue_to_empty()
                         self._interaction.wait_for_busy_foreground_display_to_idle()
 
-                        self._interaction.show_arbitrary_text_on_eink(
+                        self._interaction.show_arbitrary_text_on_foreground(
                             icon="🚨",
                             text=result,
                             font_size=Canvas.FONT_SIZE_BIG)
@@ -685,7 +694,7 @@ class Main(PyXavi):
     # def _show_idle(self):
     #     self._xlog.debug("👀 Starting eInk idle mode from Main")
     #     self.set_eink_idle_mode()
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IDLE_EINK)
+    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IDLE)
 
     # def _clear_display(self):
     #     # Now that we use partial refresh, the clear needs a previous white rectangle.
@@ -702,7 +711,7 @@ class Main(PyXavi):
     # def get_eInk_display(self) -> Display:
     #     return self._interaction.get_process_pool().get_process(QUEUE_EINK)
     
-    # def show_arbitrary_text_on_eink(
+    # def show_arbitrary_text_on_foreground(
     #         self,
     #         icon: str = None,
     #         text: str = None,
@@ -711,7 +720,7 @@ class Main(PyXavi):
     #         font_header_size: int = 32,
     #         padding = 5
     #     ):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_EINK, {
+    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
     #         "icon": icon,
     #         "text": text,
     #         "font_size": font_size,
@@ -720,7 +729,7 @@ class Main(PyXavi):
     #         "padding": padding
     #     })
 
-    # def show_arbitrary_text_on_eink_while_speaking(
+    # def show_arbitrary_text_on_foreground_while_speaking(
     #         self,
     #         icon: str = None,
     #         text: str = None,
@@ -729,7 +738,7 @@ class Main(PyXavi):
     #         font_header_size: int = 32,
     #         padding = 5
     #     ):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_TALKING_ARBITRARY_EINK, {
+    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_TALKING, {
     #         "icon": icon,
     #         "text": text,
     #         "font_size": font_size,
@@ -804,7 +813,7 @@ class Main(PyXavi):
                 self._interaction.unset_eink_idle_mode()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_eink(
+                self._interaction.show_arbitrary_text_on_foreground(
                     icon="📝",
                     text=reminder.get("text", ""),
                     font_size=Canvas.FONT_SIZE_BIG)

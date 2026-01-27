@@ -75,12 +75,12 @@ class MatrixLed(XprocessDisplayBackground):
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on Matrix LED: {text}")
         self._macros.draw_something()
-    
-    def init_step(self, step: int):
-        self._xlog.info(f"🚥 Showing init step {step} on Matrix LED")
-        # For now, just show the step number as a message
-        self._macros.show_init_step(step)
-    
+
+    def init_phase(self, phase: int):
+        self._xlog.info(f"🚥 Showing init phase {phase} on Matrix LED")
+        # For now, just show the phase number as a message
+        self._macros.show_init_phase(phase)
+
     def interaction_holding_percentage(self, percentage: int):
         percentage = int(percentage)
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on Matrix LED")

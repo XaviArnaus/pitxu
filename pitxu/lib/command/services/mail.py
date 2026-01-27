@@ -78,13 +78,13 @@ class ServiceMail(PyXavi, Command):
         try:
             if value:
                 log.debug("📧 Email sent.")
-                interaction.show_arbitrary_text_on_eink(
+                interaction.show_arbitrary_text_on_foreground(
                     icon="📧",
                     text="Email sent ✅",
                     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
             else:
                 log.error("🛑 Failed to send email.")
-                interaction.show_arbitrary_text_on_eink(
+                interaction.show_arbitrary_text_on_foreground(
                     icon="📧",
                     text="Failed to send email ❌",
                     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)

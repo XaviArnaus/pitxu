@@ -36,15 +36,15 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
         super(Xprocess, self).__init__()
     
-    def _handle_sigterm(self, sig, frame):
-        """
-        Handle SIGTERM signal
+    # def _handle_sigterm(self, sig, frame):
+    #     """
+    #     Handle SIGTERM signal
 
-        This allows the service to stop gracefully when receiving a termination signal,
-        that happens with systemctl stop or reboot commands.
-        """
-        self._xlog.warning('SIGTERM received from Xprocess [' + self._PROCESS_NAME + '], closing the subprocess')
-        self.finish()
+    #     This allows the service to stop gracefully when receiving a termination signal,
+    #     that happens with systemctl stop or reboot commands.
+    #     """
+    #     self._xlog.warning('SIGTERM received from Xprocess [' + self._PROCESS_NAME + '], closing the subprocess')
+    #     self.finish()
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
@@ -70,7 +70,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run()")
             for queue_item in iter(self._queue.get, None):
                 action, param = queue_item
-                self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + self.ensure_nice_string(param) + "]" if param is not None else "]"))
+                self._log_debug("Xprocess [" + self._PROCESS_NAME + "] run() received a [" + action + (": " + self.ensure_nice_string(param) + "]" if param is not None else "]"))
 
                 # Let's remember the current action
                 self._current_action = action

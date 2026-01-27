@@ -19,6 +19,9 @@ displays:
 eink:
   # [Bool] Generates a PNG instead of outcoming through the eInk Display
   mock: True
+  image: 
+    # [String] Defines the image mode to base the canvas on. 1 for 1-bit B&W, L for greyscale, RGB for color
+    mode: 1
   # [Bool] Do a full clear while initializing
   # KEEP AS TRUE. Seems like the eInk needs a full Clear on init to be able to show afterwards.
   initial_clear: True
@@ -55,6 +58,9 @@ matrix_led:
 lcd:
   # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
   mock: True
+  image: 
+    # [String] Defines the image mode to base the canvas on. 1 for 1-bit B&W, L for greyscale, RGB for color, RGBA for color with transparency
+    mode: RGBA
   # Size of the display
   size:
     x: 280

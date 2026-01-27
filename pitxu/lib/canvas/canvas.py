@@ -14,7 +14,7 @@ class Canvas(PyXavi):
 
     DEFAULT_FONT_PATH = os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts")
     FONT_FILE: str = os.path.join(DEFAULT_FONT_PATH, "Font_with_emojis.ttc")
-    COLOR_MODE = "RGB"  # '1' for 1-bit images, 'L' for greyscale, 'RGB' for true color, 'RGBA' for true color with transparency
+    COLOR_MODE = "RGBA"  # '1' for 1-bit images, 'L' for greyscale, 'RGB' for true color, 'RGBA' for true color with transparency
 
     FONT_TINY: ImageFont = None
     FONT_SMALL_EMOJI: ImageFont = None
@@ -46,33 +46,86 @@ class Canvas(PyXavi):
 
     DEVICE_CONFIG_PREFIX = ""   # Example: "lcd" The separator "." will be added automatically
 
+    COLOR_CODES = {
+        "black": {
+            "1": 0,
+            "L": 0,
+            "RGB": (0, 0, 0),
+            "RGBA": (0, 0, 0, 255)
+        },
+        "white": {
+            "1": 255,
+            "L": 255,
+            "RGB": (255, 255, 255),
+            "RGBA": (255, 255, 255, 255)
+        },
+        "red": {
+            "1": 255,
+            "L": 0,
+            "RGB": (255, 0, 0),
+            "RGBA": (255, 0, 0, 255)
+        },
+        "green": {
+            "1": 255,
+            "L": 0,
+            "RGB": (0, 255, 0),
+            "RGBA": (0, 255, 0, 255)
+        },
+        "blue": {
+            "1": 255,
+            "L": 0,
+            "RGB": (0, 0, 255),
+            "RGBA": (0, 0, 255, 255)
+        },
+        "yellow": {
+            "1": 255,
+            "L": 0,
+            "RGB": (255, 255, 0),
+            "RGBA": (255, 255, 0, 255)
+        },
+        "orange": {
+            "1": 255,
+            "L": 0,
+            "RGB": (255, 165, 0),
+            "RGBA": (255, 165, 0, 255)
+        }
+    }
+
     @property
     def COLOR_BLACK(self) -> tuple | int:
-        return 0 if self.COLOR_MODE == "1" else (0, 0, 0)
+        return self.COLOR_CODES["black"][str(self.COLOR_MODE)]
     
     @property
     def COLOR_WHITE(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (255, 255, 255)
-    
+        return self.COLOR_CODES["white"][str(self.COLOR_MODE)]
+
     @property
     def COLOR_RED(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (255, 0, 0)
-    
+        return self.COLOR_CODES["red"][str(self.COLOR_MODE)]
+
     @property
     def COLOR_GREEN(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (0, 255, 0)
-    
+        return self.COLOR_CODES["green"][str(self.COLOR_MODE)]
+
     @property
     def COLOR_BLUE(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (0, 0, 255)
+        return self.COLOR_CODES["blue"][str(self.COLOR_MODE)]
 
     @property
     def COLOR_YELLOW(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (255, 255, 0)
-    
+        return self.COLOR_CODES["yellow"][str(self.COLOR_MODE)]
+
     @property
     def COLOR_ORANGE(self) -> tuple | int:
-        return 255 if self.COLOR_MODE == "1" else (255, 165, 0)
+        return self.COLOR_CODES["orange"][str(self.COLOR_MODE)]
+
+    @property
+    def COLOR_FOREGROUND(self) -> tuple | int:
+        return self.COLOR_BLACK if self.COLOR_MODE == "1" else self.COLOR_WHITE
+
+    @property
+    def COLOR_BACKGROUND(self) -> tuple | int:
+        return self.COLOR_WHITE if self.COLOR_MODE == "1" else self.COLOR_BLACK
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Canvas, self).init_pyxavi(config=config, params=params)
@@ -163,6 +216,14 @@ class Canvas(PyXavi):
             self._log_debug(f"Created new working image of size {self._working_image.size} and mode {self.COLOR_MODE}")
 
         return self._working_image
+
+    def combine_into_image(self, overlay_image: Image.Image, position: Point = Point(0,0)):
+        """
+        Combines the given overlay image onto the working image at the given position.
+        """
+        base_image = self.get_image(clear_background=False)
+        base_image.alpha_composite(overlay_image, dest=(position.x, position.y))
+        self._log_debug(f"Combined overlay image of size {overlay_image.size} at position ({position.x}, {position.y}) onto working image.")
 
     def get_font_by_size(self, size: int) -> ImageFont:
         """

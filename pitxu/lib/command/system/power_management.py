@@ -101,7 +101,7 @@ class SystemPowerManagement(PyXavi, Command):
 
             # New approach, using the existing display instance via main
             log.error(f"🔋 Showing battery level on eInk: {value}")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon=icon,
                 text=f"{value} %",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)

@@ -189,7 +189,7 @@ class StatefulReminders(PyXavi, Command):
 
         try:
             log.debug(f"📝 Showing Create Reminder on eInk: {value}")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon="📝",
                 text=value,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
@@ -202,7 +202,7 @@ class StatefulReminders(PyXavi, Command):
             reminders_count = len(value)
 
             log.debug(f"📝 Showing Get Reminders for Date on eInk: {reminders_count}")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon="📝",
                 text=f"{reminders_count} reminder{'s' if reminders_count != 1 else ''}.",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
@@ -217,7 +217,7 @@ class StatefulReminders(PyXavi, Command):
             if isinstance(value, dict):
                 value = f"{value['date']} {value['time']}"
 
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon="📝",
                 text=value,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)

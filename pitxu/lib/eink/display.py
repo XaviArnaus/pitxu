@@ -90,12 +90,12 @@ class Display(XprocessDisplayForeground):
     
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
-        self.show_arbitrary_text_on_eink(param=param)
+        self.show_arbitrary_text_on_foreground(param=param)
         while self.is_speaker_busy():
             time.sleep(1)
         time.sleep(1)  # small delay to ensure the user sees the image
     
-    def show_arbitrary_text_on_eink(self, param: dict):
+    def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
         self._macros.arbitrary_text_with_icon(
             text=param.get("text", None),
@@ -170,10 +170,11 @@ class Display(XprocessDisplayForeground):
         # if self.is_eink_idle_mode():
         #     self.unset_eink_idle_mode()
 
-    def splash_startup(self):
+    def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
         self._xlog.info(f"👀 Showing startup splash screen on eInk.")
         self._macros.startup_splash()
+        time.sleep(for_seconds)
     
     def clear(self):
         # Clear the display

@@ -39,6 +39,8 @@ class SharedMemoryManager(PyXavi):
         SHARED_LCD_IDLE_MODE: "lcd_idle_mode",
     }
 
+    WAITING_SLEEP_SECONDS = 0.01
+
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
 
@@ -184,21 +186,19 @@ class SharedMemoryManager(PyXavi):
         for name, flag in self._shared_flags.items():
             busy_process += "- " + name + ": " + ("BUSY" if self.read_shared_memory_flag(flag) else "IDLE") + "\n"
         self._xlog.debug(busy_process)
-        sleep_seconds = 0.5
         total_sleeping = 0
         while any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()):
-            total_sleeping += sleep_seconds
-            time.sleep(sleep_seconds)
+            total_sleeping += self.WAITING_SLEEP_SECONDS
+            time.sleep(self.WAITING_SLEEP_SECONDS)
         self._xlog.debug("All processes are idle now. I've sleept " + str(total_sleeping) + "s.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
         self._xlog.debug(f"Waiting for the process {memory_position_name} to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
-        sleep_seconds = 0.5
         total_sleeping = 0
         while self.read_shared_memory_flag(memory_position):
-            total_sleeping += sleep_seconds
-            time.sleep(sleep_seconds)
+            total_sleeping += self.WAITING_SLEEP_SECONDS
+            time.sleep(self.WAITING_SLEEP_SECONDS)
         self._xlog.debug(f"The process {memory_position_name} is idle now. I've sleept " + str(total_sleeping) + "s.")
 
     def close(self):

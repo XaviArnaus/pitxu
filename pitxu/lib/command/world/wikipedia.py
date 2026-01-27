@@ -57,7 +57,7 @@ class WorldWikipedia(PyXavi, Command):
 
         try:
             log.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
-            interaction.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground(
                 icon="🌐",
                 text=search_term,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)

@@ -14,7 +14,9 @@ class XprocessDisplayBackground(Xprocess):
         # We're busy
         self.set_busy()
 
-        # ---------- background interaction actions ----------
+        self._run_background_interaction(config, logger, action, param)
+
+    def _run_background_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):
 
         # Shows the message received
         if action == XprocAction.LED and param != "":
@@ -35,13 +37,14 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
             self.clear()
         
+        # Clears the background screen only
+        if action == XprocAction.LED_CLEAR or action == XprocAction.BACKGROUND_CLEAR:
+            self.clear_background()
+        
         if action == XprocAction.INIT_STEP and param != "":
             step = int(param)
             # For now, just show the step number as a message
-            self.init_step(step)
-        
-        # Now we're not
-        self.unset_busy()
+            self.init_phase(step)
     
     # ------- Common functions ---------
     
@@ -50,6 +53,10 @@ class XprocessDisplayBackground(Xprocess):
     
     def soft_clear(self):
         raise NotImplementedError("soft_clear() must be implemented in Display Background subclasses.")
+
+    # This is supposed to be the new clear for background only
+    def clear_background(self):
+        raise NotImplementedError("clear_background() must be implemented in Display Background subclasses.")
     
     def get_canvas_handler(self):
         raise NotImplementedError("get_canvas_handler() must be implemented in Display Background subclasses.")
@@ -65,9 +72,9 @@ class XprocessDisplayBackground(Xprocess):
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Background subclasses.")
 
-    def init_step(self, step: int):
-        raise NotImplementedError("init_step() must be implemented in Display Background subclasses.")
-    
+    def init_phase(self, phase: int):
+        raise NotImplementedError("init_phase() must be implemented in Display Background subclasses.")
+
     def interaction_holding_percentage(self, percentage: int):
         raise NotImplementedError("interaction_holding_percentage() must be implemented in Display Background subclasses.")
 
