@@ -27,3 +27,6 @@ requirements.txt
 
 # No Mac Stuff
 .DS_Store
+
+# No VSCode settings
+.vscode/

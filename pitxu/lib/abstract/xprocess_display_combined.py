@@ -11,8 +11,11 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
     Class to define the protocol for Display foreground processes.
     '''
 
+    VERBOSE_DEBUG: bool = True
+
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         # We're busy
+        self._log_debug("XprocessDisplayCombined: Starting to process action, setting busy status.")
         self.set_busy()
 
         # ---------- foreground interaction actions ----------
@@ -35,6 +38,7 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
         
         # Clears the background screen only
         if action == XprocAction.LED_CLEAR or action == XprocAction.BACKGROUND_CLEAR:
+            self._log_debug("XprocessDisplayCombined: Clearing background screen only.")
             self.clear_background()
         
         # Clears the foreground screen only
@@ -42,6 +46,7 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
             self.clear_foreground()
         
         # Now we're not
+        self._log_debug("XprocessDisplayCombined: Finished processing action, unsetting busy status.")
         self.unset_busy()
     
     

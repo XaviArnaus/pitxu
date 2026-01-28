@@ -10,13 +10,17 @@ class XprocessDisplayForeground(Xprocess):
     Class to define the protocol for Display foreground processes.
     '''
 
+    VERBOSE_DEBUG: bool = False
+
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         # We're busy
+        self._log_debug("XprocessDisplayForeground: Starting to process action, setting busy status.")
         self.set_busy()
 
         self._run_foreground_interaction(config, logger, action, param)
 
          # Now we're not
+        self._log_debug("XprocessDisplayForeground: Finished processing action, unsetting busy status.")
         self.unset_busy()
 
     def _run_foreground_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):

@@ -224,7 +224,7 @@ class Main(PyXavi):
         # Startup splash. It should be understood as a "Loading..." screen.
         self._interaction.startup_splash(for_seconds=5.0)
         self._interaction.show_init_phases(2)
-        time.sleep(5)
+        time.sleep(4)
 
         # At this point, we better wait for all queues to be empty.
         # This basically involves eInk (for the splash).

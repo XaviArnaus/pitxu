@@ -1,17 +1,16 @@
 class BackgroundComm:
 
-    THINKING: str = "thinking"
-    SPEAKING: str = "speaking"
+    THINKING: str = "THINKING"
+    SPEAKING: str = "SPEAKING"
     INITIAL_PHASE: str = "INITIAL_PHASE"
-    HOLDER_PERCENTAGE: str = "holder_percentage"
-    ERROR: str = "error"
-
-    CLEAR: str = "clear"
+    HOLDER_PERCENTAGE: str = "HOLDER_PERCENTAGE"
+    ERROR: str = "ERROR"
+    CLEAR: str = "CLEAR"
 
 class ForegroundComm:
 
-    STARTUP: str = "startup"
-    ARBITRARY_TEXT: str = "arbitrary_text"
-    ARBITRARY_TEXT_ICON: str = "arbitrary_text_icon"
+    STARTUP: str = "STARTUP"
+    ARBITRARY_TEXT: str = "ARBITRARY_TEXT"
+    ARBITRARY_TEXT_ICON: str = "ARBITRARY_TEXT_ICON"
 
-    CLEAR: str = "clear"
+    CLEAR: str = "CLEAR"

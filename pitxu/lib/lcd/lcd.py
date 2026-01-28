@@ -58,6 +58,9 @@ class Lcd(XprocessDisplayCombined):
         # Commented out until we decide how to merge the eInk and Matrix macros into LCD.
         # self._macros.load_or_create_statics()
 
+        # Add the parent's shared memory manager to the params for the painter
+        self._xparams.set("shared_memory", self._shared_memory)
+
         # The Painter that will handle the actual drawing on the canvas and device
         self.painter = Painter(config=self._xconfig, params=self._xparams)
     
@@ -111,38 +114,73 @@ class Lcd(XprocessDisplayCombined):
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD while speaking.")
 
-        self._xlog.debug(f"👀 Waiting for speaker to be busy...")
-        while not self.is_speaker_busy():
-            time.sleep(0.01)
-        self._xlog.debug(f"👀 Speaker is now busy, showing arbitrary text...")
+        # self._xlog.debug(f"👀 Waiting for speaker to be busy...")
+        # while not self.is_speaker_busy():
+        #     time.sleep(0.01)
+        # self._xlog.debug(f"👀 Speaker is now busy, showing arbitrary text...")
 
-        self.painter.set_foreground_interaction(interaction=ForegroundComm.ARBITRARY_TEXT_ICON, parameter=param)
-        self.painter.start_or_resume_paint()
+        # self.painter.set_foreground_interaction(interaction=ForegroundComm.ARBITRARY_TEXT_ICON, parameter=param)
+        # self.painter.start_or_resume_paint()
 
-        while self.is_speaker_busy():
-            time.sleep(0.01)
+        # What was here originally
+        # while self.is_speaker_busy():
+        #     time.sleep(0.01)
         
-        self._log_debug(f"👀 END Showing arbitrary text on LCD while speaking.")
+        # Example with lambda, content is irrelevant
+        # self.painter.set_busy_flag_callback(SHARED_SPEAKER_BUSY, lambda flag_name, value: self._xlog.debug(f"👀 Speaker busy flag changed to [{value}] while showing arbitrary text."))
 
-        self.painter.stop()
-        self.painter.clear_foreground_interaction()
+        # Setting a callback to close this action when the speaker stops being busy (so finishes speaking)
+        # self.painter.set_busy_flag_callback(
+        #     flag_name=SHARED_SPEAKER_BUSY,
+        #     for_value=False,
+        #     callback=self._callback_end_showing_arbitrary_text_while_speaking)
+        
+        # There can be another way:
+        #   - Have a before and after callback, wrapping the painting execution
+        #   - The before would wait for the flag to be set to something, in a simply non-blocking if. The loop may be painting the other interaction paint.
+        #   - The after would wait for the flag to be set to something else to finish the painting, basically to remove the interaction from the painter.
+        #
+        #   - This requires 2 sets of callbacks to check per iteration of the painting loop.
+        #   - This then allows to have a single painting loop managing multiple interactions with their own lifecycles.
+        #   - The downside is that the painting loop becomes more complex and heavier.
+        #   - Important to re-emphasize that does not introduce waiting loops, it's every iteration's IF that execute the callback or not.
+        #       - This allows the paint thread to keep on running while the other subprocesses are preparing, executing and finishing, freely communicating via busy flags.
+        self.painter.paint_into_foreground_while_speaking(
+            foreground_interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            foreground_parameter=param)
+        
+        # self._log_debug(f"👀 END Showing arbitrary text on LCD while speaking.")
+
+        # self.painter.stop()
+        # self.painter.remove_foreground_interaction()
+    
+    # def _callback_end_showing_arbitrary_text_while_speaking(self):
+    #     self._xlog.debug(f"👀 Speaker busy flag changed to  while showing arbitrary text.")
+    #     self.painter.stop()
+    #     self.painter.remove_foreground_interaction()
+    #     # Remove the callback now that we used it
+    #     self.painter.remove_busy_flag_callback(flag_name=SHARED_SPEAKER_BUSY, for_value=False)
+    #     self._log_debug(f"👀 END Showing arbitrary text on LCD while speaking.")
     
     def show_arbitrary_text_while_thinking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD while thinking.")
 
-        while self.is_chatbot_busy():
-            time.sleep(0.01)
+        # while self.is_chatbot_busy():
+        #     time.sleep(0.01)
 
-        self.painter.set_foreground_interaction(interaction=ForegroundComm.ARBITRARY_TEXT_ICON, parameter=param)
-        self.painter.start_or_resume_paint()
+        # self.painter.set_foreground_interaction(interaction=ForegroundComm.ARBITRARY_TEXT_ICON, parameter=param)
+        # self.painter.start_or_resume_paint()
 
-        while self.is_chatbot_busy():
-            time.sleep(0.01)
+        # while self.is_chatbot_busy():
+        #     time.sleep(0.01)
         
-        self._log_debug(f"👀 END Showing arbitrary text on LCD while thinking.")
+        # self._log_debug(f"👀 END Showing arbitrary text on LCD while thinking.")
 
-        self.painter.stop()
-        self.painter.clear_foreground_interaction()
+        # self.painter.stop()
+        # self.painter.remove_foreground_interaction()
+        self.painter.paint_into_foreground_while_thinking(
+            foreground_interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            foreground_parameter=param)
 
     
     # def show_arbitrary_text_on_lcd(self, param: dict):
@@ -231,7 +269,8 @@ class Lcd(XprocessDisplayCombined):
     # The new clear for background only
     def clear_background(self):
         self._xlog.info("Clearing LCD background interaction.")
-        self.painter.just_paint(background_interaction=BackgroundComm.CLEAR, clean_background_after_painting=True)
+        # self.painter.just_paint(background_interaction=BackgroundComm.CLEAR, remove_background_after_painting=True)
+        self.painter.just_paint(background_interaction=BackgroundComm.CLEAR)
     
     # The new clear for foreground only
     def clear_foreground(self):
@@ -251,37 +290,35 @@ class Lcd(XprocessDisplayCombined):
     #         if self.read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR):
     #             self._macros.show_cross()
     #         else:
-    #             # New way: we use the VU Meter columns to show the mouth
-    #             # col_1_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_1)
-    #             # col_2_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_2)
-    #             # col_3_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_3)
-    #             # col_4_value = self.read_shared_memory_vu_meter_column(SHARED_VU_COL_4)
     #             col_1_value = 0
     #             col_2_value = 0
     #             col_3_value = 2
     #             col_4_value = 4
-    #             self._macros.kitt_speaking_effect_vu_meter(col_1_value, col_2_value, col_3_value, col_4_value)
+    #             self._macros.kitt_speaking_effect(col_1_value, col_2_value, col_3_value, col_4_value)
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
 
-        # We have to wait until the speaker starts being busy, otherwise the mouth effect will self close
-        # Now looping to capture the end of the speaking
-        while not self.is_speaker_busy():
-            time.sleep(0.01)
+        # # We have to wait until the speaker starts being busy, otherwise the mouth effect will self close
+        # self._xlog.debug(f"👄 Waiting for Speaker to start speaking.")
+        # while not self.is_speaker_busy():
+        #     time.sleep(0.01)
+        # self._xlog.debug(f"👄 Speaker started speaking.")
 
-        # Setting what to show and start the painting loop
-        self.painter.set_background_interaction(BackgroundComm.SPEAKING)
-        self.painter.start_or_resume_paint()
+        # # Setting what to show and start the painting loop
+        # self.painter.set_background_interaction(BackgroundComm.SPEAKING)
+        # self.painter.start_or_resume_paint()
 
-        # Now looping to capture the end of the speaking
-        while self.is_speaker_busy():
-            time.sleep(0.01)
+        # # Now looping to capture the end of the speaking
+        # self._xlog.debug(f"👄 Waiting for Speaker to stop speaking.")
+        # while self.is_speaker_busy():
+        #     time.sleep(0.01)
 
-        # Reached here? Stop the painting and clear the interaction
-        self._xlog.debug(f"👄 Stopping KITT mouth on LCD: Speaker not busy")
-        self.painter.stop()
-        self.painter.clear_background_interaction(by_the_end_of_the_painting=True)
+        # # Reached here? Stop the painting and clear the interaction
+        # self._xlog.debug(f"👄 Stopping KITT mouth on LCD: Speaker not busy")
+        # self.painter.stop()
+        # self.painter.remove_background_interaction(by_the_end_of_the_painting=True)
+        self.painter.paint_into_background_while_speaking(background_interaction=BackgroundComm.SPEAKING)
     
     # def show_kitt_scanner_while_thinking(self):
     #     self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
@@ -296,14 +333,18 @@ class Lcd(XprocessDisplayCombined):
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
         
-        self.painter.set_background_interaction(BackgroundComm.THINKING)
-        self.painter.start_or_resume_paint()
+        # self.painter.set_background_interaction(BackgroundComm.THINKING)
+        # self.painter.start_or_resume_paint()
 
-        while self.is_chatbot_busy():
-            time.sleep(0.1)
+        # self._xlog.info(f"🤖 Waiting for Chatbot to stop thinking")
+        # while self.is_chatbot_busy():
+        #     time.sleep(0.01)
+        # self._xlog.info(f"🤖 Chatbot stopped thinking, clearing")
         
-        self.painter.stop()
-        self.painter.clear_background_interaction(by_the_end_of_the_painting=True)
+        # self.painter.stop()
+        # self.painter.remove_background_interaction(by_the_end_of_the_painting=True)
+        # self.clear_background()
+        self.painter.paint_into_background_while_thinking(background_interaction=BackgroundComm.THINKING)
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")
@@ -319,7 +360,7 @@ class Lcd(XprocessDisplayCombined):
         self.painter.just_paint(
             background_interaction=BackgroundComm.INITIAL_PHASE, 
             background_parameter=phase,
-            clean_background_after_painting=False)
+            remove_background_after_painting=False)
 
     # def interaction_holding_percentage(self, percentage: int):
     #     percentage = int(percentage)
@@ -331,7 +372,7 @@ class Lcd(XprocessDisplayCombined):
         self.painter.just_paint(
             background_interaction=BackgroundComm.HOLDER_PERCENTAGE, 
             background_parameter=percentage,
-            clean_background_after_painting=False)
+            remove_background_after_painting=True)
 
     # ------- Communication with Flags ---------
     

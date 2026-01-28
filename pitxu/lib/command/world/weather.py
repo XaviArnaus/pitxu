@@ -170,7 +170,7 @@ class WorldWeather(PyXavi, Command):
                 header=weather_header,
                 font_header_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE,
                 text=weather_other,
-                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_MEDIUM)
         except Exception as e:
             log.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
             log.error(full_stack())

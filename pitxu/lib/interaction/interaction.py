@@ -37,7 +37,7 @@ class Interaction(PyXavi):
     """
 
     # Busy flag changes manager
-    busy_flags_manager: BusyFlagsManager = None
+    # busy_flags_manager: BusyFlagsManager = None
 
     # This is what is currently being done in foreground and background
     foreground_interaction: str = None
@@ -84,10 +84,10 @@ class Interaction(PyXavi):
         # Initialize the required displays
         self._initialize_displays()
 
-        # Start listening to busy flag changes
-        if self.busy_flags_manager is not None:
-            self._xlog.debug("Starting BusyFlagsManager listening to flag changes.")
-            self.busy_flags_manager.start_listening_flag_changes()
+        # # Start listening to busy flag changes
+        # if self.busy_flags_manager is not None:
+        #     self._xlog.debug("Starting BusyFlagsManager listening to flag changes.")
+        #     self.busy_flags_manager.start_listening_flag_changes()
     
     def _initialize_displays(self):
         """
@@ -150,24 +150,31 @@ class Interaction(PyXavi):
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
 
         # We need to start from a clean state, at least from the background display point of view.
-        self.clear_background_display()
+        # self.clear_background_display()
 
         # As long as we can't stop inmediately the animations on the Background Display,
         # we need to wait until it's idle before starting a new speech interaction.
         # TODO: Seems like it is waiting forever to THINKING state to end. Why? Most likelky we never unset it. Checking.
-        self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
-
-        # Speech is a direct process command.
-        self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+        # Commented out: Now we manage the waiting to start and end thinking/speaking via flags in PainterBusyFlags
+        # self._log_debug(f"🗣️ Waiting for Background Display to be idle before speaking.")
+        # self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
 
         # The background display depends on the configuration.
+        self._log_debug(f"🗣️ Sending SAY command to Background display")
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
 
+        # Speech is a direct process command.
+        self._log_debug(f"🗣️ Sending SAY command to speaker")
+        self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+
         # We want that the main thread waits until the actions finished in the subprocesses
-        self.process_pool.wait_for_queue_to_empty(QUEUE_SPEAKER)
-        self.process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
-        self.process_pool.wait_for_queue_to_empty(self._get_active_background_display_queue())
-        self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
+        # I am sure that these waiting steps are not really working.
+        self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
+        # self.process_pool.wait_for_queue_to_empty(QUEUE_SPEAKER)
+        # self.process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+        self.wait_for_speaker_to_start_and_finish_speaking()
+        # self.process_pool.wait_for_queue_to_empty(self._get_active_background_display_queue())
+        self.wait_for_busy_background_display_to_idle()
     
     def show_thinking(self):
         """
@@ -215,8 +222,6 @@ class Interaction(PyXavi):
         ):
         """
         Shows arbitrary text on the eInk display.
-
-        TODO: This should be generalized to other displays.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
             "icon": icon,
@@ -275,6 +280,10 @@ class Interaction(PyXavi):
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
     
     # --------- (Proxy) Functions to wait for queues to be empty and busy flags to idle ---------
+
+    def wait_for_speaker_to_start_and_finish_speaking(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_SPEAKER_BUSY)
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self._get_active_foreground_display_queue())

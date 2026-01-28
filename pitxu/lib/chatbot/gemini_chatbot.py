@@ -163,13 +163,24 @@ class GeminiChatbot(PyXavi):
                         response = await self._chat.send_message(question)
                         outcome = ChatbotResponse.from_response(response)
                         if outcome.error is not None:
-                            # Turns out that in most cases the tokens are exhausted, so Gemini refuses to answer.
+                            # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?
+                            # It's largely discussed: https://discuss.ai.google.dev/t/gemini-2-5-pro-with-empty-response-text/81175/71
                             # This may happen due to having too many tools, or too big context.
                             # This started to happen after adding Trivago MCP tool, I guess it consumes a large amount of tokens.
                             # Also the context may be too big if the previous conversation is large.
                             self._xlog.error("🛑 The server answered with an error. The finish reason is: " + outcome.error + 
                                              " and had " + (str(outcome.metadata.total_token_count) + " total tokens" if outcome.metadata and outcome.metadata.total_token_count is not None else ""))
                             dd(response, max_depth=6)
+                            if outcome.error == "STOP":
+                                if retries < max_retries - 1:
+                                    self._xlog.debug("🛠️ Retrying due to STOP finish reason...")
+                                    # According to the linked discussion above, we want to use the retry approach.
+                                    retries += 1
+                                    continue
+                                else:
+                                    self._xlog.debug("🛠️ Maximum retries reached for STOP finish reason.")
+                                    # Fall back to the previous behaviour of answering with an error message.
+
                             outcome.set_text(self._xconfig.get("language.empty_answer." + self._xparams.get("language")))
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, True)
                             # Make him remember that he couldn't answer
@@ -181,6 +192,7 @@ class GeminiChatbot(PyXavi):
                             )
                         else:
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
+
                         self._xlog.info("🗣️  Answer: \n\n>> " + TerminalColor.ORANGE_BRIGHT + str(outcome.text) + TerminalColor.END + "\n")
                         self._log_debug("💰 Tokens: " + str(outcome.metadata.total_token_count) if outcome.metadata and outcome.metadata.total_token_count is not None else "?")
                         # We interrupt any retry loop returning directly here

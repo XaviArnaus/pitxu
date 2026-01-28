@@ -10,11 +10,18 @@ class XprocessDisplayBackground(Xprocess):
     Class to define the protocol for Display background processes.
     '''
 
+    VERBOSE_DEBUG: bool = False
+
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         # We're busy
+        self._log_debug("XprocessDisplayBackground: Starting to process action, setting busy status.")
         self.set_busy()
 
         self._run_background_interaction(config, logger, action, param)
+
+        # Now we're not
+        self._log_debug("XprocessDisplayBackground: Finished processing action, unsetting busy status.")
+        self.unset_busy()
 
     def _run_background_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):
 
@@ -39,6 +46,7 @@ class XprocessDisplayBackground(Xprocess):
         
         # Clears the background screen only
         if action == XprocAction.LED_CLEAR or action == XprocAction.BACKGROUND_CLEAR:
+            self._log_debug("XprocessDisplayBackground: Clearing background screen only.")
             self.clear_background()
         
         if action == XprocAction.INIT_STEP and param != "":

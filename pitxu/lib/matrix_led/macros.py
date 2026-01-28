@@ -78,7 +78,7 @@ class Macros(PyXavi):
             self._handable_canvas.close()
             self._handable_canvas = None
     
-    def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.03):
+    def kitt_speaking_effect(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.03):
         '''
         KITT speaking effect using VU Meter columns
 

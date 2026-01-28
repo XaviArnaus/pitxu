@@ -27,6 +27,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a JoinableQueue instance, got None.")
         self._queue = queue
 
+        # The busy flag is set in the XprocessPool when initializing the Process (see new() there)
         if busy_flag is None:
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a busy_flag index, got None.")
         self._busy_flag = busy_flag
@@ -140,19 +141,12 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
-        self._shared_memory.initialize_existing_shared_memory_vu_meter()
 
     def read_shared_memory_flag(self, index: int) -> bool:
         return self._shared_memory.read_shared_memory_flag(index)
 
     def write_shared_memory_flag(self, index: int, value: bool):
         self._shared_memory.write_shared_memory_flag(index, value)
-
-    def read_shared_memory_vu_meter_column(self, index: int) -> bool:
-        return self._shared_memory.read_shared_memory_vu_meter_column(index)
-
-    def write_shared_memory_vu_meter_column(self, index: int, value: bool):
-        self._shared_memory.write_shared_memory_vu_meter_column(index, value)
     
     # Display busy control: is it already busy?
     def is_busy(self):

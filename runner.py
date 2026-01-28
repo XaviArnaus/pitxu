@@ -246,7 +246,7 @@ def test_mouth_in_lcd():
             logger.debug("Using direct mode to draw KITT mouth while speaking...")
             # Direct mode, no painter
             for i in range(0,2):
-                macros.kitt_speaking_effect_vu_meter(0,0,2,4, 0.01)
+                macros.kitt_speaking_effect(0,0,2,4, 0.01)
         else:
             from pitxu.lib.canvas.painter import Painter
             from pitxu.lib.interaction.CommConstants import BackgroundComm

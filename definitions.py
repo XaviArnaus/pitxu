@@ -22,9 +22,8 @@ SHARED_CHATBOT_ANSWER_IS_ERROR = 6
 SHARED_EINK_IDLE_MODE = 7
 SHARED_LCD_IDLE_MODE = 8
 
-# Shared memory vu meter positions
-SHARED_MEMORY_VU_METER = "pitxu_shared_memory_vu_meter"
-SHARED_VU_COL_1 = 0
-SHARED_VU_COL_2 = 1
-SHARED_VU_COL_3 = 2
-SHARED_VU_COL_4 = 3
+# Painter
+LOOP_START: str = "start"
+LOOP_END: str = "end"
+FOREGROUND_CHANNEL: str = "foreground"
+BACKGROUND_CHANNEL: str = "background"

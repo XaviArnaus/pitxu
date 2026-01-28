@@ -413,19 +413,19 @@ class Macros(PyXavi):
 
         # Move right
         for i in range(8):
-            self.draw_kitt_horizontal_effect_left(draw=draw, step=i)
+            self.draw_kitt_horizontal_effect_left(draw=draw, frame=i)
 
             self.device.display(image)
             time.sleep(delay)
 
         # Move left
         for i in range(8):
-            self.draw_kitt_horizontal_effect_right(draw=draw, step=i)
+            self.draw_kitt_horizontal_effect_right(draw=draw, frame=i)
 
             self.device.display(image)
             time.sleep(delay)
     
-    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, step: int = None):
+    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
         apply_offset = False
 
@@ -434,14 +434,14 @@ class Macros(PyXavi):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
         
-            # We count which is the current step for the drawing.
-            # If we have reached the step, we stop drawing more.
-            if step is not None and counter >= step:
+            # We count which is the current frame for the drawing.
+            # If we have reached the frame, we stop drawing more.
+            if frame is not None and counter >= frame:
                 return
             else:
                 counter += 1
     
-    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, step: int = None):
+    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
         apply_offset = False
 
@@ -450,14 +450,14 @@ class Macros(PyXavi):
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
         
-            # We count which is the current step for the drawing.
-            # If we have reached the step, we stop drawing more.
-            if step is not None and counter >= step:
+            # We count which is the current frame for the drawing.
+            # If we have reached the frame, we stop drawing more.
+            if frame is not None and counter >= frame:
                 return
             else:
                 counter += 1
     
-    def kitt_speaking_effect_vu_meter(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.01):
+    def kitt_speaking_effect(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.01):
         '''
         KITT speaking effect using VU Meter columns
 
@@ -472,8 +472,8 @@ class Macros(PyXavi):
 
         # Drawing the bars up. In this this method we draw all the steps at once
         for i in range(4):
-            # self.draw_kitt_speaking_effect_vu_meter(draw=draw, max_values=max_values, step=i)
-            self.draw_kitt_speaking_effect_vu_meter_increase(draw=draw, step=i)
+            # self.draw_kitt_speaking_effect(draw=draw, max_values=max_values, step=i)
+            self.draw_kitt_speaking_effect_increase(draw=draw, frame=i)
 
             # We show this row to the device
             # self.device.display(self.canvas.get_image())
@@ -482,8 +482,8 @@ class Macros(PyXavi):
         
         # And now we move the bars down again to zero
         for i in range(4):
-            # self.clear_kitt_speaking_effect_vu_meter(draw=draw, max_values=max_values, step=i)
-            self.draw_kitt_speaking_effect_vu_meter_decrease(draw=draw, step=i)
+            # self.clear_kitt_speaking_effect(draw=draw, max_values=max_values, step=i)
+            self.draw_kitt_speaking_effect_decrease(draw=draw, frame=i)
 
             # We show this row to the device
             self.device.display(image)
@@ -527,42 +527,42 @@ class Macros(PyXavi):
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
                         self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
-    def draw_kitt_speaking_effect_vu_meter_increase(self, draw: ImageDraw.ImageDraw, step: int = None):
+    def draw_kitt_speaking_effect_increase(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
 
         # We go row by row from the middle point to the top and bottom extremes
-        for frame in range(1, 5):
+        for drawing_frame in range(1, 5):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
             self._soft_clear_rectangle(draw=draw)
 
             # Every iteration here is a full frame to be drawn
-            self._draw_kitt_mouth_frame(draw=draw, frame=frame)
+            self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
                 
             # We count which is the current step for the drawing.
-            # If we have reached the step, we stop drawing more.
-            # This way we can flush to the device in the steps we want.
-            if step is not None and counter >= step:
+            # If we have reached the frame, we stop drawing more.
+            # This way we can flush to the device in the frames we want.
+            if frame is not None and counter >= frame:
                 return
             else:
                 counter += 1
     
-    def draw_kitt_speaking_effect_vu_meter_decrease(self, draw: ImageDraw.ImageDraw, step: int = None):
+    def draw_kitt_speaking_effect_decrease(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
 
         # We go row by row from the middle point to the top and bottom extremes
-        for frame in range(3, -1, -1):
+        for drawing_frame in range(3, -1, -1):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
             self._soft_clear_rectangle(draw=draw)
 
             # Every iteration here is a full frame to be drawn
-            self._draw_kitt_mouth_frame(draw=draw, frame=frame)
+            self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
                 
             # We count which is the current step for the drawing.
-            # If we have reached the step, we stop drawing more.
-            # This way we can flush to the device in the steps we want.
-            if step is not None and counter >= step:
+            # If we have reached the frame, we stop drawing more.
+            # This way we can flush to the device in the frames we want.
+            if frame is not None and counter >= frame:
                 return
             else:
                 counter += 1
@@ -701,7 +701,7 @@ class Macros(PyXavi):
     #                     self.draw_kitt_horizontal_effect_left(draw=draw, step=step)
     #             elif background_interaction == BackgroundComm.SPEAKING:
     #                 # For speaking, we simulate some VU meter values
-    #                 self.draw_kitt_speaking_effect_vu_meter(draw=draw, max_values=parameter, step=i + 1)
+    #                 self.draw_kitt_speaking_effect(draw=draw, max_values=parameter, step=i + 1)
     #             elif background_interaction == BackgroundComm.INITIAL_PHASE:
     #                 self.draw_init_step(draw=draw, step=parameter)
     #             elif background_interaction == BackgroundComm.HOLDER_PERCENTAGE:
