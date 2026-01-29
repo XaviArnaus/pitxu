@@ -325,7 +325,8 @@ class Painter(PyXavi, Thread):
             channel=BACKGROUND_CHANNEL,
             flag_name=SHARED_SPEAKER_BUSY,
             for_value=True,
-            parameter=background_parameter
+            parameter=background_parameter,
+            delay_between_frames=0.01
         )
         # End callback definition: we want to stop painting when the speaker is not busy anymore
         end_callback = self._generate_callback(
@@ -417,7 +418,8 @@ class Painter(PyXavi, Thread):
                            flag_name: int,
                            for_value: bool,
                            parameter: any = None,
-                           final_screen_clearing: bool = False) -> callable:
+                           final_screen_clearing: bool = False,
+                           delay_between_frames: float = None) -> callable:
         
         start_interaction_function = self.set_background_interaction if channel == BACKGROUND_CHANNEL else self.set_foreground_interaction
         end_interaction_function = self.remove_background_interaction if channel == BACKGROUND_CHANNEL else self.remove_foreground_interaction
@@ -434,6 +436,10 @@ class Painter(PyXavi, Thread):
                 # If we want to clear the screen at the end of the interaction, we can set a final callback here
                 if final_screen_clearing:
                     self.macros._soft_clear_rectangle(draw=self.draw)
+                # If we want to use a different delay between frames during this interaction
+                if delay_between_frames is not None:
+                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: Setting delay between iterations to [{delay_between_frames}] seconds for interaction [{interaction}].")
+                    self.set_delay_between_iterations(delay_between_frames)
         
         # callback_template for the loop end section
         def end_callback_template():
@@ -447,6 +453,8 @@ class Painter(PyXavi, Thread):
                 # If we want to clear the screen at the end of the interaction, we can set a final callback here
                 if final_screen_clearing:
                     self.macros._soft_clear_rectangle(draw=self.draw)
+                # Whatever the delay between frames we set for this interaction, we reset it to default now
+                self.reset_delay_between_iterations()
         
         return start_callback_template if when == LOOP_START else end_callback_template
 

@@ -1,8 +1,6 @@
 from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
-from pitxu.lib.interaction.busy_flags_manager import BusyFlagsManager
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 
@@ -36,9 +34,6 @@ class Interaction(PyXavi):
         - If the background interaction is no longer needed, Interaction stops it, by listening to the busy flags changes.
     """
 
-    # Busy flag changes manager
-    # busy_flags_manager: BusyFlagsManager = None
-
     # This is what is currently being done in foreground and background
     foreground_interaction: str = None
     background_interaction: str = None
@@ -70,24 +65,12 @@ class Interaction(PyXavi):
         # All interactions will be done via processes
         self.process_pool = XprocessPool(config=config, params=params)
 
-        # Define which is going to be the callback for busy flags changes
-        # and initialize the BusyFlagsManager. Works via threading.
-        # COMMENTED OUT FOR NOW, we don't need it yet and causes probles when pickling the _thread.lock
-        #   TypeError: cannot pickle '_thread.lock' objec
-        # params.set("busy_flags_callback", self.busy_flags_callback)
-        # self.busy_flags_manager = BusyFlagsManager(config=config, params=params)
-
         # Text to speech is the main interaction. We initialize it without wanting initializations from the main Process.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
         self.process_pool.new_and_start(self.speech_queue, target=Piper, params=Dictionary({"initialize_from_main": False}))
 
         # Initialize the required displays
         self._initialize_displays()
-
-        # # Start listening to busy flag changes
-        # if self.busy_flags_manager is not None:
-        #     self._xlog.debug("Starting BusyFlagsManager listening to flag changes.")
-        #     self.busy_flags_manager.start_listening_flag_changes()
     
     def _initialize_displays(self):
         """
@@ -125,14 +108,20 @@ class Interaction(PyXavi):
                 self._xlog.error(f"Display class for {display_name} not found. Cannot initialize it. Stopping.")
                 raise RuntimeError(f"Display class for {display_name} not found.")
     
+    def displays_are_combined(self) -> bool:
+        """
+        Check if the foreground and background displays are the same.
+
+        Returns:
+            bool: True if both displays are the same, False otherwise.
+        """
+        return self.foreground_display_queue == self.background_display_queue
+    
     def close(self):
         """
         Close the Interaction, including the BusyFlagsManager.
         """
         self._xlog.debug("Closing Interaction.")
-        if self.busy_flags_manager is not None:
-            self.busy_flags_manager.close()
-            self.busy_flags_manager = None
     
     # --------- (Proxy) Functions to trigger interactions ---------
     
@@ -149,16 +138,6 @@ class Interaction(PyXavi):
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
 
-        # We need to start from a clean state, at least from the background display point of view.
-        # self.clear_background_display()
-
-        # As long as we can't stop inmediately the animations on the Background Display,
-        # we need to wait until it's idle before starting a new speech interaction.
-        # TODO: Seems like it is waiting forever to THINKING state to end. Why? Most likelky we never unset it. Checking.
-        # Commented out: Now we manage the waiting to start and end thinking/speaking via flags in PainterBusyFlags
-        # self._log_debug(f"🗣️ Waiting for Background Display to be idle before speaking.")
-        # self.process_pool._shared_memory.wait_for_busy_process_to_idle(self._get_active_background_display_busy_flag())
-
         # The background display depends on the configuration.
         self._log_debug(f"🗣️ Sending SAY command to Background display")
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
@@ -168,12 +147,8 @@ class Interaction(PyXavi):
         self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
 
         # We want that the main thread waits until the actions finished in the subprocesses
-        # I am sure that these waiting steps are not really working.
         self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
-        # self.process_pool.wait_for_queue_to_empty(QUEUE_SPEAKER)
-        # self.process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
         self.wait_for_speaker_to_start_and_finish_speaking()
-        # self.process_pool.wait_for_queue_to_empty(self._get_active_background_display_queue())
         self.wait_for_busy_background_display_to_idle()
     
     def show_thinking(self):
@@ -187,9 +162,6 @@ class Interaction(PyXavi):
         self._xlog.debug("🤖 Triggering thinking interaction on background display.")
 
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.THINKING)
-    
-    # def show(self, message: str):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW, message)
     
     def startup_splash(self, for_seconds: float = 3.0):
         """
@@ -278,6 +250,10 @@ class Interaction(PyXavi):
         # TODO: This should be unified into a XprocAction.SOFT_CLEAR / XprocAction.CLEAR
         # self.process_pool.send(self._get_active_background_display_queue(), XprocAction.LED_CLEAR)
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
+    
+    def clear_combined_display(self):
+        # They are combined, so let's send the clear to just one of it. Picking randomly Background.
+        self.clear_background_display()
     
     # --------- (Proxy) Functions to wait for queues to be empty and busy flags to idle ---------
 
@@ -402,34 +378,4 @@ class Interaction(PyXavi):
             str: The busy flag name of the active foreground display.
         """
         return self.process_pool.get_busy_flag_from_related_queue(self._get_active_foreground_display_queue())
-    
-    # --------- I'm not sure if we actually need this at all ---------
-    
-    def busy_flags_callback(self, state_name: str, new_value: bool):
-        """
-        Callback called when a busy flag changes state.
-
-        Args:
-            state_name (str): The name of the state that changed.
-            new_value (bool): The new value of the state.
-        """
-        self._xlog.debug(f"Interaction received busy flag change: {state_name} = {new_value}")
-
-        # Identify what was changed and update the interaction state accordingly
-        if state_name == BusyFlagsManager.STATE_SPEAKER:
-            if new_value:
-                self.background_interaction = BackgroundComm.SPEAKING
-            else:
-                self.background_interaction = None
-        elif state_name == BusyFlagsManager.STATE_CHATBOT:
-            if new_value:
-                self.background_interaction = BackgroundComm.THINKING
-            else:
-                self.background_interaction = None
-        
-        # Now clear the communication and re-trigger it.
-    
-    def trigger_visual_communication(self):
-        # To be implemented in subclasses
-        pass
         

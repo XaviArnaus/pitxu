@@ -22,15 +22,6 @@ class Macros(PyXavi):
 
     LED_TO_LCD_OFFSET_X: int = 40  # Pixels to offset in X to avoid rounded corners
 
-    # BACKGROUND_DEFAULT: str = "default"
-    # LED_EFFECT_LOOP_ITERATIONS: dict = {
-    #     BackgroundComm.THINKING: 16,
-    #     BackgroundComm.SPEAKING: 8,
-    #     BackgroundComm.INITIAL_PHASE: 1,
-    #     BackgroundComm.HOLDER_PERCENTAGE: 1,
-    #     BACKGROUND_DEFAULT: 1
-    # }
-
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
 
@@ -402,7 +393,7 @@ class Macros(PyXavi):
             outline=color,
             fill=color)
     
-    # ------ Matrix Led effects adapted to LCD -------
+    # ------ Background effects adapted to LCD -------
 
     def kitt_horizontal_effect(self, delay: float = 0.1, should_stop: bool = False):
         self._log_debug("Starting KITT effect")
@@ -658,7 +649,6 @@ class Macros(PyXavi):
         x = point.x * ((self._display_size.x - offset_x) // 8) + (offset_x // 2 + 1)
         y = point.y * ((self._display_size.y - 1) // 8)
         radius = min((self._display_size.x - offset_x) // 16, (self._display_size.y - 1) // 16)
-        # radius = (self._display_size.x - offset_x) // 16
 
         draw.circle(
             (x + radius, y + radius),
@@ -667,72 +657,6 @@ class Macros(PyXavi):
             outline=color)
     
     # ------ Main method (and helpers) to show on LCD display -------
-
-    # def show_on_lcd_display(self, 
-    #                         background_interaction: str = None,
-    #                         foreground_interaction: str = None,
-    #                         parameter: any = None):
-    #     '''
-    #     This is the main method to draw all components on the display.
-    #     '''
-
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-    #     self._soft_clear_rectangle(draw=draw)
-    #     # The "draw" object is linked to the canvas, so we can get the image from there
-    #     # It gets updated as we draw on it, so is more efficient than getting it each time
-    #     image = self.canvas.get_image()
-
-    #     # We need to draw from background to foreground.
-    #     # At this point, LED effects are the most background, so we draw them first.
-
-    #     # Some of the LED effects are loops, so we need to handle the drawing via a loop
-    #     # And then flush to the display at each step.
-    #     if background_interaction is not None:
-    #         iterations = self.LED_EFFECT_LOOP_ITERATIONS.get(background_interaction, 1)\
-    #                         if background_interaction in self.LED_EFFECT_LOOP_ITERATIONS\
-    #                         else self.LED_EFFECT_LOOP_ITERATIONS.get(self.BACKGROUND_DEFAULT, 1)
-    #         for i in range(iterations):
-
-    #             if background_interaction == BackgroundComm.THINKING:
-    #                 step = i % 8
-    #                 if i < 8:
-    #                     self.draw_kitt_horizontal_effect_right(draw=draw, step=step )
-    #                 else:
-    #                     self.draw_kitt_horizontal_effect_left(draw=draw, step=step)
-    #             elif background_interaction == BackgroundComm.SPEAKING:
-    #                 # For speaking, we simulate some VU meter values
-    #                 self.draw_kitt_speaking_effect(draw=draw, max_values=parameter, step=i + 1)
-    #             elif background_interaction == BackgroundComm.INITIAL_PHASE:
-    #                 self.draw_init_step(draw=draw, step=parameter)
-    #             elif background_interaction == BackgroundComm.HOLDER_PERCENTAGE:
-    #                 self.draw_interaction_holding_percentage(draw=draw, percentage=parameter)
-    #             elif background_interaction == BackgroundComm.ERROR:
-    #                 self.draw_cross(draw=draw)
-    #             else:
-    #                 self._xlog.warning(f"Unknown interaction [{background_interaction}] for drawing on LCD display, discarding.")
-        
-    #     # There are no loops for foreground interactions yet, so we just draw them once.
-    #     # Still, we may not receive any foreground interaction.
-    #     if foreground_interaction is not None:
-            
-    #         # Whatever we print here, make it over a semi-transparent frame
-    #         self.draw_foreground_frame(draw=draw)
-
-    #         if foreground_interaction == ForegroundComm.ARBITRARY_TEXT:
-    #             self.draw_arbitrary_text_centered(draw=draw, text=parameter)
-    #         elif foreground_interaction == ForegroundComm.ARBITRARY_TEXT_ICON:
-    #             self.draw_arbitrary_text_with_icon(draw=draw, 
-    #                                                 text=parameter.get("text"),
-    #                                                 icon=parameter.get("icon"),
-    #                                                 font_size=parameter.get("font_size", 24),
-    #                                                 header=parameter.get("header"),
-    #                                                 font_header_size=parameter.get("font_header_size", 32),
-    #                                                 padding=parameter.get("padding", 5))
-    #         else:
-    #             self._xlog.warning(f"Unknown interaction [{foreground_interaction}] for drawing on LCD display, discarding.")
-
-    #     # Finally, we show the image on the device
-    #     self.device.display(image)
     
     def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None):
         '''

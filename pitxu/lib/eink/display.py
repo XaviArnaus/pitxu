@@ -112,17 +112,8 @@ class Display(XprocessDisplayForeground):
     def idle(self):
         # Draw the idle screen
         self._xlog.info(f"👀 Showing idle screen on eInk.")
-        # There are race conditions if we set this flag here:
-        #   The main loop that calls this method may check the flag before we set it here.
-        #   To avoid that, we set the flag from the main process before calling this method.
-        # self.set_eink_idle_mode()
-
-        # Before we start some time with partial reloads, do a full clear
-        # self._display.clear()
 
         # Draw first the eyes archs
-        # self._macros.initial_eyes(display=self._display)
-        # self._macros.initial_eyes()
         self._macros.soft_clear()
 
         # It repeats until the speaker is busy
@@ -133,12 +124,6 @@ class Display(XprocessDisplayForeground):
             are_eyes_open = False
             # Repeat during the cadence time
             while self.IDLE_EYES_CADENCE_SECONDS > seconds_waited:
-
-                # This is just maintenance, and feels like an ugly fix:
-                # Sometimes the eInk's queue receives multiple idle requests, while we're already in idle mode.
-                # To avoid piling up those requests, we remove any following idle requests from the queue.
-                # This method removes repetitions from the action that is currently being processed.
-                # self.remove_following_repetitions_from_queue()
 
                 # wait one second
                 if are_eyes_open:
@@ -160,15 +145,9 @@ class Display(XprocessDisplayForeground):
             # We're here because the cadence time is over or because we should stop idle.
             if not should_stop_idle:
                 # show the eyes closed
-                # self._macros.eyes_closed(display=self._display)
                 self._macros.eyes_closed()
                 # and wait a bit
                 time.sleep(self.IDLE_EYES_BLINK_DURATION_SECONDS)
-
-        # End of the cadence loop.
-        # Setting it from the main process.
-        # if self.is_eink_idle_mode():
-        #     self.unset_eink_idle_mode()
 
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
@@ -183,24 +162,6 @@ class Display(XprocessDisplayForeground):
     def soft_clear(self):
         # Clear the display using a white rectangle as a partial
         self._macros.soft_clear()
-
-    # def is_eink_busy(self):
-    # REMOVEME: This is now handled in the parent Xprocess
-    #     return self.read_shared_memory_flag(SHARED_EINK_BUSY)
-    
-    # def set_eink_busy(self):
-    # REMOVEME: This is now handled in the parent Xprocess
-    #     self.write_shared_memory_flag(SHARED_EINK_BUSY, True)
-
-    # def unset_eink_busy(self):
-    # REMOVEME: This is now handled in the parent Xprocess
-    #     self.write_shared_memory_flag(SHARED_EINK_BUSY, False)
-
-    def set_eink_idle_mode(self):
-        self.write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
-
-    def unset_eink_idle_mode(self):
-        self.write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)
 
     def is_speaker_busy(self):
         return self.read_shared_memory_flag(SHARED_SPEAKER_BUSY)

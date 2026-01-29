@@ -9,7 +9,6 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
-# from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot import GeminiChatbot
@@ -40,16 +39,6 @@ class Main(PyXavi):
     _dictate: Vosk = None
     _raw_input_stream: sounddevice.RawInputStream = None
 
-    # REMOVEME: Now this is managed by the Interaction class
-    # _process_pool: XprocessPool = None
-
-    # REMOVEME: Now this is managed by the Interaction class
-    # _manager = None
-    # _queue_display: JoinableQueue = None
-    # _queue_matrix: JoinableQueue = None
-    # _queue_speech: JoinableQueue = None
-    # _shared_memory: shared_memory.ShareableList = None
-
     _is_pitxu_active: bool = True
 
     _chatbot_client_callbacks: dict[str, callable] = None
@@ -61,6 +50,7 @@ class Main(PyXavi):
     _supported_languages: list = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
+    _trigger_answers: list[str] = []
     _exit_words: list = []
     _trigger_words: list = []
     _tokens_counter: int = 0
@@ -73,12 +63,6 @@ class Main(PyXavi):
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
-
-    # Shared memory flag positions
-    # SHARED_SPEAKER_BUSY = 0
-    # SHARED_EINK_BUSY = 1
-    # SHARED_MATRIX_BUSY = 2
-    # SHARED_LCD_BUSY = 3
 
     VERBOSE_DEBUG: bool = True
 
@@ -104,10 +88,6 @@ class Main(PyXavi):
 
         # Supported Languages
         self._supported_languages = config.get("app.supported_languages")
-
-        # Process Pool (initialisation of process handling)
-        # REMOVEME: Now this is managed by the Interaction class
-        # self._process_pool = XprocessPool(config=self._xconfig, params=self._xparams)
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
@@ -148,11 +128,6 @@ class Main(PyXavi):
         #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
         #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
 
-        # Initialise Text-To-Speech.
-        # REMOVEME: Now this is managed by the Interaction class
-        # self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        # self._process_pool.new_and_start(QUEUE_SPEAKER, target=Piper)
-
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
         self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
@@ -171,34 +146,18 @@ class Main(PyXavi):
         self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
         self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
 
+        # Load trigger answers
+        self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
+        self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
+
         # Compile exit words
         all_possible_exit_words = []
         for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
             for word in exit_words:
                 if word not in all_possible_exit_words:
-                    all_possible_exit_words .append(word)
+                    all_possible_exit_words.append(word)
         self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
-    
-    def _initialize_displays(self):
-        """
-        Initialisation of the displays and macros
-        """
-
-        # REMOVEME: Now this is managed by the Interaction class
-        # self._xlog.info("Initialising eInk Display and Macros")
-        # self._process_pool.new_and_start(QUEUE_EINK, target=Display)
-
-        # self._xlog.info("Initialising Matrix LED Display and Macros")
-        # self._process_pool.new_and_start(QUEUE_MATRIX, target=MatrixLed)
-        # # Needs an initial clear
-        # self._clear_matrix()
-
-        # # self._xlog.info("Initialising LCD Display and Macros")
-        # # self._process_pool.new_and_start(QUEUE_MATRIX, target=Lcd, params=Dictionary({
-        # # # self._process_pool.new_and_start(QUEUE_LCD, target=Lcd, params=Dictionary({
-        # #     "device_config_prefix": "lcd",
-        # # }))
     
     def _initialize_interactions(self):
         """
@@ -215,22 +174,23 @@ class Main(PyXavi):
         # Execute the initial maintenance tasks
         self._maintenance.clean_previous_mocked_images()
 
-        # Initialise Displays and the helper macros.
-        # self._initialize_displays()
-        # Initialise the Interaction manager, with Process pool, shared memory, displays and TTS.
+        # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
         self._interaction.show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
-        self._interaction.startup_splash(for_seconds=5.0)
+        self._interaction.startup_splash(for_seconds=4.0)
         self._interaction.show_init_phases(2)
-        time.sleep(4)
+        # ... yeah, "Loading", but I freeze the execution here.
+        # Technically the system supports leaving the splash while loading, speaking (greetings) and stuff in background.
+        # time.sleep(4)
 
         # At this point, we better wait for all queues to be empty.
         # This basically involves eInk (for the splash).
         # Matrix would also be related, but as we're showing the init phases, it's not that critical.
         # self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-        self._interaction.wait_for_foreground_display_queue_to_empty()
+        # COMMENTED: Do we really need to wait for queues?
+        # self._interaction.wait_for_foreground_display_queue_to_empty()
         self._interaction.show_init_phases(3)
 
         # Initialise all classes that require a model. They go per language.
@@ -240,8 +200,6 @@ class Main(PyXavi):
         # Load all language statics, like the exit words and the greeting / goodbye sentences
         self._load_language_statics()
         self._interaction.show_init_phases(5)
-
-        self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
         try:
             # Read from microphone.
@@ -273,7 +231,10 @@ class Main(PyXavi):
 
                     # We consider this point as the end of the initialisation phases
                     # Clean the Matrix led from the points showing the init phases
-                    self._interaction.clear_background_display()
+                    # COMMENTED: I am hunting for a double CLEAN. Let me test.
+                    # self._interaction.clear_background_display()
+
+                    self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
                     # Before we start with the loop, let's set the last interaction time to now
                     # It just started, there was a greating after all.
@@ -312,20 +273,25 @@ class Main(PyXavi):
                         # Mute microphone to avoid self-looping
                         self._interaction.mute_microphone()
 
-                        # To keep track of the communication channels to ignore
-                        # Because the outcome of any chatbot's function call may be using them.
-                        # REMOVEME: For now, we don't use this mechanism.
-                        comm_channels_to_ignore = []
-
-                        # Initialize answer
+                        # Initialize the answer that collects until interaction.
                         answer = None
 
                         # Avoid calling the Chatbot when we can exit directly.
                         if self._text_has_exit_intention(question):
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
+                        # Avoid calling the Chatbot when the text is only meant for waking up the system.
+                        elif self._text_is_only_trigger_words(question):
+                            # Randomly choose one of the trigger answers
+                            import random
+                            answer = random.choice(self._trigger_answers)
+                        # Check if the text is meant to trigger or continue an interaction
+                        # Same as before, but the question is passed to the chatbot.
                         elif self._text_intends_to_trigger_or_continue_an_interaction(question):
+
                             # Here we start with the Chatbot.
+                            # -------------------------------
+
                             # We set it as busy in shared memory, so the Matrix can show the thinking effect
                             self._interaction.set_chatbot_busy()
                             self._interaction.show_thinking()
@@ -339,14 +305,16 @@ class Main(PyXavi):
                                     self._log_debug("🗣️ Received function call response. Reacting.")
                                     # Shutdown and Reboot interrupt the flow and directly shutdown,
                                     # calling `close_nicely()` from there.
-                                    # Keep in mind that here we may have played with BUSY flags.
-                                    # comm_channels_to_ignore.extend(self.react_on_last_function_call(chat_response.function_call_history.get_last()))
+                                    # Keep in mind that:
+                                    #   - here we may have played with BUSY flags.
+                                    #   - repeating a question that involves a tool does not mean that the second time the tool gets called.
+                                    #       It may just take the previous question and answer again.
+                                    #       There may not be a second function call response.
+                                    #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
+                                    #       So the second time we may not be able to show the time on the screen, for example.
                                     self.react_on_last_function_call(chat_response.function_call_history.get_last())
-                                    # TODO: Feels like sometimes the flow does not come back here. Apparenty, the second time asking for the hour.
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
-                            # REMOVEME: Now this is managed by the Interaction class
-                            # self._process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
 
                             # This waiting happens BEFORE we reached the answering phase with the interaction.say().
                             # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
@@ -399,48 +367,10 @@ class Main(PyXavi):
         
         # However it happened, just close nicely.
         self.close_nicely()
+
+    # ------------- End of the main method run() -------------
     
-    # def communicate(self, text: str, channels: list = None):
-    #     """
-    #     Communicates to the user using the channels defined.
-
-    #     It is an abstraction to deliver in one shot display and audio (and whatever else in the future).
-    #     It is a NOT blocking process, runs every channel in a separate process so they can run in parallel,
-    #     speeding up the overall run.
-    #     """
-
-    #     # By default, use only TTS
-    #     if channels is None:
-    #         channels = [self.COMM_TTS]
-
-    #     # In case we want TTS, we need to pause the mic
-    #     # this is done within the TTS process via a shared memory flag that tells the STT to pause
-
-    #     if self.COMM_TTS in channels:
-    #         # Say the answer
-    #         self._log_debug("Say Communication")
-    #         # We already have the TTS in a Process, listening for elements in the queue
-    #         self._say(text)
-
-    #     if self.COMM_DISPLAY in channels:
-    #         # Show the answer
-    #         self._log_debug("Show Communication")
-    #         self._show(text)
-        
-    #     # We want that the main thread waits until some of the actions finished in the subprocesses
-    #     # still there is job to be done (speaking, for example)
-    #     if self.COMM_DISPLAY in channels:
-    #         self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
-    #         self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_EINK_BUSY)
-        
-    #     if self.COMM_TTS in channels:
-    #         self._process_pool.wait_for_queue_to_empty(QUEUE_SPEAKER)
-    #         self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
-    #         # Speaking often involves Matrix too (for the speaking effect)
-    #         self._process_pool.wait_for_queue_to_empty(QUEUE_MATRIX)
-    #         self._process_pool._shared_memory.wait_for_busy_process_to_idle(SHARED_MATRIX_BUSY)
-    
-    def react_on_last_function_call(self, function_call_pair: FunctionCallPair) -> list[str]:
+    def react_on_last_function_call(self, function_call_pair: FunctionCallPair):
         """
         Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
 
@@ -452,7 +382,7 @@ class Main(PyXavi):
         """
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
-        #   or showing the hour in the eInk if asked for the time...
+        #   or showing the hour in the Display if asked for the time...
         #
         # More importantly, this is the way to perform a proper close_nicely(), besides just
         #   shutting down or rebooting the system without caring.
@@ -461,7 +391,6 @@ class Main(PyXavi):
 
         try:
 
-            communication_channels_to_ignore: list[str] = []
             if function_call_pair.has_response():
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
                 
@@ -477,9 +406,6 @@ class Main(PyXavi):
                         icon="🚨",
                         text=function_call_pair.function_response.response.get("result", "unknown"),
                         font_size=Canvas.FONT_SIZE_BIG)
-
-                    # REMOVEME: Now the interaction class handles the displays
-                    # communication_channels_to_ignore.append(self.COMM_DISPLAY)
 
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
@@ -522,8 +448,6 @@ class Main(PyXavi):
                             text=result,
                             font_size=Canvas.FONT_SIZE_BIG)
 
-                        # REMOVEME: Now the interaction class handles the displays
-                        # communication_channels_to_ignore.append(self.COMM_DISPLAY)
                     else:
                         # We have here the new desired language code.
                         try:
@@ -532,7 +456,7 @@ class Main(PyXavi):
                             self._state.write_file()
                             self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
 
-                            # If we close the app now, the micrphone is still muted.
+                            # If we close the app now, the micrphone is still muted, and gets conserved.
                             self._interaction.unmute_microphone()
 
                             # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
@@ -570,12 +494,6 @@ class Main(PyXavi):
                         args
                     )()
 
-                    # REMOVEME: Now the interaction class handles the displays
-                    # communication_channels_to_ignore.append(self.COMM_DISPLAY)
-
-            # Finally we return the communication channels to ignore
-            # Because we're actually using them here.
-            return communication_channels_to_ignore
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
             self._xlog.debug(full_stack())
@@ -601,6 +519,16 @@ class Main(PyXavi):
         # No trigger word found, and no ongoing interaction
         return False
     
+    def _text_is_only_trigger_words(self, question: str) -> bool:
+        # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
+        all_user_input = Text.remove_accents(question.lower().strip())
+        for trigger_word in self._trigger_words:
+            if trigger_word in all_user_input:
+                return True
+        
+        # No trigger word found
+        return False
+    
     def close_nicely(self):
 
         if not self._is_pitxu_active:
@@ -610,8 +538,6 @@ class Main(PyXavi):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
 
-        # -- From the shutdown triggers as outcome from function call -->
-
         # The chatbot may be in "Thinking" mode, unset it anyways.
         self._interaction.unset_chatbot_busy()
 
@@ -619,16 +545,14 @@ class Main(PyXavi):
         # We never want it to be muted when starting.
         self._interaction.unmute_microphone()
 
-        # -- End of the shutdown triggers as outcome from function call -->
-
         # Persist state
         self.persist_state()
 
-        # Stop eInk idle mode if active
+        # Stop Idle Mode if active
         if self._interaction.is_eink_in_idle_mode():
             self._interaction.unset_eink_idle_mode()
 
-        # Clean the displays
+        # Clear the displays
         self.clear_displays()
 
         # Wait for all the queues and processes to get empty
@@ -665,135 +589,14 @@ class Main(PyXavi):
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
 
     def clear_displays(self):
+        if self._interaction.displays_are_combined():
+            self._log_debug("Clearing the Combined Display.")
+            self._interaction.clear_combined_display()
+            return
         self._log_debug("Clearing the Foreground Display.")
         self._interaction.clear_foreground_display()
         self._log_debug("Clearing the Background Display.")
         self._interaction.clear_background_display()
-
-    # ------- Communication with Queues ---------
-    
-    # def _say(self, message: str):
-    #     self._process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
-    #     # We have to wait until the speaker starts being busy, otherwise the mouth effect will self close
-    #     while not self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_SPEAKER_BUSY):
-    #         time.sleep(0.01)
-    #     self._process_pool.send(QUEUE_MATRIX, XprocAction.SAY, message)
-    
-    # def _show(self, message: str):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW, message)
-    
-    # def _startup_splash(self):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.STARTUP)
-    
-    # def _show_init_phases(self, step: int):
-    #     self._process_pool.send(QUEUE_MATRIX, XprocAction.INIT_STEP, str(step))
-    
-    # def _show_thinking(self):
-    #     self._process_pool.send(QUEUE_MATRIX, XprocAction.THINKING)
-
-    # def _show_idle(self):
-    #     self._xlog.debug("👀 Starting eInk idle mode from Main")
-    #     self.set_eink_idle_mode()
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IDLE)
-
-    # def _clear_display(self):
-    #     # Now that we use partial refresh, the clear needs a previous white rectangle.
-    #     # First a soft clear, so the screen is white
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SOFT_CLEAR)
-    #     # Full clear, to ensure a reset.
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.CLEAR)
-
-    # def _clear_matrix(self):
-    #     self._process_pool.send(QUEUE_MATRIX, XprocAction.LED_CLEAR)
-
-    # ------- Communication with Queues, by Command's Callbacks ---------
-
-    # def get_eInk_display(self) -> Display:
-    #     return self._interaction.get_process_pool().get_process(QUEUE_EINK)
-    
-    # def show_arbitrary_text_on_foreground(
-    #         self,
-    #         icon: str = None,
-    #         text: str = None,
-    #         font_size: int = 24,
-    #         header: str = None,
-    #         font_header_size: int = 32,
-    #         padding = 5
-    #     ):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
-    #         "icon": icon,
-    #         "text": text,
-    #         "font_size": font_size,
-    #         "header": header,
-    #         "font_header_size": font_header_size,
-    #         "padding": padding
-    #     })
-
-    # def show_arbitrary_text_on_foreground_while_speaking(
-    #         self,
-    #         icon: str = None,
-    #         text: str = None,
-    #         font_size: int = 24,
-    #         header: str = None,
-    #         font_header_size: int = 32,
-    #         padding = 5
-    #     ):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_TALKING, {
-    #         "icon": icon,
-    #         "text": text,
-    #         "font_size": font_size,
-    #         "header": header,
-    #         "font_header_size": font_header_size,
-    #         "padding": padding
-    #     })
-
-    # def show_image_on_eink(self, image: dict):
-    #     self._process_pool.send(QUEUE_EINK, XprocAction.SHOW_IMAGE_EINK, image)
-
-    # def show_image_on_led(self, image: str):
-    #     self._process_pool.send(QUEUE_MATRIX, XprocAction.SHOW_IMAGE_LED, image)
-
-    # ------- Communication with Flags ---------
-    
-    # def mute_microphone(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
-    #     self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
-    
-    # def unmute_microphone(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
-    #     self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
-    
-    # def is_microphone_muted(self) -> bool:
-    #     return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
-    
-    # def set_chatbot_busy(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
-    #     self._log_debug("🤖 Setting Chatbot as busy.")
-    
-    # def unset_chatbot_busy(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
-    #     self._log_debug("🤖 Unsetting Chatbot as busy.")
-    
-    # def is_chatbot_busy(self) -> bool:
-    #     return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_BUSY)
-    
-    # def is_chatbot_error(self) -> bool:
-    #     return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR)
-    
-    # def unset_chatbot_error(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
-    
-    # def is_eink_in_idle_mode(self) -> bool:
-    #     return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_EINK_IDLE_MODE)
-    
-    # def set_eink_idle_mode(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
-
-    # def unset_eink_idle_mode(self):
-    #     self._process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)
-    
-    # def is_matrix_busy(self):
-    #     return self._process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MATRIX_BUSY)
 
     # ------- Stuff to do every minute -------
 
@@ -845,15 +648,11 @@ class Main(PyXavi):
                         percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
                         self._last_processed_interaction_percentage = percent_left
                         self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
-                        # REMOVEME: Now handled directly in Interaction class
-                        # self._process_pool.send(QUEUE_MATRIX, XprocAction.INTERACTION_HOLDING_PERCENTAGE, str(percent_left))
                         self._interaction.show_interaction_holding_percentage(percent_left)
                     elif self._last_processed_interaction_percentage >= 0:
                         # Interaction time is over, and we were showing the percentage
                         self._last_processed_interaction_percentage = -1
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        # REMOVEME: Now handled directly in Interaction class
-                        # self._process_pool.send(QUEUE_MATRIX, XprocAction.LED_CLEAR)
                         self._interaction.clear_background_display()
             else:
                 self._xlog.debug("🤖 Matrix is busy, not showing interaction holding percentage.")

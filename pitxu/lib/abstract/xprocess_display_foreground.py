@@ -108,15 +108,12 @@ class XprocessDisplayForeground(Xprocess):
 
     # Display busy control: is it already busy?
     def is_busy(self):
-        # return self.read_shared_memory_flag(SHARED_LCD_BUSY)
         return self.read_shared_memory_flag(self.get_busy_flag())
     
     # Display busy control: set as busy
     def set_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, True)
         self.write_shared_memory_flag(self.get_busy_flag(), True)
 
     # Display busy control: unset as busy
     def unset_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, False)
         self.write_shared_memory_flag(self.get_busy_flag(), False)

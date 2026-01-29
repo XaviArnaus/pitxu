@@ -5,7 +5,6 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
-import signal
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
@@ -32,20 +31,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a busy_flag index, got None.")
         self._busy_flag = busy_flag
 
-        # Handle SIGTERM for graceful shutdown
-        # signal.signal(signal.SIGTERM, self._handle_sigterm)
-
         super(Xprocess, self).__init__()
-    
-    # def _handle_sigterm(self, sig, frame):
-    #     """
-    #     Handle SIGTERM signal
-
-    #     This allows the service to stop gracefully when receiving a termination signal,
-    #     that happens with systemctl stop or reboot commands.
-    #     """
-    #     self._xlog.warning('SIGTERM received from Xprocess [' + self._PROCESS_NAME + '], closing the subprocess')
-    #     self.finish()
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
@@ -150,15 +136,12 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     
     # Display busy control: is it already busy?
     def is_busy(self):
-        # return self.read_shared_memory_flag(SHARED_LCD_BUSY)
         return self.read_shared_memory_flag(self._busy_flag)
     
     # Display busy control: set as busy
     def set_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, True)
         self.write_shared_memory_flag(self._busy_flag, True)
 
     # Display busy control: unset as busy
     def unset_busy(self):
-        # self.write_shared_memory_flag(SHARED_LCD_BUSY, False)
         self.write_shared_memory_flag(self._busy_flag, False)
