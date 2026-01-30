@@ -458,8 +458,8 @@ class Painter(PyXavi, Thread):
             self.remove_all_background_interactions()
     
     def apply_delay_between_frames(self, foreground_interaction: ForegroundPaint = None, background_interaction: BackgroundPaint = None):
-        foreground_delay = 0.0
-        background_delay = 0.0
+        foreground_delay = 9999.0
+        background_delay = 9999.0
         # Apply delay between frames according to the current interactions
         if foreground_interaction is not None and foreground_interaction.delay_between_frames is not None:
             foreground_delay = foreground_interaction.delay_between_frames
