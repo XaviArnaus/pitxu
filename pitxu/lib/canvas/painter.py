@@ -376,12 +376,6 @@ class Painter(PyXavi, Thread):
                     # Be careful, a blank rectangle will override anything we had painted until now.
                     # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
                     self.macros._soft_clear_rectangle(draw=self.draw)
-                # If we want to use a different delay between frames during this interaction
-                # COMMENTED: This is now controlled in the loop asking the interaction's attribute
-                # if interaction.delay_between_frames is not None:
-                #     self._log_debug(f"Painter [{when}] Callback for [{channel}]: Setting delay between iterations to [{interaction.delay_between_frames}] seconds for interaction [{interaction.name}].")
-                #     self.set_delay_between_iterations(interaction.delay_between_frames)
-
                 # Give the chance to execute an extra callback if provided
                 if extra_callback is not None:
                     extra_callback()
@@ -392,7 +386,7 @@ class Painter(PyXavi, Thread):
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: interaction.is_expecting_end_callback = {getattr(interaction, 'is_expecting_end_callback', 'N/A')}.")
 
             # Remove related interactions
-            if interaction is not None:
+            if interaction is not None and getattr(interaction, 'is_expecting_end_callback', False):
                 end_interaction_function(interaction=interaction)
                 # Remove the callbacks themselves
                 self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=channel, flag_name=flag_name, for_value=for_value)
