@@ -292,9 +292,10 @@ class Main(PyXavi):
                             # Here we start with the Chatbot.
                             # -------------------------------
 
-                            # We set it as busy in shared memory, so the Matrix can show the thinking effect
-                            self._interaction.set_chatbot_busy()
+                            # We set it as busy in shared memory, so the Background Display can show the thinking effect
                             self._interaction.show_thinking()
+                            self._interaction.wait_for_background_display_queue_to_empty()
+                            self._interaction.set_chatbot_busy()
                             chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
                             answer = chat_response.text
