@@ -104,7 +104,7 @@ class SpeakingBackgroundPaint(BackgroundPaint):
         super(SpeakingBackgroundPaint, self).__init__(
             name=name,
             interaction=BackgroundComm.SPEAKING,
-            delay_between_frames=0.01,
+            delay_between_frames=0.05,
             final_screen_clearing=False,
             remove_interaction_after_painting=False,
             loop_iterations=8
@@ -118,7 +118,7 @@ class ThinkingBackgroundPaint(BackgroundPaint):
         super(ThinkingBackgroundPaint, self).__init__(
             name=name,
             interaction=BackgroundComm.THINKING,
-            delay_between_frames=0.05,
+            delay_between_frames=0.10,
             final_screen_clearing=False,
             remove_interaction_after_painting=False,
             loop_iterations=16
