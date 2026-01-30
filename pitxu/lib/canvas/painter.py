@@ -99,20 +99,20 @@ class Painter(PyXavi, Thread):
     
     def set_background_interaction(self, interaction: BackgroundPaint):
         self._log_debug(f"Setting background interaction to [{interaction.name}] with parameter [{interaction.parameter}].")
-        self._log_debug(f"begin, queue status: {', '.join([item.name for item in self.background_paint])}.")
+        self._log_debug(f"begin, queue status: [{', '.join([item.name for item in self.background_paint])}].")
         # Some interactions are priority, so we remove previous ones from the queue in case the given one is priority.
         self._remove_previous_background_interactions_if_given_is_priority(interaction=interaction)
-        self._log_debug(f"after remove_due_to_prio(), queue status: {', '.join([item.name for item in self.background_paint])}.")
+        self._log_debug(f"after remove_due_to_prio(), queue status: [{', '.join([item.name for item in self.background_paint])}].")
         # In case we have anything from the same type waiting in the queue, we discard it first.
         #   Example: INITIAL_PHASE 3 is waiting, and we want to set INITIAL_PHASE 4.
-        #   If wwe didin't show it yet, there is no point to keep waiting, the flow already went somewhere else.
+        #   If we didn't show it yet, there is no point to keep waiting, the flow already went somewhere else.
         self._remove_duplicated_interaction_types_from_queue(interaction=interaction)
-        self._log_debug(f"after remove_duplicated(), queue status: {', '.join([item.name for item in self.background_paint])}.")
+        self._log_debug(f"after remove_duplicated(), queue status: [{', '.join([item.name for item in self.background_paint])}].")
         # Now add the new interaction to the queue
         self.background_paint.append(interaction)
-        
-        self._log_debug(f"Background interaction queue after setting last: {', '.join([item.name for item in self.background_paint])}.")
-    
+
+        self._log_debug(f"Background interaction queue after setting last: [{', '.join([item.name for item in self.background_paint])}].")
+
     def get_current_background_interaction(self) -> BackgroundPaint:
         current_background_paint = self.background_paint[0] if len(self.background_paint) > 0 else None
         if current_background_paint is None:
@@ -458,18 +458,28 @@ class Painter(PyXavi, Thread):
             self.remove_all_background_interactions()
     
     def apply_delay_between_frames(self, foreground_interaction: ForegroundPaint = None, background_interaction: BackgroundPaint = None):
-        foreground_delay = 9999.0
-        background_delay = 9999.0
+        foreground_delay = None
+        background_delay = None
         # Apply delay between frames according to the current interactions
         if foreground_interaction is not None and foreground_interaction.delay_between_frames is not None:
             foreground_delay = foreground_interaction.delay_between_frames
         if background_interaction is not None and background_interaction.delay_between_frames is not None:
             background_delay = background_interaction.delay_between_frames
         # We apply the minimum delay between both interactions
-        max_delay = min(foreground_delay, background_delay)
-        if max_delay > 0.0:
-            self._log_debug(f"Applying delay between frames of [{max_delay}] seconds according to current interactions.")
-            time.sleep(max_delay)
+        min_delay = 0.0
+        if foreground_delay is None and background_delay is None:
+            min_delay = 0.0
+        elif foreground_delay is None and background_delay is not None:
+            min_delay = background_delay
+        elif foreground_delay is not None and background_delay is None:
+            min_delay = foreground_delay
+        elif foreground_delay is not None and background_delay is not None:
+            min_delay = min(foreground_delay, background_delay)
+        if min_delay > 0.0:
+            self._log_debug(f"Applying delay between frames of [{min_delay}] sec as: " +
+                            f"{foreground_interaction.name + '(' + foreground_interaction.delay_between_frames + ')' if foreground_interaction else 'None'} | " +
+                            f"{background_interaction.name + '(' + background_interaction.delay_between_frames + ')' if background_interaction else 'None'}")
+            time.sleep(min_delay)
 
     def run(self):
         self._log_debug(f"Painter run(): 🟢 About to start the main thread loop.")
