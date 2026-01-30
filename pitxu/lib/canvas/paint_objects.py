@@ -118,7 +118,7 @@ class ThinkingBackgroundPaint(BackgroundPaint):
         super(ThinkingBackgroundPaint, self).__init__(
             name=name,
             interaction=BackgroundComm.THINKING,
-            delay_between_frames=0.05,
+            delay_between_frames=0.06,
             final_screen_clearing=False,
             remove_interaction_after_painting=False,
             loop_iterations=16
