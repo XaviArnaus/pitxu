@@ -6,8 +6,12 @@ from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
+from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
+                                            StartupForegroundPaint, \
+                                            InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
+                                            ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
 from definitions import SHARED_LCD_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
     SHARED_LCD_IDLE_MODE
 
@@ -115,23 +119,19 @@ class Lcd(XprocessDisplayCombined):
         #   - Important to re-emphasize that does not introduce waiting loops, it's every iteration's IF that execute the callback or not.
         #       - This allows the paint thread to keep on running while the other subprocesses are preparing, executing and finishing, freely communicating via busy flags.
         self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
-            foreground_parameter=param)
+            foreground_interaction=ArbitraryContentWhileSpeakingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_while_thinking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD while thinking.")
 
         self.painter.paint_into_foreground_while_thinking(
-            foreground_interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
-            foreground_parameter=param)
+            foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
         for_seconds = param.get("show_for_seconds", Painter.DEFAULT_MAINTAIN_FOREGROUND_PAINT_FOR_SECONDS)
         self.painter.just_paint(
-            foreground_interaction=ForegroundComm.ARBITRARY_TEXT_ICON, 
-            foreground_parameter=param,
-            show_for_seconds=for_seconds)
+            foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
     def splash_ready(self):
         # Draw the ready splash screen
@@ -181,7 +181,7 @@ class Lcd(XprocessDisplayCombined):
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
         self._xlog.info(f"👀 Showing startup splash screen")
-        self.painter.just_paint(foreground_interaction=ForegroundComm.STARTUP, show_for_seconds=for_seconds)
+        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=for_seconds))
 
     # ------- Common functions ---------
     
@@ -196,12 +196,12 @@ class Lcd(XprocessDisplayCombined):
     # The new clear for background only
     def clear_background(self):
         self._xlog.info("Clearing LCD background interaction.")
-        self.painter.just_paint(background_interaction=BackgroundComm.CLEAR)
+        self.painter.just_paint(background_interaction=ClearBackgroundPaint())
     
     # The new clear for foreground only
     def clear_foreground(self):
         self._xlog.info("Clearing LCD foreground interaction.")
-        self.painter.just_paint(foreground_interaction=ForegroundComm.CLEAR)
+        self.painter.just_paint(foreground_interaction=ClearForegroundPaint())
 
 
     # ------- Background functions ---------
@@ -209,12 +209,12 @@ class Lcd(XprocessDisplayCombined):
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
 
-        self.painter.paint_into_background_while_speaking(background_interaction=BackgroundComm.SPEAKING)
+        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint())
     
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
 
-        self.painter.paint_into_background_while_thinking(background_interaction=BackgroundComm.THINKING)
+        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint())
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")
@@ -222,18 +222,11 @@ class Lcd(XprocessDisplayCombined):
 
     def init_phase(self, phase: int):
         self._xlog.info(f"🚥 Showing init phase {phase} on LCD")
-        self.painter.just_paint(
-            background_interaction=BackgroundComm.INITIAL_PHASE, 
-            background_parameter=phase,
-            remove_background_after_painting=False)
+        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter=phase))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
-        self.painter.just_paint(
-            background_interaction=BackgroundComm.HOLDER_PERCENTAGE, 
-            background_parameter=percentage,
-            remove_background_after_painting=True)
-
+        self.painter.just_paint(background_interaction=HoldingPercentageBackgroundPaint(name=f"HoldingPercentageBackgroundPaint-{percentage}", parameter=percentage))
     # ------- Communication with Flags ---------
     
     # KITT mouth control: internally, even allowed, we only show it when the speaker is busy.

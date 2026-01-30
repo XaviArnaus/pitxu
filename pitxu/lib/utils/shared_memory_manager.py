@@ -117,7 +117,7 @@ class SharedMemoryManager(PyXavi):
         while any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()):
             total_sleeping += self.WAITING_SLEEP_SECONDS
             time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug("All processes are idle now. I've slept " + str(total_sleeping) + "s.")
+        self._xlog.debug("All processes are idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
@@ -126,7 +126,7 @@ class SharedMemoryManager(PyXavi):
         while self.read_shared_memory_flag(memory_position):
             total_sleeping += self.WAITING_SLEEP_SECONDS
             time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug(f"The process {memory_position_name} is idle now. I've slept " + str(total_sleeping) + "s.")
+        self._xlog.debug(f"The process {memory_position_name} is idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
     
     def wait_for_busy_process_to_be_busy(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
@@ -135,7 +135,7 @@ class SharedMemoryManager(PyXavi):
         while not self.read_shared_memory_flag(memory_position):
             total_sleeping += self.WAITING_SLEEP_SECONDS
             time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug(f"The process {memory_position_name} is busy now. I've slept " + str(total_sleeping) + "s.")
+        self._xlog.debug(f"The process {memory_position_name} is busy now. I've slept " + str(round(total_sleeping, 2)) + "s.")
 
     def close(self):
         if self._shared_memory_flags is not None:
