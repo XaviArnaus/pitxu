@@ -25,6 +25,13 @@ class SystemVolume(PyXavi, Command):
 
         self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
 
+        # This class gets loaded at ChatbotSessionManager initialization time.
+        # Therefore, tecnically we can also introduce here any initialization code if needed.
+        # We want to set up the microphone volume to a known level: internally will place
+        # LEFT: 0% and RIGHT: {volume}% 
+        # De Facto muting the Left Channel (PiSugar Whisplay HAT issue)
+        self.set_local_system_microphone_volume_level(100)
+
     def get_local_system_speaker_volume_level(self) -> int:
         '''
         Get the local system speaker volume level.
@@ -147,7 +154,9 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-source-volume @DEFAULT_SOURCE@", shell=True).decode()
             #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
             #balance 0.00
-            volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
+            # Changing to index 3 to get the right channel volume
+            # volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
+            volume = int(call_output.split("/")[3].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
             if volume < 0:
                 volume = 0
             self._log_debug(f"The local system microphone volume level using pactl is: {volume}%")
@@ -186,7 +195,7 @@ class SystemVolume(PyXavi, Command):
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}%", shell=True)
+            check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ 0% {volume}%", shell=True)
             return volume - self.SINK_VOLUME_ADDITION
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
