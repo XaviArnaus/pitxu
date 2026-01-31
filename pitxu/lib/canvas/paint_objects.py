@@ -159,8 +159,8 @@ class ArbitraryContentForegroundPaint(ForegroundPaint):
             name=name,
             interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
             parameter=parameter,
-            # Be careful with this, ensure that avoids painting and not places a black screen 
-            # (that removes the background when painting combined)
+            # Be careful with this, this places a black screen over whatever is already painted in the canvas.
+            # (so, it removes the background when painting combined)
             final_screen_clearing=True,
             remove_interaction_after_painting=True,
             maintain_paint_for_seconds=for_seconds,

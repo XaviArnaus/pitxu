@@ -1,6 +1,7 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
                         SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_CHATBOT_BUSY
@@ -30,7 +31,7 @@ class PainterBusyFlags(PyXavi):
         SHARED_CHATBOT_BUSY
     ]
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     registered_callbacks: dict = {}
     shared_memory: SharedMemoryManager = None
@@ -93,23 +94,23 @@ class PainterBusyFlags(PyXavi):
     def callback_exists_for_busy_flag(self, when: str, channel: str, flag_name: int, for_value: bool) -> bool:
         if self.is_valid(when, channel, flag_name):
             if when not in self.registered_callbacks:
-                self._xlog.debug(f"No busy flag callback registered at [{when}].")
+                # self._xlog.debug(f"No busy flag callback registered at [{when}].")
                 return False
             if channel not in self.registered_callbacks[when]:
-                self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}].")
+                # self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}].")
                 return False
             if str(flag_name) not in self.registered_callbacks[when][channel]:
-                self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}] for flag [{self._flag_string(flag_name)}].")
+                # self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}] for flag [{self._flag_string(flag_name)}].")
                 return False
             if self.registered_callbacks[when][channel][str(flag_name)][int(for_value)] is None:
-                self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}] for flag [{self._flag_string(flag_name)}] with value [{for_value}].")
+                # self._xlog.debug(f"No busy flag callback registered at [{when}] in channel [{channel}] for flag [{self._flag_string(flag_name)}] with value [{for_value}].")
                 return False
             return True
         else:
             self._xlog.error(f"🛑 Trying to check busy flag callback for unknown combination [{when}, {channel}, {self._flag_string(flag_name)}, {for_value}({int(for_value)})]")
             raise ValueError(f"Trying to check busy flag callback for unknown combination [{when}, {channel}, {self._flag_string(flag_name)}, {for_value}({int(for_value)})].")
-    
-    def call_busy_flag_callback(self, when: str, channel: str, flag_name: int, value: any):
+
+    def call_busy_flag_callback(self, when: str, channel: str, flag_name: int, value: any) -> dict:
         self._log_debug(f"Intending to call busy flag callback for flag [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}].")
         # Safety checks for mandatory full cycle busy flags.
         # We need to check for the corresponding START/END callback to be registered/unregistered.
@@ -128,17 +129,19 @@ class PainterBusyFlags(PyXavi):
             if callback is not None:
                 # Trigger the callback
                 self._log_debug(f"Calling busy flag callback now.")
-                callback()
+                # The callback is expected to return a dict with any relevant information.
+                return callback()
         else:
             self._xlog.error(f"🛑 Trying to call busy flag callback for unknown flag [{when}, {channel}, {self._flag_string(flag_name)}, {value}({int(value)})].")
             dd(self.registered_callbacks)
             raise ValueError(f"Trying to call busy flag callback for unknown flag [{when}, {channel}, {self._flag_string(flag_name)}, {value}({int(value)})].")
     
-    def call_monitoring_busy_flags_callbacks(self, when: str):
+    def call_monitoring_busy_flags_callbacks(self, when: str) -> list:
         if when not in self.AVAILABLE_WHEN:
             self._xlog.error(f"🛑 Trying to set busy flag callback for unknown when [{when}].")
             raise ValueError(f"Trying to set busy flag callback for unknown when [{when}].")
         
+        callback_returns = []
         for channel in self.AVAILABLE_CHANNELS:
             if when in self.registered_callbacks and channel in self.registered_callbacks[when]:
                 for flag_name, callback in self.registered_callbacks[when][channel].items():
@@ -146,14 +149,18 @@ class PainterBusyFlags(PyXavi):
                         if callback[int(flag_value)] is not None:
                             
                             # We have a callback
-                            self.call_busy_flag_callback(when, channel, int(flag_name), flag_value)
-    
-    def trigger_busy_flags_callbacks_at_loop_start(self):
-        self.call_monitoring_busy_flags_callbacks(when=LOOP_START)
-    
-    def trigger_busy_flags_callbacks_at_loop_end(self):
-        self.call_monitoring_busy_flags_callbacks(when=LOOP_END)
-    
+                            callback_result = self.call_busy_flag_callback(when, channel, int(flag_name), flag_value)
+                            if callback_result is not None:
+                                callback_returns.append(callback_result)
+
+        return callback_returns
+
+    def trigger_busy_flags_callbacks_at_loop_start(self) -> list:
+        return self.call_monitoring_busy_flags_callbacks(when=LOOP_START)
+
+    def trigger_busy_flags_callbacks_at_loop_end(self) -> list:
+        return self.call_monitoring_busy_flags_callbacks(when=LOOP_END)
+
     def _flag_string(self, flag_name: int) -> str:
         return self.shared_memory._map_index_to_flag[flag_name] + f"({flag_name})"
 

@@ -38,7 +38,7 @@ class Painter(PyXavi, Thread):
         BackgroundComm.SPEAKING
     ]
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Painter, self).init_pyxavi(config=config, params=params)
@@ -326,25 +326,26 @@ class Painter(PyXavi, Thread):
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: interaction.is_expecting_end_callback = {interaction.is_expecting_end_callback}.")
 
+            info_to_return = {}
+
             # Set the interactions if provided
             if interaction is not None:
                 start_interaction_function(interaction=interaction)
                 # Remove the callback itself to avoid multiple triggers
                 self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_START, channel=channel, flag_name=flag_name, for_value=for_value)
-                # If we want to clear the screen at the end of the interaction, we can set a final callback here
-                if interaction.final_screen_clearing:
-                    # Be careful, a blank rectangle will override anything we had painted until now.
-                    # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
-                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: final screen clearing is set. Clearing rectangle now.")
-                    self.macros._soft_clear_rectangle(draw=self.draw)
                 # Give the chance to execute an extra callback if provided
                 if extra_callback is not None:
-                    extra_callback()
+                    info_to_return["extra_callback_result"] = extra_callback()
+            
+            # Return any info if needed
+            return info_to_return
 
         # callback_template for the loop end section
         def end_callback_template():
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: interaction.is_expecting_end_callback = {getattr(interaction, 'is_expecting_end_callback', 'N/A')}.")
+
+            info_to_return = {}
 
             # Remove related interactions
             if interaction is not None and getattr(interaction, 'is_expecting_end_callback', False):
@@ -355,12 +356,16 @@ class Painter(PyXavi, Thread):
                 if interaction.final_screen_clearing:
                     # Be careful, a blank rectangle will override anything we had painted until now.
                     # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
-                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: final screen clearing is set. Clearing rectangle now.")
-                    self.macros._soft_clear_rectangle(draw=self.draw)
+                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: Final Clearing intended, telling to painter loop")
+                    # self.macros._soft_clear_rectangle(draw=self.draw)
+                    info_to_return["final_clearing"] = True
 
                 # Give the chance to execute an extra callback if provided
                 if extra_callback is not None:
-                    extra_callback()
+                    info_to_return["extra_callback_result"] = extra_callback()
+            
+            # Return any info if needed
+            return info_to_return
         
         return start_callback_template if when == LOOP_START else end_callback_template
 
@@ -447,6 +452,10 @@ class Painter(PyXavi, Thread):
             # We calculate the showing time for the foreground paint from the first showing instant,
             #   so we depend on paint changes. Start with None.
             foreground_starting_time = None
+
+            # Should do an extra screen clearing at the end of the current interaction?
+            # It is set via the end-callbacks when registering painting while busy flags.
+            final_clearing_needed = False
 
             # We control the painting loop via the running flag.
             while self.is_running():
@@ -601,6 +610,12 @@ class Painter(PyXavi, Thread):
                 
                 self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
 
+                # A final clearing was requested by a callback at the end of the previous loop iteration?
+                if final_clearing_needed:
+                    self._log_debug(f"Painter Loop: Final clearing requested by an END callback, will clear the screen.")
+                    self.macros._soft_clear_rectangle(draw=self.draw)
+                    final_clearing_needed = False
+
                 # Show the image on the device
                 self._log_debug(f"Painter: Flushing drawing to LCD display: ")
                 self._log_debug(f"  - Foreground is {current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}.")
@@ -652,7 +667,12 @@ class Painter(PyXavi, Thread):
                     self.remove_foreground_interaction(interaction=current_foreground_interaction)
                 
                 # Check the busy flags and call their callbacks if needed
-                self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_end()
+                callback_results = self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_end()
+
+                # Check if any of the callbacks requested a final clearing of the screen
+                for callback_result in callback_results:
+                    if callback_result.get("final_clearing", False):
+                        final_clearing_needed = True
                 
                 # Finally, if there is no foreground nor background paint, we can stop the loop.
                 # Please note that here we're not using the current_background_interaction variable directly,
@@ -660,8 +680,11 @@ class Painter(PyXavi, Thread):
                 # Also, we should not stop the loop if there are callbacks still registered, as apparently
                 #   they were set but never triggered, and by stopping the loop these callbacks would never be called
                 #   (for example, due to a busy flag change)
+                # Also, we let one iteration more to happen if the end callbacks wanted to do a final clearing of the screen,
+                #   that needs to happen before we flush the canvas.
                 if self.get_current_foreground_interaction() is None and self.get_current_background_interaction() is None and \
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
-                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0:
-                    self._log_debug("No foreground nor background paints nor callbacks remaining, stopping the painting loop.")
+                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0 and \
+                    not final_clearing_needed:
+                    self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, stopping the painting loop.")
                     self.stop()
