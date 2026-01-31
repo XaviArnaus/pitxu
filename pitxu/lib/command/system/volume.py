@@ -154,13 +154,14 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-source-volume @DEFAULT_SOURCE@", shell=True).decode()
             #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
             #balance 0.00
-            # Changing to index 3 to get the right channel volume
-            # volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
-            volume = int(call_output.split("/")[3].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
-            if volume < 0:
-                volume = 0
-            self._log_debug(f"The local system microphone volume level using pactl is: {volume}%")
-            return volume
+            real_volume_left = int(call_output.split("/")[1].strip().rstrip("%"))
+            real_volume_right = int(call_output.split("/")[3].strip().rstrip("%"))
+            volume_right = real_volume_right - self.SINK_VOLUME_ADDITION
+            volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
+            if volume_right < 0:
+                volume_right = 0
+            self._log_debug(f"The local system microphone volume level using pactl is: L{real_volume_left}%, R{real_volume_right}% (showing RIGHT adjusted: {volume_right}%)")
+            return volume_right
         except Exception as e:
             self._xlog.error(f"Error getting microphone volume level: {e}")
             return -1
