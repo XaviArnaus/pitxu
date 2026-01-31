@@ -1,4 +1,7 @@
 #!/usr/bin/pulseaudio -nF
+# XA: Not relly tried. the direct command "pactl lodad-module module-remap-sink ..." failed.
+
+
 .include /etc/pulse/default.pa
 
 # Set up some mono-single-channel maps

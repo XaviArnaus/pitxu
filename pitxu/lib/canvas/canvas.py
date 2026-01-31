@@ -40,7 +40,7 @@ class Canvas(PyXavi):
     DEFAULT_FONT_SIZE_HUGE = 45
     DEFAULT_FONT_SIZE_ULTRA = 85
 
-    font_by_size: dict[str, ImageFont] = {}
+    font_by_size: dict[str, ImageFont.ImageFont] = {}
     
     DEFAULT_STROKE: int = 1
 
