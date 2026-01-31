@@ -6,6 +6,8 @@ from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
 
+from subprocess import check_output
+
 import logging
 
 import math
@@ -53,7 +55,58 @@ class SystemPowerManagement(PyXavi, Command):
             bool: True if the power cable is connected, False otherwise
         '''
         return self.ups.is_power_cable_connected()
+
+    def get_system_temperature_and_fan_speed(self) -> dict:
+        '''
+        Get the current system temperature and fan speed.
+
+        Returns:
+            dict: A dictionary with 'temperature' in Celsius and 'fan_speed' in RPM.
+        '''
+        try:
+            temperature = round(int(check_output("cat /sys/class/thermal/thermal_zone*/temp", shell=True).decode()) / 1000, 1)
+            fan_speed = int(check_output("cat /sys/class/hwmon/hwmon*/fan1_input", shell=True).decode())
+            self._log_debug(f"🌡️ Current system temperature: {temperature} °C, Fan speed: {fan_speed} RPM")
+            return {
+                "temperature": temperature,
+                "fan_speed": fan_speed
+            }
+        except Exception as e:
+            self._xlog.error(f"🛑 Error getting system temperature and fan speed: {e}")
+            self._xlog.debug(full_stack())
+            return {
+                "temperature": -1,
+                "fan_speed": -1
+            }
     
+    def callback_system_temperature_and_fan_speed(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_system_temperature_and_fan_speed` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_system_temperature_and_fan_speed`.
+
+        """
+        try:
+            temperature = value.get("temperature", -1)
+            fan_speed = value.get("fan_speed", -1)
+            text = f"{temperature} °C\n{fan_speed} RPM"
+            font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE
+
+            if temperature == -1 or fan_speed == -1:
+                text = "❌ Error reading values"
+                font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG
+
+            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon="🌡️",
+                text=text,
+                font_size=font_size
+            )
+        except Exception as e:
+            log.error(f"🛑 Error showing system temperature and fan speed on Foreground display: {e}")
+
 
     def shutdown_local_machine(self):
         '''
@@ -100,13 +153,36 @@ class SystemPowerManagement(PyXavi, Command):
                 icon = "🔋"
 
             # New approach, using the existing display instance via main
-            log.error(f"🔋 Showing battery level on eInk: {value}")
+            log.error(f"🔋 Showing battery level on Foreground display: {value}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon=icon,
                 text=f"{value} %",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            log.error(f"🛑 Error showing battery level on eInk: {e}")
+            log.error(f"🛑 Error showing battery level on Foreground display: {e}")
+
+    def callback_power_cable_connected(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_power_cable_connected` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_power_cable_connected`.
+
+        """
+        try:
+            if bool(value):
+                icon = "🔌"
+            else:
+                icon = "❌"
+            # New approach, using the existing display instance via main
+            log.info(f"🔌 Showing Power Cable Connected: {value}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon=icon,
+                text=f"{'Connected' if value else 'Disconnected'}",
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
+        except Exception as e:
+            log.error(f"🛑 Error showing power cable connected status on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -118,7 +194,8 @@ class SystemPowerManagement(PyXavi, Command):
                 self.is_power_cable_connected,
                 self.shutdown_local_machine,
                 self.reboot_local_machine,
-                self.restart_system]
+                self.restart_system,
+                self.get_system_temperature_and_fan_speed]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -131,6 +208,10 @@ class SystemPowerManagement(PyXavi, Command):
         """
         if function_name == "get_battery_level":
             return self.callback_battery_level
+        elif function_name == "is_power_cable_connected":
+            return self.callback_power_cable_connected
+        elif function_name == "get_system_temperature_and_fan_speed":
+            return self.callback_system_temperature_and_fan_speed
         return self.default_empty_callback
 
 # 2026-01-11 17:55:35,326 [MainProcess ] ERROR    pitxu        🛑 Error getting UPS battery level: [Errno 121] Remote I/O error
