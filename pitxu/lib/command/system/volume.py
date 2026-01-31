@@ -252,7 +252,9 @@ class SystemVolume(PyXavi, Command):
                 self.set_local_system_speaker_mute_status,
                 self.get_local_system_speaker_mute_status,
                 self.get_local_system_microphone_volume_level,
-                self.get_local_system_microphone_mute_status]
+                self.set_local_system_microphone_volume_level,
+                self.get_local_system_microphone_mute_status,
+                self.set_local_system_microphone_mute_status]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
