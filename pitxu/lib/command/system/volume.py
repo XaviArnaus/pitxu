@@ -79,7 +79,7 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Setting local system speaker volume level using pactl.")
+            self._log_debug("Setting local system speaker volume level using pactl to " + str(volume) + "%.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
@@ -97,7 +97,7 @@ class SystemVolume(PyXavi, Command):
             mute (bool): True to mute the system, False to unmute
         '''
         try:
-            self._log_debug("Setting local system speaker mute status using pactl.")
+            self._log_debug("Setting local system speaker mute status using pactl to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "1" if mute else "0"
             check_output(f"pactl set-sink-mute @DEFAULT_SINK@ {mute_str}", shell=True)
             return self.MUTED if mute else self.UNMUTED
@@ -191,7 +191,7 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Setting local system microphone volume level using pactl.")
+            self._log_debug("Setting local system microphone volume level using pactl to " + str(volume) + "%.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
@@ -209,7 +209,7 @@ class SystemVolume(PyXavi, Command):
             mute (bool): True to mute the system, False to unmute
         '''
         try:
-            self._log_debug("Getting local system microphone mute status using pactl.")
+            self._log_debug("Getting local system microphone mute status using pactl to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "1" if mute else "0"
             check_output(f"pactl set-source-mute @DEFAULT_SOURCE@ {mute_str}", shell=True)
             return self.MUTED if mute else self.UNMUTED
