@@ -40,6 +40,7 @@ class SystemVolume(PyXavi, Command):
             volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
             if volume < 0:
                 volume = 0
+            self._log_debug(f"The local system speaker volume level using pactl is: {volume}%")
             return volume
         except Exception as e:
             self._xlog.error(f"🛑 Error getting speaker volume level: {e}")
@@ -57,6 +58,7 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-sink-mute @DEFAULT_SINK@", shell=True).decode()
             #Mute: yes
             is_muted_str = call_output.split(":")[1].strip()
+            self._log_debug(f"The local system speaker mute status using pactl is: {is_muted_str}")
             return is_muted_str.lower() == "yes"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting speaker mute status: {e}")
@@ -148,6 +150,7 @@ class SystemVolume(PyXavi, Command):
             volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
             if volume < 0:
                 volume = 0
+            self._log_debug(f"The local system microphone volume level using pactl is: {volume}%")
             return volume
         except Exception as e:
             self._xlog.error(f"Error getting microphone volume level: {e}")
@@ -165,6 +168,7 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-source-mute @DEFAULT_SOURCE@", shell=True).decode()
             #Mute: yes
             is_muted_str = call_output.split(":")[1].strip()
+            self._log_debug(f"The local system microphone mute status using pactl is: {is_muted_str}")
             return is_muted_str.lower() == "yes"
         except Exception as e:
             self._xlog.error(f"Error getting mute status: {e}")
