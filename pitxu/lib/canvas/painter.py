@@ -704,6 +704,12 @@ class Painter(PyXavi, Thread):
                 self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_end()
                 
                 # Finally, if there is no foreground nor background paint, we can stop the loop.
-                if current_foreground_interaction is None and current_background_interaction is None:
-                    self._log_debug("No foreground nor background paint remaining, stopping the painting loop.")
+                # Please note that here we're not using the current_background_interaction variable directly,
+                #   but rather calling the getter method to ensure we're getting the latest state.
+                # Also, we should not stop the loop if there are callbacks still registered, as apparently
+                #   they were set but never triggered.
+                if self.get_current_foreground_interaction() is None and self.get_current_background_interaction() is None and \
+                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
+                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0:
+                    self._log_debug("No foreground nor background paints nor callbacks remaining, stopping the painting loop.")
                     self.stop()
