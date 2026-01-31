@@ -65,8 +65,8 @@ class SystemPowerManagement(PyXavi, Command):
         '''
         try:
             temperature = round(int(check_output("cat /sys/class/thermal/thermal_zone*/temp", shell=True).decode()) / 1000, 1)
-            fan_speed = int(check_output("cat /sys/class/hwmon/hwmon*/fan1_input", shell=True).decode())
-            self._log_debug(f"🌡️ Current system temperature: {temperature} °C, Fan speed: {fan_speed} RPM")
+            fan_speed = round(int(check_output("cat /sys/class/hwmon/hwmon*/fan1_input", shell=True).decode()) / 1000, 2)
+            self._log_debug(f"🌡️ Current system temperature: {temperature} °C, 💨 Fan speed: {fan_speed} RPM")
             return {
                 "temperature": temperature,
                 "fan_speed": fan_speed
