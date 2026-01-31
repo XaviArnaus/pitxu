@@ -193,7 +193,8 @@ class Main(PyXavi):
         # Matrix would also be related, but as we're showing the init phases, it's not that critical.
         # self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
         # COMMENTED: Do we really need to wait for queues?
-        # self._interaction.wait_for_foreground_display_queue_to_empty()
+        # UNCOMMENTED: Hunting some Race Condition that makes the last 0.5s of the TTS to be input in SST.
+        self._interaction.wait_for_foreground_display_queue_to_empty()
         self._interaction.show_init_phases(3)
 
         # Initialise all classes that require a model. They go per language.

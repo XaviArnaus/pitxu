@@ -105,7 +105,7 @@ class SpeakingBackgroundPaint(BackgroundPaint):
             name=name,
             interaction=BackgroundComm.SPEAKING,
             delay_between_frames=0.01,
-            final_screen_clearing=False,
+            final_screen_clearing=True,
             remove_interaction_after_painting=False,
             loop_iterations=8
         )
@@ -119,7 +119,7 @@ class ThinkingBackgroundPaint(BackgroundPaint):
             name=name,
             interaction=BackgroundComm.THINKING,
             delay_between_frames=0.06,
-            final_screen_clearing=False,
+            final_screen_clearing=True,
             remove_interaction_after_painting=False,
             loop_iterations=16
         )

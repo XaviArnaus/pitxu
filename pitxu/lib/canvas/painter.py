@@ -656,7 +656,8 @@ class Painter(PyXavi, Thread):
                 # Please note that here we're not using the current_background_interaction variable directly,
                 #   but rather calling the getter method to ensure we're getting the latest state.
                 # Also, we should not stop the loop if there are callbacks still registered, as apparently
-                #   they were set but never triggered.
+                #   they were set but never triggered, and by stopping the loop these callbacks would never be called
+                #   (for example, due to a busy flag change)
                 if self.get_current_foreground_interaction() is None and self.get_current_background_interaction() is None and \
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0:

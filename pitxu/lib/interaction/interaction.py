@@ -150,6 +150,7 @@ class Interaction(PyXavi):
         self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
         self.wait_for_speaker_to_start_and_finish_speaking()
         self.wait_for_busy_background_display_to_idle()
+        self.wait_for_background_display_queue_to_empty
     
     def show_thinking(self):
         """
