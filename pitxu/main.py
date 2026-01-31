@@ -299,7 +299,7 @@ class Main(PyXavi):
                             # I am going to try to show the question while thinking.
                             # It may give some time to the LCD to show the previous called thinking effect.
                             self._interaction.show_arbitrary_text_on_foreground_while_thinking(
-                                icon="❓",
+                                icon="🤔",
                                 text=question,
                                 font_size=24,
                             )
