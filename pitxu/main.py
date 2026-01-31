@@ -299,7 +299,7 @@ class Main(PyXavi):
                             # I am going to try to show the question while thinking.
                             # It may give some time to the LCD to show the previous called thinking effect.
                             self._interaction.show_arbitrary_text_on_foreground_while_thinking(
-                                icon="🤔",
+                                icon="👤",
                                 text=question,
                                 font_size=24,
                             )
@@ -357,7 +357,8 @@ class Main(PyXavi):
                             # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                             self._last_interaction_datetime = datetime.now()
 
-                        # Unmute microphone to continue listening
+                        # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
+                        time.sleep(1)
                         self._interaction.unmute_microphone()
                     
                     # We arrived here because the user wanted to exit the main loop
@@ -648,10 +649,10 @@ class Main(PyXavi):
             self._last_processed_second = current_second
             self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
             
-            # If the matrix is idle, show interaction holding percentage if applicable
+            # If the background display is idle, show interaction holding percentage if applicable
             if not self._interaction.is_background_display_busy():
                 # Show the interaction holding percentage if we're expecting an interaction
-                if self._last_interaction_datetime is not None:
+                if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
                     # Calculate how much left in percentages the time to hold the interaction
                     seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
                     if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:

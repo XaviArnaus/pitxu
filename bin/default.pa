@@ -1,0 +1,10 @@
+# Copy or link this file into ~/.config/pulse/default.pa
+# Then restart pulseaudio with:
+#   systemctl --user restart pulseaudio.service
+# Then finally the devices appear to be fixed:
+#   pactl list
+
+load-module module-alsa-sink device=default
+load-module module-alsa-source device=default
+
+load-module module-native-protocol-unix

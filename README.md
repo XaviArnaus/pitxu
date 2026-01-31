@@ -220,7 +220,7 @@ Works very decent, no very significant difference with MacOS
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
-#### Whisplay
+#### Whisplay sound with 16KHz TTS models.
 
 https://github.com/waveshareteam/WM8960-Audio-HAT/issues/63
 My issue is similar to this one, until:
@@ -257,6 +257,26 @@ Time per period = 2.002118
  0 - Front Left
 Time per period = 3.001354
 ```
+
+⚠️✅ The "solution" is to move away from TTS that use a samplerate of 16Khz. Once I have all on 22KHz or more it works.
+What I don't understand is that in the first RPi5 I don't have this problem. I move on, but it's still unresolved.
+
+#### Whisplay Microphone issue
+
+The Whispl;ay has one microphone in each side of the board. Therefore, one lays right over the Fan. When the Fan kicks in the STT is awful.
+
+
+| ⚠️ **The System Sound Issue in General** |
+|--|
+| Our system follows the audio stack: `Hardware > ALSA > PulseAudio > Application`.<br>PulseAudio may not be necessary, and it might be possible to run the application (Pitxu Poetry Python app) directly through ALSA. The current setup could be causing conflicts in the audio subsystem, as indicated by several related errors in the system logs.<br>On top, the application uses `sounddevice` that relies on `PortAudio`. I think that it is all simply messed up |
+
+Some extra resources:
+- Remapping sinks through PulseAudio: https://wiki.archlinux.org/title/PulseAudio/Examples#Remapping_sinks
+- To actually mute from ALSA directly. Can be used to try to move the whole audio capabilities to only-ALSA: https://askubuntu.com/questions/26068/how-do-you-mute-from-the-command-line
+- PulseAudio rescan, but requires to be running as daemon: https://gist.github.com/ashtipliyski/e8842d8c962491f86604a117a331295b
+- `arecord` examples: https://commandmasters.com/commands/arecord-linux/
+
+
 
 
 ### Display
