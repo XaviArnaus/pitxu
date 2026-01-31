@@ -29,7 +29,7 @@ class Lcd(XprocessDisplayCombined):
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
         return "LCD"

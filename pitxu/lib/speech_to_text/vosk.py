@@ -32,6 +32,8 @@ class Vosk(PyXavi):
 
     is_active: bool = False
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Vosk, self).init_pyxavi(config=config, params=params)
 
