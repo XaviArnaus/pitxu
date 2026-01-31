@@ -335,6 +335,7 @@ class Painter(PyXavi, Thread):
                 if interaction.final_screen_clearing:
                     # Be careful, a blank rectangle will override anything we had painted until now.
                     # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
+                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: final screen clearing is set. Clearing rectangle now.")
                     self.macros._soft_clear_rectangle(draw=self.draw)
                 # Give the chance to execute an extra callback if provided
                 if extra_callback is not None:
@@ -354,6 +355,7 @@ class Painter(PyXavi, Thread):
                 if interaction.final_screen_clearing:
                     # Be careful, a blank rectangle will override anything we had painted until now.
                     # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
+                    self._log_debug(f"Painter [{when}] Callback for [{channel}]: final screen clearing is set. Clearing rectangle now.")
                     self.macros._soft_clear_rectangle(draw=self.draw)
 
                 # Give the chance to execute an extra callback if provided
