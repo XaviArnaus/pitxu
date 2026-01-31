@@ -19,7 +19,6 @@ case "$1" in
                 echo "Both channels at once: mic set 75%"
                 echo "On different channels: mic set 75% 100%"
         fi
-        ;;
     "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;
     *) echo "Command unknown" ;;
 esac
