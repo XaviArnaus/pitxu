@@ -17,6 +17,7 @@ case "$1" in
                pactl set-source-volume @DEFAULT_SOURCE@ "$2" "$3"
             else
                 echo -e "Both channels at once: mic set 75%\nOn different channels: mic set 75% 100%"
+            fi
         fi
         ;;
     "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;
