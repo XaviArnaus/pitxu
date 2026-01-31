@@ -167,6 +167,9 @@ class Main(PyXavi):
         self._xlog.info("Initialising Interaction class")
         self._interaction = Interaction(config=self._xconfig, params=self._xparams)
 
+        # We start with the microphone muted.
+        self._interaction.mute_microphone()
+
     async def run(self):
 
         sw_init = self._stopwatch.start(name="init")
@@ -240,6 +243,7 @@ class Main(PyXavi):
                     # It just started, there was a greating after all.
                     # Maybe the user wants to talk straight away without the trigger words.
                     self._last_interaction_datetime = datetime.now()
+                    self._interaction.unmute_microphone()
 
                     question = ""
                     dictate_count = 0
