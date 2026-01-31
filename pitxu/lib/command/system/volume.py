@@ -228,13 +228,13 @@ class SystemVolume(PyXavi, Command):
         """
         try:
             # New approach, using the existing display instance via main
-            log.info(f"🔊 Showing microphone volume level on Foreground display: [{value}]")
+            log.info(f"🎤 Showing microphone volume level on Foreground display: [{value}]")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
-                icon="🔊",
+                icon="🎤",
                 text=f"{value} %",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            log.error(f"🛑 Error showing microphone volume level on eInk: {e}")
+            log.error(f"🛑 Error showing microphone volume level on Foreground display: {e}")
 
     def callback_microphone_muting(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
@@ -248,9 +248,10 @@ class SystemVolume(PyXavi, Command):
         try:
 
             # New approach, using the existing display instance via main
-            log.info(f"🔊 Showing microphone mute status on Foreground display: [{value}]")
+            log.info(f"🎤 Showing microphone mute status on Foreground display: [{value}]")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
-                icon="🔇" if value == self.MUTED or value == True else "🔈",
+                icon="❌" if value == self.MUTED or value == True else "🎤",
+                text="Muted" if value == self.MUTED or value == True else "Unmuted",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing mute status on Foreground display: {e}")
