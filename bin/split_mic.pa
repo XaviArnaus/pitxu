@@ -1,0 +1,7 @@
+#!/usr/bin/pulseaudio -nF
+.include /etc/pulse/default.pa
+
+# Set up some mono-single-channel maps
+load-module module-remap-sink sink_name=Left-to-Mono sink_properties="device.description='Stereo-to-Left-Only'"    master=combined  channels=2 master_channel_map=left,left channel_map=left,left
+
+load-module module-remap-sink sink_name=Right-to-Mono sink_properties="device.description='Stereo-to-Right-Only'"  master=combined  channels=2 master_channel_map=right,right channel_map=right,right
