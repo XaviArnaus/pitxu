@@ -216,7 +216,28 @@ class Interaction(PyXavi):
         """
         Shows arbitrary text on the eInk display only while speaking.
         """
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_TALKING, {
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding
+        })
+    
+    def show_arbitrary_text_on_foreground_while_thinking(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5
+        ):
+        """
+        Shows arbitrary text on the eInk display only while thinking.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING, {
             "icon": icon,
             "text": text,
             "font_size": font_size,

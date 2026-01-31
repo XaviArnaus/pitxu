@@ -33,9 +33,12 @@ class XprocessDisplayForeground(Xprocess):
             # Here, param is expected to be an instance of ImageDraw
             self.show_arbitrary_image_while_speaking(param)
         
-        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_TALKING and param:
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING and param:
             self.show_arbitrary_text_while_speaking(param)
-        
+
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING and param:
+            self.show_arbitrary_text_while_thinking(param)
+
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
 
@@ -91,7 +94,10 @@ class XprocessDisplayForeground(Xprocess):
 
     def show_arbitrary_text_while_speaking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_speaking() must be implemented in Display Background subclasses.")
-    
+
+    def show_arbitrary_text_while_thinking(self, param: dict):
+        raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Background subclasses.")
+
     def show_arbitrary_text_on_foreground(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Background subclasses.")
 

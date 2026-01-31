@@ -11,7 +11,7 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
     Class to define the protocol for Display foreground processes.
     '''
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         # We're busy

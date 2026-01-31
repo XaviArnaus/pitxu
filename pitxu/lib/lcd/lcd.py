@@ -129,7 +129,7 @@ class Lcd(XprocessDisplayCombined):
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
-        for_seconds = param.get("show_for_seconds", Painter.DEFAULT_MAINTAIN_FOREGROUND_PAINT_FOR_SECONDS)
+        for_seconds = param.get("show_for_seconds", 3.0)
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
@@ -208,12 +208,10 @@ class Lcd(XprocessDisplayCombined):
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
-
         self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint())
     
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
-
         self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint())
     
     def show(self, text: str):

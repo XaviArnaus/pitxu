@@ -293,7 +293,16 @@ class Main(PyXavi):
                             # -------------------------------
 
                             # We set it as busy in shared memory, so the Background Display can show the thinking effect
+                            # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
+                            #   to react on the busy flag changes and be displayed on time.
                             self._interaction.show_thinking()
+                            # I am going to try to show the question while thinking.
+                            # It may give some time to the LCD to show the previous called thinking effect.
+                            self._interaction.show_arbitrary_text_on_foreground_while_thinking(
+                                icon="❓",
+                                text=question,
+                                font_size=24,
+                            )
                             self._interaction.wait_for_background_display_queue_to_empty()
                             self._interaction.set_chatbot_busy()
                             chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
@@ -403,7 +412,7 @@ class Main(PyXavi):
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
-                    self._interaction.show_arbitrary_text_on_foreground(
+                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                         icon="🚨",
                         text=function_call_pair.function_response.response.get("result", "unknown"),
                         font_size=Canvas.FONT_SIZE_BIG)
@@ -444,7 +453,7 @@ class Main(PyXavi):
                         self._interaction.wait_for_foreground_display_queue_to_empty()
                         self._interaction.wait_for_busy_foreground_display_to_idle()
 
-                        self._interaction.show_arbitrary_text_on_foreground(
+                        self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                             icon="🚨",
                             text=result,
                             font_size=Canvas.FONT_SIZE_BIG)
@@ -617,7 +626,7 @@ class Main(PyXavi):
                 self._interaction.unset_eink_idle_mode()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_foreground(
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📝",
                     text=reminder.get("text", ""),
                     font_size=Canvas.FONT_SIZE_BIG)

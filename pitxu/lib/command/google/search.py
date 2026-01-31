@@ -64,15 +64,17 @@ class GoogleSearch(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_google_search_response_to_a_prompt`.
 
         """
-        dd(args)
-        search_term = args.get("prompt", "unknown") if args else "unknown"
-        log.info(f"The term searched in Google from the callback is: {search_term}")
+        # search_term = args.get("prompt", "unknown") if args else "unknown"
+        # log.info(f"The term searched in Google from the callback is: {search_term}")
+
+        text = value if isinstance(value, str) else str(value)
+        text = text[:50] + ("..." if len(text) > 100 else "")
 
         try:
-            log.error(f"🔎 Showing Google searched term on eInk: [{search_term}]")
-            interaction.show_arbitrary_text_on_foreground(
+            log.error(f"🔎 Showing extract of Google Search result: [{text}]")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🔎 ",
-                text=search_term,
+                text=text,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
             log.error(f"🛑 Error showing Google searched term on eInk: {e}")

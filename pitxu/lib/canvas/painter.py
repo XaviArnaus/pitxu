@@ -9,7 +9,7 @@ from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags
 
-from definitions import SHARED_LCD_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
                         FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END
 
 from PIL import ImageDraw
@@ -28,23 +28,6 @@ class Painter(PyXavi, Thread):
 
     foreground_paint: list[ForegroundPaint] = []
     background_paint: list[BackgroundPaint] = []
-    # delay_between_iterations: float = None  # 50 ms between iterations
-    # maintain_foreground_paint_for_seconds: float = None  # No pause after full paint by default
-    # ignore_foreground_maintain_time: dict = {}
-    # foreground_remove_requested_after_painting: dict = {}
-    # background_remove_requested_after_painting: dict = {}
-
-    # DEFAULT_DELAY_BETWEEN_ITERATIONS: float = 0.05  # 50 ms between iterations
-    # DEFAULT_MAINTAIN_FOREGROUND_PAINT_FOR_SECONDS: float = 3.0  # No pause after full paint by default
-
-    # BACKGROUND_DEFAULT: str = "default"
-    # LED_EFFECT_LOOP_ITERATIONS: dict = {
-    #     BackgroundComm.THINKING: 16,
-    #     BackgroundComm.SPEAKING: 8,
-    #     BackgroundComm.INITIAL_PHASE: 1,
-    #     BackgroundComm.HOLDER_PERCENTAGE: 1,
-    #     BACKGROUND_DEFAULT: 1
-    # }
 
     BACKGROUND_TO_BUSY_FLAG: dict = {
         BackgroundComm.THINKING: SHARED_CHATBOT_BUSY,
@@ -68,11 +51,6 @@ class Painter(PyXavi, Thread):
             self._xlog.error(f"No macros provided to {self.__class__.__name__}")
             raise ValueError(f"No macros provided to {self.__class__.__name__}")
         
-        # if params.key_exists("shared_memory"):
-        #     self.shared_memory = params.get("shared_memory")
-        # else:
-        #     self.shared_memory = SharedMemoryManager(config=config)
-        #     self.shared_memory.initialize_existing_shared_memory_flags()
         self.painter_busy_flags = PainterBusyFlags(config=config, params=params)
 
         # Initialize the Thread and start it. It won't paint anything until we set the running flag to True.
@@ -141,7 +119,7 @@ class Painter(PyXavi, Thread):
                 self.background_paint.pop(0)
             else:
                 self._log_debug(f"🛑 Background interaction [{interaction.name}] is not the current one. Skipping.")
-                # The logs show 2 times the same interaction when this happens. Not sure why.
+                # TODO: The logs show 2 times the same interaction when this happens. Not sure why.
                 current_queue = ", ".join([item.name for item in self.background_paint])
                 self._log_debug(f"Current background interaction queue: [{current_queue}].")
     
@@ -164,8 +142,6 @@ class Painter(PyXavi, Thread):
 
             # Prepare the drawing tools outside the loop, so it's more efficient
             self.draw = self.macros.get_canvas().get_canvas(reset_base_image=False)
-            # COMMENTED: Not needed, as the run() does a full clean at the beginning of each loop
-            # self.macros._soft_clear_rectangle(draw=self.draw)
 
             # Set the running flag to True, so the loop starts painting
             self.running = True
@@ -204,12 +180,6 @@ class Painter(PyXavi, Thread):
 
         # Start the painting loop
         self.start_or_resume_paint()
-
-        # # Remove related interactions
-        # if foreground_interaction is not None and remove_foreground_after_painting:
-        #     self.remove_foreground_interaction(interaction_name=foreground_interaction, by_the_end_of_the_painting=True)
-        # if background_interaction is not None and remove_background_after_painting:
-        #     self.remove_background_interaction(interaction_name=background_interaction, by_the_end_of_the_painting=True)
     
     def paint_into_foreground_while_speaking(self, foreground_interaction: ForegroundPaint):
         
@@ -240,11 +210,6 @@ class Painter(PyXavi, Thread):
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=FOREGROUND_CHANNEL, flag_name=SHARED_SPEAKER_BUSY, for_value=True, callback=start_callback)
         # 2. Register the end callback
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=FOREGROUND_CHANNEL, flag_name=SHARED_SPEAKER_BUSY, for_value=False, callback=end_callback)
-
-        # As we want to paint while speaking, avoid removing the interaction due to maintain time reached.
-        # COMMENTED: This is now controlled in the loop asking the interaction's attribute
-        # self.set_ignore_foreground_maintain_time_for_interaction(interaction_name=foreground_interaction, ignore=True)
-
         # 3. Start the painting loop
         self.start_or_resume_paint()
     
@@ -309,11 +274,6 @@ class Painter(PyXavi, Thread):
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=FOREGROUND_CHANNEL, flag_name=SHARED_CHATBOT_BUSY, for_value=True, callback=start_callback)
         # 2. Register the end callback
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=FOREGROUND_CHANNEL, flag_name=SHARED_CHATBOT_BUSY, for_value=False, callback=end_callback)
-
-        # As we want to paint while thinking, avoid removing the interaction due to maintain time reached.
-        # COMMENTED: This is now controlled in the loop asking the interaction's attribute
-        # self.set_ignore_foreground_maintain_time_for_interaction(interaction_name=foreground_interaction, ignore=True)
-
         # 3. Start the painting loop
         self.start_or_resume_paint()
     
@@ -395,9 +355,6 @@ class Painter(PyXavi, Thread):
                     # Be careful, a blank rectangle will override anything we had painted until now.
                     # Not suitable for ForegroundPaint and pretty dangerous for LOOP_START
                     self.macros._soft_clear_rectangle(draw=self.draw)
-                # Whatever the delay between frames we set for this interaction, we reset it to default now
-                # COMMENTED: This is now controlled in the loop asking the interaction's attribute
-                # self.reset_delay_between_iterations()
 
                 # Give the chance to execute an extra callback if provided
                 if extra_callback is not None:
@@ -536,11 +493,6 @@ class Painter(PyXavi, Thread):
                         self._log_debug(f"Initializing iteration counter for background interaction [{current_background_interaction.name}]. Counter was None")
                         current_iteration = 0
 
-                    # # Calculating max iterations for the current background interaction
-                    # background_iterations = self.LED_EFFECT_LOOP_ITERATIONS.get(current_background_interaction.name, 1)\
-                    #                 if current_background_interaction.name in self.LED_EFFECT_LOOP_ITERATIONS\
-                    #                 else self.LED_EFFECT_LOOP_ITERATIONS.get(self.BACKGROUND_DEFAULT, 1)
-
                     if current_background_interaction.interaction == BackgroundComm.THINKING:
                         frame = current_iteration % (current_background_interaction.loop_iterations // 2)
                         if current_iteration < (current_background_interaction.loop_iterations // 2):
@@ -644,9 +596,6 @@ class Painter(PyXavi, Thread):
                         # And remove the current foreground paint, so we can pick the next.
                         self.remove_foreground_interaction(interaction=current_foreground_interaction)
 
-                        # Also remove the ignore flag
-                        # COMMENTED: As this is controlled by the interaction's attribute, we don't need this anymore.
-                        # self.remove_ignore_foreground_maintain_time_for_interaction(current_foreground_interaction_name)
                 
                 self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
 
