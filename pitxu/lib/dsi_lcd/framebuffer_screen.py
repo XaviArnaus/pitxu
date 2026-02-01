@@ -61,7 +61,7 @@ class FramebufferScreen(PyXavi, Device):
 
     def display(self, image: Image.Image):
 
-        # original_width, original_height = image.size
+        original_width, original_height = image.size
 
         # # We work with images in landscape but apparently the screen is in portrait
         # image = image.rotate(90, expand=True)
