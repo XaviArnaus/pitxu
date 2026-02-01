@@ -425,15 +425,17 @@ class Main(PyXavi):
 
                 elif function_call_pair.function_name == "shutdown_local_machine":
                     self._xlog.debug("💤 Preparing for shutdown...")
-                    self.close_nicely()
+                    self.close_nicely(avoid_final_exit=True)
                     try:
+                        self._log_debug("Calling system shutdown now...")
                         call("sudo nohup shutdown -h now", shell=True)
                     except Exception as e:
                         self._xlog.error(f"Error during shutdown: {e}")
                 elif function_call_pair.function_name == "reboot_local_machine":
                     self._xlog.debug("♻️  Preparing for reboot...")
-                    self.close_nicely()
+                    self.close_nicely(avoid_final_exit=True)
                     try:
+                        self._log_debug("Calling system shutdown now...")
                         call("sudo nohup reboot", shell=True)
                     except Exception as e:
                         self._xlog.error(f"Error during reboot: {e}")
@@ -545,7 +547,13 @@ class Main(PyXavi):
         # No trigger word found
         return False
     
-    def close_nicely(self):
+    def close_nicely(self, avoid_final_exit=False):
+        """
+        Close the application nicely, cleaning up resources and saving state.
+
+        Args:
+            avoid_final_exit (bool): If True, avoids calling sys.exit() at the end. Useful when we want to shutdown or reboot after this method.
+        """
 
         if not self._is_pitxu_active:
             self._log_debug("Already closed nicely, skipping.")
@@ -593,6 +601,11 @@ class Main(PyXavi):
         self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
         self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
         self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
+
+        # If requested, avoid the final sys.exit()
+        if avoid_final_exit:
+            self._xlog.info("Exiting nicely avoided final sys.exit() as requested.")
+            return
 
         # And now, simply exit
         self._xlog.info("Exiting now. Goodbye!")
