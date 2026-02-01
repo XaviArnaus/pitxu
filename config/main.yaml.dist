@@ -23,10 +23,17 @@ storage:
     eink: "mocked/eink/"
     # [String] Path for mocked LED output files
     led_matrix: "mocked/matrix/"
-    # [String] Path for moced LCD output files
+    # [String] Path for mocked LCD output files
     lcd: "mocked/lcd/"
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.png", ".keep"]
+
+# Fonts
+fonts:
+  # [String] Path for font files
+  path: "pitxu/fonts"
+  # [String] Default font file
+  default_filename: "Font_with_emojis.ttc"
 
 gpio:
   # Whether to enable GPIO support

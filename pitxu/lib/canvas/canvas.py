@@ -12,7 +12,7 @@ class Canvas(PyXavi):
     _working_image: Image.Image = None
     _screen_size: Point = None
 
-    DEFAULT_FONT_PATH = os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts")
+    DEFAULT_FONT_PATH = os.path.join(ROOT_DIR, "pitxu", "fonts")
     FONT_FILE: str = os.path.join(DEFAULT_FONT_PATH, "Font_with_emojis.ttc")
     COLOR_MODE = "RGBA"  # '1' for 1-bit images, 'L' for greyscale, 'RGB' for true color, 'RGBA' for true color with transparency
 
@@ -152,11 +152,21 @@ class Canvas(PyXavi):
             self._xlog.error("Screen size not provided in params nor config. Cannot continue.")
             raise Exception("Screen size not provided in params nor config. Cannot continue.")
         
-        # Getting the font file from params or config or default
+        # Getting the font file from params
         if params.key_exists("font_file"):
+            self._log_debug(f"Font file provided in params: {params.get('font_file')}")
             self.FONT_FILE = params.get("font_file")
-        else:
+        # In case the device has its own font file configured
+        elif self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.file"):
+            self._log_debug(f"Font file provided in config by the display: {self._xconfig.get(self.DEVICE_CONFIG_PREFIX + '.fonts.file')}")
             self.FONT_FILE = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.file", self.FONT_FILE)
+        # Lastly, the default from the application
+        elif self._xconfig.key_exists("fonts.path") and self._xconfig.key_exists("fonts.default_filename"):
+            self._log_debug(f"Font file provided in config by app default: {self._xconfig.get('fonts.path')}/{self._xconfig.get('fonts.default_filename')}")
+            self.FONT_FILE = os.path.join(self._xconfig.get("fonts.path"), self._xconfig.get("fonts.default_filename", "Font_with_emojis.ttc"))
+
+        else:
+            self._log_debug(f"Font file set to class default: {self.FONT_FILE}")
         
         # Getting the image color mode from params or config or default
         if params.key_exists("color_mode"):

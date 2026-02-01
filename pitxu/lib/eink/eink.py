@@ -12,7 +12,6 @@ from pitxu.lib.objects import Point
 class EinkDisplay(PyXavi):
 
     _epd = None
-    _pic_dir: str = None
     _screen_size: Point = None
     # _canvas: EinkCanvas = None
     _canvas: Canvas = None
@@ -140,7 +139,6 @@ class EinkDisplay(PyXavi):
         """
 
         # Initialise the paths
-        self._pic_dir = os.path.join(self._xparams.get("base_path", ""), 'pitxu', 'pic')
         libdir = os.path.join(self._xparams.get("base_path", ""), 'pitxu', 'lib')
 
         # Don't initialise if not allowed
