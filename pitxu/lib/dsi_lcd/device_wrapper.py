@@ -24,12 +24,12 @@ class DeviceWrapper(PyXavi, Device):
         super(DeviceWrapper, self).init_pyxavi(config=config, params=params)
 
         if self.is_spi_allowed():
-            from pitxu.lib.lcd.st7789 import ST7789
-            self.device = ST7789(config=config, params=params)
+            from pitxu.lib.dsi_lcd.framebuffer_screen import FramebufferScreen
+            self.device = FramebufferScreen(config=config, params=params)
 
-            brightness = int(config.get("lcd.brightness", 50))
-            self.device.set_backlight_mode(True)
-            self.device.set_backlight(brightness)
+            # brightness = int(config.get("dsi_lcd.brightness", 50))
+            # self.device.set_backlight_mode(True)
+            # self.device.set_backlight(brightness)
         else:
             import os
             self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
@@ -38,7 +38,7 @@ class DeviceWrapper(PyXavi, Device):
 
     def display(self, image: Image.Image, partial: bool = True):
         if (self.is_spi_allowed()):
-            self.device.draw_image(image)
+            self.device.display(image)
         else:
             file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
             image.save(file_path)

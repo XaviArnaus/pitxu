@@ -76,6 +76,7 @@ class FramebufferScreen(PyXavi, Device):
     def clear(self):
         # # Paint the entire screen black
         # self.fill_screen(0)
+        self._flush_image_to_device(Image.new("RGB", (self.LCD_WIDTH, self.LCD_HEIGHT), "black"))
         pass
 
     def _init_display(self, use_horizontal=0):
