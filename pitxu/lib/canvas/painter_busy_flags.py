@@ -4,9 +4,11 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
-                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_CHATBOT_BUSY
+                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY
 
 class PainterBusyFlags(PyXavi):
+
+    # TODO: consider generating these lists automatically together with shared_memory_manager, xprocess_pool, etc.
 
     AVAILABLE_CHANNELS = [
         FOREGROUND_CHANNEL,
@@ -23,6 +25,7 @@ class PainterBusyFlags(PyXavi):
         SHARED_EINK_BUSY,
         SHARED_MATRIX_BUSY,
         SHARED_LCD_BUSY,
+        SHARED_DSI_LCD_BUSY,
         SHARED_CHATBOT_BUSY
     ]
 

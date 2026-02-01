@@ -256,11 +256,7 @@ class ST7789(PyXavi):
             image = self._preprocess_image(image)
             original_width, original_height = image.size
 
-        # Now get the actual data that we'll send to the device
-        # pixel_data = self._convert_image_to_pixel_data_array(image)
-
         # Finally, send the data to the device
-        # self._flush_pixel_data_to_device(0, 0, original_width, original_height, pixel_data)
         self._flush_image_to_device(image)
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
@@ -319,24 +315,6 @@ class ST7789(PyXavi):
             self.set_window(0, 0, self.LCD_WIDTH, self.LCD_HEIGHT)
             # self.digital_write(self.DC_PIN,True)
             self._send_data(pix)
-
-    def _convert_image_to_pixel_data_array(self, image: Image.Image) -> bytearray:
-        original_width, original_height = image.size
-        pixel_data = []
-        for y in range(original_height):
-            for x in range(original_width):
-                r, g, b = image.getpixel((x, y))
-                rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                pixel_data.extend([(rgb565 >> 8) & 0xFF, rgb565 & 0xFF])
-
-        return pixel_data
-
-    def _flush_pixel_data_to_device(self, x, y, width, height, pixel_data):
-        if (x + width > self.LCD_WIDTH) or (y + height > self.LCD_HEIGHT):
-            self._xlog.error("The image size is beyond the range of the screen")
-            raise ValueError("The image size is beyond the range of the screen")
-        self.set_window(x, y, x + width - 1, y + height - 1)
-        self._send_data(pixel_data)
     
     def _detect_raspberry_pi_version(self):
         """

@@ -276,9 +276,6 @@ Some extra resources:
 - PulseAudio rescan, but requires to be running as daemon: https://gist.github.com/ashtipliyski/e8842d8c962491f86604a117a331295b
 - `arecord` examples: https://commandmasters.com/commands/arecord-linux/
 
-
-
-
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
@@ -295,6 +292,7 @@ Some extra resources:
 ℹ️ Feels like the way is to use linux's framebuffers. the DSI display shows the main one at `/dev/fb0` 
 https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
 https://github.com/electronstudio/raylib-python-cffi/
+https://raspi.muth.org/framebuffer.html
 
 1. Add your user to the `video` group. Framebuffers are managed by  `root` but use the `video` group, so if running the app in `sudo` mode is a problem, add the user that will run the app into the `video` group:
 ```

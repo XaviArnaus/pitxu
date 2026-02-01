@@ -2,7 +2,7 @@ import time
 from PIL import Image
 
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
-from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
@@ -12,11 +12,11 @@ from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBack
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_DSI_LCD_IDLE_MODE
 
-class Lcd(XprocessDisplayCombined):
+class DsiLcd(XprocessDisplayCombined):
     '''
-    Class to control the behaviour of the LCD display inside a sub-process (child)
+    Class to control the behaviour of the DSI LCD display inside a sub-process (child)
     '''
 
     device: DeviceWrapper = None
@@ -31,7 +31,7 @@ class Lcd(XprocessDisplayCombined):
     VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
-        return "LCD"
+        return "DSI_LCD"
 
     def get_canvas_handler(self) -> Canvas | None:
         if self.canvas is not None:
@@ -42,7 +42,7 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info("Initializing LCD Worker")
 
         # Just have the display size handy
-        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
+        self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
         # The given device. It handles the interaction with the actual hardware or the mocking.
@@ -68,7 +68,7 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info("Initializing LCD Worker from Main Process")
 
         # Just have the display size handy
-        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
+        self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
         # The canvas to draw on, but basically to let it be available in the main process
@@ -77,7 +77,7 @@ class Lcd(XprocessDisplayCombined):
         self._xparams.set("canvas", self.canvas)
 
     def finish(self):
-        self._xlog.info("Finalizing LCD Worker")
+        self._xlog.info("Finalizing DSI LCD Worker")
         self.painter.close()
         self.canvas.close_canvas()
 
@@ -85,12 +85,12 @@ class Lcd(XprocessDisplayCombined):
 
     def show(self, text: str):
         # Draw the text bubble
-        self._xlog.info(f"👀 Showing text bubble on LCD.")
+        self._xlog.info(f"👀 Showing text bubble on DSI LCD.")
         self._macros.draw_text_bubble(text=text, font=self.canvas.FONT_MEDIUM)
     
     def show_arbitrary_image_while_speaking(self, image_bytes: dict):
-        # Show a given image on the LCD display
-        self._xlog.info(f"👀 Showing arbitrary image on LCD while speaking.")
+        # Show a given image on the DSI LCD display
+        self._xlog.info(f"👀 Showing arbitrary image on DSI LCD while speaking.")
         image = Image.frombytes(
             # self._display.get_image().mode,
             # self._display.get_image().size,
@@ -105,7 +105,7 @@ class Lcd(XprocessDisplayCombined):
         time.sleep(1)  # small delay to ensure the user sees the image
     
     def show_arbitrary_text_while_speaking(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on LCD while speaking.")
+        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
         # Why and How about this approach:
         #   - Have a before and after callback, wrapping the painting execution
@@ -121,26 +121,26 @@ class Lcd(XprocessDisplayCombined):
             foreground_interaction=ArbitraryContentWhileSpeakingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_while_thinking(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on LCD while thinking.")
+        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while thinking.")
 
         self.painter.paint_into_foreground_while_thinking(
             foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on LCD.")
+        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD.")
         for_seconds = param.get("show_for_seconds", 3.0)
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
     def splash_ready(self):
         # Draw the ready splash screen
-        self._xlog.info(f"👀 Showing ready splash screen on LCD.")
+        self._xlog.info(f"👀 Showing ready splash screen on DSI LCD.")
         self._macros.eyes_open()
 
     def idle(self):
         pass
         # # Draw the idle screen
-        # self._xlog.info(f"👀 Showing idle screen on LCD.")
+        # self._xlog.info(f"👀 Showing idle screen on DSI LCD.")
 
         # # Start with a soft clear
         # self._macros.soft_clear()
@@ -194,35 +194,35 @@ class Lcd(XprocessDisplayCombined):
     
     # The new clear for background only
     def clear_background(self):
-        self._xlog.info("Clearing LCD background interaction.")
+        self._xlog.info("Clearing DSI LCD background interaction.")
         self.painter.just_paint(background_interaction=ClearBackgroundPaint())
     
     # The new clear for foreground only
     def clear_foreground(self):
-        self._xlog.info("Clearing LCD foreground interaction.")
+        self._xlog.info("Clearing DSI LCD foreground interaction.")
         self.painter.just_paint(foreground_interaction=ClearForegroundPaint())
 
 
     # ------- Background functions ---------
     
     def show_kitt_mouth_while_speaking(self):
-        self._xlog.info(f"👄 Showing KITT mouth on LCD.")
+        self._xlog.info(f"👄 Showing KITT mouth on DSI LCD.")
         self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint())
     
     def show_kitt_scanner_while_thinking(self):
-        self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
+        self._xlog.info(f"🤖 Showing KITT thinking on DSI LCD.")
         self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint())
     
     def show(self, text: str):
-        self._xlog.info(f"🚥 Drawing on LCD: {text}")
+        self._xlog.info(f"🚥 Drawing on DSI LCD: {text}")
         self._macros.draw_something()
 
     def init_phase(self, phase: int):
-        self._xlog.info(f"🚥 Showing init phase {phase} on LCD")
+        self._xlog.info(f"🚥 Showing init phase {phase} on DSI LCD")
         self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter=phase))
     
     def interaction_holding_percentage(self, percentage: int):
-        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
+        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")
         self.painter.just_paint(background_interaction=HoldingPercentageBackgroundPaint(name=f"HoldingPercentageBackgroundPaint-{percentage}", parameter=percentage))
     # ------- Communication with Flags ---------
     
@@ -234,6 +234,6 @@ class Lcd(XprocessDisplayCombined):
         return self.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
 
 
-    # LCD idle mode control: is it in idle mode?
+    # DSI LCD idle mode control: is it in idle mode?
     def is_lcd_idle_mode(self):
-        return self.read_shared_memory_flag(SHARED_LCD_IDLE_MODE)
+        return self.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)

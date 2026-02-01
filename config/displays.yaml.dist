@@ -6,13 +6,14 @@ displays:
     - eink
     - matrix_led
     - lcd
+    - dsi_lcd
   # [String] The display to use for foreground notifications. Must be one of the available displays.
   # Foreground notifications are those that need to be shown immediately, like questions and answers from tools.
-  # foreground_display: lcd
+  # foreground_display: dsi_lcd
   foreground_display: eink
   # [String] The display to use for background notifications. Must be one of the available displays.
   # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
-  # background_display: lcd
+  # background_display: dsi_lcd
   background_display: matrix_led
 
 # Configuration fo the eInk Display
@@ -65,6 +66,28 @@ lcd:
   size:
     x: 280
     y: 240
+  # [bool] Rotate the display 180 degrees or not.
+  rotate: False
+  # Configuration regarding the fonts
+  fonts:
+    ultra: 85
+    huge: 45
+    big: 28
+    medium: 24
+    small: 20
+    small_emoji: 16
+    tiny: 16
+
+dsi_lcd:
+  # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
+  mock: True
+  image: 
+    # [String] Defines the image mode to base the canvas on. 1 for 1-bit B&W, L for greyscale, RGB for color, RGBA for color with transparency
+    mode: RGB
+  # Size of the display
+  size:
+    x: 800
+    y: 480
   # [bool] Rotate the display 180 degrees or not.
   rotate: False
   # Configuration regarding the fonts

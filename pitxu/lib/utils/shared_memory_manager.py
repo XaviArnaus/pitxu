@@ -3,8 +3,8 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
-    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE, SHARED_LCD_IDLE_MODE
+from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
+    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE, SHARED_LCD_IDLE_MODE, SHARED_DSI_LCD_IDLE_MODE
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -15,19 +15,23 @@ class SharedMemoryManager(PyXavi):
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
         "lcd_busy": SHARED_LCD_BUSY,
+        "dsi_lcd_busy": SHARED_DSI_LCD_BUSY,
         # On purpose not including Microphone in the busy waiters, as it does not block other processes
         # "microphone_muted": SHARED_MICROPHONE_MUTED,
     }
+    # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_flag: dict[int, str] = {
         SHARED_EINK_BUSY: "eink_busy",
         SHARED_MATRIX_BUSY: "matrix_busy",
         SHARED_SPEAKER_BUSY: "speaker_busy",
         SHARED_LCD_BUSY: "lcd_busy",
+        SHARED_DSI_LCD_BUSY: "dsi_lcd_busy",
         SHARED_MICROPHONE_MUTED: "microphone_muted",
         SHARED_CHATBOT_BUSY: "chatbot_busy",
         SHARED_CHATBOT_ANSWER_IS_ERROR: "chatbot_answer_is_error",
         SHARED_EINK_IDLE_MODE: "eink_idle_mode",
         SHARED_LCD_IDLE_MODE: "lcd_idle_mode",
+        SHARED_DSI_LCD_IDLE_MODE: "dsi_lcd_idle_mode",
     }
 
     WAITING_SLEEP_SECONDS = 0.01
@@ -68,16 +72,19 @@ class SharedMemoryManager(PyXavi):
         try:
             self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_FLAGS)
             # Initialisating Shared Memory to handle execution flags between processes
+            # TODO: consider using a more compact representation (bitmask) if performance/memory becomes an issue
             self._shared_memory_flags = shared_memory.ShareableList([
                 False,  # speaker is busy (pause mic)
                 False,  # e-ink is busy
                 False,  # matrix is busy
                 False,  # lcd is busy
+                False,  # dsi lcd is busy
                 False,  # microphone is muted
                 False,  # chatbot is busy
                 False,  # chatbot answer is error
                 False,  # eink idle mode (showing idle eyes)
-                False   # lcd idle mode
+                False,  # lcd idle mode
+                False   # dsi lcd idle mode
             ], name=SHARED_MEMORY_FLAGS)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

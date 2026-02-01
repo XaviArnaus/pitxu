@@ -8,8 +8,9 @@ from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.eink.display import Display as eInk
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
+from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD,\
+from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
                         SHARED_SPEAKER_BUSY,\
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
@@ -55,7 +56,8 @@ class Interaction(PyXavi):
     map_display_name_to_instance_data = {
         "eink": (eInk, QUEUE_EINK),
         "matrix_led": (MatrixLed, QUEUE_MATRIX),
-        "lcd": (Lcd, QUEUE_LCD)
+        "lcd": (Lcd, QUEUE_LCD),
+        "dsi_lcd": (DsiLcd, QUEUE_DSI_LCD),
     }
 
     VERBOSE_DEBUG: bool = True
