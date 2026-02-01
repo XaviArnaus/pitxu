@@ -41,6 +41,10 @@ logs_journalctl_pulseaudio_background() {
     sudo journalctl -o cat --user-unit pulseaudio.service -f
 }
 
+logs_journalctl_all() {
+    sudo journalctl -o cat -f
+}
+
 clear_pitxu_screen() {
      cd "$DIR/.." && poetry run clear
 }
@@ -64,6 +68,7 @@ case "$1" in
     "status") status_pitxu_background ;;
     "logs") logs_journalctl_pitxu_background ;;
     "logs_pulseaudio") logs_journalctl_pulseaudio_background ;;
+    "logs_all") logs_journalctl_all ;;
     "clear") clear_pitxu_screen ;;
     "sounddevices") sounddevices ;;
     "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices]" ;;
