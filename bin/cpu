@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# CPU usage monitoring executable
+
+# Get the directory of the current script
+# Allows to reference other files relative to this script's location
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+# Commandline to get CPU temperature in Celcius
+print_cpu_temp_in_celcius() {
+	echo "CPU temp: $(cat /sys/class/thermal/thermal_zone*/temp | awk '{print $1/1000}')°C"
+}
+
+# Commandline to get CPU fan speed in RPM
+print_cpu_fan_speed() {
+    echo "CPU fan speed: $(cat /sys/class/hwmon/hwmon*/fan*_input | head -n 1) RPM"
+}
+
+
+if [[ $# -eq 0 ]] ; then
+    # No arguments provided, we give all CPU info
+    print_cpu_temp_in_celcius
+    print_cpu_fan_speed
+    exit 0
+fi
+
+case "$1" in
+    "temp") print_cpu_temp_in_celcius ;;
+    "fan") print_cpu_fan_speed ;;
+    "help") echo "Usage: pitxu [temp|fan]" ;;
+    *) echo "Command unknown" ;;
+esac
+
+FINAL_EXIT_CODE=$?
+exit $FINAL_EXIT_CODE

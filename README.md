@@ -286,6 +286,21 @@ Some extra resources:
     - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
 - Most of the times, the very first start, the Splash screen is shown grey-ish.
 
+#### The DSI 5" Display
+- Works as a nirmal host display
+    - Shows the OS boot
+    - Stops asking for a linux user
+- The quest is to draw to it from the system service as it does with a SPI display.
+
+ℹ️ Feels like the way is to use linux's framebuffers. the DSI display shows the main one at `/dev/fb0` 
+https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
+https://github.com/electronstudio/raylib-python-cffi/
+
+1. Add your user to the `video` group. Framebuffers are managed by  `root` but use the `video` group, so if running the app in `sudo` mode is a problem, add the user that will run the app into the `video` group:
+```
+sudo usermod -a -G video xavier
+```
+
 ### Led Matrix
 - Works good in general
 - The very first show of the KITT mouth is shown mangled. The rest of the times is good.
