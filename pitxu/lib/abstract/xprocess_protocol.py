@@ -24,6 +24,15 @@ class XprocessProtocol(Protocol):
         '''
         pass
 
+    def initialize_from_main_process(self) -> None:
+        '''
+        This is called from the Process Pool in the Main Process to init itself anything, 
+        it won't be triggered in every run(). 
+        Most likely you want to initiate here Canvas related to every display, but not the 
+        display itself as the hardware is already initialised in the child Process.
+        '''
+        pass
+
     def do(self, config: Config, logger: logging) -> None:
         '''
         This is what you want to implement in your child class as the actual work.

@@ -1,11 +1,13 @@
 import time
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
-from pitxu.lib.objects import Point
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 from datetime import datetime
 
@@ -31,7 +33,7 @@ class SystemDate(PyXavi, Command):
             self._xlog.error(f"Error getting current date: {e}")
             return "Error"
     
-    def callback_show_date(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_show_date(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_local_system_date` that gets called AFTER chatbot from `main`.
 
@@ -48,20 +50,21 @@ class SystemDate(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_local_system_date`.
 
         """
-        main_instance._xlog.info(f"The current date in the callback is: {value}")
+        log.info(f"The current date in the callback is: {value}")
 
         try:
             # Get a datetime object from the value
             date_obj = datetime.strptime(value, self.format)
             value = date_obj.strftime(self.displayed_format)
 
-            main_instance._xlog.error(f"📆 Showing date on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"📆 Showing date on Foreground Display: {value}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📆",
                 text=value,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing date on eInk: {e}")
+            log.error(f"🛑 Error showing date on Foreground Display: {e}")
+            log.debug(full_stack())
 
     def get_tool_definition(self) -> list[callable]:
         """

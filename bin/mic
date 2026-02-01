@@ -13,7 +13,11 @@ case "$1" in
         if [[ $# -eq 2 ]] ; then
             pactl set-source-volume @DEFAULT_SOURCE@ "$2"
         else
-            echo "Usage example: mic set 75%"
+            if [[ $# -eq 3 ]] ; then
+               pactl set-source-volume @DEFAULT_SOURCE@ "$2" "$3"
+            else
+                echo -e "Both channels at once: mic set 75%\nOn different channels: mic set 75% 100%"
+            fi
         fi
         ;;
     "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;

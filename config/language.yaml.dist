@@ -6,6 +6,12 @@ language:
     es: ["hola oscar", "eh oscar", "oye oscar", "buenos días oscar", "buenas tardes oscar", "buenas noches oscar", "escucha oscar", "oscar"]
     en-us: ["hello oscar", "hi oscar", "hey oscar", "good morning oscar", "good afternoon oscar", "good evening oscar", "listen oscar", "oscar"]
     de: ["hallo oscar", "hi oscar", "hey oscar", "guten morgen oscar", "guten tag oscar", "guten abend oscar", "hör zu oscar", "oscar"]
+  # Answers to trigger words only, that wake up the chatbot. Will choose one random.
+  trigger_answers:
+    ca: ["Digues", "Què passa?", "Què tal?"]
+    es: ["Dime", "¿Qué pasa?", "¿Qué tal?"]
+    en-us: ["Tell me", "What's up?", "How's it going?"]
+    de: ["Sag es mir", "Was gibt's?", "Wie läuft's?"]
   # Exit words are used to identify the program termination (lowercase, no accents)
   exit_words:
     ca: ["sortir", "adeu"]
@@ -85,6 +91,11 @@ language:
       ca: "Katalanisch"
       es: "Spanisch"
       de: "Deutsch"
+  language_codes_per_language:
+    en-us: "en"
+    ca: "ca"
+    es: "es"
+    de: "de"
   # Common text replacements to normalize output
   text_replacements:
     ca:
@@ -114,6 +125,7 @@ language:
       "etc.": "etcetera."
       "°C": "degrees"
       "km/h": "kilometers per hour"
+      "e.g.": "for example"
     de:
       "&amp;": "und"
       "&lt;": "kleiner als"

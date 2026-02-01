@@ -2,8 +2,11 @@ from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 from datetime import datetime
 
@@ -182,44 +185,44 @@ class StatefulReminders(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.reminders.reminder_move_error." + self._xparams.get("language"))
 
-    def show_create_reminder(self, main_instance, value: any, args: dict = None) -> None:
+    def show_create_reminder(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
 
         try:
-            main_instance._xlog.debug(f"📝 Showing Create Reminder on eInk: {value}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.debug(f"📝 Showing Create Reminder on eInk: {value}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📝",
                 text=value,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Create Reminder on eInk: {e}")
-    
-    def show_get_reminders_for_date(self, main_instance, value: list, args: dict = None) -> None:
+            log.error(f"🛑 Error showing Create Reminder on eInk: {e}")
+
+    def show_get_reminders_for_date(self, log: logging, interaction: Interaction, value: list, args: dict = None) -> None:
 
         try:
             reminders_count = len(value)
 
-            main_instance._xlog.debug(f"📝 Showing Get Reminders for Date on eInk: {reminders_count}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.debug(f"📝 Showing Get Reminders for Date on eInk: {reminders_count}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📝",
                 text=f"{reminders_count} reminder{'s' if reminders_count != 1 else ''}.",
-                font_size=EinkCanvas.FONT_HUGE_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Get Reminders for Date on eInk: {e}")
-    
-    def show_affected_reminder(self, main_instance, value: any, args: dict = None) -> None:
+            log.error(f"🛑 Error showing Get Reminders for Date on eInk: {e}")
+
+    def show_affected_reminder(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
 
         try:
-            main_instance._xlog.debug(f"📝 Showing Affected Reminder on eInk: {value}")
+            log.debug(f"📝 Showing Affected Reminder on eInk: {value}")
 
             if isinstance(value, dict):
                 value = f"{value['date']} {value['time']}"
 
-            main_instance.show_arbitrary_text_on_eink(
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📝",
                 text=value,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Affected Reminder on eInk: {e}")
+            log.error(f"🛑 Error showing Affected Reminder on eInk: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """

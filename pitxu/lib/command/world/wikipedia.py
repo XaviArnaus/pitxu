@@ -1,11 +1,12 @@
 from pyxavi import Config, Dictionary, full_stack
-from pitxu.lib.eink.eink import EinkDisplay
 from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas, Macros
-from pitxu.lib.objects import Point, Rectangle
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 class WorldWikipedia(PyXavi, Command):
 
@@ -42,7 +43,7 @@ class WorldWikipedia(PyXavi, Command):
             return response['extract']
         return "No summary available."
     
-    def callback_summary_from_wikipedia_by_term(self, main_instance, value: any, args: dict = None) -> None:
+    def callback_summary_from_wikipedia_by_term(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_summary_from_wikipedia_by_term` that gets called AFTER chatbot from `main`.
 
@@ -52,17 +53,17 @@ class WorldWikipedia(PyXavi, Command):
 
         """
         search_term = args.get("term", "unknown") if args else "unknown"
-        main_instance._xlog.info(f"The term searched in Wikipedia from the callback is: {search_term}")
+        log.info(f"The term searched in Wikipedia from the callback is: {search_term}")
 
         try:
-            main_instance._xlog.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🌐",
                 text=search_term,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")
-            main_instance._xlog.error(full_stack())
+            log.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")
+            log.error(full_stack())
 
     def get_tool_definition(self) -> list[callable]:
         """

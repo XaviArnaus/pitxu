@@ -3,8 +3,10 @@ from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.eink import EinkCanvas
-from pitxu.lib.objects.point import Point
+from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.canvas.canvas import Canvas
+
+import logging
 
 from datetime import datetime
 
@@ -83,7 +85,7 @@ class WorldWeather(PyXavi, Command):
             self._xlog.debug(f"Getting weather forecast for today at [{str(requested_hour)}] at location: {latitude}, {longitude}")
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(1))
-            response = ApiRequest.do(url)
+            response: dict = ApiRequest.do(url)
             now = datetime.now().hour
             temperature = response.get("hourly", {}).get("temperature_2m", [])
             humidity = response.get("hourly", {}).get("relative_humidity_2m", [])
@@ -132,7 +134,7 @@ class WorldWeather(PyXavi, Command):
             self._xlog.error(f"🛑 Error getting weather forecast for next {days} days at location: {latitude}, {longitude}: {e}")
             return self._xconfig.get("language.general_error." + self._xparams.get("language")) + " " + str(e)
     
-    def callback_weather_forecast_for_today(self, main_instance, value: dict, args: dict = None) -> None:
+    def callback_weather_forecast_for_today(self, log: logging, interaction: Interaction, value: dict, args: dict = None) -> None:
         """
         Callback for `get_weather_forecast_for_today` that gets called AFTER chatbot from `main`.
 
@@ -141,10 +143,10 @@ class WorldWeather(PyXavi, Command):
             value: The value returned from the Chatbot AFTER it ran `get_weather_forecast_for_today`.
 
         """
-        main_instance._xlog.info(f"The weather forecast for today in the callback is: {value}")
+        log.info(f"The weather forecast for today in the callback is: {value}")
         requested_hour = args.get("requested_hour", None) if args else None
         if requested_hour is not None:
-            main_instance._xlog.debug(f"The requested hour for the weather forecast in the callback is: {requested_hour}")
+            log.debug(f"The requested hour for the weather forecast in the callback is: {requested_hour}")
 
         try:
             if requested_hour is None:
@@ -163,15 +165,15 @@ class WorldWeather(PyXavi, Command):
             weather_header = f"{weather_emoji} {temperature}°C"
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
-            main_instance._xlog.error(f"☀️ Showing weather forecast for today on eInk: {weather_header} {weather_other}")
-            main_instance.show_arbitrary_text_on_eink(
+            log.error(f"☀️ Showing weather forecast for today on eInk: {weather_header} {weather_other}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
                 header=weather_header,
-                font_header_size=EinkCanvas.FONT_HUGE_SIZE,
+                font_header_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE,
                 text=weather_other,
-                font_size=EinkCanvas.FONT_BIG_SIZE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_MEDIUM)
         except Exception as e:
-            main_instance._xlog.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
-            main_instance._xlog.error(full_stack())
+            log.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
+            log.error(full_stack())
 
     # def callback_weather_forecast_for_next_days(self, main_instance, value) -> None:
     #     """
@@ -188,11 +190,11 @@ class WorldWeather(PyXavi, Command):
 
     #         # New approach, using the existing display instance via main
     #         main_instance._xlog.error(f"☀️ Showing weather forecast for the next days on eInk: {value}")
-    #         main_instance.show_arbitrary_text_on_eink(
+    #         main_instance.show_arbitrary_text_on_foreground(
     #             header=weather_header,
-    #             font_header_size=EinkCanvas.FONT_HUGE_SIZE,
+    #             font_header_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE,
     #             text=weather_other,
-    #             font_size=EinkCanvas.FONT_BIG_SIZE)
+    #             font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
     #     except Exception as e:
     #         main_instance._xlog.error(f"🛑 Error showing weather forecast for the next days on eInk: {e}")
 

@@ -4,11 +4,14 @@ import time
 
 from pyxavi import Config, Dictionary
 
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
+from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
+from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY,\
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD
 
 
 class XprocessPool(PyXavi):
@@ -21,12 +24,19 @@ class XprocessPool(PyXavi):
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
-    }   
+        "lcd_busy": SHARED_LCD_BUSY,
+    }
+    _shared_flags_per_queue: dict[str, str] = {
+        QUEUE_EINK: SHARED_EINK_BUSY,
+        QUEUE_MATRIX: SHARED_MATRIX_BUSY,
+        QUEUE_SPEAKER: SHARED_SPEAKER_BUSY,
+        QUEUE_LCD: SHARED_LCD_BUSY,
+    }
 
     def __init__(self, config: Config, params: Dictionary):
 
         # Initialize the PyXavi parent
-        self.init_pyxavi(config=config, params=params)
+        super(XprocessPool, self).init_pyxavi(config=config, params=params)
 
         # Initialize the process and queue dictionaries
         self._process = {}
@@ -35,7 +45,6 @@ class XprocessPool(PyXavi):
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=config, params=params)
         self._shared_memory.initialize_new_shared_memory_flags()
-        self._shared_memory.initialize_new_shared_memory_vu_meter()
 
         # Initialise the manager that will create the queues
         self._manager = Manager()
@@ -51,29 +60,54 @@ class XprocessPool(PyXavi):
             self._xlog.warning("process [" + name + "] already exists in the pool. Overwriting.")
         self._process[name] = process
         self._queue[name] = process.get_queue()
-    
-    def add_and_start(self, name: str, process: Xprocess):
+
+    def add_and_start(self, name: str, process: Xprocess, params: Dictionary = None):
         self.add(name, process)
-        self._xlog.debug("Starting process [" + name + "] from the pool")
-        self._process[name].start()
-        self.send(name, XprocAction.INITIALIZE)
+        self.start(name)
+
+        if params is not None and params.get("initialize_from_main", True) is True:
+            self.initialize_from_main(name)
     
-    def new(self, name: str, target):
+    def new(self, name: str, target, params: Dictionary = None):
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
         if name in self._process:
             self._xlog.warning("process [" + name + "] already exists in the pool. Overwriting.")
         
+        if params is None:
+            params = Dictionary()
+        
         queue = self._manager.JoinableQueue()
         self._queue[name] = queue
-        self._process[name] = target(config=self._xconfig, params=self._xparams, queue=queue)
-    
-    def new_and_start(self, name: str, target):
-        self.new(name, target)
-        self._xlog.debug("Starting process [" + name + "] from the pool")
-        self._process[name].start()
-        self.send(name, XprocAction.INITIALIZE)
+        self._process[name] = target(
+            config=self._xconfig, 
+            params=self._xparams.merge(origin=params), 
+            queue=queue,
+            busy_flag=self._shared_flags_per_queue.get(name, None)
+        )
 
-    def get_process(self, name: str):
+    def new_and_start(self, name: str, target, params: Dictionary = None):
+        self.new(name, target, params=params)
+        self.start(name)
+
+        if params is not None and params.get("initialize_from_main", True) is True:
+            self.initialize_from_main(name)
+    
+    def start(self, name: str):
+        if name in self._process:
+            self._xlog.debug("Starting process [" + name + "] from the pool")
+            self._process[name].start()
+            self.send(name, XprocAction.INITIALIZE)
+        else:
+            self._xlog.error("process [" + name + "] does not exist in the pool.")
+    
+    def initialize_from_main(self, name: str):
+        if name in self._process:
+            self._xlog.debug("Performing the initialize_from_main_process() for process [" + name + "] from the main Process")
+            self._process[name].initialize_from_main_process()
+        else:
+            self._xlog.error("process [" + name + "] does not exist in the pool.")
+
+    def get_process(self, name: str) -> Xprocess | XprocessDisplayBackground | XprocessDisplayForeground | None:
         if name in self._process:
             return self._process[name]
         else:
@@ -103,7 +137,9 @@ class XprocessPool(PyXavi):
             try:
                 self._queue[queue_name].put((action, param))
             except BrokenPipeError as e:
-                self._xlog.error("Failed to send message to queue [" + queue_name + "]: " + str(e))
+                self._xlog.error("Queue [" + queue_name + "] is in BrokenPipe state " + str(e))
+            except ConnectionResetError as e:
+                self._xlog.error("Queue [" + queue_name + "] is in ConnectionReset state " + str(e))
         else:
             self._xlog.error("queue [" + queue_name + "] does not exist in the pool.")
 
@@ -118,24 +154,52 @@ class XprocessPool(PyXavi):
         # Now wait until the displays finish being busy
         self._xlog.debug("Waiting for all queues to get empty")
         queue_sizes = "Current queues size: \n"
+        queues_to_wait_for = []
         for name, queue in self._queue.items():
-            queue_sizes += "- " + name + ": " + str(queue.qsize()) + "\n"
+            try:
+                queue_sizes += "- " + name + ": " + str(queue.qsize()) + "\n"
+                queues_to_wait_for.append(queue)
+            except BrokenPipeError:
+                queue_sizes += "- " + name + ": BrokenPipeError\n"
+                self.reset_busy_flag_from_related_queue(name)
         self._xlog.debug(queue_sizes)
         sleep_seconds = 0.5
         total_sleeping = 0
-        while any(queue.qsize() > 0 for queue in self._queue.values()):
+        while any(queue.qsize() > 0 for queue in queues_to_wait_for):
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
         self._xlog.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
     
     def wait_for_queue_to_empty(self, queue_name: str):
-        self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
+        if self.get_queue(queue_name) is None:
+            self._xlog.error("Queue " + queue_name + " does not exist. Cannot wait for it to empty. I'll continue.")
+            return
+        try:
+            self._xlog.debug("Waiting for queue " + queue_name + " to empty. Has now: " + str(self.get_queue(queue_name).qsize()) + " elements.")
+        except BrokenPipeError:
+            self._xlog.error("Queue " + queue_name + " BrokenPipeError when checking size. Cannot wait for it to empty. I'll continue.")
+            self.reset_busy_flag_from_related_queue(queue_name)
+            return
         sleep_seconds = 0.5
         total_sleeping = 0
         while self.get_queue(queue_name).qsize() > 0:
             total_sleeping += sleep_seconds
             time.sleep(sleep_seconds)
         self._xlog.debug("The queue " + queue_name + " is empty now. I've sleept " + str(total_sleeping) + "s.")
+    
+    def reset_busy_flag_from_related_queue(self, queue: str):
+        if queue not in self._shared_flags_per_queue:
+            self._xlog.error(f"Queue {queue} does not have a related shared flag. Cannot reset busy flag.")
+            return
+        flag_name = self._shared_flags_per_queue[queue]
+        self._xlog.debug(f"Resetting busy flag {flag_name} related to queue {queue}")
+        self._shared_memory.write_shared_memory_flag(flag_name, False)
+    
+    def get_busy_flag_from_related_queue(self, queue: str) -> int:
+        if queue not in self._shared_flags_per_queue:
+            self._xlog.error(f"Queue {queue} does not have a related shared flag. Cannot get busy flag.")
+            return -1
+        return self._shared_flags_per_queue[queue]
     
     def finish_leftover_processes(self):
         # We can't join() child processes unless all queues get totally consumed.
@@ -150,13 +214,18 @@ class XprocessPool(PyXavi):
         # 2. Clean and close the queues, apparently better from the one that put().
         self._xlog.debug("Empty and close queues")
         for name, queue in self._queue.items():
-            self._clearAndDiscardQueue(queue)
+            if queue is not None:
+                self._clearAndDiscardQueue(queue)
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
         self._xlog.debug("Joining queues")
         for name, queue in self._queue.items():
-            queue.join()
+            if queue is not None:
+                try:
+                    queue.join()
+                except BrokenPipeError:  # in case of closed
+                    pass
 
         # 4. Terminate any leftover processes
         for name, process in self._process.items():
@@ -182,6 +251,8 @@ class XprocessPool(PyXavi):
             pass    
         except ValueError:  # in case of closed
             pass
+        except BrokenPipeError:  # in case of closed
+            pass
         # queue.close()
         # theoretically a new item could be placed by the
         # other process by the time the interpreter is on this line,
@@ -195,5 +266,7 @@ class XprocessPool(PyXavi):
                 queue.task_done()
         except ValueError:  # too many times called, do not care
         #  since all remaining will not be processed due to failure state
+            pass
+        except BrokenPipeError:  # in case of closed
             pass
 

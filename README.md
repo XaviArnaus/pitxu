@@ -220,12 +220,86 @@ Works very decent, no very significant difference with MacOS
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
+#### Whisplay sound with 16KHz TTS models.
+
+https://github.com/waveshareteam/WM8960-Audio-HAT/issues/63
+My issue is similar to this one, until:
+```
+sudo dtoverlay -l
+```
+
+... that does not show `wm8960-soundcard`
+❓ I believe the overlay does not load.
+
+Anyways, there is sound there, just that the Piper model TTS for CA is at 16 kHz of samplerate and PulseAudio fails with a milion of `Resume failed, couldn't restore original sample settings.` when writing the bytes into the Stream. Other TTS models like EN works with no problems, at a sample rate of 22 kHz
+
+More (maybe) on this:
+- https://forums.raspberrypi.com/viewtopic.php?t=376693
+- https://gitlab.freedesktop.org/pulseaudio/pulseaudio/-/issues/374
+
+‼️ Trying the following to test 16 kHz
+```
+speaker-test -r 16000
+
+speaker-test 1.2.14
+
+Playback device is default
+Stream parameters are 16000Hz, S16_LE, 1 channels
+Using 16 octaves of pink noise
+Rate set to 16000Hz (requested 16000Hz)
+Buffer size range from 192 to 2097152
+Period size range from 64 to 699051
+Periods = 4
+was set period_size = 4000
+was set buffer_size = 16000
+ 0 - Front Left
+Time per period = 2.002118
+ 0 - Front Left
+Time per period = 3.001354
+```
+
+⚠️✅ The "solution" is to move away from TTS that use a samplerate of 16Khz. Once I have all on 22KHz or more it works.
+What I don't understand is that in the first RPi5 I don't have this problem. I move on, but it's still unresolved.
+
+#### Whisplay Microphone issue
+
+The Whispl;ay has one microphone in each side of the board. Therefore, one lays right over the Fan. When the Fan kicks in the STT is awful.
+
+
+| ⚠️ **The System Sound Issue in General** |
+|--|
+| Our system follows the audio stack: `Hardware > ALSA > PulseAudio > Application`.<br>PulseAudio may not be necessary, and it might be possible to run the application (Pitxu Poetry Python app) directly through ALSA. The current setup could be causing conflicts in the audio subsystem, as indicated by several related errors in the system logs.<br>On top, the application uses `sounddevice` that relies on `PortAudio`. I think that it is all simply messed up |
+
+Some extra resources:
+- Remapping sinks through PulseAudio: https://wiki.archlinux.org/title/PulseAudio/Examples#Remapping_sinks
+- To actually mute from ALSA directly. Can be used to try to move the whole audio capabilities to only-ALSA: https://askubuntu.com/questions/26068/how-do-you-mute-from-the-command-line
+- PulseAudio rescan, but requires to be running as daemon: https://gist.github.com/ashtipliyski/e8842d8c962491f86604a117a331295b
+- `arecord` examples: https://commandmasters.com/commands/arecord-linux/
+
+
+
+
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
     - Check malfunctioning cables, faulty in-between pieces (GPIO HATs and headers). Happened to me twice.
     - Has plenty of problems controlling the subprocess to close properly, not allowing the next one to succeed. Complains about GPIO being busy while initialising the next Process. Solution was to move to a long lasting subprocess like Piper.
 - Most of the times, the very first start, the Splash screen is shown grey-ish.
+
+#### The DSI 5" Display
+- Works as a nirmal host display
+    - Shows the OS boot
+    - Stops asking for a linux user
+- The quest is to draw to it from the system service as it does with a SPI display.
+
+ℹ️ Feels like the way is to use linux's framebuffers. the DSI display shows the main one at `/dev/fb0` 
+https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
+https://github.com/electronstudio/raylib-python-cffi/
+
+1. Add your user to the `video` group. Framebuffers are managed by  `root` but use the `video` group, so if running the app in `sudo` mode is a problem, add the user that will run the app into the `video` group:
+```
+sudo usermod -a -G video xavier
+```
 
 ### Led Matrix
 - Works good in general
@@ -335,6 +409,18 @@ PSU_MAX_CURRENT=5000
 ```
 
 Reboot
+
+## PiSugar Whisplay HAT
+
+https://github.com/PiSugar/WhisPlay
+https://docs.pisugar.com/docs/product-wiki/whisplay/overview
+
+```
+git clone https://github.com/PiSugar/Whisplay.git --depth 1
+cd Whisplay/Driver
+sudo bash install_wm8960_drive.sh
+sudo reboot
+```
 
 ## Some newbie Debian docs for setting up stuff
 

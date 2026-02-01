@@ -15,6 +15,7 @@ log/*
 storage/*.yaml
 storage/mocked/eink/*
 storage/mocked/matrix/*
+storage/mocked/lcd/*
 !**/.keep
 
 # No user config files
@@ -26,3 +27,6 @@ requirements.txt
 
 # No Mac Stuff
 .DS_Store
+
+# No VSCode settings
+.vscode/

@@ -48,7 +48,7 @@ class PyXavi:
         self._xlog = Logger(config=config, base_path=self._xparams.get("base_path", "")).get_logger()
 
         # Set verbose debug mode
-        self.VERBOSE_DEBUG = config.get("logging.verbose_debug", False)
+        self.VERBOSE_DEBUG = config.get("logging.verbose_debug", False) if self.VERBOSE_DEBUG is False else self.VERBOSE_DEBUG
     
     def _log_debug(self, message: str):
         if self.VERBOSE_DEBUG:

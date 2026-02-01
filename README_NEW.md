@@ -41,6 +41,15 @@ For Debian based linux distros:
 sudo apt install portaudio19-dev python3-pyaudio
 ```
 
+### Dependencies related to `pulseaudio`
+
+For the amount of control that one can have over the system's audio, I also install (and therefore rely on) PulseAudio. It is the one then really applying the sound control and mute from within the Chatbot's Tool function call, and also several handy scripts in `bin/`
+
+For Debian based linux distros:
+```
+sudo apt install pulseaudio
+```
+
 ### Dependencies related to `lgpio`
 
 This is needed for the internal GPIO support
@@ -63,7 +72,7 @@ sudo apt install i2c-tools
 Just make sure that I did not forget to add here anything from above. Just put them all together.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools pulseaudio
 ```
 
 
@@ -137,6 +146,25 @@ Add the following line into your `.bashrc`:
 
 ```
 export PATH="/home/user/pitxu/bin:$PATH"
+```
+
+# Troubleshooting
+
+## The sound is just full of noise
+
+https://bbs.archlinux.org/viewtopic.php?id=185736
+
+Play with PulseAudio configuration. Reducing the block size helped me.
+
+Edit the Pulse audio configuration
+```
+sudo nano /etc/pulse/daemon.conf
+```
+
+and the following values fixed my issue
+```
+default-fragments = 5
+default-fragment-size-msec = 2
 ```
 
 

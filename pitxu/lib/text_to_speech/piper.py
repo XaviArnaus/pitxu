@@ -7,8 +7,7 @@ from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY,\
-    SHARED_VU_COL_1, SHARED_VU_COL_2, SHARED_VU_COL_3, SHARED_VU_COL_4
+from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 from pitxu.lib.utils.amplitude import Amplitude
 
 class Piper(Xprocess):
@@ -19,10 +18,6 @@ class Piper(Xprocess):
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
 
-    _maximal_amplitude: Amplitude = Amplitude()
-
-    VU_METER_SCALE = 4
-
     def get_process_name(self) -> str:
         return "Piper"
 
@@ -32,6 +27,13 @@ class Piper(Xprocess):
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
         self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
         self._voice = PiperVoice.load(self._model)
+        self._log_debug("Creating Piper Output Stream with samplerate: " + str(self._voice.config.sample_rate))
+        self._output_stream = sounddevice.OutputStream(
+            samplerate=self._voice.config.sample_rate,
+            blocksize=0,
+            channels=1,
+            dtype='int16'
+        )
         # if self._xconfig.get("text-to-speech.mock", True) is False:
         #     self._xlog.info("Creating Real Piper Output Stream")
         #     self._output_stream = sounddevice.OutputStream(
@@ -44,12 +46,13 @@ class Piper(Xprocess):
         #     from pitxu.lib.text_to_speech.mocked_output_stream import MockedOutputStream
         #     self._xlog.info("Creating Mocked Piper Output Stream")
         #     self._output_stream = MockedOutputStream(config=self._xconfig, dictionary=self._xparams)
-        self._output_stream = sounddevice.OutputStream(
-                samplerate=self._voice.config.sample_rate,
-                blocksize=0,
-                channels=1,
-                dtype='int16'
-            )
+        
+        # self._output_stream = sounddevice.OutputStream(
+        #         samplerate=self._voice.config.sample_rate,
+        #         blocksize=0,
+        #         channels=1,
+        #         dtype='int16'
+        #     )
 
     def finish(self):
         self._xlog.debug("Closing output stream")
@@ -66,7 +69,8 @@ class Piper(Xprocess):
 
         # While talking we set the speaker busy flag and mute the microphone, keeping track of its previous state
         # So that we can restore it to what it was before
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
+        # REMOVEME: This is now handled in the parent Xprocess
+        # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
 
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
@@ -78,49 +82,71 @@ class Piper(Xprocess):
 
         else:
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
+
             self._output_stream.start()
+            # with self._output_stream:
+            self._log_debug("Output stream started")
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
             for chunk in self._voice.synthesize(text):
+                # if self.interrupt_event.is_set():
+                #     self.get_logger().info("Speech interrupted.")
+                #     break
+                self._log_debug("Processing audio chunk of size: " + str(len(chunk.audio_int16_bytes)) + " bytes")
                 int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
-                
-                # # Update VU Meter columns in shared memory
-                # # audio_data = self._output_stream.read(len(int_data))[0]
-                # self._xlog.debug("Calculating amplitude for VU Meter for: " + str(len(int_data.tobytes())) + " bytes of audio data")
-                # amplitude = Amplitude.from_data(int_data.tobytes())
-                # if amplitude > self._maximal_amplitude:
-                #     self._maximal_amplitude = amplitude
-
-                # # Column 1: It's the LED column 0 and 7. Max scale: 1.
-                # # amp_col_1, maximal_amp_col_1, delta_1 = amplitude.get_values(scale=1 * self.VU_METER_SCALE, maximal=self._maximal_amplitude)
-                # # self.write_shared_memory_vu_meter_column(SHARED_VU_COL_1, amp_col_1)
-                # # Column 2: It's the LED column 1 and 6. Max scale: 2.
-                # amp_col_2, maximal_amp_col_2, delta_2 = amplitude.get_values(scale=2 * self.VU_METER_SCALE, maximal=self._maximal_amplitude)
-                # self.write_shared_memory_vu_meter_column(SHARED_VU_COL_2, amp_col_2)
-                # # Column 3: It's the LED column 2 and 5. Max scale: 3.
-                # amp_col_3, maximal_amp_col_3, delta_3 = amplitude.get_values(scale=3 * self.VU_METER_SCALE, maximal=self._maximal_amplitude)
-                # self.write_shared_memory_vu_meter_column(SHARED_VU_COL_3, amp_col_3)
-                # # Column 4: It's the LED column 3 and 4. Max scale: 4.
-                # amp_col_4, maximal_amp_col_4, delta_4 = amplitude.get_values(scale=4 * self.VU_METER_SCALE, maximal=self._maximal_amplitude)
-                # self.write_shared_memory_vu_meter_column(SHARED_VU_COL_4, amp_col_4)
-                # # self._xlog.debug(f"📶 Amplitude: {amplitude.to_int(self.VU_METER_SCALE)} | VU Meter Columns: 1:{amp_col_1} 2:{amp_col_2} 3:{amp_col_3} 4:{amp_col_4}")
-                # self._xlog.debug(f"📶 Amplitude: {amplitude.to_int(self.VU_METER_SCALE)} | VU Meter Columns: 1:0 2:{amp_col_2} 3:{amp_col_3} 4:{amp_col_4}")
 
                 # Make it to speak
+                self._log_debug("Writing audio chunk to output stream")
                 self._output_stream.write(int_data)
 
-
+            self._log_debug("All audio chunks processed, stopping output stream")
+            # Comment the following and tab properly for the with statement if used
             self._output_stream.stop()
         
         self._log_debug("Finished saying communication")
             
         # Restore the speaker and microphone states
-        self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
-        self._log_debug("Restore the speaker busy flag to False after finishing saying")
+        # REMOVEME: This is now handled in the parent Xprocess
+        # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+        # self._log_debug("Restore the speaker busy flag to False after finishing saying")
     
     def pause_mic(self):
         self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
 
     def resume_mic(self):
         self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
+
+# 2026-01-14 22:47:15,506 [Piper-4     ] DEBUG    oscar        Initializing SharedMemoryManager
+# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading flags from Shared Memory
+# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading VU meter from Shared Memory
+# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run()
+# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [INITIALIZE]
+# 2026-01-14 22:47:15,507 [Piper-4     ] INFO     oscar        Initializing Piper Worker
+# 2026-01-14 22:47:15,510 [Piper-4     ] DEBUG    piper.voice  Guessing voice config path: /home/xavier/pitxu/storage/tts_models/ca_ES-upc_pau-x_low.onnx.json
+# 2026-01-14 22:47:16,899 [Piper-4     ] DEBUG    oscar        Creating Piper Output Stream with samplerate: 16000
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [SAY: Hola]
+# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Saying [Hola]
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,907 [Piper-4     ] DEBUG    oscar        Output stream started
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Xprocess [Matrix] run() received a [SAY: Hola]
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] INFO     oscar        👄 Showing KITT mouth on Matrix LED.
+# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Opening Handable Canvas
+# 2026-01-14 22:47:16,916 [MainProcess ] DEBUG    oscar        Waiting for queue speaker_queue to empty. Has now: 0 elements.
+# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        The queue speaker_queue is empty now. I've sleept 0s.
+# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        Waiting for the process speaker_busy to idle. It's now: BUSY.
+# 2026-01-14 22:47:16,917 [MatrixLed-3 ] DEBUG    oscar        Creating Matrix Emulation Handable Canvas
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
+# Resume failed, couldn't restore original sample settings.
