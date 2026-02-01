@@ -32,6 +32,9 @@ class Interaction(PyXavi):
           needs to be performed (background interaction).
         - If so, Interaction triggers the background interaction (for example, showing the "speaking" icon on the display).
         - If the background interaction is no longer needed, Interaction stops it, by listening to the busy flags changes.
+    
+    The idea is good, but the implementation is not yet done.
+    What we have is a simpler version focused on displays in canvas/painter_busy_flags.py.
     """
 
     # This is what is currently being done in foreground and background

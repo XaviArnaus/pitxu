@@ -1,4 +1,4 @@
-from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
+from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
 
 class Paint:
     

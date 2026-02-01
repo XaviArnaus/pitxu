@@ -249,7 +249,7 @@ def test_mouth_in_lcd():
                 macros.kitt_speaking_effect(0,0,2,4, 0.01)
         else:
             from pitxu.lib.canvas.painter import Painter
-            from pitxu.lib.interaction.CommConstants import BackgroundComm
+            from pitxu.lib.canvas.painter_commands import BackgroundComm
 
             painter = Painter(config=config, params=parameters)
 

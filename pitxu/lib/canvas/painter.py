@@ -4,7 +4,7 @@ from threading import Thread
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas.macros import Macros
-from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
+from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
 from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags

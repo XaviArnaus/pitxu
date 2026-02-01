@@ -117,10 +117,10 @@ class PainterBusyFlags(PyXavi):
         # this also applies to the value being set, because we work with flags, the opposite event also has the opposite value.
         if flag_name in self.MANDATORY_FULL_CYCLE_BUSY_FLAGS:
             if when == LOOP_START and not self.callback_exists_for_busy_flag(when=LOOP_END, channel=channel, flag_name=flag_name, for_value=(not value)):
-                self._xlog.warning(f"🟠 Trying to call busy flag callback for [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}], but the corresponding END callback is not registered. Full cycle mandatory.")
+                self._log_debug(f"🟠 Trying to call busy flag callback for [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}], but the corresponding END callback is not registered. Full cycle mandatory.")
                 return
             if when == LOOP_END and self.callback_exists_for_busy_flag(when=LOOP_START, channel=channel, flag_name=flag_name, for_value=(not value)):
-                self._xlog.warning(f"🟠 Trying to call busy flag callback for [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}], but the corresponding START callback is still registered. Full cycle mandatory.")
+                self._log_debug(f"🟠 Trying to call busy flag callback for [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}], but the corresponding START callback is still registered. Full cycle mandatory.")
                 return
 
         self._log_debug(f"Calling busy flag callback for flag [{self._flag_string(flag_name)}] with value [{value}] in channel [{channel}] at [{when}].")

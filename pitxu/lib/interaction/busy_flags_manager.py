@@ -9,6 +9,12 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from definitions import SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_CHATBOT_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY
 
 class BusyFlagsManager(PyXavi, Thread):
+    """
+    Manages the busy flags for different components in the system.
+
+    The idea is good, but this class is not yet used in the system.
+    What we have is a simpler version focused on displays in canvas/painter_busy_flags.py.
+    """
 
     shared_memory: SharedMemoryManager = None
 

@@ -5,7 +5,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Rectangle, Line, Point
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.abstract.device import Device
-from pitxu.lib.interaction.CommConstants import BackgroundComm, ForegroundComm
+from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
 
 import time, math
 
