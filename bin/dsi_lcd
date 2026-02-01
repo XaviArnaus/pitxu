@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# DSI LCD executable
+
+# Get the directory of the current script
+# Allows to reference other files relative to this script's location
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+# Commandline to hide the cursor (set the cursor to black and clear the screen)
+hide_cursor() {
+	TERM=linux setterm -foreground black -clear all >/dev/tty0
+}
+
+# Commandline to set the cursor (set the cursor to white and clear the screen)
+show_cursor() {
+    TERM=linux setterm -foreground white -clear all >/dev/tty0
+}
+
+# Commandline to get CPU fan speed in RPM
+print_help() {
+    echo "Usage: pitxu [show_cursor|hide_cursor]"
+}
+
+
+if [[ $# -eq 0 ]] ; then
+    # No arguments provided, we give all CPU info
+    print_help
+    exit 0
+fi
+
+case "$1" in
+    "show_cursor") show_cursor ;;
+    "hide_cursor") hide_cursor ;;
+    "help") print_help ;;
+    *) echo "Command unknown" ;;
+esac
+
+FINAL_EXIT_CODE=$?
+exit $FINAL_EXIT_CODE
