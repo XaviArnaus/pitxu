@@ -18,12 +18,18 @@ class SystemVolume(PyXavi, Command):
     # Whatever the volume we want, we add this to avoid being too low
     SINK_VOLUME_ADDITION = 50
 
+    # Enable or Disable the Microphone channels
+    MIC_LEFT_ENABLED: bool = True
+    MIC_RIGHT_ENABLED: bool = True
+
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
         self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
+        self.MIC_LEFT_ENABLED = self._xconfig.get("speech-to-text.microphone_channels.left", True)
+        self.MIC_RIGHT_ENABLED = self._xconfig.get("speech-to-text.microphone_channels.right", True)
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
@@ -192,18 +198,16 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
-            left_active = self._xconfig.get("speech-to-text.microphone_channels.left", True)
-            right_active = self._xconfig.get("speech-to-text.microphone_channels.right", True)
             self._xlog.debug(f"Setting local system microphone volume level using pactl to {volume}%." + \
-                            f"Left channel: {'ON' if left_active else 'OFF'}," + \
-                            f"Right channel: {'ON' if right_active else 'OFF'}.")
+                            f"Left channel: {'ON' if self.MIC_LEFT_ENABLED else 'OFF'}," + \
+                            f"Right channel: {'ON' if self.MIC_RIGHT_ENABLED else 'OFF'}.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            if left_active and not right_active:
+            if self.MIC_LEFT_ENABLED and not self.MIC_RIGHT_ENABLED:
                 # Left only
                 check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ 0% {volume}%", shell=True)
-            elif not left_active and right_active:
+            elif not self.MIC_LEFT_ENABLED and self.MIC_RIGHT_ENABLED:
                 # Right only
                 check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}% 0%", shell=True)
             else:
