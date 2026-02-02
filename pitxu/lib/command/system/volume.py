@@ -162,14 +162,15 @@ class SystemVolume(PyXavi, Command):
             #balance 0.00
 
             real_volume_left = int(call_output.split("/")[1].strip().rstrip("%"))
+            volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
+            real_volume_right = real_volume_left
             volume_right = real_volume_right - self.SINK_VOLUME_ADDITION
             try:
                 real_volume_right = int(call_output.split("/")[3].strip().rstrip("%"))
                 volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
             except Exception as e:
                 # Most likely only one channel mic
-                real_volume_right = real_volume_left
-                volume_right = volume_left
+                pass
 
             if volume_right < 0:
                 volume_right = 0
