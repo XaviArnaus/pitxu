@@ -64,7 +64,7 @@ class Stopwatch():
         self.stop_all()
 
         max_name_width = 0
-        for name in self._stopwatches_stopped.keys():
+        for name in list(self._stopwatches_stopped.keys()):
             if len(name) > max_name_width:
                 max_name_width = len(name)
 
