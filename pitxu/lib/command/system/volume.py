@@ -160,10 +160,17 @@ class SystemVolume(PyXavi, Command):
             call_output = check_output("pactl get-source-volume @DEFAULT_SOURCE@", shell=True).decode()
             #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
             #balance 0.00
+
             real_volume_left = int(call_output.split("/")[1].strip().rstrip("%"))
-            real_volume_right = int(call_output.split("/")[3].strip().rstrip("%"))
             volume_right = real_volume_right - self.SINK_VOLUME_ADDITION
-            volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
+            try:
+                real_volume_right = int(call_output.split("/")[3].strip().rstrip("%"))
+                volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
+            except Exception as e:
+                # Most likely only one channel mic
+                real_volume_right = real_volume_left
+                volume_right = volume_left
+
             if volume_right < 0:
                 volume_right = 0
             self._log_debug(f"The local system microphone volume level using pactl is: L{real_volume_left}%, R{real_volume_right}% (showing RIGHT adjusted: {volume_right}%)")
