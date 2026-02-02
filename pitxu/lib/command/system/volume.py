@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -212,6 +212,7 @@ class SystemVolume(PyXavi, Command):
             return volume - self.SINK_VOLUME_ADDITION
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
+            self._xlog.debug(full_stack())
             return -1
 
     def set_local_system_microphone_mute_status(self, mute: bool) -> str:
