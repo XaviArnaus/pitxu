@@ -17,6 +17,12 @@ speech-to-text:
     en-us: vosk-model-small-en-us-0.15
     # German
     de: vosk-model-de-0.21
+  # Microphone channels activation flags. Useful to Mute one channel mic for example in Whisplay that fronts the CPU fan.
+  microphone_channels:
+    # [Bool] Activates the left channel
+    left: True
+    # [Bool] Activates the right channel
+    right: False
 
 # Configurations for the Text-to-Speech
 text-to-speech:

@@ -192,11 +192,21 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Setting local system microphone volume level using pactl to " + str(volume) + "%.")
+            self._log_debug(f"Setting local system microphone volume level using pactl to {volume}%." + \
+                            f"Left channel: {'ON' if self._xconfig.get_bool('speech.microphone_channels.left', True) else 'OFF'}," + \
+                            f"Right channel: {'ON' if self._xconfig.get_bool('speech.microphone_channels.right', True) else 'OFF'}.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ 0% {volume}%", shell=True)
+            if self._xconfig.get_bool("speech.microphone_channels.left", True) and not self._xconfig.get_bool("speech.microphone_channels.right", True):
+                # Left only
+                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {0}% {volume}%", shell=True)
+            elif not self._xconfig.get_bool("speech.microphone_channels.left", True) and self._xconfig.get_bool("speech.microphone_channels.right", True):
+                # Right only
+                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}% {0}%", shell=True)
+            else:
+                # Both
+                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}%", shell=True)
             return volume - self.SINK_VOLUME_ADDITION
         except Exception as e:
             self._xlog.error(f"Error setting volume level: {e}")
