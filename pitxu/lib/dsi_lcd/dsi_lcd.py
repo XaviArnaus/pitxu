@@ -33,6 +33,8 @@ class DsiLcd(XprocessDisplayCombined):
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
+    LED_TO_LCD_OFFSET_X: int = 250
+
     VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
@@ -49,6 +51,10 @@ class DsiLcd(XprocessDisplayCombined):
         # Just have the display size handy
         self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
+
+        # Define which offset do we use IN EACH SIDE of the horizontal screen to emulate the LED Matrix
+        self._xparams.set("led_to_lcd_offset_x", self.LED_TO_LCD_OFFSET_X)
+        self._xparams.set("apply_led_to_lcd_offset_to_all", True)
 
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)

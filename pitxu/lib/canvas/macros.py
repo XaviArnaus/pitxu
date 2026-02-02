@@ -20,7 +20,9 @@ class Macros(PyXavi):
     canvas: Canvas = None
     device: Device = None
 
-    LED_TO_LCD_OFFSET_X: int = 40  # Pixels to offset in X to avoid rounded corners
+    # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
+    LED_TO_LCD_OFFSET_X: int = 40
+    APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
@@ -37,6 +39,14 @@ class Macros(PyXavi):
             self.device = params.get("device")
         else:
             self._xlog.error("No Device object received in params for Macros class")
+        
+        # Which offset to apply when drawing LED points over the LCD canvas
+        if params.key_exists("led_to_lcd_offset_x"):
+            self._xlog.debug("Using LED to LCD offset X from params: " + str(params.get("led_to_lcd_offset_x")))
+            self.LED_TO_LCD_OFFSET_X = params.get("led_to_lcd_offset_x")
+        if params.key_exists("apply_led_to_lcd_offset_to_all", False):
+            self._xlog.debug("Using apply_led_to_lcd_offset_to_all from params: " + str(params.get("apply_led_to_lcd_offset_to_all")))
+            self.APPLY_LED_TO_LCD_OFFSET_TO_ALL = params.get("apply_led_to_lcd_offset_to_all")
 
     def get_canvas(self) -> Canvas:
         return self.canvas
@@ -418,7 +428,7 @@ class Macros(PyXavi):
     
     def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
-        apply_offset = False
+        apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
             self._soft_clear_rectangle(draw=draw)
@@ -434,7 +444,7 @@ class Macros(PyXavi):
     
     def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
-        apply_offset = False
+        apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw)
@@ -486,7 +496,8 @@ class Macros(PyXavi):
 
         It is meant to be used as a base for the speaking effect.
         '''
-        apply_offset = False
+        # It was set as False, but we want to also follow the class instance setting, that gets it defined from params
+        apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         max_values = {
             "col_1": 0,
