@@ -53,7 +53,7 @@ class FramebufferScreen(PyXavi, Device):
         # this turns off the cursor blink:
         # os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
         # self._log_debug("Hiding the cursor: " + check_output("tput civis -T /dev/tty0", shell=True).decode().strip())
-        pass
+        self._log_debug("Hiding the cursor: " + check_output("sudo setterm -cursor off -foreground black -clear all >/dev/tty", shell=True).decode().strip())
     
     def _reset_lcd(self):
         pass
@@ -62,6 +62,7 @@ class FramebufferScreen(PyXavi, Device):
         # turn on the cursor again:    
         # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
         # self._log_debug("Showing the cursor: " + check_output("tput cnorm -T /dev/tty0", shell=True).decode().strip())    
+        self._log_debug("Showing the cursor: " + check_output("sudo setterm -cursor on -foreground white -clear all >/dev/tty", shell=True).decode().strip())
         pass
     
     def clear(self):
