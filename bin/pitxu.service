@@ -18,7 +18,7 @@ Restart=always
 # It may crash during debug, so include exit codes here to assume OK and restart again.
 # So at this point, exit status 1
 SuccessExitStatus=1
-StandardInput=tty
+#StandardInput=tty
 StandardOutput=tty
 TTYPath=/dev/tty0
 
