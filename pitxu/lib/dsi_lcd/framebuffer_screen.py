@@ -55,7 +55,7 @@ class FramebufferScreen(PyXavi, Device):
         # self._log_debug("Hiding the cursor: " + check_output("tput civis -T /dev/tty0", shell=True).decode().strip())
         self._log_debug(check_output("sudo systemctl | grep tty", shell=True).decode().strip())
         try:
-            result = check_output("TERM=linux sudo setterm -cursor off -foreground black -clear all >/dev/tty1", shell=True).decode().strip()
+            result = check_output("TERM=linux sudo setterm -cursor off -foreground black -clear all </dev/tty1", shell=True).decode().strip()
         except Exception as e:
             self._log_debug("Error hiding the cursor: " + str(e))
             result = "Error"
@@ -69,7 +69,7 @@ class FramebufferScreen(PyXavi, Device):
         # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
         # self._log_debug("Showing the cursor: " + check_output("tput cnorm -T /dev/tty0", shell=True).decode().strip())    
         try:
-            result = check_output("TERM=linux sudo setterm -cursor on -foreground white -clear all >/dev/tty1", shell=True).decode().strip()
+            result = check_output("TERM=linux sudo setterm -cursor on -foreground white -clear all </dev/tty1", shell=True).decode().strip()
         except Exception as e:
             self._log_debug("Error showing the cursor: " + str(e))
             result = "Error"
