@@ -303,6 +303,11 @@ sudo usermod -a -G video xavier
 sudo usermod -a -G tty xavier
 ```
 
+3. Add your user to the `dialout` group, as the tty devices belong to the `dialout` group, so we can interact with tty for the cursor topic above:
+```
+sudo usermod -a -G dialout xavier
+```
+
 ### Led Matrix
 - Works good in general
 - The very first show of the KITT mouth is shown mangled. The rest of the times is good.
