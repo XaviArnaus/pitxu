@@ -202,10 +202,10 @@ class SystemVolume(PyXavi, Command):
                 volume += self.SINK_VOLUME_ADDITION
             if left_active and not right_active:
                 # Left only
-                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {0}% {volume}%", shell=True)
+                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ 0% {volume}%", shell=True)
             elif not left_active and right_active:
                 # Right only
-                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}% {0}%", shell=True)
+                check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}% 0%", shell=True)
             else:
                 # Both
                 check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}%", shell=True)
