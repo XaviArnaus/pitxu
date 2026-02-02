@@ -98,13 +98,13 @@ class BackgroundPaint(Paint):
 
 class SpeakingBackgroundPaint(BackgroundPaint):
 
-    def __init__(self, name = None):
+    def __init__(self, name = None, delay_between_frames: float = 0.05):
         if name is None:
             name = "SpeakingBackgroundPaint"
         super(SpeakingBackgroundPaint, self).__init__(
             name=name,
             interaction=BackgroundComm.SPEAKING,
-            delay_between_frames=0.01,
+            delay_between_frames=delay_between_frames,
             final_screen_clearing=True,
             remove_interaction_after_painting=False,
             loop_iterations=8
@@ -112,13 +112,13 @@ class SpeakingBackgroundPaint(BackgroundPaint):
 
 class ThinkingBackgroundPaint(BackgroundPaint):
 
-    def __init__(self, name = None):
+    def __init__(self, name = None, delay_between_frames: float = 0.05):
         if name is None:
             name = "ThinkingBackgroundPaint"
         super(ThinkingBackgroundPaint, self).__init__(
             name=name,
             interaction=BackgroundComm.THINKING,
-            delay_between_frames=0.06,
+            delay_between_frames=delay_between_frames,
             final_screen_clearing=True,
             remove_interaction_after_painting=False,
             loop_iterations=16

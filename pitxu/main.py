@@ -182,6 +182,7 @@ class Main(PyXavi):
         self._interaction.show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
+        # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
         self._interaction.show_init_phases(2)
         # ... yeah, "Loading", but I freeze the execution here.

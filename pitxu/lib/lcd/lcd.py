@@ -25,6 +25,9 @@ class Lcd(XprocessDisplayCombined):
     painter: Painter = None
     _display_size: Point = None
 
+    interaction_delays: dict[str, float] = None
+
+    # TODO: Move this into the interaction_delays
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
@@ -60,6 +63,12 @@ class Lcd(XprocessDisplayCombined):
 
         # Add the parent's shared memory manager to the params for the painter
         self._xparams.set("shared_memory", self._shared_memory)
+
+        # Interaction delays
+        self.interaction_delays = self._xparams.get("interaction_delays")
+        self._xlog.debug("LCD Interaction delays loaded:")
+        for key, value in self.interaction_delays.items():
+            self._xlog.debug(f"  {key}: {value} seconds")
 
         # The Painter that will handle the actual drawing on the canvas and device
         self.painter = Painter(config=self._xconfig, params=self._xparams)
@@ -128,7 +137,7 @@ class Lcd(XprocessDisplayCombined):
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
-        for_seconds = param.get("show_for_seconds", 3.0)
+        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notifications", 3.0))
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
@@ -180,7 +189,8 @@ class Lcd(XprocessDisplayCombined):
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
         self._xlog.info(f"👀 Showing startup splash screen")
-        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=for_seconds))
+        show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
+        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
 
     # ------- Common functions ---------
     
@@ -207,11 +217,15 @@ class Lcd(XprocessDisplayCombined):
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
-        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint())
+        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
     
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
-        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint())
+        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")

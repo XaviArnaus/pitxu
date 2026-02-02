@@ -54,6 +54,17 @@ class XprocessDisplayBackground(Xprocess):
             # For now, just show the step number as a message
             self.init_phase(step)
     
+    # def _initialize_on_every_run(self):
+    #     '''
+    #     Initializations needed on every run of the process.
+    #     Overloading the xprocess's one.
+    #     '''
+    #     super(XprocessDisplayBackground, self)._initialize_on_every_run()
+
+    #     # Add the interaction delays coming from params
+    #     self._xlog.debug("XprocessDisplayBackground: Setting interaction delays from params.")
+    #     self.interaction_delays = self._xparams.get("interaction_delays", {})
+    
     # ------- Common functions ---------
     
     def clear(self):

@@ -41,6 +41,20 @@ eink:
     small: 10
     small_emoji: 9
     tiny: 8
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.05
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.06
 
 # Configuration fo the Max7219 matrix led
 matrix_led:
@@ -55,6 +69,20 @@ matrix_led:
   size:
     x: 8
     y: 8
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.05
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.06
 
 lcd:
   # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
@@ -77,6 +105,20 @@ lcd:
     small: 20
     small_emoji: 16
     tiny: 16
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.06
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.01
 
 dsi_lcd:
   # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
@@ -99,3 +141,17 @@ dsi_lcd:
     small: 20
     small_emoji: 16
     tiny: 16
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.08
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.05
