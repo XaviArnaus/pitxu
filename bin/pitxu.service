@@ -7,11 +7,18 @@ Requires=network.target network-online.target
 Type=idle
 User=xavier
 WorkingDirectory=/home/xavier/pitxu
+
 # This activates the sound card in this service, otherwise sound is not active in systemd.
 # Use pactl list sources | grep long_card_name
 # Select the card that fits with the pitxu/config/speech.yml setup
-ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard
+# COMMENTED: The following line correctly starts pulseaudio with the PiSugar Whisplay soundcard
+#ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard
+# UNCOMMENTED: Once the Whisplay is unplugged, the USB soundcard shows up as:
+#   ALSA: Card 2, Playback Device 0, Capture Device 0
+#   PulseAudio: Card 2, Sink 0, Source 0
+ExecStartPre=pulseaudio --start ; pactl set-default-sink alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00 ; pactl set-default-source alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00
 ExecStart=/home/xavier/.local/bin/poetry run main
+
 # We want it to restart everythim it leaves
 Restart=always
 # It may crash during debug, so include exit codes here to assume OK and restart again.
