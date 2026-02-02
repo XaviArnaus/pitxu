@@ -1,4 +1,5 @@
 import os
+from subprocess import check_output
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.framebuffer import Framebuffer  # pytorinox
@@ -51,7 +52,7 @@ class FramebufferScreen(PyXavi, Device):
     def _init_display(self):
         # this turns off the cursor blink:
         # os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
-        os.system("tput civis -T /dev/tty0")
+        self._log_debug("Hiding the cursor: " + check_output("tput civis -T /dev/tty0").decode().strip())
     
     def _reset_lcd(self):
         pass
@@ -59,7 +60,7 @@ class FramebufferScreen(PyXavi, Device):
     def close(self):
         # turn on the cursor again:    
         # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
-        os.system("tput cnorm -T /dev/tty0")    
+        self._log_debug("Showing the cursor: " + check_output("tput cnorm -T /dev/tty0").decode().strip())    
     
     def clear(self):
         # # Paint the entire screen black
