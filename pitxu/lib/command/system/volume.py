@@ -192,16 +192,18 @@ class SystemVolume(PyXavi, Command):
             volume (int): The desired volume level as a percentage (0-100)
         '''
         try:
+            left_active = self._xconfig.get('speech.microphone_channels.left', True)
+            right_active = self._xconfig.get('speech.microphone_channels.right', True)
             self._log_debug(f"Setting local system microphone volume level using pactl to {volume}%." + \
-                            f"Left channel: {'ON' if self._xconfig.get_bool('speech.microphone_channels.left', True) else 'OFF'}," + \
-                            f"Right channel: {'ON' if self._xconfig.get_bool('speech.microphone_channels.right', True) else 'OFF'}.")
+                            f"Left channel: {'ON' if left_active else 'OFF'}," + \
+                            f"Right channel: {'ON' if right_active else 'OFF'}.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            if self._xconfig.get_bool("speech.microphone_channels.left", True) and not self._xconfig.get_bool("speech.microphone_channels.right", True):
+            if left_active and not right_active:
                 # Left only
                 check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {0}% {volume}%", shell=True)
-            elif not self._xconfig.get_bool("speech.microphone_channels.left", True) and self._xconfig.get_bool("speech.microphone_channels.right", True):
+            elif not left_active and right_active:
                 # Right only
                 check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ {volume}% {0}%", shell=True)
             else:
