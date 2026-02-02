@@ -298,6 +298,10 @@ https://raspi.muth.org/framebuffer.html
 ```
 sudo usermod -a -G video xavier
 ```
+2. Add your user to the `tty` group so that the app is able to interact with the screen's cursor, to remove it from the screen during the app's run:
+```
+sudo usermod -a -G tty xavier
+```
 
 ### Led Matrix
 - Works good in general

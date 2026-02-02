@@ -15,6 +15,9 @@ class FramebufferScreen(PyXavi, Device):
     Thanx to: 
     - https://raspi.muth.org/framebuffer.html
     - https://gist.github.com/Quasimondo/e47a5be0c2fa9a3ef80c433e3ee2aead
+
+    To explore:
+    - https://stackoverflow.com/questions/76358117/draw-to-different-linux-framebuffers-with-python
     """
 
     # LCD Waveshare 5" DSI + Toucnhscreen
@@ -56,7 +59,7 @@ class FramebufferScreen(PyXavi, Device):
     def clear(self):
         # # Paint the entire screen black
         # self.fill_screen(0)
-        self._flush_image_to_device(Image.new("RGB", (self.LCD_WIDTH, self.LCD_HEIGHT), "black"))
+        self._flush_image_to_device(Image.new("RGBA", (self.LCD_WIDTH, self.LCD_HEIGHT), "black"))
         pass
 
     def display(self, image: Image.Image):
