@@ -54,7 +54,12 @@ class FramebufferScreen(PyXavi, Device):
         # os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
         # self._log_debug("Hiding the cursor: " + check_output("tput civis -T /dev/tty0", shell=True).decode().strip())
         self._log_debug(check_output("sudo systemctl | grep tty", shell=True).decode().strip())
-        self._log_debug("Hiding the cursor: " + check_output("sudo setterm -cursor off -foreground black -clear all >/dev/ttyAMA10", shell=True).decode().strip())
+        try:
+            result = check_output("sudo setterm -cursor off -foreground black -clear all >/dev/ttyAMA10", shell=True).decode().strip()
+        except Exception as e:
+            self._log_debug("Error hiding the cursor: " + str(e))
+            result = "Error"
+        self._log_debug("Hiding the cursor: " + result)
     
     def _reset_lcd(self):
         pass
@@ -63,7 +68,12 @@ class FramebufferScreen(PyXavi, Device):
         # turn on the cursor again:    
         # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
         # self._log_debug("Showing the cursor: " + check_output("tput cnorm -T /dev/tty0", shell=True).decode().strip())    
-        self._log_debug("Showing the cursor: " + check_output("sudo setterm -cursor on -foreground white -clear all >/dev/ttyAMA10", shell=True).decode().strip())
+        try:
+            result = check_output("sudo setterm -cursor on -foreground white -clear all >/dev/ttyAMA10", shell=True).decode().strip()
+        except Exception as e:
+            self._log_debug("Error showing the cursor: " + str(e))
+            result = "Error"
+        self._log_debug("Showing the cursor: " + result)
     
     def clear(self):
         # # Paint the entire screen black
