@@ -10,9 +10,9 @@ WorkingDirectory=/home/xavier/pitxu
 # This activates the sound card in this service, otherwise sound is not active in systemd.
 # Use pactl list sources | grep long_card_name
 # Select the card that fits with the pitxu/config/speech.yml setup
-ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard ; tput civis -T /dev/tty0
+ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard
 ExecStart=/home/xavier/.local/bin/poetry run main
-ExecStopPost=tput cvvis -T /dev/tty0
+#ExecStopPost=tput cvvis -T /dev/tty0
 # We want it to restart everythim it leaves
 Restart=always
 # It may crash during debug, so include exit codes here to assume OK and restart again.

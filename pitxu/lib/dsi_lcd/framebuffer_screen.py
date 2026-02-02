@@ -43,18 +43,23 @@ class FramebufferScreen(PyXavi, Device):
         # self.framebuffer_screen = np.memmap('/dev/fb0', dtype='uint16',mode='w+', shape=(576,720))
 
         # Initialize numpy
-        self.np=np
+        # self.np=np
+
+        # Initialize display
+        self._init_display()
 
     def _init_display(self):
         # this turns off the cursor blink:
-        os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
+        # os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
+        os.system("tput civis -T /dev/tty0")
     
     def _reset_lcd(self):
         pass
 
     def close(self):
         # turn on the cursor again:    
-        os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
+        # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
+        os.system("tput cnorm -T /dev/tty0")    
     
     def clear(self):
         # # Paint the entire screen black
