@@ -1,3 +1,4 @@
 sudo systemctl stop pitxu
 cd /home/xavier/pitxu
 /home/xavier/.local/bin/poetry run clear
+tput cnorm -T /dev/tty0
