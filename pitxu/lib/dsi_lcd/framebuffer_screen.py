@@ -78,8 +78,8 @@ class FramebufferScreen(PyXavi, Device):
         
         # The framebuffer appears to be in BGR, not in RGB. So, we need to convert the image.
         # We assume here that the image is already in RGB format, because we set it in config.
-        r, g, b = image.split()
-        image = Image.merge("RGB", (b, g, r))
+        # r, g, b = image.split()
+        # image = Image.merge("RGB", (b, g, r))
 
         # Finally, send the data to the device
         self._flush_image_to_device(image)
