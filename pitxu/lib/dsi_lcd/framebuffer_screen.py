@@ -7,7 +7,6 @@ from pitxu.lib.abstract.device import Device
 
 from pitxu.lib.objects.point import Point
 from PIL import Image
-import numpy as np
 
 class FramebufferScreen(PyXavi, Device):
     """
@@ -43,17 +42,11 @@ class FramebufferScreen(PyXavi, Device):
         # fbset -fb /dev/fb0 
         # self.framebuffer_screen = np.memmap('/dev/fb0', dtype='uint16',mode='w+', shape=(576,720))
 
-        # Initialize numpy
-        # self.np=np
-
         # Initialize display
         self._init_display()
 
     def _init_display(self):
         # this turns off the cursor blink:
-        # os.system("TERM=linux setterm -foreground black -clear all >/dev/tty0")
-        # self._log_debug("Hiding the cursor: " + check_output("tput civis -T /dev/tty0", shell=True).decode().strip())
-        # self._log_debug(check_output("sudo systemctl | grep tty", shell=True).decode().strip())
         try:
             result = check_output("TERM=linux sudo setterm -cursor off -foreground black -clear all | sudo tee /dev/tty1", shell=True).decode().strip()
         except Exception as e:
@@ -65,9 +58,7 @@ class FramebufferScreen(PyXavi, Device):
         pass
 
     def close(self):
-        # turn on the cursor again:    
-        # os.system("TERM=linux setterm -foreground white -clear all >/dev/tty0")
-        # self._log_debug("Showing the cursor: " + check_output("tput cnorm -T /dev/tty0", shell=True).decode().strip())    
+        # turn on the cursor again:       
         try:
             result = check_output("TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1", shell=True).decode().strip()
         except Exception as e:

@@ -23,7 +23,7 @@ class DeviceWrapper(PyXavi, Device):
     def __init__(self, config: Config, params: Dictionary):
         super(DeviceWrapper, self).init_pyxavi(config=config, params=params)
 
-        if self.is_spi_allowed():
+        if self.is_dsi_allowed():
             from pitxu.lib.dsi_lcd.framebuffer_screen import FramebufferScreen
             self.device = FramebufferScreen(config=config, params=params)
 
@@ -37,7 +37,7 @@ class DeviceWrapper(PyXavi, Device):
                 os.makedirs(self.path_for_mocked_images)
 
     def display(self, image: Image.Image, partial: bool = True):
-        if (self.is_spi_allowed()):
+        if (self.is_dsi_allowed()):
             self.device.display(image)
         else:
             file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
@@ -46,20 +46,26 @@ class DeviceWrapper(PyXavi, Device):
             image.save(file_path)
     
     def clear(self):
-        if (self.is_spi_allowed()):
+        if (self.is_dsi_allowed()):
             # self.device._reset_lcd() -> Apparently this causes the LCD to stop working.
             self.device.clear()
         else:
             pass
     
-    def is_spi_allowed(self) -> bool:
+    def close(self):
+        if (self.is_dsi_allowed()):
+            self.device.close()
+        else:
+            pass
+    
+    def is_dsi_allowed(self) -> bool:
         import platform
 
         os = platform.system()        
         if (os.lower() != "linux"):
             self._log_debug("OS is not Linux, auto mocking LCD")
             return False
-        if (self._xconfig.get("lcd.mock", True)):
+        if (self._xconfig.get("dsi_lcd.mock", True)):
             self._log_debug("Mocking LCD by Config")
             return False
         return True

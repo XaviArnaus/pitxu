@@ -220,6 +220,13 @@ Works very decent, no very significant difference with MacOS
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
+#### Whisplay sound in general
+The driver is needed. ALSA, PulseAudio and PortAudio (kinda everything) has to be aligned to use the right card with the right driver.
+For example, As Pitxu start as a service, we need to specify the default sink and source for PA in the service definition. Take a look at:
+```
+ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard
+```
+
 #### Whisplay sound with 16KHz TTS models.
 
 https://github.com/waveshareteam/WM8960-Audio-HAT/issues/63

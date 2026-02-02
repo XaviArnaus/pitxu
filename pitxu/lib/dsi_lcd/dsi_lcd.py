@@ -89,8 +89,13 @@ class DsiLcd(XprocessDisplayCombined):
 
     def finish(self):
         self._xlog.info("Finalizing DSI LCD Worker")
+        self._log_debug("Closing DSI LCD Painter")
         self.painter.close()
+        self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
+        self._log_debug("Closing DSI LCD Device")
+        self.device.close()
+
 
     # ------- Foreground functions ---------
 
