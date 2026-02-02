@@ -194,7 +194,7 @@ class SystemVolume(PyXavi, Command):
         try:
             left_active = self._xconfig.get('speech-to-text.microphone_channels.left', True)
             right_active = self._xconfig.get('speech-to-text.microphone_channels.right', True)
-            self._log_debug(f"Setting local system microphone volume level using pactl to {volume}%." + \
+            self._xlog.debug(f"Setting local system microphone volume level using pactl to {volume}%." + \
                             f"Left channel: {'ON' if left_active else 'OFF'}," + \
                             f"Right channel: {'ON' if right_active else 'OFF'}.")
             # Unless we want to set volume to 0, we add the addition
