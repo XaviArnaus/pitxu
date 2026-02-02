@@ -19,7 +19,7 @@ Restart=always
 # So at this point, exit status 1
 SuccessExitStatus=1
 #StandardInput=tty
-StandardOutput=tty
+#StandardOutput=tty
 TTYPath=/dev/tty0
 
 [Install]
