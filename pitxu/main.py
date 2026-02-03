@@ -250,7 +250,7 @@ class Main(PyXavi):
                     question = ""
                     dictate_count = 0
                     answer_count = 0
-                    while(not self._text_has_exit_intention(question)):
+                    while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
 
                         # Check the things to do every minute
                         # This includes reminders checking and speaking them out.
@@ -374,6 +374,8 @@ class Main(PyXavi):
                             self._last_interaction_datetime = datetime.now()
 
                         # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
+                        # This second here makes the human-computer interaction worse.
+                        # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
                         time.sleep(1)
                         self._interaction.unmute_microphone()
                     
@@ -572,6 +574,9 @@ class Main(PyXavi):
         if not self._is_pitxu_active:
             self._log_debug("Already closed nicely, skipping.")
             return
+        
+        # Mark as not active anymore, so the rest of the app can see the state
+        self._is_pitxu_active = False
 
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
@@ -603,9 +608,6 @@ class Main(PyXavi):
 
         # Finish all related multiprocess stuff
         self._interaction.get_process_pool().finish_leftover_processes()
-
-        # Mark as not active anymore
-        self._is_pitxu_active = False
 
         # ------ Final logs ------
 
