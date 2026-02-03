@@ -49,16 +49,3 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
         self._log_debug("XprocessDisplayCombined: Finished processing action, unsetting busy status.")
         self.unset_busy()
     
-    # def _initialize_on_every_run(self):
-    #     '''
-    #     Initializations needed on every run of the process.
-    #     Overloading the xprocess's one.
-    #     Overloading here we avoid executing the one in Foreground and Background Xprocesses. Just remember to keep them on sync.
-    #     '''
-    #     super(XprocessDisplayCombined, self)._initialize_on_every_run()
-
-    #     # Add the interaction delays coming from params
-    #     self._xlog.debug("XprocessDisplayCombined: Setting interaction delays from params.")
-    #     self.interaction_delays = self._xparams.get("interaction_delays", {})
-    
-    

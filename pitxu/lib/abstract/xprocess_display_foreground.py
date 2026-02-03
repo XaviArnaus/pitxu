@@ -69,17 +69,6 @@ class XprocessDisplayForeground(Xprocess):
         if action == XprocAction.SOFT_CLEAR:
             self.soft_clear()
     
-    # def _initialize_on_every_run(self):
-    #     '''
-    #     Initializations needed on every run of the process.
-    #     Overloading the xprocess's one.
-    #     '''
-    #     super(XprocessDisplayForeground, self)._initialize_on_every_run()
-
-    #     # Add the interaction delays coming from params
-    #     self._xlog.debug("XprocessDisplayForeground: Setting interaction delays from params.")
-    #     self.interaction_delays = self._xparams.get("interaction_delays", {})
-    
     # ------- Common functions ---------
     
     def clear(self):
