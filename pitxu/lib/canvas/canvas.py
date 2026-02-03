@@ -159,7 +159,11 @@ class Canvas(PyXavi):
         # In case the device has its own font file configured
         elif self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.file"):
             self._log_debug(f"Font file provided in config by the display: {self._xconfig.get(self.DEVICE_CONFIG_PREFIX + '.fonts.file')}")
-            self.FONT_FILE = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.file", self.FONT_FILE)
+            file_string = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.file")
+            if "/" in file_string:
+                self.FONT_FILE = file_string
+            else:
+                self.FONT_FILE = os.path.join(self.DEFAULT_FONT_PATH, file_string)
         # Lastly, the default from the application
         elif self._xconfig.key_exists("fonts.path") and self._xconfig.key_exists("fonts.default_filename"):
             self._log_debug(f"Font file provided in config by app default: {self._xconfig.get('fonts.path')}/{self._xconfig.get('fonts.default_filename')}")
