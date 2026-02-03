@@ -376,7 +376,10 @@ class Main(PyXavi):
                         # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
                         # This second here makes the human-computer interaction worse.
                         # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
-                        time.sleep(1)
+                        # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
+                        #   instead of waiting. 
+                        # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
+                        # time.sleep(1)
                         self._interaction.unmute_microphone()
                     
                     # We arrived here because the user wanted to exit the main loop

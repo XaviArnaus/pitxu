@@ -15,7 +15,7 @@ from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEU
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
-import time
+from sounddevice import RawInputStream
 
 class Interaction(PyXavi):
     """
@@ -371,14 +371,20 @@ class Interaction(PyXavi):
     
     # --------- Proxy functions for Shared Memory Management ---------
 
-    def mute_microphone(self):
+    def mute_microphone(self, input_stream: RawInputStream = None):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+        if input_stream:
+            self._log_debug("🔇 Stopping the input stream as microphone is muted.")
+            input_stream.stop()
 
-    def unmute_microphone(self):
+    def unmute_microphone(self, input_stream: RawInputStream = None):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
-    
+        if input_stream:
+            self._log_debug("🔊 Starting the input stream as microphone is unmuted.")
+            input_stream.start()
+
     def is_microphone_muted(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
 
