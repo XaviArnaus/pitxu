@@ -134,12 +134,23 @@ dsi_lcd:
   rotate: False
   # Configuration regarding the fonts
   fonts:
+    # Configuration regarding the fonts
+  fonts:
+    # [String] Path and filename for the specific font to use in this screen
+    file: NotoColorEmoji-Regular.ttf
+    # [Integer] Font size for Ultra big size
     ultra: 85
+    # [Integer] Font size for Huge size
     huge: 45
+    # [Integer] Font size for Big size
     big: 28
+    # [Integer] Font size for Medium size
     medium: 24
+    # [Integer] Font size for Small size
     small: 20
+    # [Integer] Font size for Small size with correction for emoji
     small_emoji: 16
+    # [Integer] Font size for Tiny size
     tiny: 16
     # Defines the delays in seconds for the different interactions.
   # If not defined, defaults will be used.
