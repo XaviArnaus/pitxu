@@ -63,7 +63,7 @@ logs_journalctl_pulseaudio_background() {
 }
 
 logs_journalctl_all() {
-    sudo journalctl -o cat -f
+    sudo journalctl -f
 }
 
 clear_pitxu_screen() {
