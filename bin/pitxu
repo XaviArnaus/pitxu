@@ -12,7 +12,7 @@ POETRY="$(which poetry)"
 # Additional purpose: To be called directly to start pitxu in foreground for debugging
 # Sould control the exit codes, as we may restart from pitxu itself
 start_pitxu_foreground() {
-    cd "$DIR/.." && $POETRY run main
+    cd "$DIR/.." && /home/xavier/.local/bin/poetry run main
     EXIT_CODE=$?
     return $EXIT_CODE
 }
