@@ -16,11 +16,11 @@ start_pitxu_foreground() {
 
 # Commandline to start the service
 start_pitxu_background() {
-    pulseaudio --check --service
+    pulseaudio --check --system
     EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
         echo "🔊 Pulseaudio is not running. Starting it now..."
-        pulseaudio --start --service -v
+        pulseaudio --start --system -v
     fi
 	sudo systemctl start pitxu
 }
@@ -28,7 +28,7 @@ start_pitxu_background() {
 # Commandline to stop the service
 stop_pitxu_background() {
 	sudo systemctl stop pitxu
-    pulseaudio --check --service
+    pulseaudio --check --system
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 0 ]; then
         echo "🔊 Pulseaudio is running. Stopping it now..."
