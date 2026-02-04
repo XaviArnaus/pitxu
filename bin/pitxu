@@ -16,36 +16,43 @@ start_pitxu_foreground() {
 
 # Commandline to start the service
 start_pitxu_background() {
+    # To start pulseaudio as system-wide service (not recommended)
+    # follow section 8.1: Starting system-wide on boot
+    # https://wiki.archlinux.org/title/PulseAudio#Advanced_configuration_and_use_cases
+    # Most likely user and group are already created. Ensure that YOUR user (or who runs pitxu)
+    # is part of the "pulse-access" group.
+
     # sudo pulseaudio --check --system
-    sudo pulseaudio --check
+    pulseaudio --check
     EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
         echo "🔊 Pulseaudio is not running. Starting it now..."
-        sudo pulseaudio --start -v
+        # sudo pulseaudio --start -v
         # sudo pulseaudio --start --system -v
+        pulseaudio --start --system -v
     fi
-	sudo systemctl start pitxu
+	systemctl start pitxu
 }
 
 # Commandline to stop the service
 stop_pitxu_background() {
-	sudo systemctl stop pitxu
+	systemctl stop pitxu
     # sudo pulseaudio --check --system
-    sudo pulseaudio --check
+    pulseaudio --check
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 0 ]; then
         echo "🔊 Pulseaudio is running. Stopping it now..."
-        sudo pulseaudio --kill
+        pulseaudio --kill
     fi
 }
 
 # Commandline to restart the service
 restart_pitxu_background() {
-    sudo systemctl restart pitxu
+    systemctl restart pitxu
 }
 
 status_pitxu_background() {
-    sudo systemctl status pitxu
+    systemctl status pitxu
 }
 
 logs_journalctl_pitxu_background() {
