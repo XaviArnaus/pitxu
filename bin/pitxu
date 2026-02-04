@@ -5,11 +5,14 @@
 # Allows to reference other files relative to this script's location
 DIR="$( cd "$( dirname "$0" )" && pwd )"
 
+# Get the real path of Poetry. We may be triggered by a systemd service.
+POETRY="$(which poetry)"
+
 # Main purpose: To be called from the serviced, from the service file
 # Additional purpose: To be called directly to start pitxu in foreground for debugging
 # Sould control the exit codes, as we may restart from pitxu itself
 start_pitxu_foreground() {
-    cd "$DIR/.." && poetry run main
+    cd "$DIR/.." && $POETRY run main
     EXIT_CODE=$?
     return $EXIT_CODE
 }

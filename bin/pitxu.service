@@ -25,7 +25,7 @@ WorkingDirectory=/home/xavier/pitxu
 # Actual start of Pitxu
 # Moved from pure Poetry call to use the bin, so I can figure out the Soundcard issues
 #ExecStart=/home/xavier/.local/bin/poetry run main
-ExecStart=/home/xavier/pitxu/bin/pitxu start
+ExecStart=/home/xavier/pitxu/bin/pitxu
 
 #This is meant to help closing PulseAudio once stopping the service, but does not feel improvement.
 #ExecStopPost=pulseaudio --cleanup-shm
