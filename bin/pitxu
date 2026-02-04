@@ -27,9 +27,7 @@ start_pitxu_background() {
     EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
         echo "🔊 Pulseaudio is not running. Starting it now..."
-        # sudo pulseaudio --start -v
-        # sudo pulseaudio --start --system -v
-        sudo pulseaudio --system -v
+        sudo pulseaudio --system -v --daemonize
     fi
 	sudo systemctl start pitxu
 }
