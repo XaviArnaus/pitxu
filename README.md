@@ -283,6 +283,11 @@ Some extra resources:
 - PulseAudio rescan, but requires to be running as daemon: https://gist.github.com/ashtipliyski/e8842d8c962491f86604a117a331295b
 - `arecord` examples: https://commandmasters.com/commands/arecord-linux/
 
+Now it does not even load...
+
+For the D-Bus issue:
+https://forums.linuxmint.com/viewtopic.php?t=320423
+
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
 - Getting very stuck with the display saying `waveshare_epd.epd2in13_V4 e-Paper busy` ... 
