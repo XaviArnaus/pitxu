@@ -29,7 +29,7 @@ start_pitxu_background() {
         echo "🔊 Pulseaudio is not running. Starting it now..."
         # sudo pulseaudio --start -v
         # sudo pulseaudio --start --system -v
-        pulseaudio --start --system -v
+        sudo pulseaudio --start --system -v
     fi
 	systemctl start pitxu
 }
