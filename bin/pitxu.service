@@ -16,10 +16,10 @@ WorkingDirectory=/home/xavier/pitxu
 # UNCOMMENTED: Once the Whisplay is unplugged, the USB soundcard shows up as:
 #   ALSA: Card 2, Playback Device 0, Capture Device 0
 #   PulseAudio: Card 2, Sink 0, Source 0
-#ExecStartPre=pulseaudio --start ; pactl set-default-sink alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00 ; pactl set-default-source alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00
-ExecStartPre=pulseaudio --start ; pactl set-default-sink alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo  ; pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+ExecStartPre=pulseaudio --start ; pactl set-default-sink alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00 ; pactl set-default-source alsa_card.usb-C-Media_Electronics_Inc._USB_Audio_Device-00
+#ExecStartPre=pulseaudio --start ; pactl set-default-sink alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo  ; pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
 ExecStart=/home/xavier/.local/bin/poetry run main
-ExecStopPost=pulseaudio --kill
+ExecStopPost=pulseaudio --cleanup-shm
 
 # We want it to restart everythim it leaves
 Restart=always
