@@ -29,14 +29,14 @@ start_pitxu_background() {
         echo "🔊 Pulseaudio is not running. Starting it now..."
         # sudo pulseaudio --start -v
         # sudo pulseaudio --start --system -v
-        sudo pulseaudio --start --system -v
+        sudo pulseaudio -system -v
     fi
-	systemctl start pitxu
+	sudo systemctl start pitxu
 }
 
 # Commandline to stop the service
 stop_pitxu_background() {
-	systemctl stop pitxu
+	sudo systemctl stop pitxu
     # sudo pulseaudio --check --system
     pulseaudio --check
     EXIT_CODE=$?
@@ -48,11 +48,11 @@ stop_pitxu_background() {
 
 # Commandline to restart the service
 restart_pitxu_background() {
-    systemctl restart pitxu
+    sudo systemctl restart pitxu
 }
 
 status_pitxu_background() {
-    systemctl status pitxu
+    sudo systemctl status pitxu
 }
 
 logs_journalctl_pitxu_background() {
