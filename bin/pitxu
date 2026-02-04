@@ -23,11 +23,11 @@ start_pitxu_background() {
     # is part of the "pulse-access" group.
 
     # sudo pulseaudio --check --system
-    pulseaudio --check
+    sudo pulseaudio --check
     EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
         echo "🔊 Pulseaudio is not running. Starting it now..."
-        sudo pulseaudio --system -v --daemonize
+        sudo pulseaudio --system -v --daemonize --disallow-exit --disallow-module-loading
     fi
 	sudo systemctl start pitxu
 }
@@ -36,11 +36,11 @@ start_pitxu_background() {
 stop_pitxu_background() {
 	sudo systemctl stop pitxu
     # sudo pulseaudio --check --system
-    pulseaudio --check
+    sudo pulseaudio --check
     EXIT_CODE=$?
     if [ $EXIT_CODE -eq 0 ]; then
         echo "🔊 Pulseaudio is running. Stopping it now..."
-        pulseaudio --kill
+        sudo pulseaudio --kill
     fi
 }
 
