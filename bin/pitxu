@@ -23,12 +23,12 @@ start_pitxu_background() {
     # is part of the "pulse-access" group.
 
     # sudo pulseaudio --check --system
-    sudo pulseaudio --check
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "🔊 Pulseaudio is not running. Starting it now..."
-        sudo pulseaudio --system -v --daemonize > "$DIR/../log/current_pulseaudio_process.log"
-    fi
+    # sudo pulseaudio --check
+    # EXIT_CODE=$?
+    # if [ $EXIT_CODE -ne 0 ]; then
+    #     echo "🔊 Pulseaudio is not running. Starting it now..."
+    #     sudo pulseaudio --system -v --daemonize > "$DIR/../log/current_pulseaudio_process.log"
+    # fi
 	sudo systemctl start pitxu
 }
 
@@ -36,12 +36,13 @@ start_pitxu_background() {
 stop_pitxu_background() {
 	sudo systemctl stop pitxu
     # sudo pulseaudio --check --system
-    sudo pulseaudio --check
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "🔊 Pulseaudio is running. Stopping it now..."
-        sudo pulseaudio --kill
-    fi
+    # sudo pulseaudio --check
+    # EXIT_CODE=$?
+    # if [ $EXIT_CODE -eq 0 ]; then
+    #     echo "🔊 Pulseaudio is running. Stopping it now..."
+    #     # sudo pulseaudio --kill
+    #     kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
+    # fi
 }
 
 # Commandline to restart the service
