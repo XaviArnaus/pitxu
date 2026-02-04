@@ -28,7 +28,9 @@ start_pitxu_background() {
     EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
         echo "🔊 Pulseaudio is not running. Starting it now..."
-        sudo pulseaudio --start -v > "$DIR/../log/current_pulseaudio_process.log"
+        pulseaudio --start -v > "$DIR/../log/current_pulseaudio_process.log"
+        pactl set-default-sink alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo
+        pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
     fi
     echo "🟢 Starting pitxu service..."
 	sudo systemctl start pitxu
