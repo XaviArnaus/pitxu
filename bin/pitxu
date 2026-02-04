@@ -42,8 +42,7 @@ stop_pitxu_background() {
     echo "🛑 Stopping pitxu service..."
 	sudo systemctl stop pitxu
     # sudo pulseaudio --check --system
-    echo
-    kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
+    # kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
     # echo "🛑 Checking if pulseaudio is running..."
     # sudo pulseaudio --check
     # EXIT_CODE=$?
