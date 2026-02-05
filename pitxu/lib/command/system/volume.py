@@ -47,10 +47,9 @@ class SystemVolume(PyXavi, Command):
         '''
         try:
             self._log_debug("Getting local system speaker volume level using pactl.")
-            call_output = check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True).decode()
-            #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
-            #balance 0.00
-            volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
+            call_output = check_output("awk -F'[][]' '/Left:/ { print $2 }' <(amixer sget Speaker)", shell=True).decode()
+            #40%
+            volume = int(call_output.replace("%", "").strip()) - self.SINK_VOLUME_ADDITION
             if volume < 0:
                 volume = 0
             self._log_debug(f"The local system speaker volume level using pactl is: {volume}%")

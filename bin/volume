@@ -1,22 +1,23 @@
-#
+# Only ALSA mixer commands are used here, as pulseaudio/pactl may not be running.
 
 if [[ $# -eq 0 ]] ; then
-    pactl get-sink-volume @DEFAULT_SINK@
-    pactl get-sink-mute @DEFAULT_SINK@
+    amixer get Speaker
     exit 0
 fi
 
 case "$1" in
-    "up") pactl set-sink-volume @DEFAULT_SINK@ +10% ;;
-    "down") pactl set-sink-volume @DEFAULT_SINK@ -10% ;;
-    "set") 
+    "set")
         if [[ $# -eq 2 ]] ; then
-            pactl set-sink-volume @DEFAULT_SINK@ "$2"
+            amixer set Speaker "$2"
+        elif [[ $# -eq 3 ]] ; then
+            amixer set Speaker "$2" "$3"
         else
-            echo "Usage example: volume set 75%"
+            echo -e "Both channels at once: volume set 75%\nOn different channels: volume set 75% 100%"
         fi
         ;;
-    "mute") pactl set-sink-mute @DEFAULT_SINK@ toggle ;;
+    "mute") amixer set Speaker mute ;;
+    "unmute") amixer set Speaker unmute ;;
+    "help") echo "Usage: volume [set <value>|mute|unmute|help]" ;;
     *) echo "Command unknown" ;;
 esac
 
