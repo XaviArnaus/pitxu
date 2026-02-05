@@ -325,6 +325,26 @@ sudo usermod -a -G dialout xavier
 - The very first show of the KITT mouth is shown mangled. The rest of the times is good.
 - Spotted few times where the KITT mouth did not appear while TTS speaks. Smells like Shared Memory Flags were not updated on time.
 
+## RPi AI HAT+ 2
+https://www.raspberrypi.com/documentation/computers/ai.html
+
+### Installation (software)
+
+Update the system to latest
+```
+sudo apt update
+sudo apt full-upgrade -y
+sudo rpi-eeprom-update -a
+sudo reboot
+```
+
+Install system dependencies
+```
+sudo apt install dkms
+sudo apt install hailo-all
+```
+
+
 
 # Ideas
 
