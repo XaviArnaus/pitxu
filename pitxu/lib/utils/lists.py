@@ -33,7 +33,7 @@ class Lists(PyXavi, Command):
 
         self.state = self._state = Storage(filename=self._xconfig.get("storage.path") + self.LIST_FILENAME)
 
-    def create_list(self, list_name: str, list_description: str = None, list_datetime: str = None, list_entries: dict = None) -> bool:
+    def create_list(self, list_name: str, list_description: str = None, list_datetime: str = None, list_entries: dict = None) -> dict | bool:
         '''
         Creates a list with the given name and description.
 
@@ -44,7 +44,7 @@ class Lists(PyXavi, Command):
             list_entries: Optional, internal use. The entries of the list to create. Ignored for new lists.
 
         Returns:
-            A boolean indicating success or failure.
+            The created list details as a JSON object or False if a list with the same name already exists.
         '''
         self._log_debug(f"📝 Creating a list for [{list_name}]")
 
@@ -53,16 +53,30 @@ class Lists(PyXavi, Command):
             self._xlog.debug(f"📝 List already exists for [{list_name}]")
             return False
 
-        self.state.set(list_name, self._pack_list({
+        new_list = self._pack_list({
             "name": list_name.capitalize(),
             "description": list_description,
             "created_at": datetime.now().strftime(self.FORMAT_DATE) if not list_datetime else list_datetime,
             "entries": list_entries if list_entries else {}
-        }), slugify_param_name=True)
+        })
+        self.state.set(list_name, new_list, slugify_param_name=True)
         self.state.write_file()
         self._xlog.info(f"📝 List created for [{list_name}]")
 
         return True
+    
+    def get_lists(self) -> dict:
+        '''
+        Retrieves all the lists.
+
+        Returns:
+            A dictionary containing all the lists.
+        '''
+        self._log_debug(f"📝 Retrieving all lists")
+        self.state.read_file()
+        all_lists = self.state.get_all(slugify_param_name=True)
+        self._xlog.info(f"📝 All {len(all_lists)} lists retrieved")
+        return all_lists
 
     def delete_list(self, list_name: str) -> bool:
         '''
@@ -322,17 +336,18 @@ class Lists(PyXavi, Command):
                 "name": list_data.get("name", ""),
                 "description": list_data.get("description", ""),
                 "created_at": list_data.get("created_at", ""),
-                "entries": self._pack_entries(entries_data) if entries_data else {}
+                "entries": self._pack_entries(entries_data=entries_data, list_name=list_data.get("name", "")) if entries_data else {}
             }
         }
-    
-    def _pack_entries(self, entries_data: dict) -> dict:
+
+    def _pack_entries(self, entries_data: dict, list_name: str) -> dict:
         packed_entries = {}
         for entry_key, entry_data in entries_data.items():
-            packed_entries[entry_key] = self._pack_entry(entry_data)
+            packed_entries[entry_key] = self._pack_entry(data=entry_data, list_name=list_name)
         return packed_entries
 
-    def _pack_entry(self, data: dict) -> dict:
+    def _pack_entry(self, data: dict, list_name: str) -> dict:
+        data["list_name"] = list_name
         return {
             ** self.ENTRY_TEMPLATE,
             ** data
