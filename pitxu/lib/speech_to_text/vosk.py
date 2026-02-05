@@ -114,7 +114,6 @@ class Vosk(PyXavi):
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")
         # soundfile expects an int, sounddevice provides a float:
-        dd(device_info)
         return int(device_info["default_samplerate"])
 
     def callback(self, indata, frames, time, status):
