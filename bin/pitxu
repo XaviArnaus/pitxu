@@ -60,7 +60,7 @@ create_system_links() {
 
     read -p "Link ALSA Card index definition to /etc/modprobe.d/sound.conf? (y)Yes/(n)No/(c)Cancel:- " choice
     case $choice in
-        [yY]* ) sudo ln -s ~/pitxu/.asoundrc /etc/modprobe.d/sound.conf ;;
+        [yY]* ) sudo ln -s ~/pitxu/sound.conf /etc/modprobe.d/sound.conf ;;
         [nN]* ) echo "Skipping." ;;
         [cC]* ) exit ;;
         *) exit ;;
