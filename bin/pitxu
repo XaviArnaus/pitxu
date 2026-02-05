@@ -73,6 +73,30 @@ create_system_links() {
         [cC]* ) exit ;;
         *) exit ;;
     esac
+
+    read -p "Link Shutdown script to /etc/rc0.d/k99_clean_pitxu? (y)Yes/(n)No/(c)Cancel:- " choice
+    case $choice in
+        [yY]* ) sudo ln -s ~/pitxu/config/system/k99_clean_pitxu /etc/rc0.d/k99_clean_pitxu ;;
+        [nN]* ) echo "Skipping." ;;
+        [cC]* ) exit ;;
+        *) exit ;;
+    esac
+
+    read -p "Link Reboot script to /etc/rc0.d/k99_clean_pitxu? (y)Yes/(n)No/(c)Cancel:- " choice
+    case $choice in
+        [yY]* ) sudo ln -s ~/pitxu/config/system/k99_clean_pitxu /etc/rc6.d/k99_clean_pitxu ;;
+        [nN]* ) echo "Skipping." ;;
+        [cC]* ) exit ;;
+        *) exit ;;
+    esac
+
+    read -p "Reload systemctl daemon? (y)Yes/(n)No/(c)Cancel:- " choice
+    case $choice in
+        [yY]* ) sudo systemctl daemon-reload ;;
+        [nN]* ) echo "Skipping." ;;
+        [cC]* ) exit ;;
+        *) exit ;;
+    esac
 }
 
 # Commandline to clear the Pitxu screen
