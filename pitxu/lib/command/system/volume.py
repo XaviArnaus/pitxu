@@ -24,14 +24,10 @@ class SystemVolume(PyXavi, Command):
         super().init_pyxavi(config=config, params=params)
 
         self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
-        self.MIC_LEFT_ENABLED = self._xconfig.get("speech-to-text.microphone_channels.left", True)
-        self.MIC_RIGHT_ENABLED = self._xconfig.get("speech-to-text.microphone_channels.right", True)
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
-        # We want to set up the microphone volume to a known level: internally will place
-        # LEFT: 0% and RIGHT: {volume}% 
-        # De Facto muting the Left Channel (PiSugar Whisplay HAT issue)
+        # We want to set up the microphone volume to a known level: 100
         self.set_local_system_microphone_volume_level(100)
 
     def get_local_system_speaker_volume_level(self) -> int:
