@@ -3,7 +3,7 @@ import logging
 import sys
 import json
 
-from pyxavi import Dictionary, Config, full_stack
+from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
@@ -114,6 +114,7 @@ class Vosk(PyXavi):
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")
         # soundfile expects an int, sounddevice provides a float:
+        dd(device_info)
         return int(device_info["default_samplerate"])
 
     def callback(self, indata, frames, time, status):

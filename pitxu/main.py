@@ -210,8 +210,9 @@ class Main(PyXavi):
         try:
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
-            with sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
-                            blocksize = 0, 
+            with sounddevice.RawInputStream(
+                            samplerate=self._dictate.samplerate,
+                            blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 
                             channels=1,
