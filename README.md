@@ -452,8 +452,7 @@ See [The `pitxu.service` file in the /bin folder](./bin/pitxu.service)
 1. Ensure that this file has `644` permissions
 2. Create a soft link from `/etc/systemd/system/` to this file:
 ```
-cd /etc/systemd/system/
-sudo ln -s /home/xavier/pitxu/bin/pitxu.service pitxu.service
+sudo ln -s /home/xavier/pitxu/bin/pitxu.service /etc/systemd/system/pitxu.service
 ```
 
 3. Reload the systemd daemon and enable the service

@@ -1,3 +1,9 @@
+# A minimal configuration for PulseAudio that worked for a while
+#   until anything else exploded. Interesting to keep anyhow.
+#
+# 2026-02-08 
+#   Not linked anymore, as Pitxu works under ALSA (system) / PortAudio (python) only
+#
 # Copy or link this file into ~/.config/pulse/default.pa
 # Then restart pulseaudio with:
 #   systemctl --user restart pulseaudio.service

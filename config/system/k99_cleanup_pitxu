@@ -1,0 +1,10 @@
+# This script is intended to be run at shutting down,
+#   to clean up any leftover state from a previous run of Pitxu. 
+#   It stops the service, clears the state, and restores the cursor.
+#
+# Meant to be linked to:
+#       /etc/rc0.d/K99_cleanup_pitxu, so it runs at shutdown.
+#       /etc/rc6.d/K99_cleanup_pitxu, so it runs at reboot.
+sudo systemctl stop pitxu
+cd /home/xavier/pitxu ; /home/xavier/.local/bin/poetry run clear
+tput cnorm -T /dev/tty0
