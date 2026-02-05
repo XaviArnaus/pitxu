@@ -16,6 +16,7 @@ storage/*.yaml
 storage/mocked/eink/*
 storage/mocked/matrix/*
 storage/mocked/lcd/*
+storage/mocked/dsi_lcd/*
 !**/.keep
 
 # No user config files

@@ -49,4 +49,3 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
         self._log_debug("XprocessDisplayCombined: Finished processing action, unsetting busy status.")
         self.unset_busy()
     
-    

@@ -6,13 +6,14 @@ displays:
     - eink
     - matrix_led
     - lcd
+    - dsi_lcd
   # [String] The display to use for foreground notifications. Must be one of the available displays.
   # Foreground notifications are those that need to be shown immediately, like questions and answers from tools.
-  # foreground_display: lcd
+  # foreground_display: dsi_lcd
   foreground_display: eink
   # [String] The display to use for background notifications. Must be one of the available displays.
   # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
-  # background_display: lcd
+  # background_display: dsi_lcd
   background_display: matrix_led
 
 # Configuration fo the eInk Display
@@ -40,6 +41,20 @@ eink:
     small: 10
     small_emoji: 9
     tiny: 8
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.05
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.06
 
 # Configuration fo the Max7219 matrix led
 matrix_led:
@@ -54,6 +69,20 @@ matrix_led:
   size:
     x: 8
     y: 8
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.05
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.06
 
 lcd:
   # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
@@ -76,3 +105,64 @@ lcd:
     small: 20
     small_emoji: 16
     tiny: 16
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.06
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.01
+
+dsi_lcd:
+  # [Bool] Generates a PNG instead of outcoming through the ST7789P3 Display
+  mock: True
+  image: 
+    # [String] Defines the image mode to base the canvas on. 1 for 1-bit B&W, L for greyscale, RGB for color, RGBA for color with transparency
+    mode: RGBA
+  # Size of the display
+  size:
+    x: 800
+    y: 480
+  # [bool] Rotate the display 180 degrees or not.
+  rotate: False
+  # Configuration regarding the fonts
+  fonts:
+    # Configuration regarding the fonts
+  fonts:
+    # [String] Path and filename for the specific font to use in this screen
+    file: NotoColorEmoji-Regular.ttf
+    # [Integer] Font size for Ultra big size
+    ultra: 85
+    # [Integer] Font size for Huge size
+    huge: 45
+    # [Integer] Font size for Big size
+    big: 28
+    # [Integer] Font size for Medium size
+    medium: 24
+    # [Integer] Font size for Small size
+    small: 20
+    # [Integer] Font size for Small size with correction for emoji
+    small_emoji: 16
+    # [Integer] Font size for Tiny size
+    tiny: 16
+    # Defines the delays in seconds for the different interactions.
+  # If not defined, defaults will be used.
+  # In case of collision, the smallest delay will be used.
+  delays:
+    # [Float] Time showing the any foreground not attached to a Busy Flag event. Defaults to 3.0 secs
+    foreground_notification: 3.0
+    # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
+    startup_splash: 4.0
+    # [Float] General delay between frames when animating. Defaults to 0.05 secs
+    default_delay_between_frames: 0.05
+    # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
+    thinking: 0.08
+    # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
+    speaking: 0.05

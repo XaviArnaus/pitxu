@@ -1,26 +1,23 @@
-#
+# Only ALSA mixer commands are used here, as pulseaudio/pactl may not be running.
 
 if [[ $# -eq 0 ]] ; then
-    pactl get-source-volume @DEFAULT_SOURCE@
-    pactl get-source-mute @DEFAULT_SOURCE@
+    amixer get Mic
     exit 0
 fi
 
 case "$1" in
-    "up") pactl set-source-volume @DEFAULT_SOURCE@ +10% ;;
-    "down") pactl set-source-volume @DEFAULT_SOURCE@ -10% ;;
     "set") 
         if [[ $# -eq 2 ]] ; then
-            pactl set-source-volume @DEFAULT_SOURCE@ "$2"
+            amixer set Mic "$2"
+        elif [[ $# -eq 3 ]] ; then
+            amixer set Mic "$2" "$3"
         else
-            if [[ $# -eq 3 ]] ; then
-               pactl set-source-volume @DEFAULT_SOURCE@ "$2" "$3"
-            else
-                echo -e "Both channels at once: mic set 75%\nOn different channels: mic set 75% 100%"
-            fi
+            echo -e "Both channels at once: mic set 75%\nOn different channels: mic set 75% 100%"
         fi
         ;;
-    "mute") pactl set-source-mute @DEFAULT_SOURCE@ toggle ;;
+    "mute") amixer set Mic mute ;;
+    "unmute") amixer set Mic unmute ;;
+    "help") echo "Usage: mic [set <value>|mute|unmute|help]" ;;
     *) echo "Command unknown" ;;
 esac
 

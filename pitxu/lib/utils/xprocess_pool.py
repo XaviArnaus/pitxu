@@ -10,8 +10,8 @@ from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackgr
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY,\
-                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY,\
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD
 
 
 class XprocessPool(PyXavi):
@@ -20,17 +20,21 @@ class XprocessPool(PyXavi):
     _process: dict[str, Xprocess]
     _queue: dict[str, JoinableQueue]
     _shared_memory: SharedMemoryManager = None
+
+    # TODO: consider generating this map automatically together with shared_memory_manager, painter_busy_flags, etc.
     _shared_flags: dict[str, int] = {
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
         "speaker_busy": SHARED_SPEAKER_BUSY,
         "lcd_busy": SHARED_LCD_BUSY,
+        "dsi_lcd_busy": SHARED_DSI_LCD_BUSY,
     }
     _shared_flags_per_queue: dict[str, str] = {
         QUEUE_EINK: SHARED_EINK_BUSY,
         QUEUE_MATRIX: SHARED_MATRIX_BUSY,
         QUEUE_SPEAKER: SHARED_SPEAKER_BUSY,
         QUEUE_LCD: SHARED_LCD_BUSY,
+        QUEUE_DSI_LCD: SHARED_DSI_LCD_BUSY,
     }
 
     def __init__(self, config: Config, params: Dictionary):

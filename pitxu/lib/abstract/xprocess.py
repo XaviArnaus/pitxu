@@ -1,4 +1,4 @@
-from pyxavi import Dictionary, Config, full_stack
+from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager

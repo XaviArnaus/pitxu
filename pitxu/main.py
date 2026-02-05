@@ -168,6 +168,7 @@ class Main(PyXavi):
         self._interaction = Interaction(config=self._xconfig, params=self._xparams)
 
         # We start with the microphone muted.
+        # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
 
     async def run(self):
@@ -182,6 +183,7 @@ class Main(PyXavi):
         self._interaction.show_init_phases(1)
 
         # Startup splash. It should be understood as a "Loading..." screen.
+        # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
         self._interaction.show_init_phases(2)
         # ... yeah, "Loading", but I freeze the execution here.
@@ -208,8 +210,9 @@ class Main(PyXavi):
         try:
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
-            with sounddevice.RawInputStream(samplerate=self._dictate.samplerate,
-                            blocksize = 0, 
+            with sounddevice.RawInputStream(
+                            samplerate=self._dictate.samplerate,
+                            blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 
                             channels=1,
@@ -244,12 +247,12 @@ class Main(PyXavi):
                     # It just started, there was a greating after all.
                     # Maybe the user wants to talk straight away without the trigger words.
                     self._last_interaction_datetime = datetime.now()
-                    self._interaction.unmute_microphone()
+                    self._interaction.unmute_microphone(input_stream=input_stream)
 
                     question = ""
                     dictate_count = 0
                     answer_count = 0
-                    while(not self._text_has_exit_intention(question)):
+                    while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
 
                         # Check the things to do every minute
                         # This includes reminders checking and speaking them out.
@@ -276,7 +279,7 @@ class Main(PyXavi):
                         dictate_count += 1
 
                         # Mute microphone to avoid self-looping
-                        self._interaction.mute_microphone()
+                        self._interaction.mute_microphone(input_stream=input_stream)
 
                         # Initialize the answer that collects until interaction.
                         answer = None
@@ -373,8 +376,13 @@ class Main(PyXavi):
                             self._last_interaction_datetime = datetime.now()
 
                         # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
-                        time.sleep(1)
-                        self._interaction.unmute_microphone()
+                        # This second here makes the human-computer interaction worse.
+                        # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
+                        # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
+                        #   instead of waiting. 
+                        # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
+                        # time.sleep(1)
+                        self._interaction.unmute_microphone(input_stream=input_stream)
                     
                     # We arrived here because the user wanted to exit the main loop
                     # Make sure we leave the state properly
@@ -396,7 +404,7 @@ class Main(PyXavi):
 
     # ------------- End of the main method run() -------------
     
-    def react_on_last_function_call(self, function_call_pair: FunctionCallPair):
+    def react_on_last_function_call(self, function_call_pair: FunctionCallPair, input_stream: sounddevice.RawInputStream = None) -> list[str]:
         """
         Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
 
@@ -485,7 +493,7 @@ class Main(PyXavi):
                             self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
 
                             # If we close the app now, the micrphone is still muted, and gets conserved.
-                            self._interaction.unmute_microphone()
+                            self._interaction.unmute_microphone(input_stream=input_stream)
 
                             # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
                             self.close_nicely()
@@ -498,7 +506,7 @@ class Main(PyXavi):
 
                     # Whatever we did, reactivate the microphone
                     # Note that for changing the language, we unmuted first and then exit, so in this case it should not hit here.
-                    self._interaction.unmute_microphone()
+                    self._interaction.unmute_microphone(input_stream=input_stream)
                 
                 # Here we can parse the function response and act accordingly
                 # For example, if the function call is to get the current time, we can display it on an eInk screen
@@ -571,6 +579,9 @@ class Main(PyXavi):
         if not self._is_pitxu_active:
             self._log_debug("Already closed nicely, skipping.")
             return
+        
+        # Mark as not active anymore, so the rest of the app can see the state
+        self._is_pitxu_active = False
 
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
@@ -602,9 +613,6 @@ class Main(PyXavi):
 
         # Finish all related multiprocess stuff
         self._interaction.get_process_pool().finish_leftover_processes()
-
-        # Mark as not active anymore
-        self._is_pitxu_active = False
 
         # ------ Final logs ------
 
@@ -642,7 +650,7 @@ class Main(PyXavi):
 
     # ------- Stuff to do every minute -------
 
-    def do_every_minute_tasks(self):
+    def do_every_minute_tasks(self, input_stream: sounddevice.RawInputStream = None):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
@@ -662,10 +670,10 @@ class Main(PyXavi):
                     icon="📝",
                     text=reminder.get("text", ""),
                     font_size=Canvas.FONT_SIZE_BIG)
-                self._interaction.mute_microphone()
+                self._interaction.mute_microphone(input_stream=input_stream)
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                self._interaction.unmute_microphone()
+                self._interaction.unmute_microphone(input_stream=input_stream)
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
                 # Reset the last interaction time, as we just spoke

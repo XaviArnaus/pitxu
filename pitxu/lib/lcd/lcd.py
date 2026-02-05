@@ -12,8 +12,7 @@ from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBack
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_LCD_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
-    SHARED_LCD_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE
 
 class Lcd(XprocessDisplayCombined):
     '''
@@ -26,8 +25,13 @@ class Lcd(XprocessDisplayCombined):
     painter: Painter = None
     _display_size: Point = None
 
+    interaction_delays: dict[str, float] = None
+
+    # TODO: Move this into the interaction_delays
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
+
+    LED_TO_LCD_OFFSET_X: int = 40
 
     VERBOSE_DEBUG: bool = False
 
@@ -46,6 +50,9 @@ class Lcd(XprocessDisplayCombined):
         self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
+        # Define which offset do we use IN EACH SIDE of the horizontal screen to emulate the LED Matrix
+        self._xparams.set("led_to_lcd_offset_x", self.LED_TO_LCD_OFFSET_X)
+
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)
         self._xparams.set("device", self.device)
@@ -61,6 +68,12 @@ class Lcd(XprocessDisplayCombined):
 
         # Add the parent's shared memory manager to the params for the painter
         self._xparams.set("shared_memory", self._shared_memory)
+
+        # Interaction delays
+        self.interaction_delays = self._xparams.get("interaction_delays")
+        self._xlog.debug("LCD Interaction delays loaded:")
+        for key, value in self.interaction_delays.items():
+            self._xlog.debug(f"  {key}: {value} seconds")
 
         # The Painter that will handle the actual drawing on the canvas and device
         self.painter = Painter(config=self._xconfig, params=self._xparams)
@@ -129,7 +142,7 @@ class Lcd(XprocessDisplayCombined):
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
-        for_seconds = param.get("show_for_seconds", 3.0)
+        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notifications", 3.0))
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
@@ -181,7 +194,8 @@ class Lcd(XprocessDisplayCombined):
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
         self._xlog.info(f"👀 Showing startup splash screen")
-        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=for_seconds))
+        show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
+        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
 
     # ------- Common functions ---------
     
@@ -208,11 +222,15 @@ class Lcd(XprocessDisplayCombined):
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
-        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint())
+        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
     
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
-        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint())
+        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
     
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")

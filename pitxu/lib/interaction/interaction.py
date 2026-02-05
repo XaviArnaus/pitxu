@@ -8,13 +8,14 @@ from pitxu.lib.text_to_speech import Piper
 from pitxu.lib.eink.display import Display as eInk
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
+from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD,\
+from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
                         SHARED_SPEAKER_BUSY,\
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
-import time
+from sounddevice import RawInputStream
 
 class Interaction(PyXavi):
     """
@@ -55,7 +56,17 @@ class Interaction(PyXavi):
     map_display_name_to_instance_data = {
         "eink": (eInk, QUEUE_EINK),
         "matrix_led": (MatrixLed, QUEUE_MATRIX),
-        "lcd": (Lcd, QUEUE_LCD)
+        "lcd": (Lcd, QUEUE_LCD),
+        "dsi_lcd": (DsiLcd, QUEUE_DSI_LCD),
+    }
+
+    # Interaction delays according to the device configs, initializing with defaults
+    DEFAULT_DELAY_BETWEEN_FRAMES: float = 0.05
+    map_actions_to_delays: dict[str, float] = {
+        XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND: 3.0,
+        XprocAction.STARTUP: 3.0,
+        XprocAction.THINKING: 0.05,
+        XprocAction.SAY: 0.05,
     }
 
     VERBOSE_DEBUG: bool = True
@@ -100,12 +111,43 @@ class Interaction(PyXavi):
             and background_display not in displays_to_use:
             displays_to_use.append(background_display)
         
-        # Initialize the displays via the process pool
+        # Initialize each display
         for display_name in displays_to_use:
+
+            # Initialize the parameters that we'll inject into the display process
+            params = Dictionary({"device_config_prefix": display_name})
+
+            # Load interaction delays from the device configs
+            if self._xconfig.key_exists(f"{display_name}.delays"):
+                # Foreground display
+                if display_name == foreground_display:
+                    if self._xconfig.key_exists(f"{display_name}.delays.foreground_notifications"):
+                        self.map_actions_to_delays[XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND] = self._xconfig.get(f"{display_name}.delays.foreground_notifications")
+                    if self._xconfig.key_exists(f"{display_name}.delays.startup_splash"):
+                        self.map_actions_to_delays[XprocAction.STARTUP] = self._xconfig.get(f"{display_name}.delays.startup_splash")
+                # Background display
+                if display_name == background_display:
+                    if self._xconfig.key_exists(f"{display_name}.delays.default_delay_between_frames"):
+                        self.DEFAULT_DELAY_BETWEEN_FRAMES = self._xconfig.get(f"{display_name}.delays.default_delay_between_frames")
+                    if self._xconfig.key_exists(f"{display_name}.delays.thinking"):
+                        self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                    if self._xconfig.key_exists(f"{display_name}.delays.speaking"):
+                        self.map_actions_to_delays[XprocAction.SAY] = self._xconfig.get(f"{display_name}.delays.speaking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                
+                # Add these parameters to the display process params
+                params.set("interaction_delays", {
+                    "default_delay_between_frames": self.DEFAULT_DELAY_BETWEEN_FRAMES,
+                    "foreground_notifications": self.map_actions_to_delays.get(XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND),
+                    "startup_splash": self.map_actions_to_delays.get(XprocAction.STARTUP),
+                    "thinking": self.map_actions_to_delays.get(XprocAction.THINKING),
+                    "speaking": self.map_actions_to_delays.get(XprocAction.SAY),
+                })
+            
+
+            # Initialize the displays via the process pool
             display_class, display_queue = self.map_display_name_to_instance_data.get(display_name, (None, None))
             if display_class is not None:
                 self._xlog.info(f"Initialising [{display_name}] with queue [{display_queue}] for Display Interaction.")
-                params = Dictionary({"device_config_prefix": display_name})
                 self.process_pool.new_and_start(display_queue, target=display_class, params=params)
             else:
                 self._xlog.error(f"Display class for {display_name} not found. Cannot initialize it. Stopping.")
@@ -119,6 +161,12 @@ class Interaction(PyXavi):
             bool: True if both displays are the same, False otherwise.
         """
         return self.foreground_display_queue == self.background_display_queue
+    
+    def get_delay_for_action(self, action: XprocAction) -> float:
+        return self.map_actions_to_delays.get(action)
+    
+    def get_delay_between_frames(self) -> float:
+        return self.DEFAULT_DELAY_BETWEEN_FRAMES
     
     def close(self):
         """
@@ -323,14 +371,20 @@ class Interaction(PyXavi):
     
     # --------- Proxy functions for Shared Memory Management ---------
 
-    def mute_microphone(self):
+    def mute_microphone(self, input_stream: RawInputStream = None):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
+        if input_stream:
+            self._log_debug("🔇 Stopping the input stream as microphone is muted.")
+            input_stream.stop()
 
-    def unmute_microphone(self):
+    def unmute_microphone(self, input_stream: RawInputStream = None):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
-    
+        if input_stream:
+            self._log_debug("🔊 Starting the input stream as microphone is unmuted.")
+            input_stream.start()
+
     def is_microphone_muted(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
 

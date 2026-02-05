@@ -25,6 +25,8 @@ storage:
     led_matrix: "mocked/matrix/"
     # [String] Path for mocked LCD output files
     lcd: "mocked/lcd/"
+    # [String] Path for mocked DSI LCD output files
+    dsi_lcd: "mocked/dsi_lcd/"
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.png", ".keep"]
 

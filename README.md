@@ -220,6 +220,13 @@ Works very decent, no very significant difference with MacOS
 - I did lot of tinkering in the underlying Linux (Debian/RaspberryOS) system to make the sound to work (ALSA, USB dongle, PulseAudio) that I don't know what actually makes it to play and record. I've dropped some test commands in [/bin](./bin/) for the next time. I remember that I deactivated the sound from the boot/ `config.txt`, in a wish to properly select the output device to the USB Audio.
 - Some cricks and noise mostly at the beginning and at the end of the play
 
+#### Whisplay sound in general
+The driver is needed. ALSA, PulseAudio and PortAudio (kinda everything) has to be aligned to use the right card with the right driver.
+For example, As Pitxu start as a service, we need to specify the default sink and source for PA in the service definition. Take a look at:
+```
+ExecStartPre=pulseaudio --start ; pactl set-default-sink wm8960-soundcard ; pactl set-default-source wm8960-soundcard
+```
+
 #### Whisplay sound with 16KHz TTS models.
 
 https://github.com/waveshareteam/WM8960-Audio-HAT/issues/63
@@ -276,8 +283,10 @@ Some extra resources:
 - PulseAudio rescan, but requires to be running as daemon: https://gist.github.com/ashtipliyski/e8842d8c962491f86604a117a331295b
 - `arecord` examples: https://commandmasters.com/commands/arecord-linux/
 
+Now it does not even load...
 
-
+For the D-Bus issue:
+https://forums.linuxmint.com/viewtopic.php?t=320423
 
 ### Display
 - Must activate the SPI interface from `sudo raspi-config`. 
@@ -295,10 +304,20 @@ Some extra resources:
 ℹ️ Feels like the way is to use linux's framebuffers. the DSI display shows the main one at `/dev/fb0` 
 https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
 https://github.com/electronstudio/raylib-python-cffi/
+https://raspi.muth.org/framebuffer.html
 
 1. Add your user to the `video` group. Framebuffers are managed by  `root` but use the `video` group, so if running the app in `sudo` mode is a problem, add the user that will run the app into the `video` group:
 ```
 sudo usermod -a -G video xavier
+```
+2. Add your user to the `tty` group so that the app is able to interact with the screen's cursor, to remove it from the screen during the app's run:
+```
+sudo usermod -a -G tty xavier
+```
+
+3. Add your user to the `dialout` group, as the tty devices belong to the `dialout` group, so we can interact with tty for the cursor topic above:
+```
+sudo usermod -a -G dialout xavier
 ```
 
 ### Led Matrix

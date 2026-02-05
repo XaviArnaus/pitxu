@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -27,9 +27,7 @@ class SystemVolume(PyXavi, Command):
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
-        # We want to set up the microphone volume to a known level: internally will place
-        # LEFT: 0% and RIGHT: {volume}% 
-        # De Facto muting the Left Channel (PiSugar Whisplay HAT issue)
+        # We want to set up the microphone volume to a known level: 100
         self.set_local_system_microphone_volume_level(100)
 
     def get_local_system_speaker_volume_level(self) -> int:
@@ -40,14 +38,13 @@ class SystemVolume(PyXavi, Command):
             int: The local system speaker volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Getting local system speaker volume level using pactl.")
-            call_output = check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True).decode()
-            #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
-            #balance 0.00
-            volume = int(call_output.split("/")[1].strip().rstrip("%")) - self.SINK_VOLUME_ADDITION
+            self._log_debug("Getting local system speaker volume level using ALSA.")
+            call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
+            #40%
+            volume = int(call_output.replace("%", "").strip()) - self.SINK_VOLUME_ADDITION
             if volume < 0:
                 volume = 0
-            self._log_debug(f"The local system speaker volume level using pactl is: {volume}%")
+            self._log_debug(f"The local system speaker volume level using ALSA is: {volume}%")
             return volume
         except Exception as e:
             self._xlog.error(f"🛑 Error getting speaker volume level: {e}")
@@ -61,12 +58,12 @@ class SystemVolume(PyXavi, Command):
             bool: True if the local system speaker is muted, False otherwise
         '''
         try:
-            self._log_debug("Getting local system speaker mute status using pactl.")
-            call_output = check_output("pactl get-sink-mute @DEFAULT_SINK@", shell=True).decode()
-            #Mute: yes
-            is_muted_str = call_output.split(":")[1].strip()
-            self._log_debug(f"The local system speaker mute status using pactl is: {is_muted_str}")
-            return is_muted_str.lower() == "yes"
+            self._log_debug("Getting local system speaker mute status using ALSA.")
+            call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
+            #on
+            is_muted_str = call_output.strip()
+            self._log_debug(f"The local system speaker mute status using ALSA is: {is_muted_str}")
+            return is_muted_str.lower() != "on"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting speaker mute status: {e}")
             return False
@@ -77,14 +74,16 @@ class SystemVolume(PyXavi, Command):
 
         Args:
             volume (int): The desired volume level as a percentage (0-100)
+        Returns:
+            int: The new volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Setting local system speaker volume level using pactl to " + str(volume) + "%.")
+            self._log_debug("Setting local system speaker volume level using ALSA to " + str(volume) + "%.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            check_output(f"pactl set-sink-volume @DEFAULT_SINK@ {volume}%", shell=True)
-            return volume - self.SINK_VOLUME_ADDITION
+            check_output(f"amixer set Speaker {volume}%", shell=True)
+            return self.get_local_system_speaker_volume_level()
         except Exception as e:
             self._xlog.error(f"🛑 Error setting speaker volume level: {e}")
             return -1
@@ -95,12 +94,14 @@ class SystemVolume(PyXavi, Command):
 
         Args:
             mute (bool): True to mute the system, False to unmute
+        Returns:
+            str: "muted" if the system is muted, "unmuted" otherwise
         '''
         try:
-            self._log_debug("Setting local system speaker mute status using pactl to " + ("MUTED" if mute else "UNMUTED") + ".")
-            mute_str = "1" if mute else "0"
-            check_output(f"pactl set-sink-mute @DEFAULT_SINK@ {mute_str}", shell=True)
-            return self.MUTED if mute else self.UNMUTED
+            self._log_debug("Setting local system speaker mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
+            mute_str = "mute" if mute else "unmute"
+            check_output(f"amixer set Speaker {mute_str}", shell=True)
+            return self.MUTED if self.get_local_system_speaker_mute_status() else self.UNMUTED
         except Exception as e:
             self._xlog.error(f"🛑 Error setting speaker mute status: {e}")
 
@@ -150,20 +151,16 @@ class SystemVolume(PyXavi, Command):
             int: The local system microphone volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Getting local system microphone volume level using pactl.")
-            call_output = check_output("pactl get-source-volume @DEFAULT_SOURCE@", shell=True).decode()
-            #Volume: front-left: 78642 / 120% / 4.75 dB,   front-right: 78642 / 120% / 4.75 dB
-            #balance 0.00
-            real_volume_left = int(call_output.split("/")[1].strip().rstrip("%"))
-            real_volume_right = int(call_output.split("/")[3].strip().rstrip("%"))
-            volume_right = real_volume_right - self.SINK_VOLUME_ADDITION
-            volume_left = real_volume_left - self.SINK_VOLUME_ADDITION
-            if volume_right < 0:
-                volume_right = 0
-            self._log_debug(f"The local system microphone volume level using pactl is: L{real_volume_left}%, R{real_volume_right}% (showing RIGHT adjusted: {volume_right}%)")
-            return volume_right
+            self._log_debug("Getting local system microphone volume level using ALSA.")
+            call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
+            #12%
+            mic_volume = int(call_output.replace("%", "").strip())
+            if mic_volume < 0:
+                mic_volume = 0
+            self._log_debug(f"The local system microphone volume level using ALSA is: {mic_volume}%")
+            return mic_volume
         except Exception as e:
-            self._xlog.error(f"Error getting microphone volume level: {e}")
+            self._xlog.error(f"Error getting the microphone volume level: {e}")
             return -1
     
     def get_local_system_microphone_mute_status(self) -> bool:
@@ -174,14 +171,14 @@ class SystemVolume(PyXavi, Command):
             bool: True if the local system microphone is muted, False otherwise
         '''
         try:
-            self._log_debug("Getting local system microphone mute status using pactl.")
-            call_output = check_output("pactl get-source-mute @DEFAULT_SOURCE@", shell=True).decode()
-            #Mute: yes
+            self._log_debug("Getting local system microphone mute status using ALSA.")
+            call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
+            #Mute: on
             is_muted_str = call_output.split(":")[1].strip()
-            self._log_debug(f"The local system microphone mute status using pactl is: {is_muted_str}")
-            return is_muted_str.lower() == "yes"
+            self._log_debug(f"The local system microphone mute status using ALSA is: {is_muted_str}")
+            return is_muted_str.lower() != "on"
         except Exception as e:
-            self._xlog.error(f"Error getting mute status: {e}")
+            self._xlog.error(f"Error getting the microphone mute status: {e}")
             return False
 
     def set_local_system_microphone_volume_level(self, volume: int) -> int:
@@ -190,16 +187,16 @@ class SystemVolume(PyXavi, Command):
 
         Args:
             volume (int): The desired volume level as a percentage (0-100)
+        Returns:
+            int: The new volume level as a percentage (0-100)
         '''
         try:
-            self._log_debug("Setting local system microphone volume level using pactl to " + str(volume) + "%.")
-            # Unless we want to set volume to 0, we add the addition
-            if volume != 0:
-                volume += self.SINK_VOLUME_ADDITION
-            check_output(f"pactl set-source-volume @DEFAULT_SOURCE@ 0% {volume}%", shell=True)
-            return volume - self.SINK_VOLUME_ADDITION
+            self._xlog.debug(f"Setting local system microphone volume level using ALSA to {volume}%.")
+            check_output(f"amixer set Mic {volume}%", shell=True)
+            return self.get_local_system_microphone_volume_level()
         except Exception as e:
-            self._xlog.error(f"Error setting volume level: {e}")
+            self._xlog.error(f"Error setting the microphone volume level: {e}")
+            self._xlog.debug(full_stack())
             return -1
 
     def set_local_system_microphone_mute_status(self, mute: bool) -> str:
@@ -208,14 +205,16 @@ class SystemVolume(PyXavi, Command):
 
         Args:
             mute (bool): True to mute the system, False to unmute
+        Returns:
+            str: "muted" if the system is muted, "unmuted" otherwise
         '''
         try:
-            self._log_debug("Getting local system microphone mute status using pactl to " + ("MUTED" if mute else "UNMUTED") + ".")
-            mute_str = "1" if mute else "0"
-            check_output(f"pactl set-source-mute @DEFAULT_SOURCE@ {mute_str}", shell=True)
-            return self.MUTED if mute else self.UNMUTED
+            self._log_debug("Setting local system microphone mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
+            mute_str = "mute" if mute else "unmute"
+            check_output(f"amixer set Mic {mute_str}", shell=True)
+            return self.MUTED if self.get_local_system_microphone_mute_status() else self.UNMUTED
         except Exception as e:
-            self._xlog.error(f"Error setting mute status: {e}")
+            self._xlog.error(f"Error setting the microphone mute status: {e}")
     
     def callback_microphone_volume_level(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """

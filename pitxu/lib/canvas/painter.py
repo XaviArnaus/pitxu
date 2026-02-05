@@ -432,7 +432,9 @@ class Painter(PyXavi, Thread):
         elif foreground_delay is not None and background_delay is None:
             min_delay = foreground_delay
         elif foreground_delay is not None and background_delay is not None:
-            min_delay = min(foreground_delay, background_delay)
+            self._log_debug(f"Choosing background delay [{background_delay}] over foreground delay [{foreground_delay}] for delay between frames, besides taking the min().")
+            # min_delay = min(foreground_delay, background_delay)
+            min_delay = background_delay  # Prefer background delay over foreground delay
         if min_delay > 0.0:
             self._log_debug(f"Applying delay between frames of [{min_delay}] sec as: " +
                             f"{foreground_interaction.name + '(' + str(foreground_interaction.delay_between_frames) + ')' if foreground_interaction else 'None'} | " +
