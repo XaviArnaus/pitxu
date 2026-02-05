@@ -22,25 +22,25 @@ start_pitxu_background() {
     # Most likely user and group are already created. Ensure that YOUR user (or who runs pitxu)
     # is part of the "pulse-access" group.
 
-    echo "🟢 Preparing the DBus session..."
-    # Automate DBus session for user services
-    if test -z "$DBUS_SESSION_BUS_ADDRESS"; then
-        # Only start D-Bus if it's not already running
-        eval `dbus-launch --sh-syntax --exit-with-session`
-    fi
-    echo "🟢 Checking if pulseaudio is running..."
-    # # sudo pulseaudio --check --system
-    sudo pulseaudio --check
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "🔊 Pulseaudio is not running. Starting it now..."
-        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
-        DBUS_SESSION_BUS_PID=`cat /run/dbus/pid`
-        pulseaudio --start -v > "$DIR/../log/current_pulseaudio_process.log"
-    fi
-    echo "🟢 Setting default sound devices..."
-    pactl set-default-sink alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo
-    pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+    # echo "🟢 Preparing the DBus session..."
+    # # Automate DBus session for user services
+    # if test -z "$DBUS_SESSION_BUS_ADDRESS"; then
+    #     # Only start D-Bus if it's not already running
+    #     eval `dbus-launch --sh-syntax --exit-with-session`
+    # fi
+    # echo "🟢 Checking if pulseaudio is running..."
+    # # # sudo pulseaudio --check --system
+    # sudo pulseaudio --check
+    # EXIT_CODE=$?
+    # if [ $EXIT_CODE -ne 0 ]; then
+    #     echo "🔊 Pulseaudio is not running. Starting it now..."
+    #     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+    #     DBUS_SESSION_BUS_PID=`cat /run/dbus/pid`
+    #     pulseaudio --start -v > "$DIR/../log/current_pulseaudio_process.log"
+    # fi
+    # echo "🟢 Setting default sound devices..."
+    # pactl set-default-sink alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo
+    # pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
     echo "🟢 Starting pitxu service..."
 	sudo systemctl start pitxu
 }
@@ -51,14 +51,14 @@ stop_pitxu_background() {
 	sudo systemctl stop pitxu
     # sudo pulseaudio --check --system
     # kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
-    echo "🛑 Checking if pulseaudio is running..."
-    sudo pulseaudio --check
-    EXIT_CODE=$?
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "🔊 Pulseaudio is running. Stopping it now..."
-        # sudo pulseaudio --kill
-        kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
-    fi
+    # echo "🛑 Checking if pulseaudio is running..."
+    # sudo pulseaudio --check
+    # EXIT_CODE=$?
+    # if [ $EXIT_CODE -eq 0 ]; then
+    #     echo "🔊 Pulseaudio is running. Stopping it now..."
+    #     # sudo pulseaudio --kill
+    #     kill $(ps aux | grep '[p]ulseaudio' | awk '{print $2}')
+    # fi
 }
 
 # Commandline to restart the service
