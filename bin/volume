@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Only ALSA mixer commands are used here, as pulseaudio/pactl may not be running.
 
 if [[ $# -eq 0 ]] ; then

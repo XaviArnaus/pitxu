@@ -1,0 +1,37 @@
+# Pitxu service
+# This service triggers the bin/pitxu, starting (from its point of view) in foreground,
+#   but effectively in the background context.
+#   So keep this in mind when you see in bin/pitxu commands for background, that only
+#   interact with systemctl about the background execution, defined here.
+#
+# Meant to be linked from the systemd service path:
+#   sudo ln -s /home/xavier/pitxu/bin/pitxu.service /etc/systemd/system/pitxu.service
+#
+# Remember to reload the systemctl daemon. To be repeated on every change in this file.
+#   sudo systemctl daemon-reload
+#
+# and enable the service. No need to repeat it, stays enabled until further notice.
+#   sudo systemctl enable pitxu
+
+[Unit]
+Description=Pitxu Service
+After=multi-user.target
+Requires=network.target network-online.target
+
+[Service]
+Type=idle
+User=xavier
+WorkingDirectory=/home/xavier/pitxu
+
+# Actual start of Pitxu
+# Moved from pure Poetry call to use the bin, so I can figure out the Soundcard issues
+ExecStart=/home/xavier/pitxu/bin/pitxu
+
+# We want it to restart everythim it leaves
+Restart=always
+# It may crash during debug, so include exit codes here to assume OK and restart again.
+# So at this point, exit status 1
+SuccessExitStatus=1
+
+[Install]
+WantedBy=multi-user.target
