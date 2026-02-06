@@ -173,7 +173,7 @@ class StatefulLists(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"🛑 Error deleting entry from list for [{list_name}] by {'Position [' + str(by_position) + ']' if by_position else 'Time [' + by_datetime + ']'}: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.lists.list_entry_deletion_error." + self._xparams.get("language"))
+            return self._xconfig.get("language.lists.list_entry_deletion_error." + self._xparams.get("language")) % (list_name, by_position, by_datetime)
     
     def get_all_entries_from_list(self, list_name: str) -> list | str:
         '''
@@ -194,7 +194,7 @@ class StatefulLists(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"🛑 Error getting all entries from list for [{list_name}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.lists.list_all_entries_retrieval_error." + self._xparams.get("language"))
+            return self._xconfig.get("language.lists.list_all_entries_retrieval_error." + self._xparams.get("language")) % list_name
 
     def get_one_entry_from_list(self, list_name: str, by_position: int = None, by_datetime: str = None) -> dict | str:
         '''
@@ -218,7 +218,7 @@ class StatefulLists(PyXavi, Command):
         except Exception as e:
             self._xlog.error(f"🛑 Error getting entry from list for [{list_name}] by [{'Position [' + str(by_position) + ']' if by_position else 'Time [' + by_datetime + ']'}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.lists.list_entry_retrieval_error." + self._xparams.get("language"))
+            return self._xconfig.get("language.lists.list_entry_retrieval_error." + self._xparams.get("language")) % (list_name, by_position, by_datetime)
 
     def show_create_list(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
 
@@ -333,8 +333,3 @@ class StatefulLists(PyXavi, Command):
         elif function_name == "get_all_entries_from_list":
             return self.show_entries_for_list
         return self.default_empty_callback
-    
-# '2025-12-31':
-#     13-00: 'Project Idea: Use four lasers to project a visible frame onto the desk. This frame will show the camera''s exact field of view, allowing for perfect, screen-less positioning of objects for analysis.'
-#     13-15: 'Project Idea: Create an `email_myself(subject, body)` tool. It will use Python''s `smtplib` and a secure App Password to send notes and ideas directly to your email inbox.'
-#     13-30: Delete the lines of code related to the conversation response timeout.
