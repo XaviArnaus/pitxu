@@ -442,6 +442,53 @@ def send_to_printer():
     except Exception:
         print(full_stack())
 
+def test_lists():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        from pitxu.lib.utils.lists import Lists
+        lists = Lists(config=config, params=parameters)
+        
+        # Create list
+        list_name = "Test List"
+        test_list = lists.create_list(list_name=list_name)
+        if not test_list:
+            logger.error("Failed to create test list.")
+            return
+        logger.info(f"List created successfully: {json.dumps(test_list, indent=2)}")
+        
+        # Add items
+        lists.add_entry(list_name, "First entry")
+        lists.add_entry(list_name, "Second entry")
+        logger.info(f"2 entries added successfully to the list [{list_name}]: {json.dumps(test_list, indent=2)}")
+
+        # Get items
+        element_2 = lists.get_entry(list_name, position=2)
+        if not element_2:
+            logger.error("Failed to retrieve entry")
+            return
+        logger.info(f"Entry retrieved successfully: {json.dumps(element_2, indent=2)}")
+
+        # Update item
+        updated_element_1 = lists.update_entry(list_name, position=1, new_text="Updated first entry")
+        if not updated_element_1:
+            logger.error("Failed to retrieve updated entry")
+            return
+        logger.info(f"Entry updated successfully: {json.dumps(updated_element_1, indent=2)}")
+
+        # Delete item
+        deleted_element_1 = lists.delete_entry(list_name, position=1)
+        if not deleted_element_1:
+            logger.error("Failed to delete entry.")
+            return
+        logger.info(f"Entry deleted successfully: {json.dumps(deleted_element_1, indent=2)}")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def _initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()
     config = ConfigLoader.load_config_files()
