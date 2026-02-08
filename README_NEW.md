@@ -1,9 +1,18 @@
-# Pitxu
-Chatbot project over Raspberry Pi 5
-
 # Installation
 
-It is assumed a Raspberry Pi with an official 64bit distribution (Debian Trixie) installed from the Raspberry Pi Imager.
+This document explains how to setup the Raspberry Pi from scratch to have the Pitxu chatbot up and running.
+
+# Hardware scope
+
+This document assumes the following hardware:
+
+- Raspberry Pi 5 8GB
+- A soundcard with microphone and speakers.
+- A display
+
+The related sections about soundcard and display contain some help regarding the setup and compatibility, but take it as tip. In most of the cases it's up to you to write a class that transforms PIL images to whatever the device needs (for the displays), and to ensure that the setup is up and ready to send and receive `sounddevice.[RawInput|Output]Stream`.
+
+At a Operating System level, it is assumed a Raspberry Pi with an official 64bit distribution (Debian Trixie) installed from the Raspberry Pi Imager.
 
 ## 0. Raspberry Pi 5 preparation
 

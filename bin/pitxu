@@ -102,6 +102,14 @@ link_service() {
         [cC]* ) exit ;;
         *) exit ;;
     esac
+
+    read -p "Enable the Pitxu service? (y)Yes/(n)No/(c)Cancel:- " choice
+    case $choice in
+        [yY]* ) sudo systemctl enable pitxu ;;
+        [nN]* ) echo "Skipping." ;;
+        [cC]* ) exit ;;
+        *) exit ;;
+    esac
 }
 
 # Commandline to clear the Pitxu screen
