@@ -109,6 +109,16 @@ sounddevices() {
      cd "$DIR/.." && poetry run sounddevices
 }
 
+# Commandline to activate the screen cursor blinking
+activate_cursor_blinking() {
+     TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1
+}
+
+# Commandline to deactivate the screen cursor blinking
+deactivate_cursor_blinking() {
+    TERM=linux sudo setterm -cursor off -foreground black -clear all | sudo tee /dev/tty1
+}
+
 # Main commandline interface
 # If no arguments are provided, we start pitxu in foreground
 #   Keep in mind that the service file also calls this script without arguments to start the service, 
@@ -131,7 +141,14 @@ case "$1" in
     "clear") clear_pitxu_screen ;;
     "sounddevices") sounddevices ;;
     "create_links") create_system_links ;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|create_links]" ;;
+    "cursor")
+        case "$2" in
+            "on") activate_cursor_blinking ;;
+            "off") deactivate_cursor_blinking ;;
+            *) echo "Usage: pitxu cursor [on|off]" ;;
+        esac
+        ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|create_links|cursor]" ;;
     *) echo "Command unknown" ;;
 esac
 
