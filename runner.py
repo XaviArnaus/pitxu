@@ -61,6 +61,7 @@ def clear_displays():
         from pitxu.lib.eink.eink import EinkDisplay
         from pitxu.lib.matrix_led import Max7219
         from pitxu.lib.lcd.st7789 import ST7789
+        from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper as DsiLcd
         # Instantiating
         config, logger, parameters = _initialize()
 
@@ -80,6 +81,13 @@ def clear_displays():
             ST7789(config=config, params=parameters).clear()
         except Exception as e:
             logger.warning(f"Could not clear LCD display: {str(e)}")
+        logger.info("End of work.")
+
+        try:
+            logger.debug("Clearing DSI LCD display")
+            DsiLcd(config=config, params=parameters).clear()
+        except Exception as e:
+            logger.warning(f"Could not clear DSI LCD display: {str(e)}")
         logger.info("End of work.")
 
     except RuntimeError as e:
