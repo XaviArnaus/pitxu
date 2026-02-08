@@ -3,80 +3,285 @@ Chatbot project over Raspberry Pi 5
 
 # Installation
 
+It is assumed a Raspberry Pi with an official 64bit distribution (Debian Trixie) installed from the Raspberry Pi Imager.
+
+## 0. Raspberry Pi 5 preparation
+
+This section is aimed to prepare the RPi from scratch. This is a bit out of scope, so will only enumerate (my) setup.
+
+### Burn a micro-SD card or a SSD USB drive
+
+Use Raspberry Pi Imager to burn the Raspberry Pi OS into the main storage support of your preference.
+- Micro SD card works good.
+- SSD USB3 disk works better.
+- Didn't try with other supports
+
+**Some suggestions:**
+Within the Raspberry Pi Imager, make sure that you activate and configure the following options, they will make the initial start easier and faster:
+- Activate the SSH access.
+- Define a Wifi connection.
+
+If you chose to rely on a SSD USB3 disk, make sure that after the RPi Imager finishes you re-connect the disk to the burner computer, edit the device's `/boot/config.txt` and add the following line (I did it at the top of the file):
+```
+# Enable USB 5V 5A
+usb_max_current_enable=1
+```
+
+Get an extended article on how to install a RPi5 based on a SSD USB disk here: [Spawning a Raspberry Pi 5 with Raspberry Pi OS in a SSD SATA III disk](https://xavier.arnaus.net/blog/spawning-a-raspberry-pi-5-with-raspberry-pi-os-in-a-ssd-sata-iii-disk)
+
+### First start
+
+Most of these steps are optional, and depend on what are the features that you want **Pitxu** to support. Soundcards, Displays, UPSs and so on usually need to have activated the SPI, I2C and xxx interfaces, and moszt likely to add some overlays or extra config in `/boot/firmware/config.txt`. I mention all here, and you simply jump whatever does not fit in your setup.
+
+#### Ensure Network connectivity and access (optional)
+
+Once we know what is the IP of the host (check your router, or use tools like `arpscan` to find it out).
+
+1. Add your development SSH Key into the RPi host, to avoid having to type your password every time. More info [here](https://xavier.arnaus.net/blog/set-up-the-ssh-key-authentication-between-hosts)
+2. Add the RPi host's SSH Key into GitHub SSH Keys if needed, to be able to clone the repo later on.
+3. Add a new Wifi connection relating to your phone's hotspot, so that you can use Pitxu on the go. Use `nmtui` for it.
+
+#### Update the system to the latest version
+
+This is important as some of the hardware - software interconnections are quite edgy and improvements and bugfixes appear often.
+
+```
+sudo apt update
+sudo apt full-upgrade
+sudo rpi-eeprom-update
+sudo reboot
+```
+
+#### Post-installation in `raspi-config`
+
+We need to do some post installation setup through the RPi configuration tool:
+```
+sudo raspi-config
+```
+
+Skip whatever that does not fit to the hardware that you may have connected.
+
+1. Activate the SPI interface under `3 Interface Options > I4 SPI`
+2. Activate the I2C interface under `3 Interface Options > I5 I2C`
+3. Configure the system Locale under `5 Localisation Options > L1 Locale`
+4. Expand the filesystem with `6 Advanced Options > A1 Expand Filesystem`
+5. Activate the 3rd Gen PCIe speed (for the AI HAT+2) at `6 Advanced Options > A8 PCIe Speed`
+
+And reboot again.
+
+### Update the RPi5 EEPROM so that all powers off together (optional)
+
+This is useful for when we use a UPS that is able to self-power off on halt. It's also useful for a correct self-shutdown when triggering the Chatbot Tool to shutdown the system.
+Tested with [Geekworm X1203 UPS](https://wiki.geekworm.com/X1203).
+
+ℹ️ My UPS needs I2C as we did above. Refer to the specifications of your UPS.
+
+In a terminal in the RPi, edit the EEPROM config:
+```
+sudo rpi-eeprom-config -e
+```
+
+Change the setting of `POWER_OFF_ON_HALT` from `0` to `1`,
+Add `PSU_MAX_CURRENT=5000` at the end of the file that reads like this:
+```
+[all]
+BOOT_UART=1
+BOOT_ORDER=0xf14
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+```
+
+When 
+Be careful with the parameters there that are not related to this section. For example, the lines above reflect my previous installation over a SD card, but the following ones reflect my installation on a SSD USB3 drive (note the `BOOT_ORDER` value):
+
+```
+[all]
+BOOT_UART=1
+POWER_OFF_ON_HALT=1
+BOOT_ORDER=0xf461
+PSU_MAX_CURRENT=5000
+```
+
+### Set up your soundcard
+
+The sound setup depends of you, but it's mandatory. In my current installation I'm using a USB Soundcard ant everything is setup already out of the box.
+I also tried the following soundcards and I leave some references here. Refer to your soundcard details to properly install it and leave it ready.
+
+Make sure that the system works through ALSA. Pitxu has Chatbot Tools to manage the audio that rely on `alsactl` shell commands.
+
+In the `bin/` directory are shipped some tools to test the configuration. Take note which soundcard index and name you have as well as its device ID, and change the values in the commands as you need. The following commands will tell you this:
+```
+aplay -l
+arecord -l
+```
+
+This page relate to this values later on.
+
+#### Waveshare WM8960 Hi-Fi Sound Card HAT for Raspberry Pi, Stereo CODEC, Play/Record
+
+- Integrated Mic, jack and screw connectors for speakers.
+- Uses I2C, activated as explained above.
+- https://www.waveshare.com/wiki/WM8960_Audio_HAT
+
+#### PiSugar Whisplay HAT
+
+- Integrated Mic and Speaker. The left channel mic is placed in the bottom side of the board, so it faces directly the CPU fan. This dramatically reduces the quality of the input, making the whole Pitxu experience mediocre.
+- Uses I2C, activated as explained above.
+- https://github.com/PiSugar/whisplay
+
+#### Generic USB Soundcard
+
+- Pick your wish. Provides freedom for the actual Mic and Speaker through an "always-working" USB interface. Frees up GPIO connections but it's a mess of cables in a future enclosure.
+- Tried successfully:
+  - https://eu.ugreen.com/products/ugreen-usb-to-3-5mm-headphone-audio-adapter
+  - https://sabrent.com/products/AU-MMSA
+
+### Setup your display
+
+The display will use a defined interface. In my current installation I'm using a 5" DSI display and everything works out of the box. I've also tried the following soundcards and I leave some references here. Refer to your display details to properly install it and leave it ready.
+
+Pitxu is designed as a 2-channel display interaction: One for foreground notifications (the main one) and one for background notifications (speaking and thinking animations, and status notifications). Pitxu is shipped with support for Foreground with a 2.13" e-Ink display and Background for a 8x8 Matrix LED. For a single display setup the Foreground is presented as an overlay over the Background animations, and has been tested in a 1.69" LCD and a 5" LCD. Other displays can be supported but the "driver" (the bytes of PIL images to the devices) has to be programmed by you (easy task with the provider examples).
+
+⚙️ ToDo: Write a guide for creating "drivers" for displays.
+
+#### Waveshare 2.13inch E-Paper HAT+
+
+- Slow refresh but contained consumption.
+- Uses SPI, activated as explained above.
+- https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT+
+
+#### 8x8 Matrix LED
+
+- Very simple and old school appeal
+- Based on chip Max7219. Uses SPI, activated as explained above.
+- https://www.az-delivery.de/en/products/64er-led-matrix-display
+
+#### PiSuhar Whisplay HAT
+
+- Regardles of the all-in-one packaging, it is a simple ST7789 (specifically a ST7789P3) which is common.
+- Uses SPI, activated as explained above.
+- https://github.com/PiSugar/whisplay
+
+#### Waveshare 5inch Touchscreen DSI LCD (C)
+
+- Clear and fast. Touchscreen not yet used. Behaves as a main Linux display, and Pitxu interacts via it's framebuffer.
+- Uses DSI interface, the RPi5 has 2. The provider recommends the one most far from the USB connections. The DSI interface Frees up GPIO connections. The Touchscreen is ignored ATM, maybe future features for Pitxu.
+- https://www.waveshare.com/wiki/5inch_DSI_LCD_(C)
+
+
 ## 1. Install system depencencies
 
-### Dependency in general to build other dependencies: `python3-dev`
+Here we setup the application and its dependencies. These can be also at Linux level to support the interaction with the hardware. Most of the times it comes dictates by the code approach and which libraries it uses, so if you feel more confortable with other backend, go to the code and make it happen, and send me a Pull Request to include the support!
+
+### Initial Linux basic setup
+
+The following is initially required:
+
+#### Install Git
+
+```
+sudo apt install git
+```
+
+### ❗️ All Linux/Debian code dependencies in one line
+
+Debian packages can be installed all at once. Just make sure that I did not forget to add in this line anything from the below sections, I'm just putting them all together here.
+
+```
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools libasound2-plugins
+```
+
+### Ability to build other dependencies: `python3-dev`
 
 Some dependencies are built at installing time. Please have the `python3-dev` pachage installed beforehand:
 
-For Debian based linux distros:
 ```
 sudo apt install python3-dev
 ```
 
-### Dependencies related to `Pillow`
+### Related to `Pillow`
 
-This is needed for the internal Pillow support, for the e-Ink display
+This is needed for the internal Pillow support, we interact with the displays by drawing images.
 
-For Debian based linux distros:
 ```
 sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev
 ```
 
-### Dependencies related to `Gemini`
+### Related to `Gemini`
 
-This is needed for the internal Gemini support, for the dication feature
+This is needed for the internal Gemini support.
 
-For Debian based linux distros:
 ```
 sudo apt install libffi-dev
 ```
 
-### Dependencies related to `pyaudio`
+### Related to `pyaudio`
 
-This is needed for the internal Pyaudio support, for the audio support
+This is needed for the internal Pyaudio support, required by the `sounddevices` package.
 
-For Debian based linux distros:
 ```
 sudo apt install portaudio19-dev python3-pyaudio
 ```
 
-### Dependencies related to `pulseaudio`
+ALSA needs a plugins package to allow samplerate conversions.
 
-For the amount of control that one can have over the system's audio, I also install (and therefore rely on) PulseAudio. It is the one then really applying the sound control and mute from within the Chatbot's Tool function call, and also several handy scripts in `bin/`
-
-For Debian based linux distros:
 ```
-sudo apt install pulseaudio
+sudo apt install libasound2-plugins
 ```
 
-### Dependencies related to `lgpio`
+### Related to `lgpio`
 
 This is needed for the internal GPIO support
 
-For Debian based linux distros:
 ```
 sudo apt install swig liblgpio-dev
 ```
 
-### Dependencies related to `i2c`
+### Related to `i2c`
 
 This is not needed for the Python / Poetry application to work, but it's useful to debug and identify the own hardware.
 
-For Debian based linux distros:
 ```
 sudo apt install i2c-tools
 ```
 
-### ❗️ All Linux/Debian dependencies in one line
-Just make sure that I did not forget to add here anything from above. Just put them all together.
+## 2. Clone the repository
+
+Taking `/home/user/` as a target for the project.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools pulseaudio
+git clone git@github.com:XaviArnaus/pitxu.git
 ```
 
+## 3. Configure ALSA to the Pitxu parameters
 
-## 2. Install Poetry
+### Add the `bin/` directory into the system's path
+
+This way all Pitxu binaries can be executed easily.
+Add the following line at the end of your `~/.bashrc` file:
+```
+export PATH="/home/user/pitxu/bin:$PATH"
+```
+
+Save, exit, and reload the session:
+```
+source ~/.bashrc
+```
+
+### ALSA related configuration files
+
+Some system setup is needed that require configuration files. The repo contains a working configuration for ALSA, Pitxu as a Systemd service, and final cleanu-up scripts. They are meant to be linked into the Debian expected destinations. The `bin/pitxu` binary can place the links automatically with:
+```
+pitxu link_alsa
+```
+
+It goes one by one, showing what file it wants to link to (in case that you already have one, be aware), and offers the option to cancel.
+Take a look at the content of the files that it will link. There is hardware configuration that may not relate to your device. In particular, the Index/Name of your card and the Device ID in the following files:
+
+- ALSA config file [config/system/asound.conf](./config/system/asound.conf)
+- ALSA Card index [config/system/sound.conf](./config/system/sound.conf)
+
+## 4. Install Poetry
 
 ```
 curl -sSL https://install.python-poetry.org | python3 -
@@ -87,13 +292,18 @@ Remember to add the `poetry` path into PATH, inside `.bashrc`:
 export PATH="/home/user/.local/bin:$PATH"
 ```
 
-## 3. Ininitalize the project
+## 5. Ininitalize the project
+
+This creates the Python Virtual Environment and installs / builds all the Python packages required by the application.
 
 ```
 make init
 ```
 
-## 4. Generate all the config files out of the `dist` example ones
+If it complains about the `python.lock`, use `make update` instead.
+
+
+## 5. Generate all the config files out of the `dist` example ones
 
 ```
 for file in config/*.yaml.dist; do cp "$file" "${file%.dist}"; done
@@ -101,7 +311,7 @@ for file in config/*.yaml.dist; do cp "$file" "${file%.dist}"; done
 
 ... and edit it at your wish
 
-## 5. Create an environment variables file
+## 7. Create an environment variables file
 
 ```
 nano .env
@@ -121,51 +331,25 @@ EMAIL_USERNAME=oscar.pitxu@domain.com
 EMAIL_PASSWORD=patati patata
 ```
 
-## 6. Setup Pitxu as a service of the system
+## 8. Preliminary test
 
-See [The `pitxu.service` file in the /bin folder](./bin/pitxu.service)
-
-1. Ensure that this file has `644` permissions
-2. Create a soft link from `/etc/systemd/system/` to this file:
+At this point, Pitxu should be prepared to run. The configuration changes that we did require that we reboot:
 ```
-cd /etc/systemd/system/
-sudo ln -s /home/user/pitxu/bin/pitxu.service pitxu.service
+sudo reboot
 ```
 
-3. Reload the systemd daemon and enable the service
+After that, we should be up and running with the ALSA configuration. I recommend to run the following test: [bin/test_record_and_play_alsa.sh](./bin/test_record_and_play_alsa.sh)
+
+Now, we can test Pitxu as is in the current SSH terminal. The RPi should become Pitxu 100% working. Just run Pitxu's binary without parameters:
 ```
-sudo systemctl daemon-reload
-sudo systemctl enable pitxu
-```
-
-Further updates do not need to repeat point 3, but if the filename changes.
-
-## 7. Add `pitxu` and the rest of `bin/` into `PATH`
-
-Add the following line into your `.bashrc`:
-
-```
-export PATH="/home/user/pitxu/bin:$PATH"
+pitxu
 ```
 
-# Troubleshooting
+## 9. Setup Pitxu as a service of the system
 
-## The sound is just full of noise
-
-https://bbs.archlinux.org/viewtopic.php?id=185736
-
-Play with PulseAudio configuration. Reducing the block size helped me.
-
-Edit the Pulse audio configuration
+Adding Pitxu as a service allows the RPi to automatically start Pixtu on start by itself.
+Use the Pitxu binary to create the necessary links from the Pitxu service definition to the actual Systemd services location.
+It will also place links for the shutdown and reboot that clean properly the system when closing it.
 ```
-sudo nano /etc/pulse/daemon.conf
+pitxu link_service
 ```
-
-and the following values fixed my issue
-```
-default-fragments = 5
-default-fragment-size-msec = 2
-```
-
-
-

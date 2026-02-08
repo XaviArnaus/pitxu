@@ -46,8 +46,8 @@ logs_journalctl_all() {
     sudo journalctl -f
 }
 
-# Commandline to create the system links for ALSA configuration and the service file
-create_system_links() {
+# Commandline to create the system links for ALSA configuration
+link_alsa() {
     echo "Installing ALSA configuration for Pitxu"
 
     read -p "Link ALSA configuration file to /etc/asound.conf? (y)Yes/(n)No/(c)Cancel:- " choice
@@ -65,6 +65,11 @@ create_system_links() {
         [cC]* ) exit ;;
         *) exit ;;
     esac
+}
+
+# Commandline to create the system links for system service and shutdown/reboot scripts
+link_service() {
+    echo "Installing system service and shutdown/reboot scripts for Pitxu"
 
     read -p "Link Pitxu service to /etc/systemd/system/pitxu.service? (y)Yes/(n)No/(c)Cancel:- " choice
     case $choice in
@@ -140,7 +145,8 @@ case "$1" in
     "logs_all") logs_journalctl_all ;;
     "clear") clear_pitxu_screen ;;
     "sounddevices") sounddevices ;;
-    "create_links") create_system_links ;;
+    "link_alsa") link_alsa ;;
+    "link_service") link_service ;;
     "cursor")
         case "$2" in
             "on") activate_cursor_blinking ;;
@@ -148,7 +154,7 @@ case "$1" in
             *) echo "Usage: pitxu cursor [on|off]" ;;
         esac
         ;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|create_links|cursor]" ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|link_alsa|link_service|cursor]" ;;
     *) echo "Command unknown" ;;
 esac
 

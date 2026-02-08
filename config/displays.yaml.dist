@@ -134,10 +134,8 @@ dsi_lcd:
   rotate: False
   # Configuration regarding the fonts
   fonts:
-    # Configuration regarding the fonts
-  fonts:
     # [String] Path and filename for the specific font to use in this screen
-    file: NotoColorEmoji-Regular.ttf
+    # file: NotoColorEmoji-Regular.ttf
     # [Integer] Font size for Ultra big size
     ultra: 85
     # [Integer] Font size for Huge size
