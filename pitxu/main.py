@@ -89,6 +89,14 @@ class Main(PyXavi):
         # Supported Languages
         self._supported_languages = config.get("app.supported_languages")
 
+        # Check and complain if the initial language is not supported
+        if self._xparams.get("language") not in self._supported_languages:
+            self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")
+            self._xlog.error("🛑 Please change the initial language in the state file or the default language in the config file to one of the supported languages.")
+            self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
+            self._xlog.error("🛑 Exiting now.")
+            sys.exit(1)
+
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
 

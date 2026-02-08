@@ -18,8 +18,6 @@ class Piper(Xprocess):
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
 
-    VERBOSE_DEBUG: bool = True
-
     def get_process_name(self) -> str:
         return "Piper"
 
