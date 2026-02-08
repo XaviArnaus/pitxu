@@ -58,7 +58,7 @@ def run():
 
 def clear_displays():
     try:
-        from pitxu.lib.eink import EinkDisplay
+        from pitxu.lib.eink.eink import EinkDisplay
         from pitxu.lib.matrix_led import Max7219
         from pitxu.lib.lcd.st7789 import ST7789
         # Instantiating
