@@ -24,6 +24,7 @@ class Piper(Xprocess):
     def initialize(self):
         self._xlog.info("Initializing Piper Worker")
         language = self._xparams.get("language")
+        self._log_debug("Language is: " + str(language))
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
         self._model = ROOT_DIR + "/" + str(self._xconfig.get("storage.path")) + str(self.MODELS_PATH) + str(model_name) + ".onnx"
         self._xlog.info("Loading TTS model from: " + self._model)
