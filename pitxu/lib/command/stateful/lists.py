@@ -333,8 +333,3 @@ class StatefulLists(PyXavi, Command):
         elif function_name == "get_all_entries_from_list":
             return self.show_entries_for_list
         return self.default_empty_callback
-    
-# '2025-12-31':
-#     13-00: 'Project Idea: Use four lasers to project a visible frame onto the desk. This frame will show the camera''s exact field of view, allowing for perfect, screen-less positioning of objects for analysis.'
-#     13-15: 'Project Idea: Create an `email_myself(subject, body)` tool. It will use Python''s `smtplib` and a secure App Password to send notes and ideas directly to your email inbox.'
-#     13-30: Delete the lines of code related to the conversation response timeout.
