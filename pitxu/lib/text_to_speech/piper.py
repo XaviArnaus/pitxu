@@ -25,7 +25,8 @@ class Piper(Xprocess):
         self._xlog.info("Initializing Piper Worker")
         language = self._xparams.get("language")
         model_name = self._xconfig.get("text-to-speech.per_language." + language)
-        self._model = ROOT_DIR + "/" + self._xconfig.get("storage.path") + self.MODELS_PATH + model_name + ".onnx"
+        self._model = ROOT_DIR + "/" + str(self._xconfig.get("storage.path")) + str(self.MODELS_PATH) + str(model_name) + ".onnx"
+        self._xlog.info("Loading TTS model from: " + self._model)
         self._voice = PiperVoice.load(self._model)
         self._log_debug("Creating Piper Output Stream with samplerate: " + str(self._voice.config.sample_rate))
         self._output_stream = sounddevice.OutputStream(
