@@ -43,7 +43,7 @@ logs_journalctl_pitxu_background() {
 
 # Commandline to check the logs of the whole system, for debugging
 logs_journalctl_all() {
-    sudo journalctl -n 100 -f
+    sudo journalctl -o cat -n 100 -f
 }
 
 # Commandline to create the system links for ALSA configuration
