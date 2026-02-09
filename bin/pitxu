@@ -38,12 +38,12 @@ status_pitxu_background() {
 
 # Commandline to check the logs of the service
 logs_journalctl_pitxu_background() {
-    sudo journalctl -o cat -u pitxu -f
+    sudo journalctl -o cat -u pitxu -n 100 -f
 }
 
 # Commandline to check the logs of the whole system, for debugging
 logs_journalctl_all() {
-    sudo journalctl -f
+    sudo journalctl -n 100 -f
 }
 
 # Commandline to create the system links for ALSA configuration
