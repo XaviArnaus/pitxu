@@ -69,7 +69,7 @@ class Interaction(PyXavi):
         XprocAction.SAY: 0.05,
     }
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Interaction, self).init_pyxavi(config=config, params=params)
@@ -194,14 +194,14 @@ class Interaction(PyXavi):
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
 
         # Speech is a direct process command.
-        self._log_debug(f"🗣️ Sending SAY command to speaker")
+        self._log_debug(f"🗣️ Sending SAY command to Speaker")
         self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
 
         # We want that the main thread waits until the actions finished in the subprocesses
         self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
         self.wait_for_speaker_to_start_and_finish_speaking()
         self.wait_for_busy_background_display_to_idle()
-        self.wait_for_background_display_queue_to_empty
+        self.wait_for_background_display_queue_to_empty()
     
     def show_thinking(self):
         """
@@ -305,7 +305,7 @@ class Interaction(PyXavi):
         Args:
             percentage (int): The percentage of time left for the interaction.
         """
-        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on background display")
+        self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.INTERACTION_HOLDING_PERCENTAGE, percentage)
 
     # --------- (Proxy) Functions to clear screens ---------
