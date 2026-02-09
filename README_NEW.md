@@ -254,6 +254,28 @@ This is not needed for the Python / Poetry application to work, but it's useful 
 sudo apt install i2c-tools
 ```
 
+### Add the user into the `video` group (only required for the DSI display)
+
+By using the DSI display, the _driver_ writes directly to the system's **framebuffer**. Framebuffers are controlled by `root`. You can run the script with `sudo`, but you also can add your user into the `video` group so it gains group privileges. 
+```
+sudo usermod -a -G video user
+```
+
+... where `user` is your user.
+
+To know if the user was added correctly, log out and log in again from your ssh session after adding the user into the group, and then run:
+```
+groups
+```
+
+This will tell you in which groups the your user is registered.
+
+⚠️ Tracing the execution as shipped by the repo, the systemd service (ran by `user`) executes `bin/pitxu`, which at its time runs `poetry run main`. This means that the actual execution of Pitxu is done by `user`. Therefore, we need `user` to be part of `video`.  
+
+References:
+- https://gist.github.com/Quasimondo/e47a5be0c2fa9a3ef80c433e3ee2aead
+- https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
+
 ## 2. Clone the repository
 
 Taking `/home/user/` as a target for the project.
