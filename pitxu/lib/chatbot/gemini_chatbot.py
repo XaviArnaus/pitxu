@@ -15,6 +15,7 @@ from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 import time, anyio, math
 import fastmcp
 from collections import Counter
+import logging
 
 class GeminiChatbot(PyXavi):
     """
@@ -70,6 +71,8 @@ class GeminiChatbot(PyXavi):
     _mcp_trivago_client: fastmcp.Client = None
 
     VERBOSE_DEBUG: bool = True
+    GENAI_LIB_LOG_LEVEL: int = logging.WARNING
+    HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(GeminiChatbot, self).init_pyxavi(config=config, params=params)
@@ -85,7 +88,11 @@ class GeminiChatbot(PyXavi):
         self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
-    
+
+        # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
+        self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
+        self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)
+
     def get_session_manager(self):
         return self._session_manager
     
@@ -125,9 +132,18 @@ class GeminiChatbot(PyXavi):
         """
         self._used_models.append(self.MODEL)
     
+    def _initialize_internal_loggers(self):
+        self._log_debug("Setting Gemini API client log level to: " + str(self.GENAI_LIB_LOG_LEVEL))
+        logging.getLogger("google_genai").setLevel(self.GENAI_LIB_LOG_LEVEL)
+        self._log_debug("Setting Httpcore client log level to: " + str(self.HTTPCORE_LIB_LOG_LEVEL))
+        logging.getLogger("httpcore").setLevel(self.HTTPCORE_LIB_LOG_LEVEL)
+
     async def initialize_async(self, tools: list, force_model: str = None):
         self._xlog.info("🧠 Initializing GeminiChatbot with forcing the model " + (str(force_model) if force_model is not None else "None"))
         self._client = genai.Client(api_key=self._xparams.get("api_key"))
+
+        self._initialize_internal_loggers()
+        
         if force_model is not None and force_model not in self._used_models:
             self.MODEL = force_model
         else:

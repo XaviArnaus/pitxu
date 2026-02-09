@@ -1,3 +1,19 @@
+# Specific logging level for the libraries used in the project.
+libs_logger:
+    # Piper
+    piper:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
+    # GeminiChatbot
+    gemini_chatbot:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 30
+    # Vosk. Note that Vosk is a C++ library with Python bindings, so the logging level
+    #   has its own integers.
+    vosk:
+        # [Integer] Log level.
+        loglevel: -1
+
 # Logging config
 logger:
   # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50

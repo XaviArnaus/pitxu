@@ -31,7 +31,12 @@ class Piper(Xprocess):
         self._model = ROOT_DIR + "/" + str(self._xconfig.get("storage.path")) + str(self.MODELS_PATH) + str(model_name) + ".onnx"
         self._xlog.info("Loading TTS model from: " + self._model)
         self._voice = PiperVoice.load(self._model)
-        logging.getLogger("piper.voice").setLevel(self.PIPER_LIB_LOG_LEVEL)
+
+        # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
+        self.PIPER_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.piper.loglevel", self.PIPER_LIB_LOG_LEVEL)
+        self._log_debug("Setting Piper client log level to: " + str(self.PIPER_LIB_LOG_LEVEL))
+        logging.getLogger("piper").setLevel(self.PIPER_LIB_LOG_LEVEL)
+
         self._log_debug("Creating Piper Output Stream with samplerate: " + str(self._voice.config.sample_rate))
         self._output_stream = sounddevice.OutputStream(
             samplerate=self._voice.config.sample_rate,
