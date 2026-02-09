@@ -694,7 +694,8 @@ class Main(PyXavi):
         current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
-            self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+            # COMMENTING: This log is too much verbose, as it happens every second.
+            # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
             
             # If the background display is idle, show interaction holding percentage if applicable
             if not self._interaction.is_background_display_busy():
@@ -713,5 +714,5 @@ class Main(PyXavi):
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         self._interaction.clear_background_display()
             else:
-                self._xlog.debug("🤖 Matrix is busy, not showing interaction holding percentage.")
+                self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     
