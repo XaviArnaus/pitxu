@@ -5,7 +5,7 @@ from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
 
-import logging
+import logging, platform
 
 from subprocess import check_output
 
@@ -38,6 +38,9 @@ class SystemVolume(PyXavi, Command):
             int: The local system speaker volume level as a percentage (0-100)
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Getting speaker volume level is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Getting local system speaker volume level using ALSA.")
             call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
             #40%
@@ -58,6 +61,9 @@ class SystemVolume(PyXavi, Command):
             bool: True if the local system speaker is muted, False otherwise
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Getting speaker mute status is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Getting local system speaker mute status using ALSA.")
             call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
             #on
@@ -78,6 +84,9 @@ class SystemVolume(PyXavi, Command):
             int: The new volume level as a percentage (0-100)
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Setting speaker volume level is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Setting local system speaker volume level using ALSA to " + str(volume) + "%.")
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
@@ -98,6 +107,9 @@ class SystemVolume(PyXavi, Command):
             str: "muted" if the system is muted, "unmuted" otherwise
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Setting speaker mute status is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Setting local system speaker mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "mute" if mute else "unmute"
             check_output(f"amixer set Speaker {mute_str}", shell=True)
@@ -151,6 +163,9 @@ class SystemVolume(PyXavi, Command):
             int: The local system microphone volume level as a percentage (0-100)
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Getting microphone volume level is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Getting local system microphone volume level using ALSA.")
             call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
             #12%
@@ -171,6 +186,9 @@ class SystemVolume(PyXavi, Command):
             bool: True if the local system microphone is muted, False otherwise
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Getting microphone mute status is only supported on Linux with ALSA. Ignoring.")
+                return False
             self._log_debug("Getting local system microphone mute status using ALSA.")
             call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
             #Mute: on
@@ -191,6 +209,9 @@ class SystemVolume(PyXavi, Command):
             int: The new volume level as a percentage (0-100)
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Setting microphone volume level is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._xlog.debug(f"Setting local system microphone volume level using ALSA to {volume}%.")
             check_output(f"amixer set Mic {volume}%", shell=True)
             return self.get_local_system_microphone_volume_level()
@@ -209,6 +230,9 @@ class SystemVolume(PyXavi, Command):
             str: "muted" if the system is muted, "unmuted" otherwise
         '''
         try:
+            if not self._is_linux():
+                self._xlog.warning("Setting microphone mute status is only supported on Linux with ALSA. Ignoring.")
+                return -1
             self._log_debug("Setting local system microphone mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "mute" if mute else "unmute"
             check_output(f"amixer set Mic {mute_str}", shell=True)
@@ -288,3 +312,10 @@ class SystemVolume(PyXavi, Command):
         elif function_name == "set_local_system_microphone_mute_status" or function_name == "get_local_system_microphone_mute_status":
             return self.callback_microphone_muting
         return self.default_empty_callback
+
+    def _is_linux(self) -> bool:
+        os = platform.system()        
+        if (os.lower() != "linux"):
+            self._log_debug("OS is not Linux, ALSA commands will likely fail. Ignoring")
+            return False
+        return True
