@@ -50,9 +50,9 @@ class Vosk(PyXavi):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
             # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
-            self.VOSK_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.vosk.loglevel", self.VOSK_LIB_LOG_LEVEL)
-            self._log_debug("Setting Vosk client log level to: " + str(self.VOSK_LIB_LOG_LEVEL))
-            SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", self.VOSK_LIB_LOG_LEVEL))
+            self.VOICE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.vosk.loglevel", self.VOICE_LIB_LOG_LEVEL)
+            self._log_debug("Setting Vosk client log level to: " + str(self.VOICE_LIB_LOG_LEVEL))
+            SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", self.VOICE_LIB_LOG_LEVEL))
 
             model = self._xconfig.get("speech-to-text.model." + language, None)
             if model is not None:

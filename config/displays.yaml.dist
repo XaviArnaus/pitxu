@@ -41,7 +41,7 @@ eink:
     small: 10
     small_emoji: 9
     tiny: 8
-    # Defines the delays in seconds for the different interactions.
+  # Defines the delays in seconds for the different interactions.
   # If not defined, defaults will be used.
   # In case of collision, the smallest delay will be used.
   delays:
@@ -69,7 +69,7 @@ matrix_led:
   size:
     x: 8
     y: 8
-    # Defines the delays in seconds for the different interactions.
+  # Defines the delays in seconds for the different interactions.
   # If not defined, defaults will be used.
   # In case of collision, the smallest delay will be used.
   delays:
@@ -105,7 +105,7 @@ lcd:
     small: 20
     small_emoji: 16
     tiny: 16
-    # Defines the delays in seconds for the different interactions.
+  # Defines the delays in seconds for the different interactions.
   # If not defined, defaults will be used.
   # In case of collision, the smallest delay will be used.
   delays:
@@ -150,7 +150,7 @@ dsi_lcd:
     small_emoji: 16
     # [Integer] Font size for Tiny size
     tiny: 16
-    # Defines the delays in seconds for the different interactions.
+  # Defines the delays in seconds for the different interactions.
   # If not defined, defaults will be used.
   # In case of collision, the smallest delay will be used.
   delays:
