@@ -218,3 +218,61 @@ language:
       es: "Recordatorio movido de %s a las %s a %s a las %s."
       en-us: "Reminder moved from %s at %s to %s at %s."
       de: "Erinnerung verschoben von %s um %s zu %s um %s."
+  
+  # Lists
+  lists:
+    list_creation_error:
+      ca: "Ho sento, hi ha hagut un error en crear la llista."
+      es: "Lo siento, ha habido un error al crear la lista."
+      en-us: "I'm sorry, there was an error creating the list."
+      de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Liste."
+    list_already_exists:
+      ca: "Ja existeix una llista per a aquesta data i hora: %s."
+      es: "Ya existe una lista para esta fecha y hora: %s."
+      en-us: "A list already exists for this date and time: %s."
+      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Liste: %s."
+    list_retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar la llista."
+      es: "Lo siento, ha habido un error al recuperar la lista."
+      en-us: "I'm sorry, there was an error retrieving the list."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Liste."
+    list_not_found:
+      ca: "No s'ha trobat cap llista per al %s a les %s."
+      es: "No se ha encontrado ninguna lista para el %s a las %s."
+      en-us: "No list found for %s at %s."
+      de: "Keine Liste für den %s um %s gefunden."
+    list_deletion_error:
+      ca: "Ho sento, hi ha hagut un error en eliminar la llista."
+      es: "Lo siento, ha habido un error al eliminar la lista."
+      en-us: "I'm sorry, there was an error deleting the list."
+      de: "Es tut mir leid, es gab einen Fehler beim Löschen der Liste."
+    list_update_error:
+      ca: "Ho sento, hi ha hagut un error en actualitzar la llista."
+      es: "Lo siento, ha habido un error al actualizar la lista."
+      en-us: "I'm sorry, there was an error updating the list."
+      de: "Es tut mir leid, es gab einen Fehler beim Aktualisieren der Liste."
+    list_entry_addition_error:
+      ca: "Ho sento, hi ha hagut un error en afegir l'element a la llista %s."
+      es: "Lo siento, ha habido un error al agregar el elemento a la lista %s."
+      en-us: "I'm sorry, there was an error adding the item to the list %s."
+      de: "Es tut mir leid, es gab einen Fehler beim Hinzufügen des Elements zur Liste %s."
+    list_entry_deletion_error:
+      ca: "Ho sento, hi ha hagut un error en eliminar l'element de la llista %s a la posició %s."
+      es: "Lo siento, ha habido un error al eliminar el elemento de la lista %s a la posición %s."
+      en-us: "I'm sorry, there was an error deleting the item from the list %s at position %s."
+      de: "Es tut mir leid, es gab einen Fehler beim Löschen des Elements aus der Liste %s an Position %s."
+    list_entry_update_error:
+      ca: "Ho sento, hi ha hagut un error en actualitzar l'element de la llista %s a la posició %s."
+      es: "Lo siento, ha habido un error al actualizar el elemento de la lista %s a la posición %s."
+      en-us: "I'm sorry, there was an error updating the item in the list %s at position %s."
+      de: "Es tut mir leid, es gab einen Fehler beim Aktualisieren des Elements in der Liste %s an Position %s."
+    all_entries_retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar tots els elements de la llista %s."
+      es: "Lo siento, ha habido un error al recuperar todos los elementos de la lista %s."
+      en-us: "I'm sorry, there was an error retrieving all items from the list %s."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen aller Elemente aus der Liste %s."
+    list_entry_retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar l'element de la llista %s a la posició %s."
+      es: "Lo siento, ha habido un error al recuperar el elemento de la lista %s a la posición %s."
+      en-us: "I'm sorry, there was an error retrieving the item from the list %s at position %s."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen des Elements aus der Liste %s an Position %s."

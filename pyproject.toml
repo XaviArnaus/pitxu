@@ -32,7 +32,6 @@ geopy = "^2.4.1"
 gemini-tool-agent = "^0.1.5"
 fastmcp = "^2.13.1"
 nest-asyncio = "^1.6.0"
-raylib-drm = "^5.5.0.4"
 
 [tool.poetry.scripts]
 main = "runner:run"
@@ -46,6 +45,7 @@ test_eink_multiline = "runner:test_eink_multiline"
 battery_status = "runner:battery_status"
 send_email = "runner:send_email"
 send_to_printer = "runner:send_to_printer"
+test_lists = "runner:test_lists"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"
