@@ -1,3 +1,5 @@
+https://www.cyberciti.biz/faq/how-to-create-disk-image-on-mac-os-x-with-dd-command/
+
 # Making disk image with dd using live CD/DVD or USB pen drive
 
 You can boot from a live cd or USB pen drive. Once booted, make sure no partitions are mounted from the source hard drive disk. You can store disk image on an external USB disk. The syntax is as follows:
