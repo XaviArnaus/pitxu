@@ -18,12 +18,17 @@ class SystemVolume(PyXavi, Command):
     # Whatever the volume we want, we add this to avoid being too low
     SINK_VOLUME_ADDITION = 50
 
+    ALSA_SPEAKER_CONTROL_NAME: str = "Speaker"
+    ALSA_MIC_CONTROL_NAME: str = "Mic"
+
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
         self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
+        self.ALSA_SPEAKER_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_speaker_control_name", self.ALSA_SPEAKER_CONTROL_NAME)
+        self.ALSA_MIC_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_mic_control_name", self.ALSA_MIC_CONTROL_NAME)
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
@@ -42,7 +47,7 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting speaker volume level is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._log_debug("Getting local system speaker volume level using ALSA.")
-            call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
+            call_output = check_output("amixer sget " + self.ALSA_SPEAKER_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
             #40%
             volume = int(call_output.replace("%", "").strip()) - self.SINK_VOLUME_ADDITION
             if volume < 0:
@@ -65,7 +70,7 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting speaker mute status is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._log_debug("Getting local system speaker mute status using ALSA.")
-            call_output = check_output("amixer sget Speaker | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
+            call_output = check_output("amixer sget " + self.ALSA_SPEAKER_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
             #on
             is_muted_str = call_output.strip()
             self._log_debug(f"The local system speaker mute status using ALSA is: {is_muted_str}")
@@ -91,7 +96,7 @@ class SystemVolume(PyXavi, Command):
             # Unless we want to set volume to 0, we add the addition
             if volume != 0:
                 volume += self.SINK_VOLUME_ADDITION
-            check_output(f"amixer set Speaker {volume}%", shell=True)
+            check_output(f"amixer set {self.ALSA_SPEAKER_CONTROL_NAME} {volume}%", shell=True)
             return self.get_local_system_speaker_volume_level()
         except Exception as e:
             self._xlog.error(f"🛑 Error setting speaker volume level: {e}")
@@ -112,7 +117,7 @@ class SystemVolume(PyXavi, Command):
                 return -1
             self._log_debug("Setting local system speaker mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "mute" if mute else "unmute"
-            check_output(f"amixer set Speaker {mute_str}", shell=True)
+            check_output(f"amixer set {self.ALSA_SPEAKER_CONTROL_NAME} {mute_str}", shell=True)
             return self.MUTED if self.get_local_system_speaker_mute_status() else self.UNMUTED
         except Exception as e:
             self._xlog.error(f"🛑 Error setting speaker mute status: {e}")
@@ -167,7 +172,7 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone volume level is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._log_debug("Getting local system microphone volume level using ALSA.")
-            call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
             #12%
             mic_volume = int(call_output.replace("%", "").strip())
             if mic_volume < 0:
@@ -190,7 +195,7 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone mute status is only supported on Linux with ALSA. Ignoring.")
                 return False
             self._log_debug("Getting local system microphone mute status using ALSA.")
-            call_output = check_output("amixer sget Mic | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
             #Mute: on
             is_muted_str = call_output.split(":")[1].strip()
             self._log_debug(f"The local system microphone mute status using ALSA is: {is_muted_str}")
@@ -213,7 +218,7 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Setting microphone volume level is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._xlog.debug(f"Setting local system microphone volume level using ALSA to {volume}%.")
-            check_output(f"amixer set Mic {volume}%", shell=True)
+            check_output(f"amixer set {self.ALSA_MIC_CONTROL_NAME} {volume}%", shell=True)
             return self.get_local_system_microphone_volume_level()
         except Exception as e:
             self._xlog.error(f"Error setting the microphone volume level: {e}")
@@ -235,7 +240,7 @@ class SystemVolume(PyXavi, Command):
                 return -1
             self._log_debug("Setting local system microphone mute status using ALSA to " + ("MUTED" if mute else "UNMUTED") + ".")
             mute_str = "mute" if mute else "unmute"
-            check_output(f"amixer set Mic {mute_str}", shell=True)
+            check_output(f"amixer set {self.ALSA_MIC_CONTROL_NAME} {mute_str}", shell=True)
             return self.MUTED if self.get_local_system_microphone_mute_status() else self.UNMUTED
         except Exception as e:
             self._xlog.error(f"Error setting the microphone mute status: {e}")
