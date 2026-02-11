@@ -43,7 +43,7 @@ def load_logger(config: Config, loglevel: int = None) -> logging:
 def run():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         logger.debug("Starting Main run")
@@ -63,7 +63,7 @@ def clear_displays():
         from pitxu.lib.lcd.st7789 import ST7789
         from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper as DsiLcd
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         try:
@@ -101,7 +101,7 @@ def test_eink_multiline():
         from pitxu.lib.canvas.canvas import Canvas
 
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         logger.debug("Testing eInk display multiline text")
@@ -139,7 +139,7 @@ def test_matrix():
         from pitxu.lib.matrix_led import Max7219
 
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         logger.debug("Testing LED Matrix display")
@@ -163,7 +163,7 @@ def test_lcd():
         # from pitxu.lib.canvas.macros import Macros as CanvasMacros
 
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         expected_screen_size = Point(280, 240)
 
@@ -233,7 +233,7 @@ def test_mouth_in_lcd():
         MODE_IN_USE = "paint" # Valid values: "paint", "direct"
 
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         expected_screen_size = Point(280, 240)
 
@@ -300,7 +300,7 @@ def test_thinking_in_lcd():
         from pitxu.lib.objects.point import Point
 
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         expected_screen_size = Point(280, 240)
 
@@ -328,7 +328,7 @@ def test_thinking_in_lcd():
 def query_sound_devices():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         logger.debug("Querying SoundDevice")
@@ -345,7 +345,7 @@ def query_sound_devices():
 # def test_sound_out():
 #     try:
 #         # Instantiating
-#         config, logger, parameters = _initialize()
+#         config, logger, parameters = initialize()
 
 #         # Delegate the run to Main
 #         logger.debug("Testing SoundDevice")
@@ -392,7 +392,7 @@ def query_sound_devices():
 def battery_status():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         from pitxu.lib.ups.ups import UPS
@@ -413,7 +413,7 @@ def battery_status():
 def send_email():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         from pitxu.lib.command.services.mail import ServiceMail
@@ -433,7 +433,7 @@ def send_email():
 def send_to_printer():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         # Delegate the run to Main
         from pitxu.lib.command.services.print import ServicePrint
@@ -453,7 +453,7 @@ def send_to_printer():
 def test_lists():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         from pitxu.lib.utils.lists import Lists
         lists = Lists(config=config, params=parameters)
@@ -497,7 +497,7 @@ def test_lists():
     except Exception:
         print(full_stack())
 
-def _initialize() -> tuple[Config, Logger, Dictionary]:
+def initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()
     config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)

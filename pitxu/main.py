@@ -13,16 +13,17 @@ from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.server.server import Server
 
 from pitxu.lib.canvas.canvas import Canvas
 
 from pitxu.lib.speech_to_text import Vosk, VoskException
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 
-
 import sys
 import sounddevice
 import time
+from copy import deepcopy
 from datetime import datetime
 
 class Main(PyXavi):
@@ -34,6 +35,8 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
+
+    _server: Server = None
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -178,6 +181,21 @@ class Main(PyXavi):
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
+    
+    def _initialize_server(self):
+        """
+        Initializes the Server that accepts requests to the defined endpoints
+        """
+
+        if self._xconfig.get("server.enabled", False):
+            params = deepcopy(self._xparams)
+            params.set("stt", self._dictate)
+            params.set("chatbot", self._chatbot)
+            params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
+            self._server = Server(config=self._xconfig, params=params)
+            self._server.initialize()
+        else:
+            self._xlog.info("Server is disabled by configuration, not initializing it.")
 
     async def run(self):
 
@@ -188,36 +206,31 @@ class Main(PyXavi):
 
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
-        self._interaction.show_init_phases(1)
+        # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
+        self._interaction.show_init_phases(1, text="Interactions")
 
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
-        self._interaction.show_init_phases(2)
-        # ... yeah, "Loading", but I freeze the execution here.
-        # Technically the system supports leaving the splash while loading, speaking (greetings) and stuff in background.
-        # time.sleep(4)
 
         # At this point, we better wait for all queues to be empty.
-        # This basically involves eInk (for the splash).
-        # Matrix would also be related, but as we're showing the init phases, it's not that critical.
-        # self._process_pool.wait_for_queue_to_empty(QUEUE_EINK)
         # COMMENTED: Do we really need to wait for queues?
         # UNCOMMENTED: Hunting some Race Condition that makes the last 0.5s of the TTS to be input in SST.
-        self._interaction.wait_for_foreground_display_queue_to_empty()
-        self._interaction.show_init_phases(3)
+        # self._interaction.wait_for_foreground_display_queue_to_empty()
+        # self._interaction.show_init_phases(3, text="Foreground Display Queue Empty")
 
         # Initialise all classes that require a model. They go per language.
+        self._interaction.show_init_phases(2, text="Models")
         self._load_models()
-        self._interaction.show_init_phases(4)
 
         # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._interaction.show_init_phases(3, text="Language Statics")
         self._load_language_statics()
-        self._interaction.show_init_phases(5)
 
         try:
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
+            self._interaction.show_init_phases(4, text="Microphone")
             with sounddevice.RawInputStream(
                             samplerate=self._dictate.samplerate,
                             blocksize=0, 
@@ -225,30 +238,31 @@ class Main(PyXavi):
                             dtype="int16", 
                             channels=1,
                             callback=self._dictate.callback) as input_stream:
-                self._interaction.show_init_phases(6)
                 
                 # Welcome greeting
-                self._log_debug("Say Greetings")
                 sw_greeting = self._stopwatch.start(name="greeting")
+                self._interaction.show_init_phases(5, text="Greeting")
                 self._interaction.show_idle()
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
-                self._interaction.show_init_phases(7)
 
                 # Set up of all the session context we need for the Chatbot and the MCP tools
+                self._interaction.show_init_phases(6, text="Chatbot Session Manager")
                 async with self._chatbot.get_session_manager() as chatbot_session_manager:
-                    self._interaction.show_init_phases(8)
 
                     # Initialise the Chatbot async context with all the tools from the session manager
+                    self._interaction.show_init_phases(7, text="Chatbot")
                     await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
-                    self._interaction.show_init_phases(9)
 
-                    # We consider this point as the end of the initialisation phases
-                    # Clean the Matrix led from the points showing the init phases
-                    # COMMENTED: I am hunting for a double CLEAN. Let me test.
-                    # self._interaction.clear_background_display()
+                    # Initialise the Server that accepts requests to the defined endpoints.
+                    self._interaction.show_init_phases(8, text="Server")
+                    self._initialize_server()
 
+                    # Clean background after initialisation.
+                    # NOTE: I suspect double clear due to background & combined inheritance method execution.
+                    #   Please check.
+                    self._interaction.clear_background_display()
                     self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
                     # Before we start with the loop, let's set the last interaction time to now

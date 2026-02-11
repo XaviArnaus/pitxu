@@ -89,16 +89,7 @@ class Vosk(PyXavi):
                 raise VoskException("Vosk is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
                 data = self._queue.get()
-                if self._recognizer.AcceptWaveform(data):
-                    result = json.loads(self._recognizer.Result())
-                    result_text = str(result["text"]).replace("\n", "").strip()
-                    if result_text == "":
-                        return None
-                    self._xlog.debug(f"Vosk: Recognized text: {result_text}")
-                    return result_text
-                else:
-                    result = json.loads(self._recognizer.PartialResult())
-                    return None
+                return self.process_audio_data(data)
         except queue.ShutDown as e:
             self.is_active = False
             raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
@@ -114,6 +105,22 @@ class Vosk(PyXavi):
             self._xlog.error(full_stack())
             self.close()
             return None
+    
+    def process_audio_data(self, data: bytes):
+        """
+        Method to be called to process audio data received from the microphone input or the server endpoint.
+        """
+        if self._recognizer.AcceptWaveform(data):
+            result = json.loads(self._recognizer.Result())
+            result_text = str(result["text"]).replace("\n", "").strip()
+            if result_text == "":
+                return None
+            self._xlog.debug(f"Vosk: Recognized text: {result_text}")
+            return result_text
+        else:
+            result = json.loads(self._recognizer.PartialResult())
+            return None
+        
     
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")

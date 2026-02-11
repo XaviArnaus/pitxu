@@ -577,10 +577,13 @@ class Macros(PyXavi):
 
         self.device.display(self.canvas.get_image())
     
-    def draw_init_phase(self, draw: ImageDraw.ImageDraw, phase: int):
+    def draw_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
 
         # Initial Background Paint clear
         self._soft_clear_rectangle(draw=draw)
+
+        phase = parameter.get("phase", 0)
+        text = parameter.get("text", None)
 
         rows = math.floor(phase / 8) + 1
         rows = rows if rows > 1 else 1

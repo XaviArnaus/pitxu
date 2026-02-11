@@ -222,11 +222,11 @@ class Interaction(PyXavi):
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP, str(for_seconds))
 
-    def show_init_phases(self, step: int):
+    def show_init_phases(self, step: int, text: str = None):
         """
         Show the initialization phases on the Background display.
         """
-        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.INIT_STEP, str(step))
+        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.INIT_STEP, (str(step), text))
 
     def show_idle(self):
         """

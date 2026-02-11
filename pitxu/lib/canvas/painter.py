@@ -525,7 +525,7 @@ class Painter(PyXavi, Thread):
                     elif current_background_interaction.interaction == BackgroundComm.INITIAL_PHASE:
                         self._log_debug(f"Painter Loop: Drawing Init Steps screen on LCD display")
                         # self.macros._soft_clear_rectangle(draw=self.draw)
-                        self.macros.draw_init_phase(draw=self.draw, phase=current_background_interaction.parameter)
+                        self.macros.draw_init_phase(draw=self.draw, parameter=current_background_interaction.parameter)
                     elif current_background_interaction.interaction == BackgroundComm.HOLDER_PERCENTAGE:
                         self._log_debug(f"Painter Loop: Drawing Holder Percentage screen on LCD display")
                         self.macros.draw_interaction_holding_percentage(draw=self.draw, percentage=current_background_interaction.parameter)
