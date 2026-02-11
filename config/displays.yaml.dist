@@ -9,12 +9,13 @@ displays:
     - dsi_lcd
   # [String] The display to use for foreground notifications. Must be one of the available displays.
   # Foreground notifications are those that need to be shown immediately, like questions and answers from tools.
-  # foreground_display: dsi_lcd
-  foreground_display: eink
+  foreground_display: dsi_lcd
   # [String] The display to use for background notifications. Must be one of the available displays.
   # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
-  # background_display: dsi_lcd
-  background_display: matrix_led
+  background_display: dsi_lcd
+  # [Bool] Avoid storing mocked images (avoids generating tons of PNGs while testing).
+  # This is applied to all mocked displays, independently of the individual display configuration.
+  discard_mocked_images: False
 
 # Configuration fo the eInk Display
 eink:
