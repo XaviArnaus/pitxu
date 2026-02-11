@@ -29,13 +29,13 @@ text-to-speech:
   # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   output_device: 0
   # [String] ALSA control name for the speakers. Only used on Linux with ALSA.
-  ALSA_SPEAKER_CONTROL_NAME: "Speaker"
-  # ALSA_SPEAKER_CONTROL_NAME: "Master"
+  alsa_speaker_control_name: "Speaker"
+  # alsa_speaker_control_name: "Master"
   # [String] ALSA control name for the microphone. Only used on Linux with ALSA.
-  # ALSA_MIC_CONTROL_NAME: "Mic"
-  ALSA_MIC_CONTROL_NAME: "Capture"
+  # alsa_mic_control_name: "Mic"
+  alsa_mic_control_name: "Capture"
   # [Integer] Volume addition to the volume level read from the system.
-  SINK_VOLUME_ADDITION: 0
+  add_to_output_volume: 0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan
