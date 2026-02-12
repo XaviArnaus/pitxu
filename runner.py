@@ -14,9 +14,7 @@ from pyxavi.debugger import full_stack
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 
-from definitions import ROOT_DIR, CONFIG_DIR
-
-from pitxu.main import Main
+from definitions import ROOT_DIR
 
 
 def load_environment():
@@ -45,11 +43,31 @@ def run():
         # Instantiating
         config, logger, parameters = initialize()
 
-        # Delegate the run to Main
-        logger.debug("Starting Main run")
-        main = Main(config=config, params=parameters)
-        asyncio.run(main.run())
-        logger.info("End of the Main run")
+        # Discover which execution mode we are in, and log it.
+        # Get the execution mode. Ensure that we have an accepted value only.
+        # Default to the normal (local) execution mode.
+        exec_mode = config.get("app.execution_mode", "local")
+        if exec_mode not in ["local", "client", "server"]:
+            logger.error(f"🛑 Invalid execution mode [{exec_mode}] in config. Accepted values are: local, client, server. Defaulting to 'local' mode.")
+            exec_mode = "local"
+        parameters.set("execution_mode", exec_mode)
+
+        if exec_mode == "local":
+            from pitxu.main import Main
+            logger.info("🚀 Starting in LOCAL execution mode")
+            main = Main(config=config, params=parameters)
+            asyncio.run(main.run())
+            logger.info("End of the Main run")
+
+        elif exec_mode == "client":
+            from pitxu.main_client import MainClient
+            logger.info("🚀 Starting in CLIENT execution mode")
+            main_client = MainClient(config=config, params=parameters)
+            asyncio.run(main_client.run())
+            logger.info("End of the Main Client run")
+
+        elif exec_mode == "server":
+            logger.error("🛑 SERVER execution mode is not implemented yet. Please run in 'local' or 'client' mode for now.")
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)

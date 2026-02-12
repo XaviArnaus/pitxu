@@ -41,6 +41,23 @@ class ChatbotResponse:
             error=ChatbotResponse.parse_error(response),
             metadata=ChatbotResponse.parse_metadata(response)
         )
+    
+    @staticmethod
+    def from_dict(data: dict) -> ChatbotResponse:
+        """
+        Creates a ChatbotResponse object from a dictionary.
+        """
+        text = data.get("text", "")
+        function_call_history_data = data.get("function_call_history", None)
+        error = data.get("error", None)
+
+        function_call_history = FunctionCallHistory.from_dict(function_call_history_data) if function_call_history_data is not None else FunctionCallHistory()
+
+        return ChatbotResponse(
+            text=text,
+            function_call_history=function_call_history,
+            error=error
+        )
 
     @staticmethod
     def parse_error(response: GenerateContentResponse) -> FinishReason:

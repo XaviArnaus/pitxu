@@ -19,6 +19,8 @@ class Server(PyXavi):
     chatbot_client_callbacks = None
     output_interaction = None
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config, params: Dictionary):
         super(Server, self).init_pyxavi(config=config, params=params)
 
@@ -64,6 +66,18 @@ class Server(PyXavi):
         self.start_server()
 
         self._log_debug("Server accepts connections now.")
+    
+    def close(self):
+        self._xlog.info("Shutting down Server")
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        func()
+        # if self.server_thread.is_alive():
+        #     self._xlog.debug("Waiting for server thread to finish")
+        #     self.server_thread.join()
+        
+        self._xlog.info("Server shutdown complete")
     
     def start_server(self):
         self._xlog.info("Starting Server Thread")
@@ -118,19 +132,24 @@ class Server(PyXavi):
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
         from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+        import numpy as np
 
         # Framework initialization.
         logger = current_app.config['logger']
 
-        audio_data = request.data
-        logger.debug(f"Received /transcribe request with content type: {request.content_type} and content length: {request.content_length}")
+        audio_data = request.json.get("data_bytes", None)
+        if audio_data is not None:
+            audio_data = base64.b64decode(audio_data)
+        logger.debug(f"Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
 
         error = None
         try:
             # Feature initialization.
+            logger.debug("Retrieving STT instance from server context")
             stt: Vosk = current_app.config['stt']
 
             # Process the audio data and get the transcription.
+            logger.debug("Processing audio data for transcription")
             transcribed = stt.process_audio_data(audio_data)
             return {
                 "status": "ok", 
@@ -185,7 +204,7 @@ class Server(PyXavi):
                     "status": "ok",
                     "question": question,
                     "answer": answer,
-                    "metadata": chat_response.metadata,
+                    "function_call_history": chat_response.function_call_history.to_dict() if chat_response.function_call_history else None,
                     "error": error
                 }
         except Exception as e:
@@ -196,7 +215,7 @@ class Server(PyXavi):
                 "status": "ko",
                 "question": question,
                 "answer": None,
-                "metadata": None,
+                "function_call_history": None,
                 "error": error
             }
         
@@ -219,12 +238,13 @@ class Server(PyXavi):
             # Feature initialization.
             output_interaction: Interaction = current_app.config['output_interaction']
 
-            audio_bytes = output_interaction.generate_speech_audio_bytes(text)
+            audio_data = output_interaction.generate_speech_audio_bytes(text)
             return {
                 "status": "ok",
                 "text": text,
-                "audio_bytes_length": len(audio_bytes),
-                "audio_bytes": base64.b64encode(audio_bytes).decode('utf-8'),
+                "audio_bytes_length": len(audio_data.get("audio_bytes", b"")),
+                "audio_bytes": base64.b64encode(audio_data.get("audio_bytes", b"")).decode('utf-8'),
+                "sample_rate": audio_data.get("sample_rate", None),
                 "error": error
             }
         except Exception as e:
@@ -234,7 +254,7 @@ class Server(PyXavi):
             return {
                 "status": "ko",
                 "text": text,
-                "error": str(e),
+                "error": error,
                 "audio_bytes_length": 0,
                 "audio_bytes": None
             }

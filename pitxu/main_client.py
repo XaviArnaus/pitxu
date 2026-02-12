@@ -11,12 +11,13 @@ from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
-from pitxu.lib.chatbot import GeminiChatbot
+from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
+from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
-from pitxu.lib.microservice.server import Server
+from pitxu.lib.microservice.client import Client
 
 import sys
 import sounddevice
@@ -24,7 +25,7 @@ import time
 from copy import deepcopy
 from datetime import datetime
 
-class Main(PyXavi):
+class MainClient(PyXavi):
 
     _state: Storage = None
     
@@ -34,10 +35,11 @@ class Main(PyXavi):
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
 
-    _server: Server = None
+    _client: Client = None
 
-    _chatbot: GeminiChatbot = None
-    _dictate: Vosk = None
+    _chatbot: GenericChatbot = None
+    _chatbot_session_manager: ChatbotSessionManager = None
+    _dictate: SpeechToText = None
     _raw_input_stream: sounddevice.RawInputStream = None
 
     _is_pitxu_active: bool = True
@@ -69,7 +71,7 @@ class Main(PyXavi):
 
     def __init__(self, config: Config = None, params: Dictionary = None):
 
-        super(Main, self).init_pyxavi(config=config, params=params)
+        super(MainClient, self).init_pyxavi(config=config, params=params)
 
         # Handle SIGTERM for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_sigterm)
@@ -111,35 +113,31 @@ class Main(PyXavi):
         This allows the service to stop gracefully when receiving a termination signal,
         that happens with systemctl stop or reboot commands.
         """
-        self._xlog.warning('SIGTERM received in Main, closing nicely now...')
+        self._xlog.warning('SIGTERM received in MainClient, closing nicely now...')
         self.close_nicely()
+    
+    def _initialize_speech_to_text(self):
+        """
+        Initializes the Speech-to-Text module that will call the server to transcribe the audio.
+        """
 
-    def _load_models(self):
-        
-        # Initialise Speech-to-Text. This runs in the main process
-        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
-        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        self._dictate = SpeechToText(config=self._xconfig, params=self._xparams)
+        self._dictate.initialize()
 
-        # # Initialise the Raw Input Stream for microphone
-        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
-        # if self._xconfig.get("speech_to_text.mock", True) is False:
-        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
-        #     # Correct format for Vosk is PCM 16khz 16bit mono
-        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
-        #                     blocksize = 0, 
-        #                     device=self._dictate.device,
-        #                     dtype="int16", 
-        #                     channels=1,
-        #                     callback=self._dictate.callback)
-        # else:
-        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
+    async def _initialize_chatbot(self):
+        """
+        Initializes the Generic Chatbot and the Session Manager and gathers the callbacks definition.
+        that manages the session context for the Chatbot and the MCP tools.
 
-        # Initialise Chatbot
-        self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        The idea is that we don't need the Chatbot,
+        but it returns answers that may involve tools that we want to react on.
+        """
+        self._chatbot = GenericChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot.initialize()
+
+        chatbot_session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
+        await chatbot_session_manager.initialize()
+        self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
 
     def _load_language_statics(self):
 
@@ -180,21 +178,13 @@ class Main(PyXavi):
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
     
-    def _initialize_server(self):
+    def _initialize_client(self):
         """
-        Initializes the Server that accepts requests to the defined endpoints
+        Initializes the Client that performs requests to the defined endpoints
         """
 
-        if self._xconfig.get("server.enabled", False):
-            params = deepcopy(self._xparams)
-            params.set("stt", self._dictate)
-            params.set("output_interaction", self._interaction)
-            params.set("chatbot", self._chatbot)
-            params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
-            self._server = Server(config=self._xconfig, params=params)
-            self._server.initialize()
-        else:
-            self._xlog.info("Server is disabled by configuration, not initializing it.")
+        self._client = Client(config=self._xconfig, params=self._xparams)
+        self._client.initialize()
 
     async def run(self):
 
@@ -218,9 +208,10 @@ class Main(PyXavi):
         # self._interaction.wait_for_foreground_display_queue_to_empty()
         # self._interaction.show_init_phases(3, text="Foreground Display Queue Empty")
 
-        # Initialise all classes that require a model. They go per language.
-        self._interaction.show_init_phases(2, text="Models")
-        self._load_models()
+        # Initialise the SpeechToText module,
+        # that will be responsible for recognizing the audio and sending it to the server for transcription.
+        self._interaction.show_init_phases(2, text="Speech-to-Text")
+        self._initialize_speech_to_text()
 
         # Load all language statics, like the exit words and the greeting / goodbye sentences
         self._interaction.show_init_phases(3, text="Language Statics")
@@ -245,177 +236,173 @@ class Main(PyXavi):
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
-                # Set up of all the session context we need for the Chatbot and the MCP tools
-                self._interaction.show_init_phases(6, text="Chatbot Session Manager")
-                async with self._chatbot.get_session_manager() as chatbot_session_manager:
+                # Load the Chatbot Callbacks definitions,
+                #   that are needed to react on the possible tool calls in the answers.
+                self._interaction.show_init_phases(6, text="Chatbot")
+                await self._initialize_chatbot()
 
-                    # Initialise the Chatbot async context with all the tools from the session manager
-                    self._interaction.show_init_phases(7, text="Chatbot")
-                    await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
-                    self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+                # Initialise the Client that performs requests to the defined endpoints.
+                # Technically the SST and TTS do this internally, so it's only for the Chatbot.
+                self._interaction.show_init_phases(8, text="Client")
+                self._initialize_client()
 
-                    # Initialise the Server that accepts requests to the defined endpoints.
-                    self._interaction.show_init_phases(8, text="Server")
-                    self._initialize_server()
+                # Clean background after initialisation.
+                # NOTE: I suspect double clear due to background & combined inheritance method execution.
+                #   Please check.
+                self._interaction.clear_background_display()
+                self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
-                    # Clean background after initialisation.
-                    # NOTE: I suspect double clear due to background & combined inheritance method execution.
-                    #   Please check.
-                    self._interaction.clear_background_display()
-                    self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
+                # Before we start with the loop, let's set the last interaction time to now
+                # It just started, there was a greating after all.
+                # Maybe the user wants to talk straight away without the trigger words.
+                self._last_interaction_datetime = datetime.now()
+                self._interaction.unmute_microphone(input_stream=input_stream)
 
-                    # Before we start with the loop, let's set the last interaction time to now
-                    # It just started, there was a greating after all.
-                    # Maybe the user wants to talk straight away without the trigger words.
-                    self._last_interaction_datetime = datetime.now()
-                    self._interaction.unmute_microphone(input_stream=input_stream)
+                question = ""
+                dictate_count = 0
+                answer_count = 0
+                while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
 
-                    question = ""
-                    dictate_count = 0
-                    answer_count = 0
-                    while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
+                    # Check the things to do every minute
+                    # This includes reminders checking and speaking them out.
+                    self.do_every_minute_tasks()
 
-                        # Check the things to do every minute
-                        # This includes reminders checking and speaking them out.
-                        self.do_every_minute_tasks()
+                    # Check the things to do every second
+                    # This includes checking for interaction holding time
+                    self.do_every_second_tasks()
 
-                        # Check the things to do every second
-                        # This includes checking for interaction holding time
-                        self.do_every_second_tasks()
+                    # Show idle screen in eInk if not already showing it
+                    if not self._interaction.is_eink_in_idle_mode():
+                        self._interaction.show_idle()
 
-                        # Show idle screen in eInk if not already showing it
-                        if not self._interaction.is_eink_in_idle_mode():
-                            self._interaction.show_idle()
+                    # Recognize what comes from the microphone
+                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                    question = self._dictate.recognize()
+                    if (question == None or question.strip() == ""):
+                        # Nothing recognized, nothing to process.
+                        continue
 
-                        # Recognize what comes from the microphone
-                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                        question = self._dictate.recognize()
-                        if (question == None or question.strip() == ""):
-                            # Nothing recognized, nothing to process.
-                            continue
+                    # Still here? Then something got recognised.
+                    self._log_debug("💬 Recognised dictate: " + question)
+                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    dictate_count += 1
 
-                        # Still here? Then something got recognised.
-                        self._log_debug("💬 Recognised dictate: " + question)
-                        self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                        dictate_count += 1
+                    # Mute microphone to avoid self-looping
+                    self._interaction.mute_microphone(input_stream=input_stream)
 
-                        # Mute microphone to avoid self-looping
-                        self._interaction.mute_microphone(input_stream=input_stream)
+                    # Initialize the answer that collects until interaction.
+                    answer = None
 
-                        # Initialize the answer that collects until interaction.
-                        answer = None
+                    # Analyze the question to see what to do.
+                    text_has_exit_intention = self._text_has_exit_intention(question)
+                    text_is_only_trigger_words = self._text_is_only_trigger_words(question)
+                    text_initial_words_intend_to_trigger_interaction = self._text_initial_words_intend_to_trigger_interaction(question)
+                    text_continues_ongoing_interaction = self._text_continues_ongoing_interaction(question)
 
-                        # Analyze the question to see what to do.
-                        text_has_exit_intention = self._text_has_exit_intention(question)
-                        text_is_only_trigger_words = self._text_is_only_trigger_words(question)
-                        text_initial_words_intend_to_trigger_interaction = self._text_initial_words_intend_to_trigger_interaction(question)
-                        text_continues_ongoing_interaction = self._text_continues_ongoing_interaction(question)
+                    # Avoid calling the Chatbot when we can exit directly.
+                    if text_has_exit_intention and text_continues_ongoing_interaction:
+                        # Just assume a goodbye
+                        answer = self._goodbye_sentence
+                    # Avoid calling the Chatbot when the text is only meant for waking up the system.
+                    elif text_is_only_trigger_words:
+                        # Randomly choose one of the trigger answers
+                        import random
+                        answer = random.choice(self._trigger_answers)
+                    # Check if the text is meant to trigger or continue an interaction
+                    # Same as before, but the question is passed to the chatbot.
+                    elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
 
-                        # Avoid calling the Chatbot when we can exit directly.
-                        if text_has_exit_intention and text_continues_ongoing_interaction:
-                            # Just assume a goodbye
-                            answer = self._goodbye_sentence
-                        # Avoid calling the Chatbot when the text is only meant for waking up the system.
-                        elif text_is_only_trigger_words:
-                            # Randomly choose one of the trigger answers
-                            import random
-                            answer = random.choice(self._trigger_answers)
-                        # Check if the text is meant to trigger or continue an interaction
-                        # Same as before, but the question is passed to the chatbot.
-                        elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
+                        # Here we start with the Chatbot.
+                        # -------------------------------
 
-                            # Here we start with the Chatbot.
-                            # -------------------------------
+                        # We set it as busy in shared memory, so the Background Display can show the thinking effect
+                        # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
+                        #   to react on the busy flag changes and be displayed on time.
+                        self._interaction.show_thinking()
+                        # I am going to try to show the question while thinking.
+                        # It may give some time to the LCD to show the previous called thinking effect.
+                        self._interaction.show_arbitrary_text_on_foreground_while_thinking(
+                            icon="👤",
+                            text=question,
+                            font_size=24,
+                        )
+                        self._interaction.wait_for_background_display_queue_to_empty()
+                        self._interaction.set_chatbot_busy()
+                        chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+                        answer = chat_response.text
+                        self._interaction.unset_chatbot_busy()
+                        try:
+                            self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
+                            if chat_response.function_call_history.get_last().has_response():
+                                self._log_debug("🗣️ Received function call response. Reacting.")
+                                # Shutdown and Reboot interrupt the flow and directly shutdown,
+                                # calling `close_nicely()` from there.
+                                # Keep in mind that:
+                                #   - here we may have played with BUSY flags.
+                                #   - repeating a question that involves a tool does not mean that the second time the tool gets called.
+                                #       It may just take the previous question and answer again.
+                                #       There may not be a second function call response.
+                                #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
+                                #       So the second time we may not be able to show the time on the screen, for example.
+                                self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                        except Exception as e:
+                            self._xlog.error("🛑 Error reacting to function call: " + str(e))
 
-                            # We set it as busy in shared memory, so the Background Display can show the thinking effect
-                            # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
-                            #   to react on the busy flag changes and be displayed on time.
-                            self._interaction.show_thinking()
-                            # I am going to try to show the question while thinking.
-                            # It may give some time to the LCD to show the previous called thinking effect.
-                            self._interaction.show_arbitrary_text_on_foreground_while_thinking(
-                                icon="👤",
-                                text=question,
-                                font_size=24,
-                            )
-                            self._interaction.wait_for_background_display_queue_to_empty()
-                            self._interaction.set_chatbot_busy()
-                            chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
-                            self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
-                            answer = chat_response.text
-                            self._interaction.unset_chatbot_busy()
-                            try:
-                                self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
-                                if chat_response.function_call_history.get_last().has_response():
-                                    self._log_debug("🗣️ Received function call response. Reacting.")
-                                    # Shutdown and Reboot interrupt the flow and directly shutdown,
-                                    # calling `close_nicely()` from there.
-                                    # Keep in mind that:
-                                    #   - here we may have played with BUSY flags.
-                                    #   - repeating a question that involves a tool does not mean that the second time the tool gets called.
-                                    #       It may just take the previous question and answer again.
-                                    #       There may not be a second function call response.
-                                    #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
-                                    #       So the second time we may not be able to show the time on the screen, for example.
-                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
-                            except Exception as e:
-                                self._xlog.error("🛑 Error reacting to function call: " + str(e))
+                        # This waiting happens BEFORE we reached the answering phase with the interaction.say().
+                        # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
+                        # It will be waiting forever because the TTS has not started yet.
+                        # - Commenting it out to see how it goes.
+                        # - Uncommenting again because seems like the block happens in interaction.say() instead.
+                        self._interaction.wait_for_foreground_display_queue_to_empty()
 
-                            # This waiting happens BEFORE we reached the answering phase with the interaction.say().
-                            # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
-                            # It will be waiting forever because the TTS has not started yet.
-                            # - Commenting it out to see how it goes.
-                            # - Uncommenting again because seems like the block happens in interaction.say() instead.
-                            self._interaction.wait_for_foreground_display_queue_to_empty()
+                    # Anything else is ignored.
+                    else:
+                        self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
+                        # Removing the question, as it could be an unwanted trigger for exit.
+                        question = ""
 
-                        # Anything else is ignored.
-                        else:
-                            self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
-                            # Removing the question, as it could be an unwanted trigger for exit.
-                            question = ""
-
-                        # Do we actually have any answer?
-                        if answer is not None and answer.strip() != "":
-                        
-                            # Clean the answer first, just in case
-                            answer = Text.remove_emojis(answer)
-                            answer = Text.remove_markdown(answer)
-                            answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
-
-                            # Answer
-                            sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                            self._interaction.say(answer)
-                            self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                            answer_count += 1
-
-                            # If we were communicating an error, it's over and start new
-                            if self._interaction.is_chatbot_error():
-                                self._interaction.unset_chatbot_error()
-                            
-                            # Last thing to do is to remember this as the last interaction.
-                            # Has to happen at the very last otherwise the time is consumed by the possible answering process.
-                            self._last_interaction_datetime = datetime.now()
-
-                        # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
-                        # This second here makes the human-computer interaction worse.
-                        # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
-                        # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
-                        #   instead of waiting. 
-                        # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
-                        # time.sleep(1)
-                        self._interaction.unmute_microphone(input_stream=input_stream)
+                    # Do we actually have any answer?
+                    if answer is not None and answer.strip() != "":
                     
-                    # We arrived here because the user wanted to exit the main loop
-                    # Make sure we leave the state properly
-                    self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                    self._interaction.unset_eink_idle_mode()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
+                        # Clean the answer first, just in case
+                        answer = Text.remove_emojis(answer)
+                        answer = Text.remove_markdown(answer)
+                        answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+
+                        # Answer
+                        sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
+                        self._interaction.say(answer)
+                        self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+                        answer_count += 1
+
+                        # If we were communicating an error, it's over and start new
+                        if self._interaction.is_chatbot_error():
+                            self._interaction.unset_chatbot_error()
+                        
+                        # Last thing to do is to remember this as the last interaction.
+                        # Has to happen at the very last otherwise the time is consumed by the possible answering process.
+                        self._last_interaction_datetime = datetime.now()
+
+                    # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
+                    # This second here makes the human-computer interaction worse.
+                    # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
+                    # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
+                    #   instead of waiting. 
+                    # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
+                    # time.sleep(1)
+                    self._interaction.unmute_microphone(input_stream=input_stream)
+                
+                # We arrived here because the user wanted to exit the main loop
+                # Make sure we leave the state properly
+                self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
+                self._interaction.unset_eink_idle_mode()
+                self._interaction.wait_for_foreground_display_queue_to_empty()
+                self._interaction.wait_for_busy_foreground_display_to_idle()
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
-            self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
+        except SpeechToTextException as ve:
+            self._xlog.error("🛑 SpeechToTextException detected in Main run loop: " + str(ve))
         except Exception as e:
             self._xlog.error("🛑 Error in Main run loop: " + str(e))
             self._xlog.error(full_stack())  

@@ -1,5 +1,4 @@
-# Parameters related to the server exposing endpoints for receiving audio data and returning transcriptions,
-# as well as the chatbot endpoint for receiving questions and returning answers.
+# Parameters related to the server exposing endpoints for remote interaction with clients
 server:
   # [Bool] Is the server enabled.
   enabled: True
@@ -10,3 +9,10 @@ server:
   # [Bool] Enable debug mode for the server (auto-reload, more verbose logging, etc.).
   # Directly relates to Flask debug mode.
   debug: true
+
+# Parameters related to the client connecting to the server endpoints for interacting wit the server
+client:
+  # [String] Host to bind the server to.
+  host: "127.0.0.1"
+  # [Int] Port to bind the server to.
+  port: 5000

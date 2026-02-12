@@ -8,7 +8,6 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
-from pitxu.lib.utils.amplitude import Amplitude
 
 class Piper(Xprocess):
 
@@ -102,12 +101,10 @@ class Piper(Xprocess):
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
-            for int_data in self.genenerate_audio_chunks(text):
+            for int_data in self.generate_audio_chunks(text):
                 # if self.interrupt_event.is_set():
                 #     self.get_logger().info("Speech interrupted.")
                 #     break
-                # self._log_debug("Processing audio chunk of size: " + str(len(chunk.audio_int16_bytes)) + " bytes")
-                # int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
 
                 # Make it to speak
                 self._log_debug("Writing audio bytes to output stream")
@@ -123,15 +120,18 @@ class Piper(Xprocess):
         if self._output_queue is not None:
             self._log_debug("Generating audio bytes for text and sending through output queue")
             # Generate the audio bytes for the given text and send them through the output queue
-            for audio_bytes in self.genenerate_audio_chunks(text):
-                self._output_queue.put(audio_bytes)
+            for audio_bytes in self.generate_audio_chunks(text):
+                self._output_queue.put({
+                    "audio_bytes": audio_bytes,
+                    "sample_rate": self._voice.config.sample_rate
+                })
             # We need to tell the consumer that we're done sending audio bytes,
             # so we send a None value (which is not a valid audio chunk)
             self._output_queue.put(self._sentinel_output_queue)
         else:
             self._log_debug("No output queue defined, cannot send audio bytes")
     
-    def genenerate_audio_chunks(self, text: str):
+    def generate_audio_chunks(self, text: str):
         # This is a generator that yields audio chunks for the given text, to be used in streaming scenarios
         for chunk in self._voice.synthesize(text):
             int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)

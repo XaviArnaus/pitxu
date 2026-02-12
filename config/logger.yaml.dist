@@ -62,6 +62,7 @@ logger:
             Display: CYAN_BRIGHT
             MatrixLed: MAGENTA_BRIGHT
             Piper: YELLOW_BRIGHT
+            TextToSpeech: YELLOW_BRIGHT
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
         by_thread:

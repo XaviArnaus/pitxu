@@ -4,7 +4,8 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 
-from pitxu.lib.text_to_speech import Piper
+from pitxu.lib.text_to_speech.piper import Piper
+from pitxu.lib.text_to_speech.text_to_speech import TextToSpeech
 from pitxu.lib.eink.display import Display as eInk
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
@@ -85,21 +86,28 @@ class Interaction(PyXavi):
         # All interactions will be done via processes
         self.process_pool = XprocessPool(config=config, params=params)
 
-        # Text to speech is the main interaction.
-        # We initialize it without wanting initializations from the main Process.
-        # We also grab the output queue details for the audio bytes,
-        #   so we allow the server to generate the audio bytes and return them through the endpoint.
-        self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        output_queue_params = self.process_pool.new_and_start(self.speech_queue, target=Piper, params=Dictionary({
-            "initialize_from_main": False,
-            "use_output_queue": True
-        }))
-        if output_queue_params is not None:
-            self._log_debug("Initialized speech queue output and sentinel output queues")
-            self.speech_output_queue = output_queue_params.get("output_queue", None)
-            self.speech_output_queue_sentinel = output_queue_params.get("sentinel_output_queue", None)
+        # Load the TTS client if we're in "client" mode
+        if self._xparams.get("execution_mode") == "client":
+            self._xlog.info("Execution mode is 'client', initializing a generic remote TTS.")
+            self.process_pool.new_and_start(self.speech_queue, target=TextToSpeech, params=Dictionary({
+                "initialize_from_main": False,
+            }))
         else:
-            self._xlog.warning("🟠 No output queue params returned from initializing the speech queue. Output queue for audio bytes will not be available.")
+            # Text to speech is the main interaction.
+            # We initialize it without wanting initializations from the main Process.
+            # We also grab the output queue details for the audio bytes,
+            #   so we allow the server to generate the audio bytes and return them through the endpoint.
+            self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
+            output_queue_params = self.process_pool.new_and_start(self.speech_queue, target=Piper, params=Dictionary({
+                "initialize_from_main": False,
+                "use_output_queue": True
+            }))
+            if output_queue_params is not None:
+                self._log_debug("Initialized speech queue output and sentinel output queues")
+                self.speech_output_queue = output_queue_params.get("output_queue", None)
+                self.speech_output_queue_sentinel = output_queue_params.get("sentinel_output_queue", None)
+            else:
+                self._xlog.warning("🟠 No output queue params returned from initializing the speech queue. Output queue for audio bytes will not be available.")
 
         # Initialize the required displays
         self._initialize_displays()
@@ -222,7 +230,7 @@ class Interaction(PyXavi):
         # COMMENTED: This should not be needed. Display is not busy, no elements waiting FOR THIS INTERACTION.
         # self.wait_for_background_display_queue_to_empty()
     
-    def generate_speech_audio_bytes(self, message: str) -> bytes:
+    def generate_speech_audio_bytes(self, message: str) -> dict:
         """
         Generates the audio bytes for a given message via Text-To-Speech, and returns them.
 
@@ -231,7 +239,7 @@ class Interaction(PyXavi):
         Args:
             message (str): The message to generate the audio bytes for.
         Returns:
-            bytes: The generated audio bytes.
+            dict: A dictionary containing the generated audio bytes and the sample rate.
         """
 
         self._xlog.debug(f"🔊 Generating speech audio bytes for message: {message}")
@@ -247,27 +255,36 @@ class Interaction(PyXavi):
 
         self._log_debug(f"🔊 Retrieving audio bytes from the output queue")
         audio_bytes = []
+        sample_rate = 0
         while True:
-            item = self.speech_output_queue.get()
+            audio_chunk_data = self.speech_output_queue.get()
             # Apparently we can't simply compare the item with the sentinel value.
             # The value in item is an array of bytes, so we better check types first.
-            if isinstance(item, ndarray):
-                self._log_debug(f"🔊 Got a chunk of audio bytes: {len(item)} bytes")
-                audio_bytes.append(item)
-            elif item is self.speech_output_queue_sentinel:
+            if isinstance(audio_chunk_data, dict) and \
+                    audio_chunk_data.get("audio_bytes") is not None and \
+                    audio_chunk_data.get("sample_rate") is not None and \
+                    isinstance(audio_chunk_data.get("audio_bytes"), ndarray):
+                
+                self._log_debug(f"🔊 Got a chunk of audio bytes: {len(audio_chunk_data.get('audio_bytes'))} bytes at sample rate {audio_chunk_data.get('sample_rate')}")
+                audio_bytes.append(audio_chunk_data.get("audio_bytes"))
+                sample_rate = audio_chunk_data.get("sample_rate")
+
+            elif audio_chunk_data is self.speech_output_queue_sentinel:
                 self._log_debug(f"🔊 Received sentinel value from output queue, finished receiving audio bytes")
                 break
+
             else:
-                dd(item)
-                dd(self.speech_output_queue_sentinel)
-                self._log_debug(f"🔊 Received unknown item from output queue: {item}, ignoring it")
+                self._log_debug(f"🔊 Received unknown item from output queue: {audio_chunk_data}, ignoring it")
                 if self.speech_output_queue.empty():
                     self._log_debug(f"🔊 Output queue is empty after receiving unknown item, breaking the loop")
                     break
 
         self._log_debug(f"🔊 Audio bytes generation completed, returning the bytes")
 
-        return b"".join(audio_bytes)
+        return {
+            "audio_bytes": b"".join(audio_bytes),
+            "sample_rate": sample_rate
+        }
     
     def show_thinking(self):
         """
@@ -399,6 +416,9 @@ class Interaction(PyXavi):
     def wait_for_speaker_to_start_and_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_SPEAKER_BUSY)
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+    
+    def wait_for_speaker_to_finish_speaking(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self._get_active_foreground_display_queue())
@@ -485,6 +505,12 @@ class Interaction(PyXavi):
 
     def is_background_display_busy(self):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(self._get_active_background_display_busy_flag())
+    
+    def set_speaker_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
+    
+    def unset_speaker_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
 
     # --------- Internal helper functions ---------
 
