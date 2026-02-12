@@ -190,6 +190,7 @@ class Main(PyXavi):
         if self._xconfig.get("server.enabled", False):
             params = deepcopy(self._xparams)
             params.set("stt", self._dictate)
+            params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
             self._server = Server(config=self._xconfig, params=params)

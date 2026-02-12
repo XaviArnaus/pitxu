@@ -11,12 +11,21 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     _PROCESS_NAME: str = "UNDEFINED_XPROCESS"
 
     _queue: JoinableQueue = None
+    _output_queue: JoinableQueue = None
+    _sentinel_output_queue: object = None
     _shared_memory: SharedMemoryManager = None
     _busy_flag: int = None
 
     _current_action: XprocAction = None
 
-    def __init__(self, config: Config = None, params: Dictionary = None, queue: JoinableQueue = None, busy_flag: int = None, **kwargs):
+    def __init__(self, 
+                 config: Config = None, 
+                 params: Dictionary = None, 
+                 queue: JoinableQueue = None, 
+                 output_queue: JoinableQueue = None,
+                 sentinel_output_queue: any = None,
+                 busy_flag: int = None, **kwargs):
+
         self.init_pyxavi(config=config, params=params, **kwargs)
 
         self._PROCESS_NAME = self.get_process_name()
@@ -25,6 +34,14 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         if queue is None:
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a JoinableQueue instance, got None.")
         self._queue = queue
+
+        if output_queue is None:
+            self._xlog.debug("Xprocess [" + self._PROCESS_NAME + "] has no output queue, continuing without it.")
+        else:
+            if sentinel_output_queue is None:
+                raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a sentinel_output_queue value when an output_queue is provided, got None.")
+            self._output_queue = output_queue
+            self._sentinel_output_queue = sentinel_output_queue
 
         # The busy flag is set in the XprocessPool when initializing the Process (see new() there)
         if busy_flag is None:
@@ -35,6 +52,12 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
+
+    def get_output_queue(self) -> JoinableQueue:
+        return self._output_queue
+
+    def get_sentinel_output_queue(self) -> any:
+        return self._sentinel_output_queue
 
     def get_busy_flag(self) -> int:
         return self._busy_flag

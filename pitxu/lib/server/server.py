@@ -1,3 +1,4 @@
+import base64
 from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -10,6 +11,13 @@ class Server(PyXavi):
 
     server: Flask = Flask(__name__)
     server_thread: Thread = None
+
+    # Dependencies to be injected into the server context
+    # Actively avoiding here to add typing, to avoid circular imports.
+    stt = None
+    chatbot = None
+    chatbot_client_callbacks = None
+    output_interaction = None
 
     def __init__(self, config: Config, params: Dictionary):
         super(Server, self).init_pyxavi(config=config, params=params)
@@ -31,6 +39,11 @@ class Server(PyXavi):
         else:
             raise ValueError("Chatbot client callbacks must be provided in params with key 'chatbot_client_callbacks'")
         
+        if params.key_exists("output_interaction"):
+            self.output_interaction = params.get("output_interaction")
+        else:
+            raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
+        
         self._log_debug("End of Server initialization")
     
     def initialize(self):
@@ -45,6 +58,7 @@ class Server(PyXavi):
         self.server.config['stt'] = self.stt
         self.server.config['chatbot'] = self.chatbot
         self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
+        self.server.config['output_interaction'] = self.output_interaction
 
         # Start the server
         self.start_server()
@@ -115,31 +129,29 @@ class Server(PyXavi):
         try:
             # Feature initialization.
             stt: Vosk = current_app.config['stt']
-            # Should be already initialised.
-            # stt.initialize()
 
             # Process the audio data and get the transcription.
             transcribed = stt.process_audio_data(audio_data)
             return {
                 "status": "ok", 
-                "message": f"Received audio data of length {len(audio_data)} bytes",
+                "received_bytes_length": len(audio_data),
                 "error": error,
                 "transcription": transcribed
             }
 
         except VoskException as ve:
-            logger.error("🛑 VoskException during STT recognition in the server [transcriber] endpoint: " + str(ve))
-            logger.error(full_stack())
             error = str(ve)
+            logger.error(f"🛑 VoskException during STT recognition in the server [transcriber] endpoint: {error}")
+            logger.error(full_stack())
 
         except Exception as e:
-            logger.error("🛑 Error during STT recognition in the server [transcriber] endpoint: " + str(e))
-            logger.error(full_stack())
             error = str(e)
+            logger.error(f"🛑 Error during STT recognition in the server [transcriber] endpoint: {error}")
+            logger.error(full_stack())
 
         return {
             "status": "ko", 
-            "message": f"Received audio data of length {len(audio_data)} bytes",
+            "received_bytes_length": len(audio_data),
             "error": error,
             "transcription": None
         }
@@ -158,6 +170,7 @@ class Server(PyXavi):
         question = request.json.get("question", None)
         logger.debug(f"Received /ask_chatbot request with question: {question}")
 
+        error = None
         try:
             # Feature initialization.
             chatbot: GeminiChatbot = current_app.config['chatbot']
@@ -168,8 +181,60 @@ class Server(PyXavi):
                 chat_response: ChatbotResponse = await chatbot.ask_async(question)
                 answer = chat_response.text
                 logger.debug(f"Returning response from chatbot: {answer}")
-                return answer
+                return {
+                    "status": "ok",
+                    "question": question,
+                    "answer": answer,
+                    "metadata": chat_response.metadata,
+                    "error": error
+                }
         except Exception as e:
-            logger.error("🛑 Error during chatbot response in the server [ask_chatbot] endpoint: " + str(e))
+            error = str(e)
+            logger.error(f"🛑 Error during chatbot response in the server [ask_chatbot] endpoint: {error}")
             logger.error(full_stack())
-            return "Sorry, an error occurred while processing your request."
+            return {
+                "status": "ko",
+                "question": question,
+                "answer": None,
+                "metadata": None,
+                "error": error
+            }
+        
+    @server.route('/synthesize', methods=['POST'])
+    def synthesize():
+        """
+        Method to send a text to be synthesized into an audio array of bytes,
+        ready to be piped to the sound output
+        """
+        from pitxu.lib.interaction.interaction import Interaction
+
+        # Framework initialization.
+        logger = current_app.config['logger']
+
+        text = request.json.get("text", None)
+        logger.debug(f"Received /synthesize request with text: {text}")
+
+        error = None
+        try:
+            # Feature initialization.
+            output_interaction: Interaction = current_app.config['output_interaction']
+
+            audio_bytes = output_interaction.generate_speech_audio_bytes(text)
+            return {
+                "status": "ok",
+                "text": text,
+                "audio_bytes_length": len(audio_bytes),
+                "audio_bytes": base64.b64encode(audio_bytes).decode('utf-8'),
+                "error": error
+            }
+        except Exception as e:
+            error = str(e)
+            logger.error(f"🛑 Error during speech synthesis in the server [synthesize] endpoint: {error}")
+            logger.error(full_stack())
+            return {
+                "status": "ko",
+                "text": text,
+                "error": str(e),
+                "audio_bytes_length": 0,
+                "audio_bytes": None
+            }

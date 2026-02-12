@@ -74,6 +74,9 @@ class Piper(Xprocess):
         
         if action == XprocAction.SAY and param != "":
             self.say(param)
+        
+        if action == XprocAction.SAY_OUTPUT_QUEUE and param != "":
+            self.synthesize_and_return_through_output_queue(param)
 
     def say(self, text: str):
 
@@ -99,15 +102,15 @@ class Piper(Xprocess):
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
-            for chunk in self._voice.synthesize(text):
+            for int_data in self.genenerate_audio_chunks(text):
                 # if self.interrupt_event.is_set():
                 #     self.get_logger().info("Speech interrupted.")
                 #     break
-                self._log_debug("Processing audio chunk of size: " + str(len(chunk.audio_int16_bytes)) + " bytes")
-                int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
+                # self._log_debug("Processing audio chunk of size: " + str(len(chunk.audio_int16_bytes)) + " bytes")
+                # int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
 
                 # Make it to speak
-                self._log_debug("Writing audio chunk to output stream")
+                self._log_debug("Writing audio bytes to output stream")
                 self._output_stream.write(int_data)
 
             self._log_debug("All audio chunks processed, stopping output stream")
@@ -115,48 +118,28 @@ class Piper(Xprocess):
             self._output_stream.stop()
         
         self._log_debug("Finished saying communication")
-            
-        # Restore the speaker and microphone states
-        # REMOVEME: This is now handled in the parent Xprocess
-        # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
-        # self._log_debug("Restore the speaker busy flag to False after finishing saying")
     
-    def pause_mic(self):
-        self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
-
-    def resume_mic(self):
-        self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
-
-# 2026-01-14 22:47:15,506 [Piper-4     ] DEBUG    oscar        Initializing SharedMemoryManager
-# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading flags from Shared Memory
-# 2026-01-14 22:47:15,506 [Piper-4     ] INFO     oscar        Loading VU meter from Shared Memory
-# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run()
-# 2026-01-14 22:47:15,507 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [INITIALIZE]
-# 2026-01-14 22:47:15,507 [Piper-4     ] INFO     oscar        Initializing Piper Worker
-# 2026-01-14 22:47:15,510 [Piper-4     ] DEBUG    piper.voice  Guessing voice config path: /home/xavier/pitxu/storage/tts_models/ca_ES-upc_pau-x_low.onnx.json
-# 2026-01-14 22:47:16,899 [Piper-4     ] DEBUG    oscar        Creating Piper Output Stream with samplerate: 16000
-# Resume failed, couldn't restore original sample settings.
-# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Xprocess [Piper] run() received a [SAY: Hola]
-# 2026-01-14 22:47:16,904 [Piper-4     ] DEBUG    oscar        Saying [Hola]
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# 2026-01-14 22:47:16,907 [Piper-4     ] DEBUG    oscar        Output stream started
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Xprocess [Matrix] run() received a [SAY: Hola]
-# 2026-01-14 22:47:16,916 [MatrixLed-3 ] INFO     oscar        👄 Showing KITT mouth on Matrix LED.
-# 2026-01-14 22:47:16,916 [MatrixLed-3 ] DEBUG    oscar        Opening Handable Canvas
-# 2026-01-14 22:47:16,916 [MainProcess ] DEBUG    oscar        Waiting for queue speaker_queue to empty. Has now: 0 elements.
-# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        The queue speaker_queue is empty now. I've sleept 0s.
-# 2026-01-14 22:47:16,917 [MainProcess ] DEBUG    oscar        Waiting for the process speaker_busy to idle. It's now: BUSY.
-# 2026-01-14 22:47:16,917 [MatrixLed-3 ] DEBUG    oscar        Creating Matrix Emulation Handable Canvas
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
-# Resume failed, couldn't restore original sample settings.
+    def synthesize_and_return_through_output_queue(self, text: str):
+        if self._output_queue is not None:
+            self._log_debug("Generating audio bytes for text and sending through output queue")
+            # Generate the audio bytes for the given text and send them through the output queue
+            for audio_bytes in self.genenerate_audio_chunks(text):
+                self._output_queue.put(audio_bytes)
+            # We need to tell the consumer that we're done sending audio bytes,
+            # so we send a None value (which is not a valid audio chunk)
+            self._output_queue.put(self._sentinel_output_queue)
+        else:
+            self._log_debug("No output queue defined, cannot send audio bytes")
+    
+    def genenerate_audio_chunks(self, text: str):
+        # This is a generator that yields audio chunks for the given text, to be used in streaming scenarios
+        for chunk in self._voice.synthesize(text):
+            int_data = np.frombuffer(chunk.audio_int16_bytes, dtype=np.int16)
+            yield int_data
+    
+    # REMOVEME: This is now handled in the parent Xprocess
+    # def pause_mic(self):
+    #     self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
+    # REMOVEME: This is now handled in the parent Xprocess
+    # def resume_mic(self):
+    #     self.write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)

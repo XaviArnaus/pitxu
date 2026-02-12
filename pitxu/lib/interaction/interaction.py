@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.xprocess_pool import XprocessPool
@@ -10,12 +10,14 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 
+from sounddevice import RawInputStream
+from multiprocessing import JoinableQueue
+from numpy import ndarray
+
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
                         SHARED_SPEAKER_BUSY,\
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
-
-from sounddevice import RawInputStream
 
 class Interaction(PyXavi):
     """
@@ -50,6 +52,10 @@ class Interaction(PyXavi):
     background_display_queue: str = None
     speech_queue: str = QUEUE_SPEAKER
 
+    # Output queue for the speech, to allow the server to generate the audio bytes and return them through the endpoint.
+    speech_output_queue: JoinableQueue = None
+    speech_output_queue_sentinel: object = None
+
     # Map display names to their classes and queues, for initialization
     # This should probably go anyhow in the configs.
     # Also. the display name IS ASSUMED TO BE THE SAME AS THE device_config_prefix passed to the display process.
@@ -69,7 +75,7 @@ class Interaction(PyXavi):
         XprocAction.SAY: 0.05,
     }
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Interaction, self).init_pyxavi(config=config, params=params)
@@ -79,9 +85,21 @@ class Interaction(PyXavi):
         # All interactions will be done via processes
         self.process_pool = XprocessPool(config=config, params=params)
 
-        # Text to speech is the main interaction. We initialize it without wanting initializations from the main Process.
+        # Text to speech is the main interaction.
+        # We initialize it without wanting initializations from the main Process.
+        # We also grab the output queue details for the audio bytes,
+        #   so we allow the server to generate the audio bytes and return them through the endpoint.
         self._xlog.debug("Initialising the Text-to-Speech with language [" + self._xparams.get("language") + "]")
-        self.process_pool.new_and_start(self.speech_queue, target=Piper, params=Dictionary({"initialize_from_main": False}))
+        output_queue_params = self.process_pool.new_and_start(self.speech_queue, target=Piper, params=Dictionary({
+            "initialize_from_main": False,
+            "use_output_queue": True
+        }))
+        if output_queue_params is not None:
+            self._log_debug("Initialized speech queue output and sentinel output queues")
+            self.speech_output_queue = output_queue_params.get("output_queue", None)
+            self.speech_output_queue_sentinel = output_queue_params.get("sentinel_output_queue", None)
+        else:
+            self._xlog.warning("🟠 No output queue params returned from initializing the speech queue. Output queue for audio bytes will not be available.")
 
         # Initialize the required displays
         self._initialize_displays()
@@ -203,6 +221,53 @@ class Interaction(PyXavi):
         self.wait_for_busy_background_display_to_idle()
         # COMMENTED: This should not be needed. Display is not busy, no elements waiting FOR THIS INTERACTION.
         # self.wait_for_background_display_queue_to_empty()
+    
+    def generate_speech_audio_bytes(self, message: str) -> bytes:
+        """
+        Generates the audio bytes for a given message via Text-To-Speech, and returns them.
+
+        This is useful for example for the server endpoint, to generate the audio bytes and return them through the endpoint.
+
+        Args:
+            message (str): The message to generate the audio bytes for.
+        Returns:
+            bytes: The generated audio bytes.
+        """
+
+        self._xlog.debug(f"🔊 Generating speech audio bytes for message: {message}")
+
+        # Speech is a direct process command.
+        self._log_debug(f"🔊 Sending SAY_OUTPUT_QUEUE command to Speaker with output queue")
+        self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY_OUTPUT_QUEUE, message)
+
+        # We wait for the output queue to be filled with the audio bytes, and then we return them.
+        self._log_debug(f"🔊 Waiting for audio bytes to be generated and returned through the output queue")
+        self.wait_for_busy_speech_to_idle()
+        self.wait_for_speech_queue_to_empty()
+
+        self._log_debug(f"🔊 Retrieving audio bytes from the output queue")
+        audio_bytes = []
+        while True:
+            item = self.speech_output_queue.get()
+            # Apparently we can't simply compare the item with the sentinel value.
+            # The value in item is an array of bytes, so we better check types first.
+            if isinstance(item, ndarray):
+                self._log_debug(f"🔊 Got a chunk of audio bytes: {len(item)} bytes")
+                audio_bytes.append(item)
+            elif item is self.speech_output_queue_sentinel:
+                self._log_debug(f"🔊 Received sentinel value from output queue, finished receiving audio bytes")
+                break
+            else:
+                dd(item)
+                dd(self.speech_output_queue_sentinel)
+                self._log_debug(f"🔊 Received unknown item from output queue: {item}, ignoring it")
+                if self.speech_output_queue.empty():
+                    self._log_debug(f"🔊 Output queue is empty after receiving unknown item, breaking the loop")
+                    break
+
+        self._log_debug(f"🔊 Audio bytes generation completed, returning the bytes")
+
+        return b"".join(audio_bytes)
     
     def show_thinking(self):
         """
