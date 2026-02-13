@@ -17,12 +17,11 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
-from pitxu.lib.microservice.client import Client
+from pitxu.lib.gpio.gpio import Gpio
 
 import sys
 import sounddevice
 import time
-from copy import deepcopy
 from datetime import datetime
 
 class MainClient(PyXavi):
@@ -35,13 +34,11 @@ class MainClient(PyXavi):
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
 
-    _client: Client = None
-
     _chatbot: GenericChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate: SpeechToText = None
     _raw_input_stream: sounddevice.RawInputStream = None
-
+    _gpio: Gpio = None
     _is_pitxu_active: bool = True
 
     _chatbot_client_callbacks: dict[str, callable] = None
@@ -58,14 +55,12 @@ class MainClient(PyXavi):
     _trigger_words: list = []
     _tokens_counter: int = 0
 
-    COMM_DISPLAY = "display"
-    COMM_MATRIX = "matrix"
-    COMM_TTS = "tts"
-
     ENGLISH: str = "en-us"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
+
+    PUSH_TO_TALK_BUTTON: str = "side"
 
     VERBOSE_DEBUG: bool = True
 
@@ -138,6 +133,13 @@ class MainClient(PyXavi):
         chatbot_session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         await chatbot_session_manager.initialize()
         self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
+    
+    def _initialize_gpio(self):
+        """
+        Initializes the GPIO module that will manage the physical buttons.
+        """
+        self._gpio = Gpio(config=self._xconfig, params=self._xparams)
+        self._gpio.initialize_buttons()
 
     def _load_language_statics(self):
 
@@ -177,14 +179,6 @@ class MainClient(PyXavi):
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
-    
-    def _initialize_client(self):
-        """
-        Initializes the Client that performs requests to the defined endpoints
-        """
-
-        self._client = Client(config=self._xconfig, params=self._xparams)
-        self._client.initialize()
 
     async def run(self):
 
@@ -217,10 +211,14 @@ class MainClient(PyXavi):
         self._interaction.show_init_phases(3, text="Language Statics")
         self._load_language_statics()
 
+        # Initialise the GPIO module
+        self._interaction.show_init_phases(4, text="GPIO")
+        self._initialize_gpio()
+
         try:
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
-            self._interaction.show_init_phases(4, text="Microphone")
+            self._interaction.show_init_phases(5, text="Microphone")
             with sounddevice.RawInputStream(
                             samplerate=self._dictate.samplerate,
                             blocksize=0, 
@@ -231,20 +229,15 @@ class MainClient(PyXavi):
                 
                 # Welcome greeting
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self._interaction.show_init_phases(5, text="Greeting")
+                self._interaction.show_init_phases(6, text="Greeting")
                 self._interaction.show_idle()
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 # Load the Chatbot Callbacks definitions,
                 #   that are needed to react on the possible tool calls in the answers.
-                self._interaction.show_init_phases(6, text="Chatbot")
+                self._interaction.show_init_phases(7, text="Chatbot")
                 await self._initialize_chatbot()
-
-                # Initialise the Client that performs requests to the defined endpoints.
-                # Technically the SST and TTS do this internally, so it's only for the Chatbot.
-                self._interaction.show_init_phases(8, text="Client")
-                self._initialize_client()
 
                 # Clean background after initialisation.
                 # NOTE: I suspect double clear due to background & combined inheritance method execution.
@@ -256,11 +249,11 @@ class MainClient(PyXavi):
                 # It just started, there was a greating after all.
                 # Maybe the user wants to talk straight away without the trigger words.
                 self._last_interaction_datetime = datetime.now()
-                self._interaction.unmute_microphone(input_stream=input_stream)
 
                 question = ""
                 dictate_count = 0
                 answer_count = 0
+                recording_audio = False
                 while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
 
                     # Check the things to do every minute
@@ -275,9 +268,24 @@ class MainClient(PyXavi):
                     if not self._interaction.is_eink_in_idle_mode():
                         self._interaction.show_idle()
 
-                    # Recognize what comes from the microphone
-                    sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                    question = self._dictate.recognize()
+                    # Check if the push to talk button is pressed to record the audio
+                    sw_dictate = None
+                    if self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
+                        self._log_debug("🎙️ Push to talk button is pressed, registering audio.")
+                        recording_audio = True
+                        self._interaction.unmute_microphone(input_stream=input_stream)
+                    
+                    # Check if the push to talk button is released to stop recording audio
+                    if not self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
+                        recording_audio = False
+                        self._interaction.mute_microphone(input_stream=input_stream)
+
+                        # Recognize what comes from the microphone
+                        sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
+                        question = self._dictate.recognize()
+
+                                            
+                    # If at this point we still not have a question, finish the iteration here and loop again.
                     if (question == None or question.strip() == ""):
                         # Nothing recognized, nothing to process.
                         continue
@@ -286,9 +294,6 @@ class MainClient(PyXavi):
                     self._log_debug("💬 Recognised dictate: " + question)
                     self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
                     dictate_count += 1
-
-                    # Mute microphone to avoid self-looping
-                    self._interaction.mute_microphone(input_stream=input_stream)
 
                     # Initialize the answer that collects until interaction.
                     answer = None
@@ -382,15 +387,6 @@ class MainClient(PyXavi):
                         # Last thing to do is to remember this as the last interaction.
                         # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                         self._last_interaction_datetime = datetime.now()
-
-                    # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
-                    # This second here makes the human-computer interaction worse.
-                    # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
-                    # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
-                    #   instead of waiting. 
-                    # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
-                    # time.sleep(1)
-                    self._interaction.unmute_microphone(input_stream=input_stream)
                 
                 # We arrived here because the user wanted to exit the main loop
                 # Make sure we leave the state properly
@@ -400,11 +396,11 @@ class MainClient(PyXavi):
                 self._interaction.wait_for_busy_foreground_display_to_idle()
 
         except KeyboardInterrupt:
-            self._xlog.info("Pressed Control + C from main")
+            self._xlog.info("Pressed Control + C from MainClient")
         except SpeechToTextException as ve:
-            self._xlog.error("🛑 SpeechToTextException detected in Main run loop: " + str(ve))
+            self._xlog.error("🛑 SpeechToTextException detected in MainClient run loop: " + str(ve))
         except Exception as e:
-            self._xlog.error("🛑 Error in Main run loop: " + str(e))
+            self._xlog.error("🛑 Error in MainClient run loop: " + str(e))
             self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.

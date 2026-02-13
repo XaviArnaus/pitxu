@@ -33,6 +33,7 @@ gemini-tool-agent = "^0.1.5"
 fastmcp = "^2.13.1"
 nest-asyncio = "^1.6.0"
 flask = {extras = ["async"], version = "^3.1.2"}
+pynput = "^1.8.1"
 
 [tool.poetry.scripts]
 main = "runner:run"

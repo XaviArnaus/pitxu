@@ -1,0 +1,9 @@
+# Configuration for the GPIO support
+gpio:
+  # [Bool] Ignores GPIO hardware and uses Pyinput module to simulate button presses from the keyboard.
+  mock: True
+  # Defined buttons
+  buttons:
+    - name: side
+      pin: 17
+      mocked_as: "ctrl"

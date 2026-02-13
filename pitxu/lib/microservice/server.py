@@ -123,6 +123,7 @@ class Server(PyXavi):
                 "tts": config.get("text_to_speech.mock", True),
                 "chatbot": not config.get("chatbot.mock", True),
                 "ups": config.get("ups.mock", True),
+                "gpio": config.get("gpio.mock", True)
             },
             "parameters": {
                 "language": language,

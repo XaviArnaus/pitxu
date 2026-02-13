@@ -56,10 +56,6 @@ class Main(PyXavi):
     _trigger_words: list = []
     _tokens_counter: int = 0
 
-    COMM_DISPLAY = "display"
-    COMM_MATRIX = "matrix"
-    COMM_TTS = "tts"
-
     ENGLISH: str = "en-us"
     CATALAN: str = "ca"
     GERMAN: str = "de"

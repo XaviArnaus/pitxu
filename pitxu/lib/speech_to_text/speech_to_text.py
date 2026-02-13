@@ -27,12 +27,10 @@ class SpeechToText(PyXavi):
 
     is_active: bool = False
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(SpeechToText, self).init_pyxavi(config=config, params=params)
-
-        self.initialize()
     
     def initialize(self):
 
@@ -66,10 +64,12 @@ class SpeechToText(PyXavi):
             elif self.is_active == False:
                 raise SpeechToTextException("SpeechToText is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
-                data = self._queue.get()
-                if len(data) <= 1024:
-                    return None
-                return self.get_transcription(data)
+                # data = self._queue.get()
+                # Since we now have to PUSH TO TALK, we may don't need this
+                # if len(data) <= 1024:
+                #     return None
+                audio_bytes = self.build_recorded_audio_bytes()
+                return self.get_transcription(audio_bytes)
         except queue.ShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
@@ -106,7 +106,7 @@ class SpeechToText(PyXavi):
         if result_text == "":
             return None
 
-        self._xlog.debug(f"SpeechToText: Recognized text: {result_text}")
+        self._xlog.debug(f"*️⃣ SpeechToText: Recognized text: {result_text}")
         return result_text
         
     
@@ -122,17 +122,22 @@ class SpeechToText(PyXavi):
         """
         if status:
             print(status, file=sys.stderr)
+            self._xlog.debug(f"*️⃣ Audio input status: {status}")
 
         if not self.should_skip_audio_input() and self._queue is not None:
             # print(time.inputBufferAdcTime)
             self._queue.put(bytes(indata))
-
-    def _int_or_str(self, text):
-        """Helper function for argument parsing."""
-        try:
-            return int(text)
-        except ValueError:
-            return text
+    
+    def build_recorded_audio_bytes(self) -> bytes:
+        """
+        Utility method to build the recorded audio bytes from the queue.
+        It will keep getting data from the queue until it's empty and concatenate it into a single bytes object.
+        """
+        audio_bytes = b""
+        if self._queue is not None:
+            while not self._queue.empty():
+                audio_bytes += self._queue.get()
+        return audio_bytes
     
     def should_skip_audio_input(self):
         '''
