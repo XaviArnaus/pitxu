@@ -97,7 +97,6 @@ class SpeechToText(PyXavi):
             raise SpeechToTextException("SpeechToText client is not initialized, cannot process audio data")
         
         server_answer = self._client.transcribe(data_bytes=data)
-        dd(server_answer)
         if server_answer["error"] is not None:
             error_message = server_answer.get("error")
             raise SpeechToTextException(f"Error from STT server: {error_message}")
