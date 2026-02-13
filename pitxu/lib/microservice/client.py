@@ -6,7 +6,7 @@ from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 
 import numpy as np
-import json
+import json, logging
 import requests
 
 class Client(PyXavi):
@@ -19,9 +19,15 @@ class Client(PyXavi):
     PROTOCOL: str = "http"
 
     VERBOSE_DEBUG: bool = True
+    URLLIB3_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config, params: Dictionary):
         super(Client, self).init_pyxavi(config=config, params=params)
+
+        # Set the log levels for the Piper libraries based on the configuration
+        self.URLLIB3_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.urllib3.loglevel", self.URLLIB3_LIB_LOG_LEVEL)
+        self._log_debug("Setting Server log level to: " + str(self.URLLIB3_LIB_LOG_LEVEL))
+        logging.getLogger("urllib3").setLevel(self.URLLIB3_LIB_LOG_LEVEL)
     
     def initialize(self):
         pass

@@ -5,7 +5,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from flask import Flask, request, current_app
 from threading import Thread
-import sys
+import sys, logging
 
 class Server(PyXavi):
 
@@ -20,6 +20,7 @@ class Server(PyXavi):
     output_interaction = None
 
     VERBOSE_DEBUG: bool = True
+    FLASK_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config, params: Dictionary):
         super(Server, self).init_pyxavi(config=config, params=params)
@@ -45,6 +46,11 @@ class Server(PyXavi):
             self.output_interaction = params.get("output_interaction")
         else:
             raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
+        
+        # Set the log levels for the Piper libraries based on the configuration
+        self.FLASK_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.flask.loglevel", self.FLASK_LIB_LOG_LEVEL)
+        self._log_debug("Setting Server log level to: " + str(self.FLASK_LIB_LOG_LEVEL))
+        logging.getLogger("flask").setLevel(self.FLASK_LIB_LOG_LEVEL)
         
         self._log_debug("End of Server initialization")
     
