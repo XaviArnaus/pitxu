@@ -68,7 +68,9 @@ class SpeechToText(PyXavi):
                 # Since we now have to PUSH TO TALK, we may don't need this
                 # if len(data) <= 1024:
                 #     return None
+                self._log_debug("Getting recorded audio bytes from the queue...")
                 audio_bytes = self.build_recorded_audio_bytes()
+                self._log_debug(f"Transcribing {len(audio_bytes)} bytes of audio data from the queue")
                 return self.get_transcription(audio_bytes)
         except queue.ShutDown as e:
             self.is_active = False
@@ -95,15 +97,18 @@ class SpeechToText(PyXavi):
             raise SpeechToTextException("SpeechToText client is not initialized, cannot process audio data")
         
         server_answer = self._client.transcribe(data_bytes=data)
-        if server_answer["status"] != "ok":
-            error_message = server_answer.get("error", "Unknown error")
+        dd(server_answer)
+        if server_answer["error"] is not None:
+            error_message = server_answer.get("error")
             raise SpeechToTextException(f"Error from STT server: {error_message}")
         
         if server_answer["transcription"] is None:
+            self._log_debug("STT server returned no transcription")
             return None
 
         result_text = str(server_answer["transcription"]).replace("\n", "").strip()
         if result_text == "":
+            self._log_debug("STT server returned empty transcription")
             return None
 
         self._xlog.debug(f"*️⃣ SpeechToText: Recognized text: {result_text}")

@@ -277,13 +277,15 @@ class MainClient(PyXavi):
                     
                     # Check if the push to talk button is released to stop recording audio
                     if not self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
+                        self._log_debug("🎙️ Push to talk button is released, stopping audio registration and starting recognition.")
                         recording_audio = False
                         self._interaction.mute_microphone(input_stream=input_stream)
 
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                         question = self._dictate.recognize()
-
+                        if question is None:
+                            self._xlog.debug(f"🎙️ Nothing recognized")
                                             
                     # If at this point we still not have a question, finish the iteration here and loop again.
                     if (question == None or question.strip() == ""):

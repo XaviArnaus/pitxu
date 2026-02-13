@@ -1,5 +1,5 @@
 import base64
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
@@ -35,9 +35,20 @@ class Client(PyXavi):
     def status(self):
         return self._do_get_request(endpoint=self.ENDPOINT_STATUS)
 
-    def transcribe(self, data_bytes: bytes) -> str:
+    def transcribe(self, data_bytes: bytes) -> str | None:
         encoded_bytes = base64.b64encode(data_bytes).decode('utf-8')
-        return self._do_post_request(endpoint=self.ENDPOINT_TRANSCRIBE, data={"data_bytes": encoded_bytes})
+        server_response = self._do_post_request(endpoint=self.ENDPOINT_TRANSCRIBE, data={"data_bytes": encoded_bytes})
+        dd(server_response)
+        if server_response.get("status", "ko") == "ok":
+            return {
+                "transcription": server_response.get("transcription", None),
+                "error": server_response.get("error", None)
+            }
+        else:
+            return {
+                "transcription": None,
+                "error": server_response.get("error", "Unknown error")
+            }
 
     def ask_chatbot(self, question: str) -> ChatbotResponse:
         server_response = self._do_post_request(endpoint=self.ENDPOINT_ASK_CHATBOT, data={"question": question})
