@@ -219,8 +219,10 @@ class MainClient(PyXavi):
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
             self._interaction.show_init_phases(5, text="Microphone")
+            # Vosk wants the following parameters: 16kHz, mono, 16 bit.
             with sounddevice.RawInputStream(
-                            samplerate=self._dictate.samplerate,
+                            #samplerate=self._dictate.samplerate,
+                            samplerate=16000,
                             blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 

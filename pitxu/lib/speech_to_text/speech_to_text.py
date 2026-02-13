@@ -95,8 +95,10 @@ class SpeechToText(PyXavi):
 
         if self._client is None:
             raise SpeechToTextException("SpeechToText client is not initialized, cannot process audio data")
-        
-        server_answer = self._client.transcribe(data_bytes=data)
+
+        sample_rate = self._get_samplerate()
+        self._log_debug(f"STT: Requesting transcription of [{len(data)}] bytes of audio data at sample rate: [{sample_rate}]")
+        server_answer = self._client.transcribe(data_bytes=data, sample_rate=sample_rate)
         if server_answer["error"] is not None:
             error_message = server_answer.get("error")
             raise SpeechToTextException(f"Error from STT server: {error_message}")

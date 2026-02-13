@@ -32,7 +32,7 @@ class Vosk(PyXavi):
 
     is_active: bool = False
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
     VOICE_LIB_LOG_LEVEL: int = 0
 
     def __init__(self, config: Config = None, params: Dictionary = None):
@@ -88,7 +88,14 @@ class Vosk(PyXavi):
                 raise VoskException("Vosk is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
                 data = self._queue.get()
-                return self.process_audio_data(data)
+                recognize_outcome = self.process_audio_chunk(data)
+                # Since Vosk can return both partial and final results, for normal "local" Pitxu
+                #   we completely ignore the partial.
+                if recognize_outcome.get("result") is not None:
+                    result = recognize_outcome.get("result")
+                    if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
+                        result = result + " " + recognize_outcome.get("final")
+                    return result
         except queue.ShutDown as e:
             self.is_active = False
             raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
@@ -105,21 +112,39 @@ class Vosk(PyXavi):
             self.close()
             return None
     
-    def process_audio_data(self, data: bytes):
+    def process_audio_chunk(self, data: bytes) -> str | None:
         """
         Method to be called to process audio data received from the microphone input or the server endpoint.
         """
+        outcome = {
+            "result": None,
+            "partial": None,
+            "final": None
+        }
         if self._recognizer.AcceptWaveform(data):
             result = json.loads(self._recognizer.Result())
             result_text = str(result["text"]).replace("\n", "").strip()
             if result_text == "":
-                return None
-            self._xlog.debug(f"Vosk: Recognized text: {result_text}")
-            return result_text
+                outcome["result"] = None
+            else:
+                self._xlog.debug(f"Vosk: Recognized text: [{result_text}]")
+                outcome["result"] = result_text
+
+            if self._recognizer.FinalResult():
+                result = json.loads(self._recognizer.FinalResult())
+                result_text = str(result["text"]).replace("\n", "").strip()
+                if result_text == "":
+                    outcome["final"] = None
+                else:
+                    self._xlog.debug(f"Vosk: Final recognized text: [{result_text}]")
+                    outcome["final"] = result_text
+            
         else:
             result = json.loads(self._recognizer.PartialResult())
-            return None
-    
+            outcome["partial"] = str(result["partial"]).replace("\n", "").strip()
+
+        return outcome
+
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")
         # soundfile expects an int, sounddevice provides a float:

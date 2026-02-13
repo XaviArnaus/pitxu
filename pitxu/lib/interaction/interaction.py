@@ -242,18 +242,18 @@ class Interaction(PyXavi):
             dict: A dictionary containing the generated audio bytes and the sample rate.
         """
 
-        self._xlog.debug(f"🔊 Generating speech audio bytes for message: {message}")
+        self._xlog.debug(f"*️⃣ Generating speech audio bytes for message: {message}")
 
         # Speech is a direct process command.
-        self._log_debug(f"🔊 Sending SAY_OUTPUT_QUEUE command to Speaker with output queue")
+        self._log_debug(f"*️⃣ Sending SAY_OUTPUT_QUEUE command to Speaker with output queue")
         self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY_OUTPUT_QUEUE, message)
 
         # We wait for the output queue to be filled with the audio bytes, and then we return them.
-        self._log_debug(f"🔊 Waiting for audio bytes to be generated and returned through the output queue")
+        self._log_debug(f"*️⃣ Waiting for audio bytes to be generated and returned through the output queue")
         self.wait_for_busy_speech_to_idle()
         self.wait_for_speech_queue_to_empty()
 
-        self._log_debug(f"🔊 Retrieving audio bytes from the output queue")
+        self._log_debug(f"*️⃣ Retrieving audio bytes from the output queue")
         audio_bytes = []
         sample_rate = 0
         while True:
@@ -265,21 +265,21 @@ class Interaction(PyXavi):
                     audio_chunk_data.get("sample_rate") is not None and \
                     isinstance(audio_chunk_data.get("audio_bytes"), ndarray):
                 
-                self._log_debug(f"🔊 Got a chunk of audio bytes: {len(audio_chunk_data.get('audio_bytes'))} bytes at sample rate {audio_chunk_data.get('sample_rate')}")
+                self._log_debug(f"*️⃣ Got a chunk of audio bytes: {len(audio_chunk_data.get('audio_bytes'))} bytes at sample rate {audio_chunk_data.get('sample_rate')}")
                 audio_bytes.append(audio_chunk_data.get("audio_bytes"))
                 sample_rate = audio_chunk_data.get("sample_rate")
 
             elif audio_chunk_data is self.speech_output_queue_sentinel:
-                self._log_debug(f"🔊 Received sentinel value from output queue, finished receiving audio bytes")
+                self._log_debug(f"*️⃣ Received sentinel value from output queue, finished receiving audio bytes")
                 break
 
             else:
-                self._log_debug(f"🔊 Received unknown item from output queue: {audio_chunk_data}, ignoring it")
+                self._log_debug(f"*️⃣ Received unknown item from output queue: {audio_chunk_data}, ignoring it")
                 if self.speech_output_queue.empty():
-                    self._log_debug(f"🔊 Output queue is empty after receiving unknown item, breaking the loop")
+                    self._log_debug(f"*️⃣ Output queue is empty after receiving unknown item, breaking the loop")
                     break
 
-        self._log_debug(f"🔊 Audio bytes generation completed, returning the bytes")
+        self._log_debug(f"*️⃣ Audio bytes generation completed, returning the bytes")
 
         return {
             "audio_bytes": b"".join(audio_bytes),

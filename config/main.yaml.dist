@@ -17,7 +17,7 @@ app:
   #   "server": Run only as server. The client is expected to be running separately,
   #     and will connect to this server to get STT, TTS and Chatbot interaction.
   #     There won't be any interaction in the local host, only serving the client requests.
-  execution_mode: "client"
+  execution_mode: "local"
 
 # Filesystem definition
 storage:

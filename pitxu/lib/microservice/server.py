@@ -1,5 +1,5 @@
 import base64
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -75,16 +75,18 @@ class Server(PyXavi):
     
     def close(self):
         self._xlog.info("Shutting down Server")
-        func = request.environ.get('werkzeug.server.shutdown')
-        if func is None:
-            raise RuntimeError('Not running with the Werkzeug Server')
-        func()
-        # if self.server_thread.is_alive():
-        #     self._xlog.debug("Waiting for server thread to finish")
-        #     self.server_thread.join()
-        
-        self._xlog.info("Server shutdown complete")
-    
+        # with self.server.app_context():
+        # func = request.environ.get('werkzeug.server.shutdown')
+        # if func is None:
+        #     raise RuntimeError('Not running with the Werkzeug Server')
+        # self._log_debug("Calling the Werkzeug server shutdown function to stop the server.")
+        # func()
+        if self.server_thread.is_alive():
+            self._log_debug("Waiting for server thread to finish, with timeout of 0 seconds.")
+            self.server_thread.join(timeout=0)
+
+        self._xlog.debug("Server shutdown complete")
+
     def start_server(self):
         self._xlog.info("Starting Server Thread")
         # Start the server in a separate thread to avoid blocking the main loop
@@ -142,26 +144,83 @@ class Server(PyXavi):
         import numpy as np
 
         # Framework initialization.
+        config = current_app.config['config']
         logger = current_app.config['logger']
+        params = current_app.config['params']
+
+        # Endpoint initialisation
+        bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
 
         audio_data = request.json.get("data_bytes", None)
+        dd(audio_data)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
         logger.info(f"📥 Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
 
+        counter = 0
         error = None
         try:
             # Feature initialization.
-            stt: Vosk = current_app.config['stt']
+            # Passing the instance through the Flask config produces an internal error in Vosk:
+            #   Segmentation fault: 11
+            # TODO: Take a look at this later, I'd prefer not to instantiate Vosk in the endpoint.
+            # stt: Vosk = current_app.config['stt']
+            logger.debug("Initialising the Speech-to-Text with language [" + params.get("language") + "]")
+            stt: Vosk = Vosk(config=config, params=params)
 
             # Process the audio data and get the transcription.
-            logger.debug("Processing audio data for transcription")
-            transcribed = stt.process_audio_data(audio_data)
+            # This is a loop where we pop chunks of the audio data and send them to the STT engine.
+            logger.debug(f"Processing audio data of {len(audio_data)} bytes in frames of {bytes_per_chunk} bytes")
+            transcribed = None
+            counter = 0
+            while len(audio_data) > 0:
+                chunk = audio_data[:bytes_per_chunk]
+                audio_data = audio_data[bytes_per_chunk:]
+
+                logger.debug(f"Processing chunk of {len(chunk)} bytes, remaining audio data length: {len(audio_data)} bytes")
+                transcribed = stt.process_audio_chunk(chunk)
+                dd(transcribed)
+
+                counter += 1
+            
+            # It's not normal to not receive anything.
+            if transcribed is None:
+                logger.warning("🟠 No transcription result returned.")
+                return {
+                    "status": "ko",
+                    "received_bytes_length": len(audio_data),
+                    "frames": counter,
+                    "error": error,
+                    "transcription": None
+                }
+            
+            # Build the transcription to be returned.
+            transcription = transcribed["result"]
+            if transcribed["final"] is not None and len(transcribed["final"]) > 0:
+                if transcription is None:
+                    transcription = transcribed["final"]
+                else:
+                    transcription = transcription + " " + transcribed["final"]
+
+            # We may not have a result, but we may have a partial. Just use it.
+            if transcription is None and transcribed["partial"] is not None:
+                logger.warning("🟠 No final transcription result returned, but we have a partial result. Returning the partial as the result.")
+                transcription = transcribed["partial"]
+
+            # Log me baby
+            logger.debug(f"✏️ Transcription result: {transcribed.get('result', None)}")
+            logger.debug(f"✏️ Partial transcription: {transcribed.get('partial', None)}")
+
+            # Close the STT instance. It does not make sense in case that we solve the Vosk reuse-main-instance issue
+            stt.close()
+
+            # Return the final response.
             return {
                 "status": "ok", 
                 "received_bytes_length": len(audio_data),
+                "frames": counter,
                 "error": error,
-                "transcription": transcribed
+                "transcription": transcription
             }
 
         except VoskException as ve:
@@ -237,7 +296,7 @@ class Server(PyXavi):
         logger = current_app.config['logger']
 
         text = request.json.get("text", None)
-        logger.info(f"Received /synthesize request with text: {text}")
+        logger.info(f"📥 Received /synthesize request with text: {text}")
 
         error = None
         try:

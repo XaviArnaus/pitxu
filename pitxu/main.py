@@ -400,6 +400,9 @@ class Main(PyXavi):
                         # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
                         # time.sleep(1)
                         self._interaction.unmute_microphone(input_stream=input_stream)
+
+                        # TEST: Try to release the CPU. I've seen it at 100%
+                        time.sleep(0.2)
                     
                     # We arrived here because the user wanted to exit the main loop
                     # Make sure we leave the state properly
@@ -623,6 +626,10 @@ class Main(PyXavi):
         # Wait for all the queues and processes to get empty
         self._interaction.wait_for_all_queues_to_empty()
         self._interaction.wait_for_all_busy_processes_to_idle()
+
+        # Close the server
+        if self._server is not None:
+            self._server.close()
 
         # Close Vosk
         if self._dictate is not None:

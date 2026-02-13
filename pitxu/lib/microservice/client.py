@@ -35,19 +35,26 @@ class Client(PyXavi):
     def status(self):
         return self._do_get_request(endpoint=self.ENDPOINT_STATUS)
 
-    def transcribe(self, data_bytes: bytes) -> str | None:
+    def transcribe(self, data_bytes: bytes, sample_rate: int) -> str | None:
         encoded_bytes = base64.b64encode(data_bytes).decode('utf-8')
-        server_response = self._do_post_request(endpoint=self.ENDPOINT_TRANSCRIBE, data={"data_bytes": encoded_bytes})
+        server_response = self._do_post_request(endpoint=self.ENDPOINT_TRANSCRIBE, data={
+            "data_bytes": encoded_bytes,
+            "sample_rate": sample_rate
+        })
         dd(server_response)
         if server_response.get("status", "ko") == "ok":
             return {
-                "transcription": server_response.get("transcription", None),
-                "error": server_response.get("error", None)
+                "received_bytes_length": server_response.get("received_bytes_length", None),
+                "frames": server_response.get("frames", None),
+                "error": server_response.get("error", None),
+                "transcription": server_response.get("transcription", None)
             }
         else:
             return {
-                "transcription": None,
-                "error": server_response.get("error", "Unknown error")
+                "received_bytes_length": server_response.get("received_bytes_length", None),
+                "frames": server_response.get("frames", None),
+                "error": server_response.get("error", "Unknown error"),
+                "transcription": None
             }
 
     def ask_chatbot(self, question: str) -> ChatbotResponse:
