@@ -106,7 +106,7 @@ class Server(PyXavi):
         logger = current_app.config['logger']
         params = current_app.config['params']
 
-        logger.debug("Received /status request")
+        logger.info("📥 Received /status request")
 
         foreground_display_id = config.get("displays.foreground_display", None)
         background_display_id = config.get("displays.background_display", None)
@@ -146,12 +146,11 @@ class Server(PyXavi):
         audio_data = request.json.get("data_bytes", None)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
-        logger.debug(f"Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
+        logger.info(f"📥 Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
 
         error = None
         try:
             # Feature initialization.
-            logger.debug("Retrieving STT instance from server context")
             stt: Vosk = current_app.config['stt']
 
             # Process the audio data and get the transcription.
@@ -193,7 +192,7 @@ class Server(PyXavi):
         logger = current_app.config['logger']
 
         question = request.json.get("question", None)
-        logger.debug(f"Received /ask_chatbot request with question: {question}")
+        logger.info(f"📥 Received /ask_chatbot request with question: {question}")
 
         error = None
         try:
@@ -237,7 +236,7 @@ class Server(PyXavi):
         logger = current_app.config['logger']
 
         text = request.json.get("text", None)
-        logger.debug(f"Received /synthesize request with text: {text}")
+        logger.info(f"Received /synthesize request with text: {text}")
 
         error = None
         try:
