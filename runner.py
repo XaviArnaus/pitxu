@@ -60,9 +60,9 @@ def run():
             logger.info("End of the Main run")
 
         elif exec_mode == "client":
-            from pitxu.main_client import MainClient
+            from pitxu.main_client_ptt import MainClientPTT
             logger.info("🚀 Starting in CLIENT execution mode")
-            main_client = MainClient(config=config, params=parameters)
+            main_client = MainClientPTT(config=config, params=parameters)
             asyncio.run(main_client.run())
             logger.info("End of the Main Client run")
 
