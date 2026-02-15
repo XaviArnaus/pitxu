@@ -11,11 +11,10 @@ from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
-
 from pitxu.lib.canvas.canvas import Canvas
-
 from pitxu.lib.speech_to_text import Vosk, VoskException
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 
@@ -45,6 +44,7 @@ class Main(PyXavi):
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
+    _fan_control: FanControl = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -197,6 +197,10 @@ class Main(PyXavi):
         # ... yeah, "Loading", but I freeze the execution here.
         # Technically the system supports leaving the splash while loading, speaking (greetings) and stuff in background.
         # time.sleep(4)
+
+        # Initialize the case fan control and apply it.
+        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
+        self._fan_control.toggle_all_fans_by_temperature()
 
         # At this point, we better wait for all queues to be empty.
         # This basically involves eInk (for the splash).
@@ -696,6 +700,9 @@ class Main(PyXavi):
             self._last_processed_second = current_second
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+
+            # Control the fans according to the temperature, every second is good enough for that.
+            self._fan_control.toggle_all_fans_by_temperature()
             
             # If the background display is idle, show interaction holding percentage if applicable
             if not self._interaction.is_background_display_busy():
