@@ -44,7 +44,7 @@ class CpuTemperature(PyXavi):
     def is_above_threshold(self) -> bool:
         return self.device.is_active
 
-    def get_temperature(self, cpu_name: str) -> float:
+    def get_temperature(self) -> float:
         return self.device.temperature
 
     def close(self):

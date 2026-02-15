@@ -28,11 +28,15 @@ gpio:
   cpu_temperature:
     # [Bool] Ignores GPIO hardware and returns static values.
     mock: True
-    # [Int] Minimum temperature to consider for the CPU temperature management. Below this, the fans will be off.
+    # [Int] Minimum temperature in Celsius to consider for the CPU temperature management. Below this, the fans will be off.
     min_temperature: 30
-    # [Int] Maximum temperature to consider for the CPU temperature management. Above this, the fans will be at maximum speed.
+    # [Int] Maximum temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be at maximum speed.
     max_temperature: 90
-    # [Int] Threshold temperature to consider for the CPU temperature management. Above this, the fans will be on.
+    # [Int] Threshold temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be on.
+    # This is the value that you're looking for.
     threshold: 50
+    # [Int] Margin temperature in Celsius to consider for the CPU temperature management.
+    # When the fan is on, it crosses down the threshold, and will stop at threshold - margin.
+    margin: 10
     # [String] Path to the CPU temperature sensor. By default, it is set to the common path for Raspberry Pi, but it may vary depending on the hardware.
     sensor_file: "/sys/class/thermal/thermal_zone0/temp"
