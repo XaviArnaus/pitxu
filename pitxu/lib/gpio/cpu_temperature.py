@@ -11,6 +11,8 @@ class CpuTemperature(PyXavi):
     DEFAULT_THRESHOLD = 50
     DEFAULT_SENSOR_FILE = "/sys/class/thermal/thermal_zone0/temp"
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(CpuTemperature, self).init_pyxavi(config=config, params=params)
 

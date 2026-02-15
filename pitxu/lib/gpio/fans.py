@@ -8,6 +8,8 @@ class Fans(PyXavi):
     fans: dict[str, MockedFan] = {}
     fan_pins_per_name: dict[str, int] = {}
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Fans, self).init_pyxavi(config=config, params=params)
 

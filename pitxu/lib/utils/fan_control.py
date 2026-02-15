@@ -17,7 +17,7 @@ class FanControl(PyXavi):
     PWM_FAN_SPEED_50_THRESHOLD = 70
     PWM_FAN_SPEED_75_THRESHOLD = 80
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(FanControl, self).init_pyxavi(config=config, params=params)
@@ -69,10 +69,10 @@ class FanControl(PyXavi):
 
         else:
 
-            if current_temperature >= self.cpu_temperature.get_threshold():
+            if not self.fans.is_on(fan_name=fan_name) and current_temperature >= self.cpu_temperature.get_threshold():
                 self._log_debug(f"CPU temperature {current_temperature}°C is above threshold, turning on fan '{fan_name}'")
                 self.fans.turn_on(fan_name=fan_name)
 
-            elif current_temperature <= self.cpu_temperature.get_threshold() - self.MARGIN_THRESHOLD_DEGREES_TEMP:
+            elif self.fans.is_on(fan_name=fan_name) and current_temperature <= self.cpu_temperature.get_threshold() - self.MARGIN_THRESHOLD_DEGREES_TEMP:
                 self._log_debug(f"CPU temperature {current_temperature}°C is below threshold (minus margin of {self.MARGIN_THRESHOLD_DEGREES_TEMP}°C), turning off fan '{fan_name}'")
                 self.fans.turn_off(fan_name=fan_name)
