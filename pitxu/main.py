@@ -33,7 +33,7 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
-    _fan_control_iterated_seconds: int = 0
+    _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
 
     _chatbot: GeminiChatbot = None
