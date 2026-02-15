@@ -43,6 +43,20 @@ class Fans(PyXavi):
 
         return self.fans[fan_name].is_lit
     
+    def get_frequency(self, fan_name: str) -> float:
+        if fan_name not in self.fans or self.fans[fan_name] is None:
+            self._xlog.error(f"Fan '{fan_name}' not defined")
+            raise KeyError(f"Fan '{fan_name}' not defined")
+        
+        if not isinstance(self.fans[fan_name], FanPwm):
+            self._xlog.error(f"Fan '{fan_name}' is not a PWM fan, cannot get frequency")
+            raise TypeError(f"Fan '{fan_name}' is not a PWM fan, cannot get frequency")
+
+        if self.is_mocked():
+            return self.mocked_fans_manager.frequency(pin=self.fan_pins_per_name[fan_name])
+
+        return self.fans[fan_name].frequency
+    
     def turn_on(self, fan_name: str):
         if fan_name not in self.fans:
             self._xlog.error(f"Fan '{fan_name}' not defined")
