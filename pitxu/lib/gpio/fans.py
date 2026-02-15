@@ -36,7 +36,7 @@ class Fans(PyXavi):
             self._xlog.debug(full_stack())
 
     def is_on(self, fan_name: str) -> bool:
-        if fan_name not in self.fans:
+        if fan_name not in self.fans or self.fans[fan_name] is None:
             self._xlog.error(f"Fan '{fan_name}' not defined")
             raise KeyError(f"Fan '{fan_name}' not defined")
 
