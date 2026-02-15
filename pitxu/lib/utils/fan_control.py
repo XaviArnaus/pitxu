@@ -56,6 +56,7 @@ class FanControl(PyXavi):
             else:
                 self._log_debug(f"CPU temperature {current_temperature}°C is below PWM speed 25% threshold of {self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD}°C, turning off fan '{fan_name}'")
                 self.fans.set_speed(fan_name=fan_name, speed=0.0)
+
             self._log_debug(f"Fan '{fan_name}' speed set to {self.fans.get_frequency(fan_name=fan_name)}Hz")
 
         else:

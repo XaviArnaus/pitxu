@@ -145,17 +145,16 @@ class Fan:
 class FanPwm(Fan):
     """
     This class is just a wrapper to have a common type for both real and mocked PWM fans.
-    It is not intended to be used directly, but rather as a return type for the Fans class.
     """
 
     # The frequency of the pulses used with the PWM device, in Hz. The default is 100Hz.
-    #   5000 RPM Fan is around 83.33 Hz, so we set a default frequency that is high enough to be able to control the speed of the fan.
+    #   5000 RPM Fan is around 83.33 Hz
     FAN_FREQUENCY: float = 83
 
     def initialize(self):
         from gpiozero import PWMOutputDevice
 
-        self.gpio_device = PWMOutputDevice(self.pin)
+        self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
     
     def set_speed(self, speed: float):
         """
