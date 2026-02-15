@@ -168,7 +168,8 @@ class FanPwm(Fan):
         if speed < 0 or speed > 1:
             raise ValueError(f"Invalid speed value '{speed}' for fan '{self.name}'. Speed should be between 0 and 1.")
 
-        self.frequency = self.FAN_FREQUENCY * speed
+        # self.frequency = self.FAN_FREQUENCY * speed
+        self.gpio_device.value = speed
         self._xlog.debug(f"Set speed of fan '{self.name}' to {speed * 100}% ({self.gpio_device.frequency}Hz)")
     
     @property
