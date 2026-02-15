@@ -83,7 +83,10 @@ class Fans(PyXavi):
             return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm)
         else:
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
-            return FanPwm(name=name, pin=pin) if is_pwm else Fan(name=name, pin=pin)
+            if is_pwm:
+                return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin)
+            else:
+                return Fan(config=self._xconfig, params=self._xparams, name=name, pin=pin)
 
     def close(self):
         if not self.is_mocked():
