@@ -2,14 +2,31 @@ from __future__ import annotations
 from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-class Fans(PyXavi):
+class FansPWM(PyXavi):
 
     mocked_fans_manager: MockedFans = None
     fans: dict[str, MockedFan] = {}
     fan_pins_per_name: dict[str, int] = {}
 
+    # Configuration
+    PWM_GPIO_NR = 18        # PWM gpio number used to drive PWM fan (gpio18 = pin 12)
+    WAIT_TIME = 1           # [s] Time to wait between each refresh
+    PWM_FREQ = 10000        # [Hz] 10kHz for Noctua PWM control
+
+    # Configurable temperature and fan speed
+    MIN_TEMP = 40
+    MAX_TEMP = 60
+    FAN_LOW = 20
+    FAN_HIGH = 100
+    FAN_OFF = 0
+    FAN_MAX = 100
+
+    # logging and metrics (enable = 1)
+    VERBOSE = 0
+    NODE_EXPORTER = 0
+
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super(Fans, self).init_pyxavi(config=config, params=params)
+        super(FansPWM, self).init_pyxavi(config=config, params=params)
 
         self.initialize_fans()
 
@@ -55,25 +72,16 @@ class Fans(PyXavi):
             raise KeyError(f"Fan '{fan_name}' not defined")
 
         self.fans[fan_name].off()
-    
-    def set_speed(self, fan_name: str, speed: float):
-        if fan_name not in self.fans or self.fans[fan_name] is None:
-            self._xlog.error(f"Fan '{fan_name}' not defined")
-            raise KeyError(f"Fan '{fan_name}' not defined")
 
-        if not isinstance(self.fans[fan_name], FanPwm):
-            self._xlog.error(f"Fan '{fan_name}' is not a PWM fan, cannot set speed")
-            raise TypeError(f"Fan '{fan_name}' is not a PWM fan, cannot set speed")
-
-        self.fans[fan_name].set_speed(speed)
-
-    def _new_fan(self, name: str, pin: int, is_pwm: bool = False) -> MockedFan:
+    def _new_fan(self, name: str, pin: int) -> MockedFan:
         if self.is_mocked():
-            self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
-            return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm)
+            self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}]")
+            return self.mocked_fans_manager.add_fan(name=name, pin=pin)
         else:
             self._xlog.debug(f"Creating real fan for [{name}] pin {pin}")
-            return FanPwm(name=name, pin=pin) if is_pwm else Fan(name=name, pin=pin)
+            from gpiozero import OutputDevice
+
+            return OutputDevice(pin)
     
     def close(self):
         if not self.is_mocked():
@@ -85,84 +93,7 @@ class Fans(PyXavi):
     
     def get_all_fans(self) -> dict[str, MockedFan]:
         return self.fans
-    
-    def get(self, fan_name: str) -> MockedFan:
-        if fan_name not in self.fans or self.fans[fan_name] is None:
-            self._xlog.error(f"Fan '{fan_name}' not defined")
-            raise KeyError(f"Fan '{fan_name}' not defined")
 
-        return self.fans[fan_name]
-    
-    def is_pwm_fan(self, fan_name: str) -> bool:
-        if fan_name not in self.fans or self.fans[fan_name] is None:
-            self._xlog.error(f"Fan '{fan_name}' not defined")
-            raise KeyError(f"Fan '{fan_name}' not defined")
-
-        return isinstance(self.fans[fan_name], FanPwm)
-    
-class Fan:
-    """
-    This class is just a wrapper to have a common type for both real and mocked fans.
-    It is not intended to be used directly, but rather as a return type for the Fans class.
-    """
-
-    name: str
-    pin: int
-
-    def __init__(self, name: str, pin: int):
-        self.name = name
-        self.pin = pin
-
-        self.initialize()
-
-    def initialize(self):
-        from gpiozero import OutputDevice
-
-        self.gpio_device = OutputDevice(self.pin)
-
-    def on(self):
-        self.gpio_device.on()
-
-    def off(self):
-        self.gpio_device.off()
-
-    def toggle(self):
-        self.gpio_device.toggle()
-
-    def is_active(self) -> bool:
-        return self.gpio_device.is_active
-
-class FanPwm(Fan):
-    """
-    This class is just a wrapper to have a common type for both real and mocked PWM fans.
-    It is not intended to be used directly, but rather as a return type for the Fans class.
-    """
-
-    def initialize(self):
-        from gpiozero import PWMOutputDevice
-
-        self.gpio_device = PWMOutputDevice(self.pin)
-    
-    def set_speed(self, speed: float):
-        """
-        Set the speed of the fan. The speed should be a value between 0 and 1, where 0 is off and 1 is full speed.
-        """
-        if speed < 0 or speed > 1:
-            raise ValueError(f"Invalid speed value '{speed}' for fan '{self.name}'. Speed should be between 0 and 1.")
-
-        self.frequency = speed
-    
-    @property
-    def frequency(self):
-        """
-        The frequency of the pulses used with the PWM device, in Hz. The
-        default is 100Hz.
-        """
-        return self.gpio_device.frequency
-
-    @frequency.setter
-    def frequency(self, value):
-        self.gpio_device.frequency = value
 
 class MockedFans(PyXavi):
     """
@@ -180,17 +111,17 @@ class MockedFans(PyXavi):
         super(MockedFans, self).init_pyxavi(config=config, params=params)
         self.fans = {}
 
-    def add_fan(self, name: str, pin: int, is_pwm: bool = False) -> MockedFan:
+    def add_fan(self, name: str, pin: int):
 
         # The value is the initial state of the fan (not pressed)
-        self.fans[name] = MockedFan(name=name, pin=pin) if not is_pwm else MockedFanPwm(name=name, pin=pin)
+        self.fans[name] = MockedFan()
 
         # Now we fill the reverse mapping
         self.fans_by_pin[str(pin)] = name
 
         return self.fans[name]
 
-    def is_active(self, pin: int) -> bool:
+    def is_lit(self, pin: int) -> bool:
         if str(pin) not in self.fans_by_pin:
             self._xlog.error(f"Fan with pin '{pin}' not defined in mocked fans")
             raise KeyError(f"Fan with pin '{pin}' not defined in mocked fans")
@@ -199,13 +130,10 @@ class MockedFans(PyXavi):
         value = self.fans[key]
         return value
 
-class MockedFan(Fan):
+class MockedFan(PyXavi):
     """
     Mocked version of gpiozero.Fan for testing purposes.
     """
-
-    def initialize(self):
-        pass
 
     mocked_value: bool = False
 
@@ -225,24 +153,3 @@ class MockedFan(Fan):
     @property
     def value(self) -> bool:
         return self.is_lit
-
-class MockedFanPwm(FanPwm):
-    """
-    Mocked version of gpiozero.FanPwm for testing purposes.
-    """
-
-    mocked_speed: float = 0
-
-    def initialize(self):
-        pass
-
-    def set_speed(self, speed: float):
-        self.mocked_speed = speed
-
-    @property
-    def frequency(self):
-        return self.mocked_speed
-
-    @frequency.setter
-    def frequency(self, value):
-        self.mocked_speed = value
