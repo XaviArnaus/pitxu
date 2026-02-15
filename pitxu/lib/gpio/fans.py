@@ -159,7 +159,7 @@ class FanPwm(Fan):
 
     # The frequency of the pulses used with the PWM device, in Hz. The default is 100Hz.
     #   5000 RPM Fan is around 83.33 Hz
-    FAN_FREQUENCY: float = 83
+    FAN_FREQUENCY: float = 25
 
     def initialize(self):
         from gpiozero import PWMOutputDevice

@@ -325,6 +325,12 @@ sudo usermod -a -G dialout xavier
 - The very first show of the KITT mouth is shown mangled. The rest of the times is good.
 - Spotted few times where the KITT mouth did not appear while TTS speaks. Smells like Shared Memory Flags were not updated on time.
 
+### Case PWM fans
+https://wiki.52pi.com/index.php?title=F-0011
+
+- At full power, there is an obvious blowing air noise.
+- At PWM 25%, 50% there is like an electric shortircuit or frequency based noise, louder than the full blowing.
+
 
 # Ideas
 
