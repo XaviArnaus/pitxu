@@ -20,9 +20,17 @@ gpio:
     # Defined fans
     devices:
       - name: side
-        pin: 18
+        # No-PWM approach
+        # pin: 23
+        # PWM approach
+        pin: 12
+        is_pwm: True
       - name: rear
-        pin: 19
+        # No-PWM approach
+        # pin: 26
+        # PWM approach
+        pin: 13
+        is_pwm: True
 
   # CPU temperature definition
   cpu_temperature:

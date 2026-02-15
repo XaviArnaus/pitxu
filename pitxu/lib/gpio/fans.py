@@ -27,7 +27,7 @@ class Fans(PyXavi):
             fan_definitions = self._xconfig.get("gpio.fans.devices", [])
             for fan in fan_definitions:
                 self._xlog.info(f"Initializing fan '{fan['name']}' on pin {fan['pin']} with {'PWM' if fan.get('is_pwm', False) else 'no-PWM'} control")
-                self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"])
+                self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"], is_pwm=fan.get("is_pwm", False))
                 self.fan_pins_per_name[fan["name"]] = fan["pin"]
         except (Exception, RuntimeError, SystemExit) as e:
             self._xlog.error(f"Error initializing GPIO fans: {e}")
