@@ -713,6 +713,8 @@ class Main(PyXavi):
             elif self._fan_control_iterated_seconds >= self._fan_control_trigger_every_seconds:
                 self._log_debug(f"Restarting fan control iteration counter")
                 self._fan_control_iterated_seconds = -1
+            else:
+                self._fan_control_iterated_seconds += 1
 
             
             # If the background display is idle, show interaction holding percentage if applicable
