@@ -17,7 +17,7 @@ class FanControl(PyXavi):
     PWM_FAN_SPEED_50_THRESHOLD = 70
     PWM_FAN_SPEED_75_THRESHOLD = 80
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(FanControl, self).init_pyxavi(config=config, params=params)
