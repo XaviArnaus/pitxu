@@ -38,5 +38,13 @@ gpio:
     # [Int] Margin temperature in Celsius to consider for the CPU temperature management.
     # When the fan is on, it crosses down the threshold, and will stop at threshold - margin.
     margin: 10
+    # Thresolds for the PWM fans. These thresholds are used to determine the speed of the fans based on the CPU temperature.
+    pwm_thresholds:
+      # [Int] Threshold temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be at 25% speed.
+      threshold_25: 50
+      # [Int] Threshold temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be at 50% speed.
+      threshold_50: 70
+      # [Int] Threshold temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be at 75% speed.
+      threshold_75: 80
     # [String] Path to the CPU temperature sensor. By default, it is set to the common path for Raspberry Pi, but it may vary depending on the hardware.
     sensor_file: "/sys/class/thermal/thermal_zone0/temp"
