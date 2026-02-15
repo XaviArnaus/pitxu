@@ -33,6 +33,8 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
+    _fan_control_iterated_seconds: int = 0
+    _fan_control_trigger_every_seconds: int = 5
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -200,6 +202,7 @@ class Main(PyXavi):
 
         # Initialize the case fan control and apply it.
         self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
+        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
         self._fan_control.toggle_all_fans_by_temperature()
 
         # At this point, we better wait for all queues to be empty.
@@ -701,8 +704,13 @@ class Main(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
-            # Control the fans according to the temperature, every second is good enough for that.
-            self._fan_control.toggle_all_fans_by_temperature()
+            # Control the fans according to the temperature, every some seconds is good enough for that.
+            if self._fan_control_iterated_seconds < 0:
+                self._fan_control.toggle_all_fans_by_temperature()
+                self._fan_control_iterated_seconds += 1
+            elif self._fan_control_iterated_seconds >= self._fan_control_trigger_every_seconds:
+                self._fan_control_iterated_seconds = -1
+
             
             # If the background display is idle, show interaction holding percentage if applicable
             if not self._interaction.is_background_display_busy():

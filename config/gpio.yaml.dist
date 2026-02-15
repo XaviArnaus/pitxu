@@ -36,6 +36,8 @@ gpio:
   cpu_temperature:
     # [Bool] Ignores GPIO hardware and returns static values.
     mock: True
+    # [Int] Control temperature every X seconds.
+    control_interval_seconds: 5
     # [Int] Minimum temperature in Celsius to consider for the CPU temperature management. Below this, the fans will be off.
     min_temperature: 30
     # [Int] Maximum temperature in Celsius to consider for the CPU temperature management. Above this, the fans will be at maximum speed.
