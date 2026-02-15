@@ -33,14 +33,22 @@ class FanControl(PyXavi):
         self.MIN_TEMPERATURE = self._xconfig.get("gpio.cpu_temperature.min_temperature", self.MIN_TEMPERATURE)
 
     def toggle_all_fans_by_temperature(self):
+
+        # Getting the temperature once and then passing it to each fan
+        #   to avoid reading the temperature multiple times in a short period of time.
+        # Otherwise, when we have multiple fans, the second read may be already different and may not
+        #   fulfil the same conditions as the first read, which may cause some fans to be turned on and others not.
+        current_cpu_temp = self.cpu_temperature.get_temperature()
+
         for fan_name in self.fans.get_all_fans().keys():
-            self.toggle_fan_by_temperature(fan_name=fan_name)
-    
-    def toggle_fan_by_temperature(self, fan_name: str):
+            self.toggle_fan_by_temperature(fan_name=fan_name, current_cpu_temp=current_cpu_temp)
+
+    def toggle_fan_by_temperature(self, fan_name: str, current_cpu_temp: float = None):
+
+        current_temperature = current_cpu_temp if current_cpu_temp is not None else self.cpu_temperature.get_temperature()
 
         # We behave different if the fan is PWM or not.
         if self.fans.is_pwm_fan(fan_name=fan_name):
-            current_temperature = self.cpu_temperature.get_temperature()
             if current_temperature >= self.MAX_TEMPERATURE:
                 self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to max temperature of {self.MAX_TEMPERATURE}°C, setting fan '{fan_name}' to 100% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=1.0)
@@ -61,10 +69,10 @@ class FanControl(PyXavi):
 
         else:
 
-            if self.cpu_temperature.is_above_threshold():
-                self._log_debug(f"CPU temperature {self.cpu_temperature.get_temperature()}°C is above threshold, turning on fan '{fan_name}'")
+            if current_temperature >= self.cpu_temperature.get_threshold():
+                self._log_debug(f"CPU temperature {current_temperature}°C is above threshold, turning on fan '{fan_name}'")
                 self.fans.turn_on(fan_name=fan_name)
 
-            elif self.cpu_temperature.is_below_threshold(margin=self.MARGIN_THRESHOLD_DEGREES_TEMP):
-                self._log_debug(f"CPU temperature {self.cpu_temperature.get_temperature()}°C is below threshold (minus margin of {self.MARGIN_THRESHOLD_DEGREES_TEMP}°C), turning off fan '{fan_name}'")
+            elif current_temperature <= self.cpu_temperature.get_threshold() - self.MARGIN_THRESHOLD_DEGREES_TEMP:
+                self._log_debug(f"CPU temperature {current_temperature}°C is below threshold (minus margin of {self.MARGIN_THRESHOLD_DEGREES_TEMP}°C), turning off fan '{fan_name}'")
                 self.fans.turn_off(fan_name=fan_name)
