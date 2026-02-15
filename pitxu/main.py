@@ -705,13 +705,10 @@ class Main(PyXavi):
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
             # Control the fans according to the temperature, every some seconds is good enough for that.
-            self._log_debug(f"Current Fan iteration: {self._fan_control_iterated_seconds}. Triggering every {self._fan_control_trigger_every_seconds} seconds.")
             if self._fan_control_iterated_seconds < 0:
-                self._log_debug(f"Triggering fan control")
                 self._fan_control.toggle_all_fans_by_temperature()
                 self._fan_control_iterated_seconds += 1
-            elif self._fan_control_iterated_seconds >= self._fan_control_trigger_every_seconds:
-                self._log_debug(f"Restarting fan control iteration counter")
+            elif self._fan_control_iterated_seconds >= self._fan_control_trigger_every_seconds - 1:
                 self._fan_control_iterated_seconds = -1
             else:
                 self._fan_control_iterated_seconds += 1
