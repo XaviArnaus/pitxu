@@ -13,9 +13,9 @@ class FanControl(PyXavi):
 
     MARGIN_THRESHOLD_DEGREES_TEMP = 10
 
-    PWM_FAN_DEFAULT_SPEED_25_THRESHOLD = 50
-    PWM_FAN_DEFAULT_SPEED_50_THRESHOLD = 70
-    PWM_FAN_DEFAULT_SPEED_75_THRESHOLD = 80
+    PWM_FAN_SPEED_25_THRESHOLD = 50
+    PWM_FAN_SPEED_50_THRESHOLD = 70
+    PWM_FAN_SPEED_75_THRESHOLD = 80
 
     VERBOSE_DEBUG: bool = True
 
@@ -26,9 +26,9 @@ class FanControl(PyXavi):
         self.cpu_temperature = CpuTemperature(config=config, params=params)
 
         self.MARGIN_THRESHOLD_DEGREES_TEMP = self._xconfig.get("gpio.cpu_temperature.margin", self.MARGIN_THRESHOLD_DEGREES_TEMP)
-        self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_25", self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD)
-        self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_50", self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD)
-        self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_75", self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD)
+        self.PWM_FAN_SPEED_25_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_25", self.PWM_FAN_SPEED_25_THRESHOLD)
+        self.PWM_FAN_SPEED_50_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_50", self.PWM_FAN_SPEED_50_THRESHOLD)
+        self.PWM_FAN_SPEED_75_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_75", self.PWM_FAN_SPEED_75_THRESHOLD)
         self.MAX_TEMPERATURE = self._xconfig.get("gpio.cpu_temperature.max_temperature", self.MAX_TEMPERATURE)
         self.MIN_TEMPERATURE = self._xconfig.get("gpio.cpu_temperature.min_temperature", self.MIN_TEMPERATURE)
 
@@ -44,17 +44,17 @@ class FanControl(PyXavi):
             if current_temperature >= self.MAX_TEMPERATURE:
                 self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to max temperature of {self.MAX_TEMPERATURE}°C, setting fan '{fan_name}' to 100% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=1.0)
-            elif current_temperature >= self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD:
-                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 75% threshold of {self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD}°C, setting fan '{fan_name}' to 75% speed")
+            elif current_temperature >= self.PWM_FAN_SPEED_75_THRESHOLD:
+                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 75% threshold of {self.PWM_FAN_SPEED_75_THRESHOLD}°C, setting fan '{fan_name}' to 75% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=0.75)
-            elif current_temperature >= self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD:
-                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 50% threshold of {self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD}°C, setting fan '{fan_name}' to 50% speed")
+            elif current_temperature >= self.PWM_FAN_SPEED_50_THRESHOLD:
+                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 50% threshold of {self.PWM_FAN_SPEED_50_THRESHOLD}°C, setting fan '{fan_name}' to 50% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=0.5)
-            elif current_temperature >= self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD:
-                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 25% threshold of {self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD}°C, setting fan '{fan_name}' to 25% speed")
+            elif current_temperature >= self.PWM_FAN_SPEED_25_THRESHOLD:
+                self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to PWM speed 25% threshold of {self.PWM_FAN_SPEED_25_THRESHOLD}°C, setting fan '{fan_name}' to 25% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=0.25)
             else:
-                self._log_debug(f"CPU temperature {current_temperature}°C is below PWM speed 25% threshold of {self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD}°C, turning off fan '{fan_name}'")
+                self._log_debug(f"CPU temperature {current_temperature}°C is below PWM speed 25% threshold of {self.PWM_FAN_SPEED_25_THRESHOLD}°C, turning off fan '{fan_name}'")
                 self.fans.set_speed(fan_name=fan_name, speed=0.0)
 
             self._log_debug(f"Fan '{fan_name}' speed set to {self.fans.get_frequency(fan_name=fan_name)}Hz")
