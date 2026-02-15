@@ -38,11 +38,9 @@ class Fans(PyXavi):
             self._xlog.error(f"Fan '{fan_name}' not defined")
             raise KeyError(f"Fan '{fan_name}' not defined")
 
-        if self.is_mocked():
-            return self.mocked_fans_manager.is_lit(pin=self.fan_pins_per_name[fan_name])
+        fan = self.get(fan_name=fan_name)
+        return fan.is_active()
 
-        return self.fans[fan_name].is_lit
-    
     def get_frequency(self, fan_name: str) -> float:
         if fan_name not in self.fans or self.fans[fan_name] is None:
             self._xlog.error(f"Fan '{fan_name}' not defined")
@@ -52,11 +50,8 @@ class Fans(PyXavi):
             self._xlog.error(f"Fan '{fan_name}' is not a PWM fan, cannot get frequency")
             raise TypeError(f"Fan '{fan_name}' is not a PWM fan, cannot get frequency")
 
-        if self.is_mocked():
-            return self.mocked_fans_manager.frequency(pin=self.fan_pins_per_name[fan_name])
+        return self.fans.get(fan_name).frequency
 
-        return self.fans[fan_name].frequency
-    
     def turn_on(self, fan_name: str):
         if fan_name not in self.fans:
             self._xlog.error(f"Fan '{fan_name}' not defined")
@@ -208,6 +203,13 @@ class MockedFans(PyXavi):
         self.fans_by_pin[str(pin)] = name
 
         return self.fans[name]
+    
+    def get_fan(self, name: str) -> MockedFan:
+        if name not in self.fans or self.fans[name] is None:
+            self._xlog.error(f"Fan '{name}' not defined in mocked fans")
+            raise KeyError(f"Fan '{name}' not defined in mocked fans")
+
+        return self.fans[name]
 
     def is_active(self, pin: int) -> bool:
         if str(pin) not in self.fans_by_pin:
@@ -236,14 +238,9 @@ class MockedFan(Fan):
 
     def toggle(self):
         self.mocked_value = not self.mocked_value
-
-    @property
-    def is_lit(self) -> bool:
+    
+    def is_active(self) -> bool:
         return self.mocked_value
-
-    @property
-    def value(self) -> bool:
-        return self.is_lit
 
 class MockedFanPwm(FanPwm):
     """
