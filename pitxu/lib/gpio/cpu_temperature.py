@@ -41,11 +41,17 @@ class CpuTemperature(PyXavi):
                 self._xlog.error(f"Error initializing GPIO CPU temperature: {e}")
                 self._xlog.debug(full_stack())
 
-    def is_above_threshold(self) -> bool:
-        return self.device.is_active
+    def is_above_threshold(self, margin: float = 0) -> bool:
+        return self.get_temperature() >= self.get_threshold() + margin
+    
+    def is_below_threshold(self, margin: float = 0) -> bool:
+        return self.get_temperature() <= self.get_threshold() - margin
 
     def get_temperature(self) -> float:
         return self.device.temperature
+    
+    def get_threshold(self) -> float:
+        return self.device.threshold
 
     def close(self):
         if self.device is not None and not self.is_mocked():
