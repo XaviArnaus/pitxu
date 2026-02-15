@@ -21,16 +21,12 @@ gpio:
     devices:
       - name: side
         # No-PWM approach
-        # pin: 23
-        # PWM approach
-        pin: 12
-        is_pwm: True
+        pin: 23
       - name: rear
-        # No-PWM approach
-        # pin: 26
         # PWM approach
         pin: 13
         is_pwm: True
+        pwm_frequency: 25000
 
   # CPU temperature definition
   cpu_temperature:

@@ -29,7 +29,7 @@ class Fans(PyXavi):
             fan_definitions = self._xconfig.get("gpio.fans.devices", [])
             for fan in fan_definitions:
                 self._xlog.info(f"Initializing fan '{fan['name']}' on pin {fan['pin']} with {'PWM' if fan.get('is_pwm', False) else 'no-PWM'} control")
-                self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"], is_pwm=fan.get("is_pwm", False))
+                self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"], is_pwm=fan.get("is_pwm", False), pwm_frequency=fan.get("pwm_frequency", None))
                 self.fan_pins_per_name[fan["name"]] = fan["pin"]
         except (Exception, RuntimeError, SystemExit) as e:
             self._xlog.error(f"Error initializing GPIO fans: {e}")
@@ -82,14 +82,14 @@ class Fans(PyXavi):
         self._xlog.debug(f"Setting speed of fan '{fan_name}' to {speed}")
         self.fans[fan_name].set_speed(speed)
 
-    def _new_fan(self, name: str, pin: int, is_pwm: bool = False) -> MockedFan:
+    def _new_fan(self, name: str, pin: int, is_pwm: bool = False, pwm_frequency: int = None) -> MockedFan:
         if self.is_mocked():
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
             return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm)
         else:
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
             if is_pwm:
-                return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin)
+                return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin, pwm_frequency=pwm_frequency)
             else:
                 return Fan(config=self._xconfig, params=self._xparams, name=name, pin=pin)
 
@@ -159,7 +159,13 @@ class FanPwm(Fan):
 
     # The frequency of the pulses used with the PWM device, in Hz. The default is 100Hz.
     #   5000 RPM Fan is around 83.33 Hz
-    FAN_FREQUENCY: float = 25
+    FAN_FREQUENCY: float = 100
+
+    def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
+        super(FanPwm, self).__init__(config=config, params=params, name=name, pin=pin)
+
+        if pwm_frequency is not None:
+            self.FAN_FREQUENCY = pwm_frequency
 
     def initialize(self):
         from gpiozero import PWMOutputDevice
