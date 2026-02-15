@@ -170,7 +170,7 @@ class FanPwm(Fan):
 
         # self.frequency = self.FAN_FREQUENCY * speed
         self.gpio_device.value = speed
-        self._xlog.debug(f"Set speed of fan '{self.name}' to {speed * 100}% ({self.gpio_device.frequency}Hz)")
+        self._xlog.debug(f"Set speed of fan '{self.name}' to {self.gpio_device.value * 100}% ({self.gpio_device.frequency}Hz)")
     
     @property
     def frequency(self):

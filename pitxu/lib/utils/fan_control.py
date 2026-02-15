@@ -26,9 +26,9 @@ class FanControl(PyXavi):
         self.cpu_temperature = CpuTemperature(config=config, params=params)
 
         self.MARGIN_THRESHOLD_DEGREES_TEMP = self._xconfig.get("gpio.cpu_temperature.margin", self.MARGIN_THRESHOLD_DEGREES_TEMP)
-        self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD = self._xconfig.get("gpio.fan_control.pwm_speed_thresholds.threshold_25", self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD)
-        self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD = self._xconfig.get("gpio.fan_control.pwm_speed_thresholds.threshold_50", self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD)
-        self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD = self._xconfig.get("gpio.fan_control.pwm_speed_thresholds.threshold_75", self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD)
+        self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_25", self.PWM_FAN_DEFAULT_SPEED_25_THRESHOLD)
+        self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_50", self.PWM_FAN_DEFAULT_SPEED_50_THRESHOLD)
+        self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_speed_thresholds.threshold_75", self.PWM_FAN_DEFAULT_SPEED_75_THRESHOLD)
         self.MAX_TEMPERATURE = self._xconfig.get("gpio.cpu_temperature.max_temperature", self.MAX_TEMPERATURE)
         self.MIN_TEMPERATURE = self._xconfig.get("gpio.cpu_temperature.min_temperature", self.MIN_TEMPERATURE)
 
