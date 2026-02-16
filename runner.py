@@ -461,8 +461,9 @@ def test_fans():
         from pitxu.lib.gpio.fans import FanConfig
         from subprocess import check_output
 
-        fan_configs = FanConfig.from_dict(config.get("gpio.fans.devices"))
-        for fan_config in fan_configs:
+        fan_configs: list[FanConfig] = config.get("gpio.fans.devices", [])
+        for fan_config_data in fan_configs:
+            fan_config = FanConfig.from_dict(fan_config_data)
             logger.debug(f"Testing PWM fan '{fan_config.name}' as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
             pwm=HardwarePWM(
                 fan_config.pwm_channel,
