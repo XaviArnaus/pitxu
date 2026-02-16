@@ -181,9 +181,13 @@ class FanPwm(Fan):
     This class is just a wrapper to have a common type for both real and mocked PWM fans.
     """
 
+    # The initial frequency of the PWM fan, in Hz. The default is 100Hz.
+    INITIAL_FREQUENCY = 100
+
     # The frequency of the pulses used with the PWM device, in Hz. The default is 100Hz.
     #   5000 RPM Fan is around 83.33 Hz
-    FAN_FREQUENCY: float = 100
+    # It is recommended to use a frequency outside the human ear, so above 20 kHz.
+    FAN_FREQUENCY: float = 25_000
 
     # The HardwarePWM implementation does not read values. We need to hold the last set() and return that instead.
     active: bool = False
@@ -193,7 +197,6 @@ class FanPwm(Fan):
 
     def __init__(self, config: Config, params: Dictionary, fan_config: FanConfig):
         
-        dd(fan_config)
         if fan_config.pwm_frequency is not None:
             self.FAN_FREQUENCY = fan_config.pwm_frequency
 
@@ -207,11 +210,16 @@ class FanPwm(Fan):
         from rpi_hardware_pwm import HardwarePWM, HardwarePWMException
 
         try:
+            # The initialisation needs to be at a pretty low frequency, otherwise we get "write error: Invalid argument".
+            # This is because of the way the hardware PWM works, which requires to set duty cycle to 0 before changing the period.
             self.gpio_device = HardwarePWM(
                 pwm_channel=self.fan_config.pwm_channel, 
-                hz=self.FAN_FREQUENCY, 
+                hz=self.INITIAL_FREQUENCY, 
                 chip=self.fan_config.pwm_chip)
-            dd(self.gpio_device)
+            
+            self.gpio_device.change_duty_cycle(0)
+            self.gpio_device.change_frequency(self.FAN_FREQUENCY)
+
             self.gpio_device.start(initial_duty_cycle=0)
         except HardwarePWMException as e:
             error_message = f"Error initializing PWM fan '{self.fan_config.name}' on pin {self.fan_config.pin}: {e}"
