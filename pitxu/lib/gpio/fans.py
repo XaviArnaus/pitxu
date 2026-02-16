@@ -377,3 +377,13 @@ class FanConfig:
             pwm_chip=config.get("chip"),
             pwm_channel=config.get("channel")
         )
+    
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "is_pwm": self.is_pwm,
+            "pin": self.pin,
+            "pwm_frequency": self.pwm_frequency,
+            "pwm_chip": self.pwm_chip,
+            "pwm_channel": self.pwm_channel
+        }
