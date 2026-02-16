@@ -2,6 +2,23 @@ from __future__ import annotations
 from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+# PWM control is pretty tricky.
+#   1. Implemented using gpiozero's PWMOutputDevice, it is Software PWM, and feels like it has issues:
+#       - I can't make it work over 10KHz: Bad PWM whatever (I don't remember the error)
+#       - The fans produce very annoying electrical noise. Research tells this is because of wrong frequency.
+#           - Tested with 25 Hz, 50 Hz, 83 Hz, 100 Hz, 1kHz, 8kHz, 9kHz and 10 kHz, and all of them produce noise. 
+#             The lower the frequency, the noisier the sound.
+#
+#   2. Implemented using rpi_hardware_pwm, it is Hardware PWM.
+#       - Resources:
+#           - https://github.com/Pioreactor/rpi_hardware_pwm
+#           - https://github.com/Pioreactor/rpi_hardware_pwm/issues/10#issuecomment-2500952367
+#           - https://github.com/jdimpson/syspwm
+#           - https://gist.github.com/Gadgetoid/b92ad3db06ff8c264eef2abf0e09d569
+#       - Usefull commands:
+#           $ pinctrl get | grep PWM -> get shell information about the pins and their capabilities, then filter for PWM
+#           $ sudo cat /sys/kernel/debug/pwm -> get information about the PWM channels and their state
+
 class Fans(PyXavi):
 
     mocked_fans_manager: MockedFans = None
@@ -28,9 +45,10 @@ class Fans(PyXavi):
         try:
             fan_definitions = self._xconfig.get("gpio.fans.devices", [])
             for fan in fan_definitions:
-                self._xlog.info(f"Initializing fan '{fan['name']}' on pin {fan['pin']} with {'PWM' if fan.get('is_pwm', False) else 'no-PWM'} control{' , at frequency ' + str(fan.get('pwm_frequency', 'N/A')) if fan.get('is_pwm', False) else 'N/A'}")
-                self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"], is_pwm=fan.get("is_pwm", False), pwm_frequency=fan.get("pwm_frequency", None))
-                self.fan_pins_per_name[fan["name"]] = fan["pin"]
+                fan_config = FanConfig.from_dict(fan)
+                self._xlog.info(f"Initializing fan '{fan_config.name}' on pin {fan_config.pin} with {'PWM' if fan_config.is_pwm else 'no-PWM'} control{', at frequency ' + str(fan_config.pwm_frequency) if fan_config.is_pwm else 'N/A'}")
+                self.fans[fan_config.name] = self._new_fan(fan_config.name, fan_config)
+                self.fan_pins_per_name[fan_config.name] = fan_config.pin
         except (Exception, RuntimeError, SystemExit) as e:
             self._xlog.error(f"Error initializing GPIO fans: {e}")
             self._xlog.debug(full_stack())
@@ -82,17 +100,16 @@ class Fans(PyXavi):
         self._xlog.debug(f"Setting speed of fan '{fan_name}' to {speed}")
         self.fans[fan_name].set_speed(speed)
 
-    def _new_fan(self, name: str, pin: int, is_pwm: bool = False, pwm_frequency: int = None) -> MockedFan:
-        dd(pwm_frequency)
+    def _new_fan(self, name: str, fan_config: FanConfig) -> MockedFan:
         if self.is_mocked():
-            self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
-            return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm, pwm_frequency=pwm_frequency)
+            self._xlog.warning(f"Creating mocked fan [{name}] for pin [{fan_config.pin}] as {'PWM' if fan_config.is_pwm else 'no-PWM'} fan")
+            return self.mocked_fans_manager.add_fan(name=name, fan_config=fan_config)
         else:
-            self._xlog.warning(f"Creating real fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
-            if is_pwm:
-                return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin, pwm_frequency=pwm_frequency)
+            self._xlog.warning(f"Creating real fan [{name}] for pin [{fan_config.pin}] as {'PWM' if fan_config.is_pwm else 'no-PWM'} fan")
+            if fan_config.is_pwm:
+                return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=fan_config.pin, pwm_frequency=fan_config.pwm_frequency)
             else:
-                return Fan(config=self._xconfig, params=self._xparams, name=name, pin=pin)
+                return Fan(config=self._xconfig, params=self._xparams, name=name, pin=fan_config.pin)
 
     def close(self):
         if not self.is_mocked():
@@ -121,25 +138,22 @@ class Fans(PyXavi):
     
 class Fan(PyXavi):
     """
-    This class is just a wrapper to have a common type for both real and mocked fans.
-    It is not intended to be used directly, but rather as a return type for the Fans class.
+    Base definition for a Fan. It gets extended to implement PWM and mocked fans.
     """
 
-    name: str
-    pin: int
+    fan_config: FanConfig = None
 
-    def __init__(self, config: Config, params: Dictionary, name: str, pin: int):
+    def __init__(self, config: Config, params: Dictionary, fan_config: FanConfig):
         super().init_pyxavi(config=config, params=params)
 
-        self.name = name
-        self.pin = pin
+        self.fan_config = fan_config
 
         self.initialize()
 
     def initialize(self):
         from gpiozero import OutputDevice
 
-        self.gpio_device = OutputDevice(self.pin, initial_value=False)
+        self.gpio_device = OutputDevice(self.fan_config.pin, initial_value=False)
 
     def on(self):
         self.gpio_device.on()
@@ -152,6 +166,9 @@ class Fan(PyXavi):
 
     def is_active(self) -> bool:
         return self.gpio_device.is_active
+    
+    def get_value(self) -> bool:
+        return self.gpio_device.value
 
 class FanPwm(Fan):
     """
@@ -162,28 +179,48 @@ class FanPwm(Fan):
     #   5000 RPM Fan is around 83.33 Hz
     FAN_FREQUENCY: float = 100
 
-    def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
+    # The HardwarePWM implementation does not read values. We need to hold the last set() and return that instead.
+    active: bool = False
+    frequency_value: float = FAN_FREQUENCY
+    duty_cycle_value: float = 0
+
+
+    def __init__(self, config: Config, params: Dictionary, fan_config: FanConfig):
         
+        super(FanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
 
-        if pwm_frequency is not None:
-            self.FAN_FREQUENCY = pwm_frequency
-
-        super(FanPwm, self).__init__(config=config, params=params, name=name, pin=pin)
+        if fan_config.pwm_frequency is not None:
+            self.FAN_FREQUENCY = fan_config.pwm_frequency
 
     def initialize(self):
-        from gpiozero import PWMOutputDevice
+        # from gpiozero import PWMOutputDevice
 
-        dd(self.FAN_FREQUENCY)
-        self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
-    
+        # dd(self.FAN_FREQUENCY)
+        # self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
+        from rpi_hardware_pwm import HardwarePWM
+
+        self.gpio_device = HardwarePWM(
+            pwm_channel=self.fan_config.pwm_channel, 
+            hz=self.FAN_FREQUENCY, 
+            chip=self.fan_config.pwm_chip)
+
+        self.gpio_device.start(initial_duty_cycle=0)
+
+        # Now the control statuses
+        self.frequency_value = self.FAN_FREQUENCY
+        self.duty_cycle_value = 0
+
     def set_speed(self, speed: float):
         """
         Set the speed of the fan. The speed should be a value between 0 and 1, where 0 is off and 1 is full speed.
         """
+        speed = float(speed)
         if speed < 0 or speed > 1:
-            raise ValueError(f"Invalid speed value '{speed}' for fan '{self.name}'. Speed should be between 0 and 1.")
+            raise ValueError(f"Invalid speed value '{speed}' for fan '{self.fan_config.name}'. Speed should be between 0 and 1.")
 
-        self.gpio_device.value = speed
+        # The rpi_hardware_pwm library uses duty cycle in percentage, so we need to convert the speed to percentage.
+        self.gpio_device.change_duty_cycle(speed * 100)
+        self.duty_cycle_value = speed
     
     @property
     def frequency(self):
@@ -191,11 +228,18 @@ class FanPwm(Fan):
         The frequency of the pulses used with the PWM device, in Hz. The
         default is 100Hz.
         """
-        return self.gpio_device.frequency
+        return self.frequency_value
 
     @frequency.setter
     def frequency(self, value):
-        self.gpio_device.frequency = value
+        self.set_speed(value)
+        self.frequency_value = value
+    
+    def get_value(self) -> float:
+        return self.duty_cycle_value
+    
+    def is_active(self) -> bool:
+        return self.duty_cycle_value > 0
 
 class MockedFans(PyXavi):
     """
@@ -213,16 +257,16 @@ class MockedFans(PyXavi):
         super(MockedFans, self).init_pyxavi(config=config, params=params)
         self.fans = {}
 
-    def add_fan(self, name: str, pin: int, is_pwm: bool = False, pwm_frequency: int = None) -> MockedFan:
+    def add_fan(self, name: str, fan_config: FanConfig) -> MockedFan:
 
         # The value is the initial state of the fan (not pressed)
-        if not is_pwm:
-            self.fans[name] = MockedFan(config=self._xconfig, params=self._xparams, name=name, pin=pin)
+        if not fan_config.is_pwm:
+            self.fans[name] = MockedFan(config=self._xconfig, params=self._xparams, fan_config=fan_config)
         else:
-            self.fans[name] = MockedFanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin, pwm_frequency=pwm_frequency)
+            self.fans[name] = MockedFanPwm(config=self._xconfig, params=self._xparams, fan_config=fan_config)
 
         # Now we fill the reverse mapping
-        self.fans_by_pin[str(pin)] = name
+        self.fans_by_pin[str(fan_config.pin)] = name
 
         return self.fans[name]
     
@@ -271,8 +315,8 @@ class MockedFanPwm(FanPwm):
 
     mocked_speed: float = 0
 
-    def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
-        super(MockedFanPwm, self).__init__(config=config, params=params, name=name, pin=pin, pwm_frequency=pwm_frequency)
+    def __init__(self, config: Config, params: Dictionary, fan_config: FanConfig):
+        super(MockedFanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
 
     def initialize(self):
         pass
@@ -287,3 +331,37 @@ class MockedFanPwm(FanPwm):
     @frequency.setter
     def frequency(self, value):
         self.mocked_speed = value
+    
+    def get_value(self) -> float:
+        return self.mocked_speed
+    
+    def is_active(self) -> bool:
+        return self.mocked_speed > 0
+
+class FanConfig:
+
+    name: str
+    is_pwm: bool
+    pin: int
+    pwm_frequency: int = None
+    pwm_chip: int = None
+    pwm_channel: int = None
+
+    def __init__(self, name: str, is_pwm: bool, pin: int, pwm_frequency: int = None, pwm_chip: int = None, pwm_channel: int = None):
+        self.name = name
+        self.is_pwm = is_pwm
+        self.pin = pin
+        self.pwm_frequency = pwm_frequency
+        self.pwm_chip = pwm_chip
+        self.pwm_channel = pwm_channel
+
+    @staticmethod
+    def from_dict(config: dict) -> FanConfig:
+        return FanConfig(
+            name=config.get("name"),
+            is_pwm=config.get("is_pwm", False),
+            pin=config.get("pin"),
+            pwm_frequency=config.get("pwm_frequency"),
+            pwm_chip=config.get("chip"),
+            pwm_channel=config.get("channel")
+        )

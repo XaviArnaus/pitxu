@@ -2,24 +2,13 @@ from __future__ import annotations
 from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+# This is a test class, not used.
+
 class FansPWM(PyXavi):
 
     mocked_fans_manager: MockedFans = None
     fans: dict[str, MockedFan] = {}
     fan_pins_per_name: dict[str, int] = {}
-
-    # Configuration
-    PWM_GPIO_NR = 18        # PWM gpio number used to drive PWM fan (gpio18 = pin 12)
-    WAIT_TIME = 1           # [s] Time to wait between each refresh
-    PWM_FREQ = 10000        # [Hz] 10kHz for Noctua PWM control
-
-    # Configurable temperature and fan speed
-    MIN_TEMP = 40
-    MAX_TEMP = 60
-    FAN_LOW = 20
-    FAN_HIGH = 100
-    FAN_OFF = 0
-    FAN_MAX = 100
 
     # logging and metrics (enable = 1)
     VERBOSE = 0
