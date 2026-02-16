@@ -11,6 +11,7 @@ from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.memory import Memory
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
@@ -35,6 +36,8 @@ class Main(PyXavi):
     _seconds_to_hold_interaction_answer: int = 15
 
     _server: Server = None
+    _fan_control_iterated_seconds: int = -1
+    _fan_control_trigger_every_seconds: int = 5
 
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
@@ -46,6 +49,7 @@ class Main(PyXavi):
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
+    _fan_control: FanControl = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -207,6 +211,15 @@ class Main(PyXavi):
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
+        self._interaction.show_init_phases(2)
+        # ... yeah, "Loading", but I freeze the execution here.
+        # Technically the system supports leaving the splash while loading, speaking (greetings) and stuff in background.
+        # time.sleep(4)
+
+        # Initialize the case fan control and apply it.
+        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
+        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
+        self._fan_control.toggle_all_fans_by_temperature()
 
         # At this point, we better wait for all queues to be empty.
         # COMMENTED: Do we really need to wait for queues?
@@ -712,6 +725,16 @@ class Main(PyXavi):
             self._last_processed_second = current_second
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+
+            # Control the fans according to the temperature, every some seconds is good enough for that.
+            if self._fan_control_iterated_seconds < 0:
+                self._fan_control.toggle_all_fans_by_temperature()
+                self._fan_control_iterated_seconds += 1
+            elif self._fan_control_iterated_seconds >= self._fan_control_trigger_every_seconds - 1:
+                self._fan_control_iterated_seconds = -1
+            else:
+                self._fan_control_iterated_seconds += 1
+
             
             # If the background display is idle, show interaction holding percentage if applicable
             if not self._interaction.is_background_display_busy():

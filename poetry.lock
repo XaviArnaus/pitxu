@@ -3255,6 +3255,18 @@ files = [
 ]
 
 [[package]]
+name = "rpi-hardware-pwm"
+version = "0.3.1"
+description = "Control Hardware PWM on the Raspberry Pi"
+optional = false
+python-versions = ">=3.5"
+groups = ["main"]
+files = [
+    {file = "rpi_hardware_pwm-0.3.1-py3-none-any.whl", hash = "sha256:ad0f7f3e8ec83dd76a552cff92ea1dbb1bf773210316519ea66e3e85d3ac9ae0"},
+    {file = "rpi_hardware_pwm-0.3.1.tar.gz", hash = "sha256:dcb2627ab1248a9c532c86e013914416c55f11bd70976dd6ec6ecfd1109b0fe8"},
+]
+
+[[package]]
 name = "rpi-lgpio"
 version = "0.6"
 description = "A compatibility shim between RPi.GPIO and lgpio"
@@ -3855,4 +3867,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "66fcf9329a87a95f5d804dc55c441970733dd88c2a24ab0d53e51b24609127ae"
+content-hash = "99d80d085cf3b19a5956282ca7ff085f56078bb3282ca0ff501c21eb621b7adc"
