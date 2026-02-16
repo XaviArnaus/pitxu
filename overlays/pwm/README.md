@@ -11,6 +11,9 @@ https://github.com/Pioreactor/rpi_hardware_pwm
 I found this Github Gist:
 https://gist.github.com/Gadgetoid/b92ad3db06ff8c264eef2abf0e09d569
 
+How actually PWM works in Linkux
+https://web.archive.org/web/20200722035349/https://jumpnowtek.com/rpi/Using-the-Raspberry-Pi-Hardware-PWM-timers.html
+
 ## How to make it work
 
 ### 1. Compile the file
@@ -55,5 +58,13 @@ sudo dtoverlay pwm-pi5
 
 ```
 cat /sys/kernel/debug/pwm
+```
+
+### Debug overlays
+
+Add `dtdebug=1` at the beginning of the `/boot/firmware/config.txt`
+You van see the messages logged by
+```
+sudo vclog -m
 ```
 

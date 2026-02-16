@@ -459,22 +459,28 @@ def test_fans():
         logger.debug("Testing fans control")
         from rpi_hardware_pwm import HardwarePWM
         from pitxu.lib.gpio.fans import FanConfig
-        fan_config = FanConfig.from_dict(config.get("gpio.fans.devices")[0])
-        logger.debug(f"Testing PWM fan as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
-        pwm=HardwarePWM(
-            fan_config.pwm_channel,
-            fan_config.pwm_frequency,
-            chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
-        pwm.start(100)
-        logger.debug("Fan should be at 100% speed for 2 seconds")
-        time.sleep(2)
-        pwm.change_duty_cycle(0.5/10)
-        logger.debug("Fan should be at 50% speed for 2 seconds")
-        time.sleep(2)
-        pwm.change_frequency(25_000)
-        logger.debug("Fan should be at 50% speed but with 25KHz frequency for 2 seconds")
-        time.sleep(2)
-        pwm.stop()
+        from subprocess import check_output
+
+        fan_configs = FanConfig.from_dict(config.get("gpio.fans.devices"))
+        for fan_config in fan_configs:
+            logger.debug(f"Testing PWM fan '{fan_config.name}' as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
+            pwm=HardwarePWM(
+                fan_config.pwm_channel,
+                fan_config.pwm_frequency,
+                chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
+            pwm.start(100)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug("Fan should be at 100% speed for 2 seconds")
+            time.sleep(2)
+            pwm.change_duty_cycle(0.5/10)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug("Fan should be at 50% speed for 2 seconds")
+            time.sleep(2)
+            pwm.change_frequency(25_000)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug("Fan should be at 50% speed but with 25KHz frequency for 2 seconds")
+            time.sleep(2)
+            pwm.stop()
         logger.info("End of work.")
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
