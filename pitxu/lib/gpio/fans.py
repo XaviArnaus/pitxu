@@ -195,6 +195,7 @@ class FanPwm(Fan):
         
         super(FanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
 
+        dd(fan_config)
         if fan_config.pwm_frequency is not None:
             self.FAN_FREQUENCY = fan_config.pwm_frequency
 
@@ -210,7 +211,7 @@ class FanPwm(Fan):
                 pwm_channel=self.fan_config.pwm_channel, 
                 hz=self.FAN_FREQUENCY, 
                 chip=self.fan_config.pwm_chip)
-
+            dd(self.gpio_device)
             self.gpio_device.start(initial_duty_cycle=0)
         except HardwarePWMException as e:
             error_message = f"Error initializing PWM fan '{self.fan_config.name}' on pin {self.fan_config.pin}: {e}"
