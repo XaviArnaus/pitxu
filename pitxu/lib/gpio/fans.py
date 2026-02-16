@@ -17,7 +17,9 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 #           - https://gist.github.com/Gadgetoid/b92ad3db06ff8c264eef2abf0e09d569
 #       - Usefull commands:
 #           $ pinctrl get | grep PWM -> get shell information about the pins and their capabilities, then filter for PWM
+#           $ pinctrl funcs 12-13,18-19 -> get the functions that can be used in the pins 12, 13, 18 and 19, which are the PWM ones
 #           $ sudo cat /sys/kernel/debug/pwm -> get information about the PWM channels and their state
+#           $ find /proc/device-tree -name "*pwm*" -> Check if an overlay was loaded with the "pwm" string in it.
 
 class Fans(PyXavi):
 
@@ -106,9 +108,13 @@ class Fans(PyXavi):
             return self.mocked_fans_manager.add_fan(name=name, fan_config=fan_config)
         else:
             self._xlog.warning(f"Creating real fan [{name}] for pin [{fan_config.pin}] as {'PWM' if fan_config.is_pwm else 'no-PWM'} fan")
-            if fan_config.is_pwm:
-                return FanPwm(config=self._xconfig, params=self._xparams, fan_config=fan_config)
-            else:
+            try:
+                if fan_config.is_pwm:
+                    return FanPwm(config=self._xconfig, params=self._xparams, fan_config=fan_config)
+                else:
+                    return Fan(config=self._xconfig, params=self._xparams, fan_config=fan_config)
+            except RuntimeError as e:
+                self._xlog.warning(f"Falling back to a non-PWM fan for fan '{name}' at pin [{fan_config.pin}] due to error: {e}")
                 return Fan(config=self._xconfig, params=self._xparams, fan_config=fan_config)
 
     def close(self):
@@ -197,14 +203,20 @@ class FanPwm(Fan):
 
         # dd(self.FAN_FREQUENCY)
         # self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
-        from rpi_hardware_pwm import HardwarePWM
+        from rpi_hardware_pwm import HardwarePWM, HardwarePWMException
 
-        self.gpio_device = HardwarePWM(
-            pwm_channel=self.fan_config.pwm_channel, 
-            hz=self.FAN_FREQUENCY, 
-            chip=self.fan_config.pwm_chip)
+        try:
+            self.gpio_device = HardwarePWM(
+                pwm_channel=self.fan_config.pwm_channel, 
+                hz=self.FAN_FREQUENCY, 
+                chip=self.fan_config.pwm_chip)
 
-        self.gpio_device.start(initial_duty_cycle=0)
+            self.gpio_device.start(initial_duty_cycle=0)
+        except HardwarePWMException as e:
+            error_message = f"Error initializing PWM fan '{self.fan_config.name}' on pin {self.fan_config.pin}: {e}"
+            self._xlog.error(error_message)
+            self._xlog.debug(full_stack())
+            raise RuntimeError(error_message)
 
         # Now the control statuses
         self.frequency_value = self.FAN_FREQUENCY
