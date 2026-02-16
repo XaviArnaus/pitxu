@@ -184,8 +184,7 @@ class FanPwm(Fan):
     # The initial frequency of the PWM fan, in Hz. The default is 100Hz.
     INITIAL_FREQUENCY = 100
 
-    # The frequency of the pulses used with the PWM device, in Hz. The default is 100Hz.
-    #   5000 RPM Fan is around 83.33 Hz
+    # The frequency of the pulses used with the PWM device, in Hz.
     # It is recommended to use a frequency outside the human ear, so above 20 kHz.
     FAN_FREQUENCY: float = 25_000
 
@@ -203,10 +202,6 @@ class FanPwm(Fan):
         super(FanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
 
     def initialize(self):
-        # from gpiozero import PWMOutputDevice
-
-        # dd(self.FAN_FREQUENCY)
-        # self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
         from rpi_hardware_pwm import HardwarePWM, HardwarePWMException
 
         try:
