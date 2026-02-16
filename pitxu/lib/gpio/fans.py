@@ -163,15 +163,17 @@ class FanPwm(Fan):
     FAN_FREQUENCY: float = 100
 
     def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
-        super(FanPwm, self).__init__(config=config, params=params, name=name, pin=pin)
+        
 
-        dd(pwm_frequency)
         if pwm_frequency is not None:
             self.FAN_FREQUENCY = pwm_frequency
+
+        super(FanPwm, self).__init__(config=config, params=params, name=name, pin=pin)
 
     def initialize(self):
         from gpiozero import PWMOutputDevice
 
+        dd(self.FAN_FREQUENCY)
         self.gpio_device = PWMOutputDevice(self.pin, initial_value=0, frequency=self.FAN_FREQUENCY)
     
     def set_speed(self, speed: float):
