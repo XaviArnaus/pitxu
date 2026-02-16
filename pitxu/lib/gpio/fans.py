@@ -88,7 +88,7 @@ class Fans(PyXavi):
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
             return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm, pwm_frequency=pwm_frequency)
         else:
-            self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
+            self._xlog.warning(f"Creating real fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
             if is_pwm:
                 return FanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin, pwm_frequency=pwm_frequency)
             else:
