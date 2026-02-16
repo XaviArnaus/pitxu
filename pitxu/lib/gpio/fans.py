@@ -99,7 +99,7 @@ class Fans(PyXavi):
             self._xlog.error(f"Fan '{fan_name}' is not a PWM fan, cannot set speed")
             raise TypeError(f"Fan '{fan_name}' is not a PWM fan, cannot set speed")
 
-        self._xlog.debug(f"Setting speed of fan '{fan_name}' to {speed}")
+        self._xlog.debug(f"Setting speed of fan '{fan_name}' to {speed * 100}%")
         self.fans[fan_name].set_speed(speed)
 
     def _new_fan(self, name: str, fan_config: FanConfig) -> MockedFan:
