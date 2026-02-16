@@ -193,11 +193,11 @@ class FanPwm(Fan):
 
     def __init__(self, config: Config, params: Dictionary, fan_config: FanConfig):
         
-        super(FanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
-
         dd(fan_config)
         if fan_config.pwm_frequency is not None:
             self.FAN_FREQUENCY = fan_config.pwm_frequency
+
+        super(FanPwm, self).__init__(config=config, params=params, fan_config=fan_config)
 
     def initialize(self):
         # from gpiozero import PWMOutputDevice
