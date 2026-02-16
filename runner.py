@@ -460,6 +460,7 @@ def test_fans():
         from rpi_hardware_pwm import HardwarePWM
         from pitxu.lib.gpio.fans import FanConfig
         fan_config = FanConfig.from_dict(config.get("gpio.fans.devices")[0])
+        logger.debug(f"Testing PWM fan as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
         pwm=HardwarePWM(
             fan_config.pwm_channel,
             fan_config.pwm_frequency,
