@@ -450,6 +450,49 @@ def send_to_printer():
     except Exception:
         print(full_stack())
 
+def test_fans():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        INITIAL_HZ = 100
+        waiting_time = 4
+
+        # Delegate the run to Main
+        logger.debug("Testing fans control")
+        from rpi_hardware_pwm import HardwarePWM
+        from pitxu.lib.gpio.fans import FanConfig
+        from subprocess import check_output
+
+        fan_configs: list[FanConfig] = config.get("gpio.fans.devices", [])
+        for fan_config_data in fan_configs:
+            fan_config = FanConfig.from_dict(fan_config_data)
+            logger.debug(f"Testing PWM fan '{fan_config.name}' as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
+            pwm=HardwarePWM(
+                fan_config.pwm_channel,
+                INITIAL_HZ,
+                chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
+            pwm.change_duty_cycle(0)
+            pwm.change_frequency(fan_config.pwm_frequency)
+            pwm.start(100)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug(f"Fan should be at 100% speed for {waiting_time} seconds")
+            time.sleep(waiting_time)
+            pwm.change_duty_cycle(0.5/10)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug(f"Fan should be at 50% speed for {waiting_time} seconds")
+            time.sleep(waiting_time)
+            pwm.change_frequency(25_000)
+            logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+            logger.debug(f"Fan should be at 50% speed but with 25KHz frequency for {waiting_time} seconds")
+            time.sleep(waiting_time)
+            pwm.stop()
+        logger.info("End of work.")
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def test_lists():
     try:
         # Instantiating
