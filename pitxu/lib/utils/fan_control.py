@@ -12,7 +12,7 @@ class FanControl(PyXavi):
     MAX_TEMPERATURE = 90
     MIN_TEMPERATURE = 30
 
-    MARGIN_THRESHOLD_DEGREES_TEMP = 10
+    HYSTERESIS = 10
 
     PWM_FAN_SPEED_25_THRESHOLD = 50
     PWM_FAN_SPEED_50_THRESHOLD = 70
@@ -28,7 +28,7 @@ class FanControl(PyXavi):
         for fan_name in self.fans.get_all_fans().keys():
             self.current_fan_speeds[fan_name] = 0.0
 
-        self.MARGIN_THRESHOLD_DEGREES_TEMP = self._xconfig.get("gpio.cpu_temperature.margin", self.MARGIN_THRESHOLD_DEGREES_TEMP)
+        self.HYSTERESIS = self._xconfig.get("gpio.cpu_temperature.margin", self.HYSTERESIS)
         self.PWM_FAN_SPEED_25_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_25", self.PWM_FAN_SPEED_25_THRESHOLD)
         self.PWM_FAN_SPEED_50_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_50", self.PWM_FAN_SPEED_50_THRESHOLD)
         self.PWM_FAN_SPEED_75_THRESHOLD = self._xconfig.get("gpio.cpu_temperature.pwm_thresholds.threshold_75", self.PWM_FAN_SPEED_75_THRESHOLD)
@@ -68,7 +68,7 @@ class FanControl(PyXavi):
                 self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to threshold of {self.PWM_FAN_SPEED_25_THRESHOLD}°C, setting fan '{fan_name}' to 25% speed")
                 self.fans.set_speed(fan_name=fan_name, speed=0.25)
                 self.current_fan_speeds[fan_name] = 0.25
-            elif current_temperature < self.PWM_FAN_SPEED_25_THRESHOLD - self.MARGIN_THRESHOLD_DEGREES_TEMP and self.current_fan_speeds[fan_name] != 0.0:
+            elif current_temperature < self.PWM_FAN_SPEED_25_THRESHOLD - self.HYSTERESIS and self.current_fan_speeds[fan_name] != 0.0:
                 self._log_debug(f"CPU temperature {current_temperature}°C is below threshold of {self.PWM_FAN_SPEED_25_THRESHOLD}°C, turning off fan '{fan_name}'")
                 self.fans.set_speed(fan_name=fan_name, speed=0.0)
                 self.current_fan_speeds[fan_name] = 0.0
@@ -81,6 +81,6 @@ class FanControl(PyXavi):
                 self._log_debug(f"CPU temperature {current_temperature}°C is above or equal to threshold, turning on fan '{fan_name}'")
                 self.fans.turn_on(fan_name=fan_name)
 
-            elif self.fans.is_on(fan_name=fan_name) and current_temperature <= self.cpu_temperature.get_threshold() - self.MARGIN_THRESHOLD_DEGREES_TEMP:
-                self._log_debug(f"CPU temperature {current_temperature}°C is below or equal to threshold (minus margin of {self.MARGIN_THRESHOLD_DEGREES_TEMP}°C), turning off fan '{fan_name}'")
+            elif self.fans.is_on(fan_name=fan_name) and current_temperature <= self.cpu_temperature.get_threshold() - self.HYSTERESIS:
+                self._log_debug(f"CPU temperature {current_temperature}°C is below or equal to threshold (minus margin of {self.HYSTERESIS}°C), turning off fan '{fan_name}'")
                 self.fans.turn_off(fan_name=fan_name)
