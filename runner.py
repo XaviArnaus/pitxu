@@ -466,8 +466,13 @@ def test_fans():
             fan_config.pwm_frequency,
             chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
         pwm.start(100)
+        logger.debug("Fan should be at 100% speed for 2 seconds")
+        time.sleep(2)
         pwm.change_duty_cycle(0.5/10)
-        # pwm.change_frequency(25_000)
+        logger.debug("Fan should be at 50% speed for 2 seconds")
+        time.sleep(2)
+        pwm.change_frequency(25_000)
+        logger.debug("Fan should be at 50% speed but with 25KHz frequency for 2 seconds")
         time.sleep(2)
         pwm.stop()
         logger.info("End of work.")

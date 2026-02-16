@@ -15,6 +15,10 @@ https://gist.github.com/Gadgetoid/b92ad3db06ff8c264eef2abf0e09d569
 
 ### 1. Compile the file
 
+Please not that I already did and shipped the outcome in this same directory.
+I compiled it the 2026-02-12 with the latest official Raspberry Pi OS.
+Maybe you want to delete it first so that compiling does not fail to you.
+
 ```
 dtc -I dts -O dtb -o pwm-pi5.dtbo pwm-pi5-overlay.dts
 ```
@@ -33,5 +37,23 @@ dtoverlay=pwm-pi5
 
 ### 4. Reboot
 
-## How to use it
+## Tools
+
+### Check that the overlay was loaded:
+
+```
+sudo dtoverlay -r pwm-pi5
+```
+
+### Manually start the overlay
+
+```
+sudo dtoverlay pwm-pi5
+```
+
+### Show PWM devices
+
+```
+cat /sys/kernel/debug/pwm
+```
 
