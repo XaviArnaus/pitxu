@@ -455,6 +455,8 @@ def test_fans():
         # Instantiating
         config, logger, parameters = _initialize()
 
+        waiting_time = 4
+
         # Delegate the run to Main
         logger.debug("Testing fans control")
         from rpi_hardware_pwm import HardwarePWM
@@ -469,18 +471,19 @@ def test_fans():
                 fan_config.pwm_channel,
                 fan_config.pwm_frequency,
                 chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
+            pwm.change_duty_cycle(0)
             pwm.start(100)
             logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
-            logger.debug("Fan should be at 100% speed for 2 seconds")
-            time.sleep(2)
+            logger.debug(f"Fan should be at 100% speed for {waiting_time} seconds")
+            time.sleep(waiting_time)
             pwm.change_duty_cycle(0.5/10)
             logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
-            logger.debug("Fan should be at 50% speed for 2 seconds")
-            time.sleep(2)
+            logger.debug(f"Fan should be at 50% speed for {waiting_time} seconds")
+            time.sleep(waiting_time)
             pwm.change_frequency(25_000)
             logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
-            logger.debug("Fan should be at 50% speed but with 25KHz frequency for 2 seconds")
-            time.sleep(2)
+            logger.debug(f"Fan should be at 50% speed but with 25KHz frequency for {waiting_time} seconds")
+            time.sleep(waiting_time)
             pwm.stop()
         logger.info("End of work.")
     except RuntimeError as e:

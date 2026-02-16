@@ -14,6 +14,9 @@ https://gist.github.com/Gadgetoid/b92ad3db06ff8c264eef2abf0e09d569
 How actually PWM works in Linkux
 https://web.archive.org/web/20200722035349/https://jumpnowtek.com/rpi/Using-the-Raspberry-Pi-Hardware-PWM-timers.html
 
+Troubleshoot PWM
+https://raspberrypi.stackexchange.com/questions/148769/troubleshooting-pwm-via-sysfs
+
 ## How to make it work
 
 ### 1. Compile the file
@@ -34,11 +37,25 @@ sudo cp pwm-pi5.dtbo /boot/firmware/overlays/
 
 ### 3. Add the overlay into the `/boot/firmware/config.txt`
 
+At the beggining of the file.
 ```
 dtoverlay=pwm-pi5
 ```
 
 ### 4. Reboot
+
+## Configuration on the `rpi_hardware_pwm` package:
+
+It ends up as:
+```
+GPIO12 => chip 0, channel 0
+
+GPIO13 => chip 0, channel 1
+
+GPIO18 => chip 0, channel 2
+
+GPIO19 => chip 0, channel 3
+```
 
 ## Tools
 
