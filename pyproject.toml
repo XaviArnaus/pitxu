@@ -47,6 +47,7 @@ battery_status = "runner:battery_status"
 send_email = "runner:send_email"
 send_to_printer = "runner:send_to_printer"
 test_lists = "runner:test_lists"
+test_fans = "runner:test_fans"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"

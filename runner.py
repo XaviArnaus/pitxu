@@ -450,6 +450,31 @@ def send_to_printer():
     except Exception:
         print(full_stack())
 
+def test_fans():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        # Delegate the run to Main
+        logger.debug("Testing fans control")
+        from rpi_hardware_pwm import HardwarePWM
+        from pitxu.lib.gpio.fans import FanConfig
+        fan_config = FanConfig.from_dict(config.get("gpio.fans")[0])
+        pwm=HardwarePWM(
+            fan_config.pwm_channel,
+            fan_config.pwm_frequency,
+            chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
+        pwm.start(100)
+        pwm.change_duty_cycle(0.5/10)
+        # pwm.change_frequency(25_000)
+        time.sleep(2)
+        pwm.stop()
+        logger.info("End of work.")
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def test_lists():
     try:
         # Instantiating
