@@ -28,7 +28,7 @@ class Fans(PyXavi):
         try:
             fan_definitions = self._xconfig.get("gpio.fans.devices", [])
             for fan in fan_definitions:
-                self._xlog.info(f"Initializing fan '{fan['name']}' on pin {fan['pin']} with {'PWM' if fan.get('is_pwm', False) else 'no-PWM'} control")
+                self._xlog.info(f"Initializing fan '{fan['name']}' on pin {fan['pin']} with {'PWM' if fan.get('is_pwm', False) else 'no-PWM'} control{' , at frequency ' + str(fan.get('pwm_frequency', 'N/A')) if fan.get('is_pwm', False) else 'N/A'}")
                 self.fans[fan["name"]] = self._new_fan(fan["name"], fan["pin"], is_pwm=fan.get("is_pwm", False), pwm_frequency=fan.get("pwm_frequency", None))
                 self.fan_pins_per_name[fan["name"]] = fan["pin"]
         except (Exception, RuntimeError, SystemExit) as e:
@@ -83,9 +83,10 @@ class Fans(PyXavi):
         self.fans[fan_name].set_speed(speed)
 
     def _new_fan(self, name: str, pin: int, is_pwm: bool = False, pwm_frequency: int = None) -> MockedFan:
+        dd(pwm_frequency)
         if self.is_mocked():
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
-            return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm)
+            return self.mocked_fans_manager.add_fan(name=name, pin=pin, is_pwm=is_pwm, pwm_frequency=pwm_frequency)
         else:
             self._xlog.warning(f"Creating mocked fan [{name}] for pin [{pin}] as {'PWM' if is_pwm else 'no-PWM'} fan")
             if is_pwm:
@@ -164,6 +165,7 @@ class FanPwm(Fan):
     def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
         super(FanPwm, self).__init__(config=config, params=params, name=name, pin=pin)
 
+        dd(pwm_frequency)
         if pwm_frequency is not None:
             self.FAN_FREQUENCY = pwm_frequency
 
@@ -209,10 +211,13 @@ class MockedFans(PyXavi):
         super(MockedFans, self).init_pyxavi(config=config, params=params)
         self.fans = {}
 
-    def add_fan(self, name: str, pin: int, is_pwm: bool = False) -> MockedFan:
+    def add_fan(self, name: str, pin: int, is_pwm: bool = False, pwm_frequency: int = None) -> MockedFan:
 
         # The value is the initial state of the fan (not pressed)
-        self.fans[name] = MockedFan(name=name, pin=pin) if not is_pwm else MockedFanPwm(name=name, pin=pin)
+        if not is_pwm:
+            self.fans[name] = MockedFan(config=self._xconfig, params=self._xparams, name=name, pin=pin)
+        else:
+            self.fans[name] = MockedFanPwm(config=self._xconfig, params=self._xparams, name=name, pin=pin, pwm_frequency=pwm_frequency)
 
         # Now we fill the reverse mapping
         self.fans_by_pin[str(pin)] = name
@@ -263,6 +268,9 @@ class MockedFanPwm(FanPwm):
     """
 
     mocked_speed: float = 0
+
+    def __init__(self, config: Config, params: Dictionary, name: str, pin: int, pwm_frequency: int = None):
+        super(MockedFanPwm, self).__init__(config=config, params=params, name=name, pin=pin, pwm_frequency=pwm_frequency)
 
     def initialize(self):
         pass
