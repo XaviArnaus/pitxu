@@ -455,6 +455,7 @@ def test_fans():
         # Instantiating
         config, logger, parameters = _initialize()
 
+        INITIAL_HZ = 100
         waiting_time = 4
 
         # Delegate the run to Main
@@ -469,9 +470,10 @@ def test_fans():
             logger.debug(f"Testing PWM fan '{fan_config.name}' as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
             pwm=HardwarePWM(
                 fan_config.pwm_channel,
-                fan_config.pwm_frequency,
+                INITIAL_HZ,
                 chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
             pwm.change_duty_cycle(0)
+            pwm.change_frequency(fan_config.pwm_frequency)
             pwm.start(100)
             logger.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
             logger.debug(f"Fan should be at 100% speed for {waiting_time} seconds")
