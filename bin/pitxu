@@ -132,6 +132,11 @@ deactivate_cursor_blinking() {
     TERM=linux sudo setterm -cursor off -foreground black -clear all | sudo tee /dev/tty1
 }
 
+# Execute the requested test in foreground, for debugging
+test_pitxu_foreground() {
+    cd "$DIR/.." && poetry run test -t "$2"
+}
+
 # Main commandline interface
 # If no arguments are provided, we start pitxu in foreground
 #   Keep in mind that the service file also calls this script without arguments to start the service, 
@@ -162,7 +167,8 @@ case "$1" in
             *) echo "Usage: pitxu cursor [on|off]" ;;
         esac
         ;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|link_alsa|link_service|cursor]" ;;
+    "test") test_pitxu_foreground $@;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|link_alsa|link_service|cursor|test]" ;;
     *) echo "Command unknown" ;;
 esac
 

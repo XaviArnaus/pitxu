@@ -9,57 +9,10 @@ import sys, time, json, os
 
 class Test(PyXavi):
 
-    interaction: Interaction = None
-
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Test, self).init_pyxavi(config=config, params=params)
-
-        self.interaction = Interaction(config=config, dictionary=params)
-
-    def run(self):
-        try:
-            pass
-
-        except KeyboardInterrupt:
-            self._xlog.info("Pressed Control + C from main")
-        except Exception as e:
-            self._xlog.error("🛑 Error in Main run loop: " + str(e))
-            self._xlog.error(full_stack())  
-        
-        # However it happened, just close nicely.
-        self.close_nicely()
-    
-    def close_nicely(self, avoid_final_exit=False):
-        """
-        Close the application nicely, cleaning up resources and saving state.
-
-        Args:
-            avoid_final_exit (bool): If True, avoids calling sys.exit() at the end. Useful when we want to shutdown or reboot after this method.
-        """
-
-        # Clear the displays
-        self.clear_displays()
-
-        # If requested, avoid the final sys.exit()
-        if avoid_final_exit:
-            self._xlog.info("Exiting nicely avoided final sys.exit() as requested.")
-            return
-
-        # And now, simply exit
-        self._xlog.info("Exiting now. Goodbye!")
-        sys.exit(0)
-
-    def clear_displays(self):
-        if self.interaction.displays_are_combined():
-            self._log_debug("Clearing the Combined Display.")
-            self.interaction.clear_combined_display()
-            return
-        self._log_debug("Clearing the Foreground Display.")
-        self.interaction.clear_foreground_display()
-        self._log_debug("Clearing the Background Display.")
-        self.interaction.clear_background_display()
     
     # -------- The tests themselves --------
 

@@ -16,9 +16,6 @@ from pitxu.lib.utils.config_loader import ConfigLoader
 
 from definitions import ROOT_DIR, CONFIG_DIR
 
-from pitxu.main import Main
-import pitxu.test as Test
-
 
 def load_environment():
     """
@@ -56,44 +53,61 @@ def parse_arguments() -> dict:
 
     return arguments
 
-def _main(logger: Logger, config: Config, parameters: Dictionary):
-    # Delegate the run to Main
-    logger.debug("Starting Main run")
-    main = Main(config=config, params=parameters)
-    asyncio.run(main.run())
-    logger.info("End of the Main run")
+def tests():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
 
-def _test(test_name: str, logger: Logger, config: Config, parameters: Dictionary = Dictionary({})):
-    # Delegate the run to the appropriate test function
-    logger.debug(f"Starting test: [{test_name}]")
-    test = Test(config=config, params=parameters)
-    test_function = getattr(test, f"test_{test_name}", None)
-    if test_function and callable(test_function):
-        test_function(**parameters["arguments"] if "arguments" in parameters else {})
-    else:
-        logger.warning(f"Test function not found: [{test_name}]")
+        from pitxu.test import Test
+        import inspect
+
+        # Delegate the run to the tests
+        logger.debug("Starting tests run")
+
+        # Ensure the arguments are logged if they exist
+        if parameters.key_exists("arguments.test") and parameters.get("arguments.test") is not None:
+
+            logger.debug(f"Received arguments: {parameters.get('arguments')}")
+            test_name = parameters.get("arguments.test")
+            test_arguments = parameters.get("arguments") # Remove the test name from the arguments to pass only the relevant ones
+            test_arguments.pop("test", None)
+
+            # Delegate the run to the appropriate test function
+            logger.debug(f"Starting test: [{test_name}]")
+            test = Test(config=config, params=parameters)
+            test_function = getattr(test, f"test_{test_name}", None)
+            if test_function and callable(test_function):
+                test_function(**test_arguments)
+            else:
+                logger.warning(f"Test function not found: [{test_name}]")
+        
+        else:
+            print("\nNo arguments received, choose one from:")
+            # test = Test(config=config, params=parameters)
+            for method_name, method in inspect.getmembers(Test, predicate=inspect.isfunction):
+                if method_name.startswith("test_") and callable(method):
+                    print(f"- {method_name[5:]}")
+            print("\nFor example, to run the email test, run: \n    poetry run test -t email")
+            
+        logger.info("End of the tests run")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
 
 def run():
     try:
         # Instantiating
         config, logger, parameters = _initialize()
 
-        # Ensure the arguments are logged if they exist
-        if parameters and "arguments" in parameters and parameters["arguments"] is not None:
-            logger.debug(f"Received arguments: {parameters['arguments']}")
-        
-        # identify if we need to run a test or the main application based on the arguments
-        test = parameters.get('test')
+        from pitxu.main import Main
 
-        # Run the appropriate test if specified
-        if test:
-            logger.info(f"Running test: {test}")
-            _test(test, logger, config, parameters)
-        else:
-            logger.info("No test specified, running main application.")
-            _main(logger, config, parameters)
-
-        
+        # Delegate the run to Main
+        logger.debug("Starting Main run")
+        main = Main(config=config, params=parameters)
+        asyncio.run(main.run())
+        logger.info("End of the Main run")
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
