@@ -61,25 +61,9 @@ sounddevices:
 clear:
 	@$(POETRY) run clear
 
-.PHONY: test_matrix
-test_matrix:
-	@$(POETRY) run test_matrix
-
-.PHONY: test_eink_multiline
-test_eink_multiline:
-	@$(POETRY) run test_eink_multiline
-
 .PHONY: battery_status
 battery_status:
 	@$(POETRY) run battery_status
-
-.PHONY: send_email
-send_email:
-	@$(POETRY) run send_email
-
-.PHONY: send_to_printer
-send_to_printer:
-	@$(POETRY) run send_to_printer
 
 .PHONY: where-is-python
 where-is-python:
