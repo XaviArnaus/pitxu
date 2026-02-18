@@ -315,3 +315,44 @@ class Test(PyXavi):
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+    
+    def test_fans(self):
+        try:
+
+            INITIAL_HZ = 100
+            waiting_time = 4
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing fans control")
+            from rpi_hardware_pwm import HardwarePWM
+            from pitxu.lib.gpio.fans import FanConfig
+            from subprocess import check_output
+
+            fan_configs: list[FanConfig] = self._xconfig.get("gpio.fans.devices", [])
+            for fan_config_data in fan_configs:
+                fan_config = FanConfig.from_dict(fan_config_data)
+                self._xlog.debug(f"Testing PWM fan '{fan_config.name}' as: \n{json.dumps(fan_config.to_dict(), indent=2)}")
+                pwm=HardwarePWM(
+                    fan_config.pwm_channel,
+                    INITIAL_HZ,
+                    chip=fan_config.pwm_chip) #channel 0 1 2 3 for GPIO12 13 18 19 respectively
+                pwm.change_duty_cycle(0)
+                pwm.change_frequency(fan_config.pwm_frequency)
+                pwm.start(100)
+                self._xlog.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+                self._xlog.debug(f"Fan should be at 100% speed for {waiting_time} seconds")
+                time.sleep(waiting_time)
+                pwm.change_duty_cycle(0.5/10)
+                self._xlog.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+                self._xlog.debug(f"Fan should be at 50% speed for {waiting_time} seconds")
+                time.sleep(waiting_time)
+                pwm.change_frequency(25_000)
+                self._xlog.debug("System PWM setup: \n" + check_output("sudo cat /sys/kernel/debug/pwm", shell=True).decode())
+                self._xlog.debug(f"Fan should be at 50% speed but with 25KHz frequency for {waiting_time} seconds")
+                time.sleep(waiting_time)
+                pwm.stop()
+            self._xlog.info("End of work.")
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())

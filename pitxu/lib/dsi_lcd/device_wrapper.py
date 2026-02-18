@@ -20,6 +20,8 @@ class DeviceWrapper(PyXavi, Device):
 
     device = None
 
+    VERBOSE_DEBUG: bool = False
+
     def __init__(self, config: Config, params: Dictionary):
         super(DeviceWrapper, self).init_pyxavi(config=config, params=params)
 
@@ -40,8 +42,13 @@ class DeviceWrapper(PyXavi, Device):
         if (self.is_dsi_allowed()):
             self.device.display(image)
         else:
-            file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
-            image.save(file_path)
+            if (self._xconfig.get("displays.discard_mocked_images", False)):
+                self._log_debug("Won't store mocked image due to [displays.discard_mocked_images].")
+            else:
+                file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+                image.save(file_path)
+            
+            # The latest we always save.
             file_path = self.path_for_mocked_images + "_latest.png"
             image.save(file_path)
     

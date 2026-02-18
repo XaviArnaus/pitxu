@@ -1,4 +1,4 @@
-# Installation
+# Installation on a Raspoberry Pi 5 8GB
 
 This document explains how to setup the Raspberry Pi from scratch to have the Pitxu chatbot up and running.
 
