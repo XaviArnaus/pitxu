@@ -44,12 +44,18 @@ def parse_arguments() -> dict:
     parser.add_argument(
         '-t', '--test', 
         type=str, 
-        help='Run a specific test instead of the main application. Valid values: "eink_multiline", "matrix", "lcd", "mouth_in_lcd", "thinking_in_lcd", "sound_out", "query_sound_devices", "battery_status", "send_email", "send_to_printer", "test_lists".')
+        help='Run a specific test instead of the main application.')
+    parser.add_argument(
+        '-u', '--util', 
+        type=str, 
+        help='Run a specific util instead of the main application.')
     args = parser.parse_args()
 
-    arguments = {
-        'test': args.test
-    }
+    arguments = {}
+    if args.test:
+        arguments["test"] = args.test
+    if args.util:
+        arguments["util"] = args.util
 
     return arguments
 
@@ -96,6 +102,48 @@ def tests():
     except Exception:
         print(full_stack())
 
+def utils():
+    try:
+        # Instantiating
+        config, logger, parameters = _initialize()
+
+        from pitxu.util import Util
+        import inspect
+
+        # Delegate the run to the utils
+        logger.debug("Starting utils run")
+
+        # Ensure the arguments are logged if they exist
+        if parameters.key_exists("arguments.util") and parameters.get("arguments.util") is not None:
+
+            logger.debug(f"Received arguments: {parameters.get('arguments')}")
+            util_name = parameters.get("arguments.util")
+            util_arguments = parameters.get("arguments") # Remove the util name from the arguments to pass only the relevant ones
+            util_arguments.pop("util", None)
+
+            # Delegate the run to the appropriate util function
+            logger.debug(f"Starting util: [{util_name}]")
+            util = Util(config=config, params=parameters)
+            util_function = getattr(util, f"util_{util_name}", None)
+            if util_function and callable(util_function):
+                util_function(**util_arguments)
+            else:
+                logger.warning(f"Util function not found: [{util_name}]")
+        
+        else:
+            print("\nNo arguments received, choose one from:")
+            for method_name, method in inspect.getmembers(Util, predicate=inspect.isfunction):
+                if method_name.startswith("util_") and callable(method):
+                    print(f"- {method_name[5:]}")
+            print("\nFor example, to run the clear_displays util, run: \n    poetry run util -u clear_displays")
+            
+        logger.info("End of the utils run")
+
+    except RuntimeError as e:
+        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+    except Exception:
+        print(full_stack())
+
 def run():
     try:
         # Instantiating
@@ -113,86 +161,6 @@ def run():
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
     except Exception:
         print(full_stack()) 
-
-def clear_displays():
-    """
-    TODO: Replace this with main.clear_displays().
-    """
-    try:
-        from pitxu.lib.eink.eink import EinkDisplay
-        from pitxu.lib.matrix_led import Max7219
-        from pitxu.lib.lcd.st7789 import ST7789
-        from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper as DsiLcd
-        # Instantiating
-        config, logger, parameters = _initialize()
-
-        # Delegate the run to Main
-        try:
-            logger.debug("Clearing eInk display")
-            EinkDisplay(config=config, params=parameters).clear()
-        except Exception as e:
-            logger.warning(f"Could not clear eInk display: {str(e)}")
-        try:
-            logger.debug("Clearing LED Matrix display")
-            Max7219(config=config, params=parameters).clear()
-        except Exception as e:
-            logger.warning(f"Could not clear LED Matrix display: {str(e)}")
-        try:
-            logger.debug("Clearing LCD display")
-            ST7789(config=config, params=parameters).clear()
-        except Exception as e:
-            logger.warning(f"Could not clear LCD display: {str(e)}")
-        logger.info("End of work.")
-
-        try:
-            logger.debug("Clearing DSI LCD display")
-            DsiLcd(config=config, params=parameters).clear()
-        except Exception as e:
-            logger.warning(f"Could not clear DSI LCD display: {str(e)}")
-        logger.info("End of work.")
-
-    except RuntimeError as e:
-        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
-    except Exception:
-        print(full_stack())
-
-def query_sound_devices():
-    try:
-        # Instantiating
-        config, logger, parameters = _initialize()
-
-        # Delegate the run to Main
-        logger.debug("Querying SoundDevice")
-        print()
-        print(sounddevice.query_devices())
-        print()
-        logger.info("End of work.")
-
-    except RuntimeError as e:
-        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
-    except Exception:
-        print(full_stack()) 
-
-def battery_status():
-    try:
-        # Instantiating
-        config, logger, parameters = _initialize()
-
-        # Delegate the run to Main
-        from pitxu.lib.ups.ups import UPS
-        ups = UPS(config=config, params=parameters)
-        voltage, capacity = ups.read_voltage_and_capacity()
-        pld_state = ups.get_pld_state()
-        logger.info(f"Battery voltage: {voltage:.2f} V")
-        logger.info(f"Battery capacity: {capacity:.2f} %")
-        logger.info(f"Power Loss/Adapter Failure State: {'FAIL' if pld_state == 0 else 'OK'}")
-        logger.info("End of work.")
-        ups.close()
-
-    except RuntimeError as e:
-        print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
-    except Exception:
-        print(full_stack())
 
 def _initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()

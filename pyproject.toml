@@ -37,9 +37,7 @@ rpi-hardware-pwm = "^0.3.1"
 [tool.poetry.scripts]
 main = "runner:run"
 test = "runner:tests"
-sounddevices = "runner:query_sound_devices"
-clear = "runner:clear_displays"
-battery_status = "runner:battery_status"
+util = "runner:utils"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"

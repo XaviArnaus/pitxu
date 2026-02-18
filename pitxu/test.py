@@ -1,11 +1,10 @@
 from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.interaction.interaction import Interaction
 
 from definitions import ROOT_DIR
 
-import sys, time, json, os
+import time, json, os
 
 class Test(PyXavi):
 
