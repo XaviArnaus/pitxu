@@ -11,11 +11,11 @@ speech-to-text:
     # Catalan
     ca: vosk-model-small-ca-0.4
     # Spanish
-    es: vosk-model-es-0.42
+    es: vosk-model-small-es-0.42
     # English
     en-us: vosk-model-small-en-us-0.15
     # German
-    de: vosk-model-de-0.21
+    de: vosk-model-small-de-0.15
   # [Bool] Whether to use specific words to improve recognition.
   use_specific_words: False
   # Microphone channels activation flags
