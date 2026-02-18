@@ -55,15 +55,15 @@ run:
 
 .PHONY: sounddevices
 sounddevices:
-	@$(POETRY) run sounddevices
+	@$(POETRY) run util -u query_sound_devices
 
 .PHONY: clear
 clear:
-	@$(POETRY) run clear
+	@$(POETRY) run util -u clear_displays
 
 .PHONY: battery_status
 battery_status:
-	@$(POETRY) run battery_status
+	@$(POETRY) run util -u battery_status
 
 .PHONY: where-is-python
 where-is-python:
