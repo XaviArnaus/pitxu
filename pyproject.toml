@@ -38,18 +38,8 @@ rpi-hardware-pwm = "^0.3.1"
 
 [tool.poetry.scripts]
 main = "runner:run"
-sounddevices = "runner:query_sound_devices"
-clear = "runner:clear_displays"
-test_matrix = "runner:test_matrix"
-test_lcd = "runner:test_lcd"
-test_mouth_in_lcd = "runner:test_mouth_in_lcd"
-test_thinking_in_lcd = "runner:test_thinking_in_lcd"
-test_eink_multiline = "runner:test_eink_multiline"
-battery_status = "runner:battery_status"
-send_email = "runner:send_email"
-send_to_printer = "runner:send_to_printer"
-test_lists = "runner:test_lists"
-test_fans = "runner:test_fans"
+test = "runner:tests"
+util = "runner:utils"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-shell = ">=1.0.1"
