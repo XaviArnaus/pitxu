@@ -73,7 +73,7 @@ class Server(PyXavi, MicroserviceBase):
         # Start the server
         self.start_server()
 
-        self._log_debug("Server accepts connections now.")
+        self._xlog.info(f"Server accepts connections now: {self.PROTOCOL}://{self._xconfig.get('server.host')}:{self._xconfig.get('server.port')}")
     
     def close(self):
         self._xlog.info("Closing Server")
@@ -91,7 +91,7 @@ class Server(PyXavi, MicroserviceBase):
         self._xlog.debug("Server shutdown complete")
 
     def start_server(self):
-        self._xlog.info("Starting Server Thread")
+        self._log_debug("Starting Server Thread")
         self.server_thread = FlaskWrapper(
             app=self.server,
             host=self._xconfig.get("server.host"),
