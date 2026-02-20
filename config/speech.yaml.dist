@@ -6,16 +6,17 @@ speech-to-text:
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
   # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
-  # See https://alphacephei.com/vosk/models
+  # See https://alphacephei.com/vosk/models  
   model: 
     # Catalan
     ca: vosk-model-small-ca-0.4
+      # take a look at https://github.com/synesthesiam/ca-es_pocketsphinx-cmu?tab=readme-ov-file 
     # Spanish
-    es: vosk-model-es-0.42
+    es: vosk-model-small-es-0.42
     # English
     en-us: vosk-model-small-en-us-0.15
     # German
-    de: vosk-model-de-0.21
+    de: vosk-model-small-de-0.15
   # [Bool] Whether to use specific words to improve recognition.
   use_specific_words: False
   # Microphone channels activation flags

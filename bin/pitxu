@@ -114,12 +114,17 @@ link_service() {
 
 # Commandline to clear the Pitxu screen
 clear_pitxu_screen() {
-     cd "$DIR/.." && poetry run clear
+     cd "$DIR/.." && poetry run util -u clear_displays
 }
 
 # Commandline to list the sound devices, for debugging
 sounddevices() {
-     cd "$DIR/.." && poetry run sounddevices
+     cd "$DIR/.." && poetry run util -u query_sound_devices
+}
+
+# Commandline to check the battery status, for debugging
+battery_status() {
+     cd "$DIR/.." && poetry run util -u battery_status
 }
 
 # Commandline to activate the screen cursor blinking
@@ -130,6 +135,16 @@ activate_cursor_blinking() {
 # Commandline to deactivate the screen cursor blinking
 deactivate_cursor_blinking() {
     TERM=linux sudo setterm -cursor off -foreground black -clear all | sudo tee /dev/tty1
+}
+
+# Execute the requested test in foreground, for debugging
+test_pitxu_foreground() {
+    cd "$DIR/.." && poetry run test -t "$2"
+}
+
+# Execute the requested util in foreground, for debugging
+utils() {
+    cd "$DIR/.." && poetry run util -u "$2"
 }
 
 # Main commandline interface
@@ -153,6 +168,7 @@ case "$1" in
     "logs_all") logs_journalctl_all ;;
     "clear") clear_pitxu_screen ;;
     "sounddevices") sounddevices ;;
+    "battery") battery_status ;;
     "link_alsa") link_alsa ;;
     "link_service") link_service ;;
     "cursor")
@@ -162,7 +178,9 @@ case "$1" in
             *) echo "Usage: pitxu cursor [on|off]" ;;
         esac
         ;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|link_alsa|link_service|cursor]" ;;
+    "test") test_pitxu_foreground $@;;
+    "util") utils $@;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|link_alsa|link_service|cursor|test|util]" ;;
     *) echo "Command unknown" ;;
 esac
 
