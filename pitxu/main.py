@@ -194,10 +194,10 @@ class Main(PyXavi):
             self._server = Server(config=self._xconfig, params=params)
             self._server.initialize()
         else:
-            self._xlog.info(f"Server is disabled by configuration ()" +
+            self._xlog.info(f"Server is disabled by configuration (" +
                             f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
-                            f"execution mode {self._xconfig.get('app.execution_mode', '_NOT_SET_')}," +
-                            ") not initializing it.")
+                            f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
+                            ") > not initializing it.")
 
     async def run(self):
 
