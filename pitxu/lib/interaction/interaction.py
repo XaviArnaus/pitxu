@@ -13,7 +13,6 @@ from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 
 from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
-from numpy import ndarray
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
                         SHARED_SPEAKER_BUSY,\
@@ -241,6 +240,8 @@ class Interaction(PyXavi):
         Returns:
             dict: A dictionary containing the generated audio bytes and the sample rate.
         """
+
+        from numpy import ndarray
 
         self._xlog.debug(f"*️⃣ Generating speech audio bytes for message: {message}")
 

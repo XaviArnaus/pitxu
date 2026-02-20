@@ -1,4 +1,8 @@
 import os
+# Set the number of threads for OpenBLAS and MKL to 1 to avoid performance issues on some systems.
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
 from dotenv import load_dotenv
 import importlib.metadata
 import sounddevice

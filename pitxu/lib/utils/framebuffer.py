@@ -13,7 +13,6 @@ https://github.com/robertmuth/Pytorinox/blob/master/framebuffer.py
 """
 
 from PIL import Image
-import numpy
 
 
 def _read_and_convert_to_ints(filename):
@@ -48,6 +47,7 @@ def _converter_1_rgb565(image: Image):
 
 
 def _converter_rgba_rgb565_numpy(image: Image):
+    import numpy
     flat = numpy.frombuffer(image.tobytes(), dtype=numpy.uint32)
     # note,  this is assumes little endian byteorder and results in
     # the following packing of an integer:
