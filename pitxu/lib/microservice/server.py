@@ -2,12 +2,13 @@ import base64
 from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.microservice.microservice_base import MicroserviceBase
 
-from flask import Flask, request, current_app
+from flask import Flask, json, request, current_app
 from threading import Thread
-import sys, logging
+import sys, logging, asyncio
 
-class Server(PyXavi):
+class Server(PyXavi, MicroserviceBase):
 
     server: Flask = Flask(__name__)
     server_thread: Thread = None
@@ -81,6 +82,8 @@ class Server(PyXavi):
         #     raise RuntimeError('Not running with the Werkzeug Server')
         # self._log_debug("Calling the Werkzeug server shutdown function to stop the server.")
         # func()
+        response = self._do_post_request(endpoint="stop", data={})
+        dd(response)
         if self.server_thread.is_alive():
             self._log_debug("Waiting for server thread to finish, with timeout of 0 seconds.")
             self.server_thread.join(timeout=0)
@@ -99,6 +102,14 @@ class Server(PyXavi):
                 "use_reloader": False
             })
         self.server_thread.start()
+    
+    @server.route('/stop')
+    def stop_server():
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        func()
+        return {"message": "Server shutting down..."}
 
     # Status endpoint to check if the service is alive and get some info about it.
     @server.route('/status')

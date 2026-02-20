@@ -2,6 +2,7 @@ import base64
 from pyxavi import Config, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 
@@ -9,14 +10,12 @@ import numpy as np
 import json, logging
 import requests
 
-class Client(PyXavi):
+class Client(PyXavi, MicroserviceBase):
 
     ENDPOINT_STATUS: str = "status"
     ENDPOINT_TRANSCRIBE: str = "transcribe"
     ENDPOINT_ASK_CHATBOT: str = "ask_chatbot"
     ENDPOINT_SYNTHESIZE: str = "synthesize"
-
-    PROTOCOL: str = "http"
 
     VERBOSE_DEBUG: bool = True
     URLLIB3_LIB_LOG_LEVEL: int = logging.INFO
@@ -76,20 +75,3 @@ class Client(PyXavi):
             }
         else:
             raise Exception(f"Error during synthesis: {server_response.get('error', 'Unknown error')}")
-
-    def _do_get_request(self, endpoint: str):
-        url = self._build_url(endpoint=endpoint)
-        response = requests.get(url)
-        return json.loads(response.content)
-    
-    def _do_post_request(self, endpoint: str, data: dict):
-        url = self._build_url(endpoint=endpoint)
-        response = requests.post(url, json=data)
-        return json.loads(response.content)
-    
-    def _build_url(self, endpoint: str):
-        url = self.PROTOCOL + "://" + \
-            self._xconfig.get("client.host") + \
-            ":" + str(self._xconfig.get("client.port")) + \
-            "/" + endpoint
-        return url
