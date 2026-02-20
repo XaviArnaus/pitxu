@@ -1,6 +1,6 @@
 import time, logging
 
-from pyxavi import Config, Dictionary, full_stack, 
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
