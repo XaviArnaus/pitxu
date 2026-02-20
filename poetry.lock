@@ -1145,6 +1145,18 @@ files = [
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
 
 [[package]]
+name = "ifcfg"
+version = "0.24"
+description = "Python ifconfig wrapper for Unix/Linux/MacOSX + ipconfig for Windows"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "ifcfg-0.24-py2.py3-none-any.whl", hash = "sha256:950f31ddc3fdd877724fb4154b744434471106088ecf10170b96063c24b3c0b7"},
+    {file = "ifcfg-0.24.tar.gz", hash = "sha256:64f60f7a0d15c85876b76b5f79246ed8c27bf5f79e5753ec88287145884661ab"},
+]
+
+[[package]]
 name = "importlib-metadata"
 version = "8.7.1"
 description = "Read metadata from Python packages"
@@ -3867,4 +3879,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "5636384484f257c77dfa1dc74c1476aa3af0fada8dd5315181faf9b4695ac1be"
+content-hash = "d321c6145ee88ce82b6cd770a7e4b816cf915c167cd748aac291fc0c60a9f170"
