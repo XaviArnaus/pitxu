@@ -566,7 +566,16 @@ class Painter(PyXavi, Thread):
                     # That's why, even a flushed image stays until changed, we need to keep on repainting it.
                 
                     # Whatever we print here, make it over a semi-transparent frame
-                    self.macros.draw_foreground_frame(draw=self.draw)
+                    # For code blocks we want a specific setup to make it more readable.
+                    foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
+                    foreground_frame_opacity = 0.25
+                    if current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                        foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
+                        foreground_frame_opacity = 0.75
+                    self.macros.draw_foreground_frame(
+                        draw=self.draw, 
+                        frame_color=foreground_frame_color, 
+                        opacity=foreground_frame_opacity)
 
                     # Now the expected interactions.
                     if current_foreground_interaction.interaction == ForegroundComm.STARTUP:

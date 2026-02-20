@@ -287,14 +287,15 @@ class Macros(PyXavi):
             extra_space = max_lenght_height - heigh_text
             text_anchor_point.y += extra_space / 2
 
-        draw.rectangle(
-            Rectangle(
-                Point(padding_rectangle, padding_rectangle), 
-                Point(self._display_size.x - padding_rectangle, self._display_size.y - padding_rectangle)
-            ).to_image_rectangle(),
-            outline = self.canvas.COLOR_BLACK,
-            fill = self.canvas.COLOR_WHITE,
-            width = 1)
+        # Now this is managed by the Foreground Frame
+        # draw.rectangle(
+        #     Rectangle(
+        #         Point(padding_rectangle, padding_rectangle), 
+        #         Point(self._display_size.x - padding_rectangle, self._display_size.y - padding_rectangle)
+        #     ).to_image_rectangle(),
+        #     outline = self.canvas.COLOR_BLACK,
+        #     fill = self.canvas.COLOR_WHITE,
+        #     width = 1)
         
         # Ensure that the text fits in the square.
         # text = self.wrap_text_if_needed(draw, text, (self._display_size.x - (2 * padding_rectangle) - (2 * padding_code_text)) - 2, code_text_font)
@@ -749,7 +750,7 @@ class Macros(PyXavi):
     
     # ------ Main method (and helpers) to show on LCD display -------
     
-    def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None):
+    def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
         '''
         Draws a foreground frame on the given canvas, except if the Color Mode is "1" (monochrome),
         in which case it draws a solid empty rectangle.
@@ -762,7 +763,8 @@ class Macros(PyXavi):
 
         if self.canvas.COLOR_MODE == "RGBA":
             TINT_COLOR = frame_color
-            TRANSPARENCY = .25  # Degree of transparency, 0-100%
+            # Sorry, fellow reader, I understand "less transparency, more opaque", so 0.25 opacity is closer to no-transparent.
+            TRANSPARENCY = opacity  # Degree of transparency, 0-100%
             OPACITY = int(255 * TRANSPARENCY)
             color = (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], OPACITY)
 
