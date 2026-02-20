@@ -3,6 +3,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
+from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 
 from flask import Flask, json, request, current_app
 from threading import Thread
@@ -11,7 +12,7 @@ import sys, logging, asyncio
 class Server(PyXavi, MicroserviceBase):
 
     server: Flask = Flask(__name__)
-    server_thread: Thread = None
+    server_thread: FlaskWrapper = None
 
     # Dependencies to be injected into the server context
     # Actively avoiding here to add typing, to avoid circular imports.
@@ -76,40 +77,22 @@ class Server(PyXavi, MicroserviceBase):
     
     def close(self):
         self._xlog.info("Shutting down Server")
-        # with self.server.app_context():
-        # func = request.environ.get('werkzeug.server.shutdown')
-        # if func is None:
-        #     raise RuntimeError('Not running with the Werkzeug Server')
-        # self._log_debug("Calling the Werkzeug server shutdown function to stop the server.")
-        # func()
-        response = self._do_post_request(endpoint="stop", data={})
-        dd(response)
         if self.server_thread.is_alive():
             self._log_debug("Waiting for server thread to finish, with timeout of 0 seconds.")
+            self.server_thread.shutdown()
             self.server_thread.join(timeout=0)
 
         self._xlog.debug("Server shutdown complete")
 
     def start_server(self):
         self._xlog.info("Starting Server Thread")
-        # Start the server in a separate thread to avoid blocking the main loop
-        self.server_thread = Thread(
-            target=self.server.run, 
-            kwargs={
-                "host": self._xconfig.get("server.host", "127.0.0.1"),
-                "port": self._xconfig.get("server.port", 5000),
-                "debug": self._xconfig.get("server.debug", False),
-                "use_reloader": False
-            })
+        self.server_thread = FlaskWrapper(
+            app=self.server,
+            host=self._xconfig.get("server.host"),
+            port=self._xconfig.get("server.port"),
+            # debug=self._xconfig.get("server.debug", False)
+        )
         self.server_thread.start()
-    
-    @server.route('/stop')
-    def stop_server():
-        func = request.environ.get('werkzeug.server.shutdown')
-        if func is None:
-            raise RuntimeError('Not running with the Werkzeug Server')
-        func()
-        return {"message": "Server shutting down..."}
 
     # Status endpoint to check if the service is alive and get some info about it.
     @server.route('/status')
