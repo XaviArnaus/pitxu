@@ -336,24 +336,26 @@ class Main(PyXavi):
                             self._interaction.set_chatbot_busy()
                             chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
                             self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
-                            answer = chat_response.text
                             self._interaction.unset_chatbot_busy()
+
                             try:
-                                self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
-                                if chat_response.function_call_history.get_last().has_response():
-                                    self._log_debug("🗣️ Received function call response. Reacting.")
-                                    # Shutdown and Reboot interrupt the flow and directly shutdown,
-                                    # calling `close_nicely()` from there.
-                                    # Keep in mind that:
-                                    #   - here we may have played with BUSY flags.
-                                    #   - repeating a question that involves a tool does not mean that the second time the tool gets called.
-                                    #       It may just take the previous question and answer again.
-                                    #       There may not be a second function call response.
-                                    #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
-                                    #       So the second time we may not be able to show the time on the screen, for example.
-                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                                # We react on the answer received from the Chatbot, that may include function call responses and code blocks,
+                                # or instructions for us to react, beyond the text to speak.
+                                # For example, we may have to execute a Shutdown.
+                                #
+                                # Keep in mind that:
+                                #   - repeating a question that involves a tool does not mean that in the second time the tool gets called.
+                                #       It may just take the previous question and answer again.
+                                #       There may not be a second function call response.
+                                #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
+                                #       So the second time we may not be able to show the time on the screen, for example.
+                                self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
+                                self.react_on_answer(chat_response=chat_response, input_stream=input_stream)
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
+                            
+                            # Finally, this is the answer string that moves on.
+                            answer = chat_response.text
 
                             # This waiting happens BEFORE we reached the answering phase with the interaction.say().
                             # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
@@ -419,16 +421,25 @@ class Main(PyXavi):
 
     # ------------- End of the main method run() -------------
     
-    def react_on_last_function_call(self, function_call_pair: FunctionCallPair, input_stream: sounddevice.RawInputStream = None) -> list[str]:
+    def react_on_answer(self, chat_response: ChatbotResponse, input_stream: sounddevice.RawInputStream = None) -> None:
         """
-        Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
+        Reacts to the received answer beyond simply answering, like expressions, emotions, or actions.
 
         Args:
-            function_call (FunctionCallPair): The last function call pair from the chatbot.
+            chat_response (ChatbotResponse): The last response from the chatbot.
         
         Returns:
-            list[str]: List of communications channels that should be ignored in the communication() method.
+            None
         """
+
+        if chat_response is None or \
+                chat_response.function_call_history is None or \
+                chat_response.function_call_history.get_last() is None or \
+                not chat_response.function_call_history.get_last().has_response():
+            return None
+        
+
+        # --- Code to react on function call ---
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
         #   or showing the hour in the Display if asked for the time...
@@ -439,7 +450,7 @@ class Main(PyXavi):
         #   specific to search for here.
 
         try:
-
+            function_call_pair: FunctionCallPair = chat_response.function_call_history.get_last()
             if function_call_pair.has_response():
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
                 
@@ -544,9 +555,32 @@ class Main(PyXavi):
                         value,
                         args
                     )()
+            
+                # We should finish here. I didn't study yet cases when we have function calls AND anything else below.
+                return
 
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
+            self._xlog.debug(full_stack())
+        
+        # --- Code to react on chat_response more globally ---
+
+        # The idea here is to cover answers that do not trigger a function call.
+        # Lot of times is due to the chatbot repeating an answer, like "can you show me that code block again?"
+        #   It simply picks it back from his history, but we still want to react on the answer.
+
+        try:
+            if chat_response.code is not None:
+                self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
+                self._interaction.show_code_block_on_foreground(
+                    code=chat_response.code[0],
+                    for_seconds=10.0)
+                # Sometimes it answers with code but no text, so we make it more human:
+                if chat_response.text.strip() == "":
+                    chat_response.text = self._xconfig.get("language.code.empty_answer_with_code." + self._xparams.get("language"))
+
+        except Exception as e:
+            self._xlog.error("🛑 Error reacting to code block in answer: " + str(e))
             self._xlog.debug(full_stack())
 
     def _text_has_exit_intention(self, text):

@@ -3,6 +3,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.utils.text import Code
 
 import logging
 
@@ -68,14 +69,29 @@ class GoogleSearch(PyXavi, Command):
         # log.info(f"The term searched in Google from the callback is: {search_term}")
 
         text = value if isinstance(value, str) else str(value)
-        text = text[:50] + ("..." if len(text) > 100 else "")
 
+        # Does the text contain a code block?
+        # We may even have several code blocks.
+        code_blocks = []
+        while Code.text_includes_code(text):
+            code = Code.extract_code_from_text(text)
+            if code:
+                code = Code.remove_comment_lines_from_code(code)
+                code_blocks.append(code)
+            text = Code.remove_code_from_text(text)
+        
         try:
-            log.error(f"🔎 Showing extract of Google Search result: [{text}]")
-            interaction.show_arbitrary_text_on_foreground_while_speaking(
-                icon="🔎 ",
-                text=text,
-                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+            if len(code_blocks) > 0:
+                # don't go crazy. Log how many do you have, if more than 1, and simply show the first.
+                log.info(f"Google Search response includes {len(code_blocks)} code blocks. Showing only the first one.")
+                interaction.show_code_block_on_foreground(code=code_blocks[0])
+            else:
+                text = text[:50] + ("..." if len(text) > 100 else "")
+                log.error(f"🔎 Showing extract of Google Search result: [{text}]")
+                interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🔎 ",
+                    text=text,
+                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
             log.error(f"🛑 Error showing Google searched term on eInk: {e}")
             log.error(full_stack())

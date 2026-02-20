@@ -41,6 +41,9 @@ class XprocessDisplayForeground(Xprocess):
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
+        
+        if action == XprocAction.SHOW_CODE_BLOCK and param:
+            self.show_code_block(param)
 
         # Shows the Idle splash screen
         if action == XprocAction.SHOW_IDLE:
@@ -72,43 +75,46 @@ class XprocessDisplayForeground(Xprocess):
     # ------- Common functions ---------
     
     def clear(self):
-        raise NotImplementedError("clear() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("clear() must be implemented in Display Background and Foreground subclasses.")
     
     def soft_clear(self):
-        raise NotImplementedError("soft_clear() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("soft_clear() must be implemented in Display Background and Foreground subclasses.")
     
     # This is supposed to be the new clear for foreground only
     def clear_foreground(self):
         raise NotImplementedError("clear_foreground() must be implemented in Display Foreground subclasses.")
 
     def get_canvas_handler(self):
-        raise NotImplementedError("get_canvas_handler() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("get_canvas_handler() must be implemented in Display Foreground subclasses.")
 
     # ------- Foreground Interaction functions ---------
     
     def show(self, text: str):
-        raise NotImplementedError("show() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("show() must be implemented in Display Foreground subclasses.")
     
     def show_arbitrary_image_while_speaking(self, image_bytes: dict):
-        raise NotImplementedError("show_arbitrary_image_while_speaking() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("show_arbitrary_image_while_speaking() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_while_speaking(self, param: dict):
-        raise NotImplementedError("show_arbitrary_text_while_speaking() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("show_arbitrary_text_while_speaking() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_while_thinking(self, param: dict):
-        raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_on_foreground(self, param: dict):
-        raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Foreground subclasses.")
 
     def splash_ready(self):
-        raise NotImplementedError("splash_ready() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("splash_ready() must be implemented in Display Foreground subclasses.")
+    
+    def show_code_block(self, param: dict):
+        raise NotImplementedError("show_code_block() must be implemented in Display Foreground subclasses.")
 
     def idle(self):
-        raise NotImplementedError("idle() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("idle() must be implemented in Display Foreground subclasses.")
 
     def splash_startup(self, for_seconds: float = 3.0):
-        raise NotImplementedError("splash_startup() must be implemented in Display Background subclasses.")
+        raise NotImplementedError("splash_startup() must be implemented in Display Foreground subclasses.")
 
     # ------- Communication with Flags ---------
 

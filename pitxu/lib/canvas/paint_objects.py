@@ -215,6 +215,23 @@ class StartupForegroundPaint(ForegroundPaint):
             ignore_maintain_time=False
         )
 
+class CodeBlockForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None, for_seconds: float = 10.0):
+        if name is None:
+            name = "CodeBlockForegroundPaint"
+        super(CodeBlockForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.CODE_BLOCK,
+            parameter=parameter,
+            # Be careful with this, this places a black screen over whatever is already painted in the canvas.
+            # (so, it removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            maintain_paint_for_seconds=for_seconds,
+            ignore_maintain_time=False
+        )
+
 class ClearForegroundPaint(ForegroundPaint):
 
     def __init__(self, name = None):
