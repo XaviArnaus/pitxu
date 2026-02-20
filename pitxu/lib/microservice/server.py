@@ -5,10 +5,10 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.command import SystemNetwork
 
-from flask import Flask, json, request, current_app
-from threading import Thread
-import sys, logging, asyncio
+from flask import Flask, request, current_app
+import sys, logging
 
 class Server(PyXavi, MicroserviceBase):
 
@@ -73,7 +73,9 @@ class Server(PyXavi, MicroserviceBase):
         # Start the server
         self.start_server()
 
-        self._xlog.info(f"Server accepts connections now: {self.PROTOCOL}://{self._xconfig.get('server.host')}:{self._xconfig.get('server.port')}")
+        self._xlog.info(
+            f"Server accepts connections now: " +
+            f"{self.PROTOCOL}://{SystemNetwork._get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
     
     def close(self):
         self._xlog.info("Closing Server")
