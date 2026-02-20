@@ -418,7 +418,7 @@ class Main(PyXavi):
                         self._interaction.unmute_microphone(input_stream=input_stream)
 
                         # TEST: Try to release the CPU. I've seen it at 100%
-                        time.sleep(0.2)
+                        time.sleep(0.5)
                     
                     # We arrived here because the user wanted to exit the main loop
                     # Make sure we leave the state properly
