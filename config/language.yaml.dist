@@ -276,3 +276,12 @@ language:
       es: "Lo siento, ha habido un error al recuperar el elemento de la lista %s a la posición %s."
       en-us: "I'm sorry, there was an error retrieving the item from the list %s at position %s."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen des Elements aus der Liste %s an Position %s."
+
+  # Code generation
+  code:
+    # This is the speech for an empty answer with code, to introduce the code block.
+    empty_answer_with_code:
+      ca: "Aquí tens el codi:"
+      es: "Aquí tienes el código:"
+      en-us: "Here is the code:"
+      de: "Hier ist der Code:"
