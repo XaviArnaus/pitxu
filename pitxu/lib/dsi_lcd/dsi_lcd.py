@@ -35,7 +35,7 @@ class DsiLcd(XprocessDisplayCombined):
 
     LED_TO_LCD_OFFSET_X: int = 250
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def get_process_name(self) -> str:
         return "DSI_LCD"

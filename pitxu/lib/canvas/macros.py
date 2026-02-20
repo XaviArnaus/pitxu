@@ -24,6 +24,8 @@ class Macros(PyXavi):
     LED_TO_LCD_OFFSET_X: int = 40
     APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config, params: Dictionary):
         super(Macros, self).init_pyxavi(config=config, params=params)
 
