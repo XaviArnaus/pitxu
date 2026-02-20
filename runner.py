@@ -184,18 +184,18 @@ def run():
     except Exception:
         print(full_stack())
 
-def patch_time():
-    """
-    Patch the time.sleep function for better performance on Linux systems.
-    https://stackoverflow.com/a/66350772
-    """
-    import platform
-    if platform.system() == "Linux":
-        Xtime.patch_time()
+# def patch_time():
+#     """
+#     Patch the time.sleep function for better performance on Linux systems.
+#     https://stackoverflow.com/a/66350772
+#     """
+#     import platform
+#     if platform.system() == "Linux":
+#         Xtime.patch_time()
 
 def initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()
-    patch_time()
+    # patch_time()
     config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)
     parameters = Dictionary({

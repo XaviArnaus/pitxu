@@ -23,17 +23,17 @@ class Xtime:
             raise ValueError("Xtime.now_minus_seconds_milliseconds() requires a valid \"seconds\" argument.")
         return Xtime.now_milliseconds() - int(seconds * 1000)
     
-    @staticmethod
-    def patch_time():
-        from ctypes import cdll
+    # @staticmethod
+    # def patch_time():
+    #     from ctypes import cdll
 
-        def _custom_sleep(t):
-            glibc.usleep(int(t * 1000000))
+    #     def _custom_sleep(t):
+    #         glibc.usleep(int(t * 1000000))
 
-        global glibc
-        try:
-            glibc = cdll.LoadLibrary("libc.so.6")
+    #     global glibc
+    #     try:
+    #         glibc = cdll.LoadLibrary("libc.so.6")
 
-            time.sleep = _custom_sleep
-        except Exception as e:
-            print(f"Failed to patch time.sleep: {e}. Performance might be worse.")
+    #         time.sleep = _custom_sleep
+    #     except Exception as e:
+    #         print(f"Failed to patch time.sleep: {e}. Performance might be worse.")
