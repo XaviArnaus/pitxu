@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
+from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 
 from flask import Flask, json, request, current_app
 from threading import Thread
@@ -16,7 +17,7 @@ class Server(PyXavi, MicroserviceBase):
 
     # Dependencies to be injected into the server context
     # Actively avoiding here to add typing, to avoid circular imports.
-    stt = None
+    stt: Vosk = None
     chatbot = None
     chatbot_client_callbacks = None
     output_interaction = None
@@ -28,11 +29,6 @@ class Server(PyXavi, MicroserviceBase):
         super(Server, self).init_pyxavi(config=config, params=params)
 
         self._xlog.info("Initializing Server")
-
-        if params.key_exists("stt"):
-            self.stt = params.get("stt")
-        else:
-            raise ValueError("STT instance must be provided in params with key 'stt'")
         
         if params.key_exists("chatbot"):
             self.chatbot = params.get("chatbot")
@@ -59,16 +55,20 @@ class Server(PyXavi, MicroserviceBase):
     def initialize(self):
         self._xlog.info("Starting Server")
 
-        # Add the current context into the server config, so we can access it from the endpoints.
-        self.server.config['config'] = self._xconfig
-        self.server.config['logger'] = self._xlog
-        self.server.config['params'] = self._xparams
+        with self.server.app_context():
+            # Add the current context into the server config, so we can access it from the endpoints.
+            self.server.config['config'] = self._xconfig
+            self.server.config['logger'] = self._xlog
+            self.server.config['params'] = self._xparams
 
-        # Add the feature instances into the server config, so we can access them from the endpoints.
-        self.server.config['stt'] = self.stt
-        self.server.config['chatbot'] = self.chatbot
-        self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
-        self.server.config['output_interaction'] = self.output_interaction
+            # Add the feature instances into the server config, so we can access them from the endpoints.
+            # Vosk needs its own instance, otherwise in "public" execution mode it mixes its michrophone callback
+            #   with the server endpoint calls and it produces a segmentation fault.
+            self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+            self.server.config['stt'] = Vosk(config=self._xconfig, params=self._xparams)
+            self.server.config['chatbot'] = self.chatbot
+            self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
+            self.server.config['output_interaction'] = self.output_interaction
 
         # Start the server
         self.start_server()
@@ -76,7 +76,13 @@ class Server(PyXavi, MicroserviceBase):
         self._log_debug("Server accepts connections now.")
     
     def close(self):
-        self._xlog.info("Shutting down Server")
+        self._xlog.info("Closing Server")
+
+        self._log_debug("Closing Vosk instance in the server context")
+        if 'stt' in self.server.config and self.server.config['stt'] is not None:
+            self.server.config['stt'].close()
+
+        self._log_debug("Shutting down Server")
         if self.server_thread.is_alive():
             self._log_debug("Waiting for server thread to finish, with timeout of 0 seconds.")
             self.server_thread.shutdown()
@@ -134,9 +140,6 @@ class Server(PyXavi, MicroserviceBase):
     # Endpoint to receive an audio byte array to make it through the pipeline
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
-        from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
-        import numpy as np
-
         # Framework initialization.
         config = current_app.config['config']
         logger = current_app.config['logger']
@@ -146,7 +149,6 @@ class Server(PyXavi, MicroserviceBase):
         bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
 
         audio_data = request.json.get("data_bytes", None)
-        dd(audio_data)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
         logger.info(f"📥 Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
@@ -155,12 +157,7 @@ class Server(PyXavi, MicroserviceBase):
         error = None
         try:
             # Feature initialization.
-            # Passing the instance through the Flask config produces an internal error in Vosk:
-            #   Segmentation fault: 11
-            # TODO: Take a look at this later, I'd prefer not to instantiate Vosk in the endpoint.
-            # stt: Vosk = current_app.config['stt']
-            logger.debug("Initialising the Speech-to-Text with language [" + params.get("language") + "]")
-            stt: Vosk = Vosk(config=config, params=params)
+            stt: Vosk = current_app.config['stt']
 
             # Process the audio data and get the transcription.
             # This is a loop where we pop chunks of the audio data and send them to the STT engine.
@@ -173,7 +170,6 @@ class Server(PyXavi, MicroserviceBase):
 
                 logger.debug(f"Processing chunk of {len(chunk)} bytes, remaining audio data length: {len(audio_data)} bytes")
                 transcribed = stt.process_audio_chunk(chunk)
-                dd(transcribed)
 
                 counter += 1
             
@@ -205,8 +201,9 @@ class Server(PyXavi, MicroserviceBase):
             logger.debug(f"✏️ Transcription result: {transcribed.get('result', None)}")
             logger.debug(f"✏️ Partial transcription: {transcribed.get('partial', None)}")
 
-            # Close the STT instance. It does not make sense in case that we solve the Vosk reuse-main-instance issue
-            stt.close()
+            # Vosk holds whatever is in the current Result object. We need to clean it at the end of the transcription
+            #   to avoid having old transcriptions in the next calls.
+            stt.reset_result()
 
             # Return the final response.
             return {

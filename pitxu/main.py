@@ -185,16 +185,19 @@ class Main(PyXavi):
         Initializes the Server that accepts requests to the defined endpoints
         """
 
-        if self._xconfig.get("server.enabled", False):
+        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
+            self._xlog.info("Initializing Server as it is enabled by configuration.")
             params = deepcopy(self._xparams)
-            params.set("stt", self._dictate)
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
             self._server = Server(config=self._xconfig, params=params)
             self._server.initialize()
         else:
-            self._xlog.info("Server is disabled by configuration, not initializing it.")
+            self._xlog.info(f"Server is disabled by configuration ()" +
+                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
+                            f"execution mode {self._xconfig.get('app.execution_mode', '_NOT_SET_')}," +
+                            ") not initializing it.")
 
     async def run(self):
 
@@ -212,9 +215,7 @@ class Main(PyXavi):
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
         self._interaction.show_init_phases(2)
-        # ... yeah, "Loading", but I freeze the execution here.
-        # Technically the system supports leaving the splash while loading, speaking (greetings) and stuff in background.
-        # time.sleep(4)
+
 
         # Initialize the case fan control and apply it.
         self._fan_control = FanControl(config=self._xconfig, params=self._xparams)

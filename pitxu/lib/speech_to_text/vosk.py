@@ -144,6 +144,13 @@ class Vosk(PyXavi):
             outcome["partial"] = str(result["partial"]).replace("\n", "").strip()
 
         return outcome
+    
+    def reset_result(self):
+        """
+        Method to reset the Vosk recognizer result. This is needed to avoid having old transcriptions in the next calls.
+        It is used in the server endpoint after processing a transcription, to clean the Vosk state for the next transcription.
+        """
+        self._recognizer.Reset()
 
     def _get_samplerate(self) -> int:
         device_info = sd.query_devices(self.device, "input")
