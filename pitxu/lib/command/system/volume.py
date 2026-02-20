@@ -21,7 +21,7 @@ class SystemVolume(PyXavi, Command):
     ALSA_SPEAKER_CONTROL_NAME: str = "Speaker"
     ALSA_MIC_CONTROL_NAME: str = "Mic"
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)

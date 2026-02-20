@@ -8,7 +8,7 @@ import time, json, os
 
 class Test(PyXavi):
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Test, self).init_pyxavi(config=config, params=params)

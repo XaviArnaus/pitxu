@@ -34,7 +34,7 @@ class PainterBusyFlags(PyXavi):
         SHARED_CHATBOT_BUSY
     ]
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     registered_callbacks: dict = {}
     shared_memory: SharedMemoryManager = None

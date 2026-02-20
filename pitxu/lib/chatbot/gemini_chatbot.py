@@ -70,7 +70,7 @@ class GeminiChatbot(PyXavi):
 
     _mcp_trivago_client: fastmcp.Client = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     GENAI_LIB_LOG_LEVEL: int = logging.WARNING
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
