@@ -352,6 +352,9 @@ class Painter(PyXavi, Thread):
                 end_interaction_function(interaction=interaction)
                 # Remove the callbacks themselves
                 self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=channel, flag_name=flag_name, for_value=for_value)
+                # Any foreground interaction that we remove ALSO from callback, needs to restart the time counting for the maintain_paint_for_seconds logic.
+                if isinstance(interaction, ForegroundPaint):
+                    info_to_return["request_foreground_starting_time_reset"] = True
                 # If we want to clear the screen at the end of the interaction, we can set a final callback here
                 if interaction.final_screen_clearing:
                     # Be careful, a blank rectangle will override anything we had painted until now.
@@ -614,7 +617,10 @@ class Painter(PyXavi, Thread):
                         #   so we start with a new paint.
 
                         self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
-                                        f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, moving to next foreground interaction if any.")
+                                        f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
+                        self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_foreground_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
+                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_milliseconds()}]," +
+                                        f" diff is [{(Xtime.now_milliseconds() - foreground_starting_time) / 1000}]sec.")
 
                         # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
                         foreground_starting_time = None
@@ -675,6 +681,8 @@ class Painter(PyXavi, Thread):
                 #   just in case we didn't remove it yet
                 #   (we know it's removed if foreground_starting_time is None, because it's reset
                 #   when the current_foreground_interaction.maintain_paint_for_seconds is exceeded).
+                # Attention: needs to be BEFORE the end callbacks, because when the end callbacks are triggered,
+                #   they may request to restart the foreground_starting_time, so this IF would not fit.
                 if current_foreground_interaction is not None and \
                     current_foreground_interaction.remove_interaction_after_painting is True and \
                     foreground_starting_time is None:
@@ -688,6 +696,11 @@ class Painter(PyXavi, Thread):
                 for callback_result in callback_results:
                     if callback_result.get("final_clearing", False):
                         final_clearing_needed = True
+                    if callback_result.get("request_foreground_starting_time_reset", False):
+                        if foreground_starting_time is None:
+                            self._xlog.warning(f"🟠 Painter: A callback requested a reset of the foreground starting time, but was already 'None'")
+                        self._log_debug(f"Painter: A callback requested a reset of the foreground starting time, resetting it to current time.")
+                        foreground_starting_time = None
                 
                 # Finally, if there is no foreground nor background paint, we can stop the loop.
                 # Please note that here we're not using the current_background_interaction variable directly,
