@@ -328,7 +328,7 @@ class Interaction(PyXavi):
             padding = 5
         ):
         """
-        Shows arbitrary text on the eInk display.
+        Shows arbitrary text on the foreground display.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
             "icon": icon,
@@ -349,7 +349,7 @@ class Interaction(PyXavi):
             padding = 5
         ):
         """
-        Shows arbitrary text on the eInk display only while speaking.
+        Shows arbitrary text on the foreground display only while speaking.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING, {
             "icon": icon,
@@ -370,7 +370,7 @@ class Interaction(PyXavi):
             padding = 5
         ):
         """
-        Shows arbitrary text on the eInk display only while thinking.
+        Shows arbitrary text on the foreground display only while thinking.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING, {
             "icon": icon,
@@ -379,6 +379,18 @@ class Interaction(PyXavi):
             "header": header,
             "font_header_size": font_header_size,
             "padding": padding
+        })
+    
+    def show_code_block_on_foreground(self, code: str, for_seconds: float = 10.0):
+        """
+        Shows a code block on the foreground display.
+
+        Args:
+            code (str): The code block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_CODE_BLOCK, {
+            "code": code,
+            "for_seconds": for_seconds
         })
     
     def show_interaction_holding_percentage(self, percentage: int):

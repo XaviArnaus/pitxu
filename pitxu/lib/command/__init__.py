@@ -10,6 +10,7 @@ from .world.weather import WorldWeather
 from .world.wikipedia import WorldWikipedia
 from .google.maps import GoogleMaps
 from .google.search import GoogleSearch
+from .google.code import GoogleCode
 from .trivago.mcp_accommodation_search import TrivagoMCPAccommodationSearch
 from .services.mail import ServiceMail
 from .services.print import ServicePrint

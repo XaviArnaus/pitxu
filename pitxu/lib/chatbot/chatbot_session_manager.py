@@ -4,7 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume, SystemLanguage,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
-                                GoogleMaps, GoogleSearch,\
+                                GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
                                 StatefulReminders, StatefulLists,\
                                 ServiceMail, ServicePrint
@@ -40,6 +40,7 @@ class ChatbotSessionManager(PyXavi):
         self.clients = {
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),
+            "google_code": GoogleCode(config=self._xconfig, params=self._xparams),
             "world_wikipedia": WorldWikipedia(config=self._xconfig, params=self._xparams),
             "world_position": WorldPosition(config=self._xconfig, params=self._xparams),
             "world_weather": WorldWeather(config=self._xconfig, params=self._xparams),

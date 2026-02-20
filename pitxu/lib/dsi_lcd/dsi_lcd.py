@@ -10,7 +10,7 @@ from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
-                                            StartupForegroundPaint, \
+                                            StartupForegroundPaint, CodeBlockForegroundPaint,\
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
@@ -205,6 +205,15 @@ class DsiLcd(XprocessDisplayCombined):
         # The config takes precedence over the parameter that is hardcoded from Main
         show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
         self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
+    
+    def show_code_block(self, param: dict):
+        self._xlog.info(f"👀 Showing code block on DSI LCD.")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("code_block", param.get("for_seconds", 10.0))
+        self.painter.just_paint(
+            foreground_interaction=CodeBlockForegroundPaint(
+                parameter={"text": param.get("code", "")}, 
+                for_seconds=show_for_seconds))
 
     # ------- Common functions ---------
     

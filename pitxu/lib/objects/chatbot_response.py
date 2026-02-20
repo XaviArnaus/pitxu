@@ -5,6 +5,7 @@ from google.genai.chats import GenerateContentResponse
 from google.genai.types import FinishReason, GenerateContentResponseUsageMetadata
 
 from pitxu.lib.objects.communication import ChatbotAnswer
+from pitxu.lib.utils.text import Code
 
 from pyxavi import dd
 
@@ -14,12 +15,19 @@ class ChatbotResponse:
     function_call_history: FunctionCallHistory = FunctionCallHistory()
     error: FinishReason = None
     metadata: GenerateContentResponseUsageMetadata = None
+    code: list[str] = None
 
-    def __init__(self, text: str = "", function_call_history: FunctionCallHistory = None, error: FinishReason = None, metadata: GenerateContentResponseUsageMetadata = None):
+    def __init__(self, 
+                 text: str = "", 
+                 function_call_history: FunctionCallHistory = None, 
+                 error: FinishReason = None, 
+                 metadata: GenerateContentResponseUsageMetadata = None):
         self.text = text
         self.function_call_history = function_call_history if function_call_history is not None else FunctionCallHistory()
         self.error = error
         self.metadata = metadata
+
+        self.post_process_text()
 
     def set_text(self, text: str):
         self.text = text
@@ -118,6 +126,23 @@ class ChatbotResponse:
             return response.usage_metadata
         except Exception as e:
             return None
+    
+    def post_process_text(self):
+        """
+        Post-processes the text of the response to prepare it for use.
+        """
+
+        if Code.text_includes_code(self.text):
+            # Initialize the code list
+            self.code = []
+            # First remove the code language identifier if it exists
+            self.text = Code.remove_code_language_identifier(self.text)
+            # Get the code blocks from the text
+            for code_block in Code.extract_code_from_text(self.text):
+                self.code.append(Code.remove_comment_lines_from_code(code_block))
+            # Remove the code blocks from the text
+            self.text = Code.remove_all_code_blocks_from_text(self.text)
+        
     
     def to_chatbot_answer(self, question: str = None) -> ChatbotAnswer:
         answer = ChatbotAnswer()

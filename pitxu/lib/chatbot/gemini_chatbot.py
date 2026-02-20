@@ -70,7 +70,7 @@ class GeminiChatbot(PyXavi):
 
     _mcp_trivago_client: fastmcp.Client = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     GENAI_LIB_LOG_LEVEL: int = logging.WARNING
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
@@ -210,6 +210,8 @@ class GeminiChatbot(PyXavi):
                             self._shared_memory.write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
 
                         self._xlog.info("🗣️  Answer: \n\n>> " + TerminalColor.ORANGE_BRIGHT + str(outcome.text) + TerminalColor.END + "\n")
+                        if outcome.code is not None:
+                            self._xlog.info("🗣️ Has Code: \n\n" + TerminalColor.ORANGE_BRIGHT + str(outcome.code) + TerminalColor.END + "\n")
                         self._log_debug("💰 Tokens: " + str(outcome.metadata.total_token_count) if outcome.metadata and outcome.metadata.total_token_count is not None else "?")
                         # We interrupt any retry loop returning directly here
                         return outcome
