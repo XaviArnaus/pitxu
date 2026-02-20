@@ -3,16 +3,15 @@ server:
   # [Bool] Is the server enabled.
   enabled: True
   # [String] Host to bind the server to.
+  # It will accept only connections to this host. Use 0.0.0.0 to accept connections from any host.
   host: "127.0.0.1"
-  # [Int] Port to bind the server to.
+  # [Integer] Port to bind the server to.
+  # Will accept connections to this port.
   port: 5000
-  # [Bool] Enable debug mode for the server (auto-reload, more verbose logging, etc.).
-  # Directly relates to Flask debug mode.
-  debug: true
 
-# Parameters related to the client connecting to the server endpoints for interacting wit the server
+# Parameters related to the client connecting to the server endpoints for interacting with the server
 client:
-  # [String] Host to bind the server to.
+  # [String] The Server host to connect to.
   host: "127.0.0.1"
-  # [Int] Port to bind the server to.
+  # [Integer] Port to connect to the server.
   port: 5000

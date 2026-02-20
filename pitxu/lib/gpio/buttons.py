@@ -24,7 +24,7 @@ class Buttons(PyXavi):
         try:
             button_definitions = self._xconfig.get("gpio.buttons.devices", [])
             for button in button_definitions:
-                self.buttons[button["name"]] = self._new_button(button["pin"], button["mocked_as"])
+                self.buttons[button["name"]] = self._new_button(button["name"], button["pin"], button["mocked_as"])
                 self.button_pins_per_name[button["name"]] = button["pin"]
         except (Exception, RuntimeError, SystemExit) as e:
             self._xlog.error(f"Error initializing GPIO buttons: {e}")
@@ -34,22 +34,28 @@ class Buttons(PyXavi):
         if self.mocked_buttons_manager is not None:
             self.mocked_buttons_manager.start_listening()
 
-    def is_button_pressed(self, button_name: str) -> bool:
-        if button_name not in self.buttons or self.buttons[button_name] is None:
-            self._xlog.error(f"Button '{button_name}' not defined")
-            raise KeyError(f"Button '{button_name}' not defined")
-
+    def is_pressed(self, button_name: str) -> bool:
+        
         if self.is_mocked():
-            return self.mocked_buttons_manager.is_button_pressed(pin=self.button_pins_per_name[button_name])
+            if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:
+                self._xlog.error(f"Button [{button_name}] not defined in mocked buttons manager")
+                raise KeyError(f"Button [{button_name}] not defined in mocked buttons manager")
+            
+            return self.mocked_buttons_manager.is_pressed(pin=self.button_pins_per_name[button_name])
 
-        return self.buttons[button_name].is_pressed
-
-    def _new_button(self, pin: int, mocked_as: str) -> MockedButton:
-        if self.is_mocked():
-            self._xlog.warning(f"Creating mocked button for pin {pin} with key binding '{mocked_as}'")
-            self.mocked_buttons_manager.add_button(pin=pin, mocked_as=mocked_as)
         else:
-            self._xlog.debug(f"Creating real button for pin {pin}")
+            if button_name not in self.buttons or self.buttons[button_name] is None:
+                self._xlog.error(f"Button [{button_name}] not defined")
+                raise KeyError(f"Button [{button_name}] not defined")
+
+            return self.buttons[button_name].is_pressed
+
+    def _new_button(self, name: str, pin: int, mocked_as: str) -> MockedButton:
+        if self.is_mocked():
+            self._xlog.warning(f"Creating mocked button [{name}] for pin [{pin}] with key binding [{mocked_as}]")
+            self.mocked_buttons_manager.add_button(name=name, pin=pin, mocked_as=mocked_as)
+        else:
+            self._xlog.debug(f"Creating real button [{name}] for pin [{pin}]")
             from gpiozero import Button
 
             return Button(pin)
@@ -70,15 +76,17 @@ class MockedButtons(PyXavi):
     This change from having one listener per button to a single listener for all buttons
     fixed the Mac OS issue where more than 2 key listeners provoked "Abort trap: 6" errors.
     """
+    # This is per key, not per name.
     buttons: dict = {}
     buttons_by_pin: dict = {}
+    buttons_by_name: dict = {}
     _listener = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(MockedButtons, self).init_pyxavi(config=config, params=params)
         self.buttons = {}
     
-    def add_button(self, pin: int, mocked_as: str):
+    def add_button(self, name: str, pin: int, mocked_as: str):
 
         from pynput.keyboard import Key
 
@@ -105,7 +113,10 @@ class MockedButtons(PyXavi):
         # Now we fill the reverse mapping
         self.buttons_by_pin[str(pin)] = mocked_key
 
-    def is_button_pressed(self, pin: int) -> bool:
+        # Yet another useless mapp.
+        self.buttons_by_name[name] = mocked_key
+
+    def is_pressed(self, pin: int) -> bool:
         if str(pin) not in self.buttons_by_pin or self.buttons_by_pin[str(pin)] is None:
             self._xlog.error(f"Button with pin '{pin}' not defined in mocked buttons")
             raise KeyError(f"Button with pin '{pin}' not defined in mocked buttons")

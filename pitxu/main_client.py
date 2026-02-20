@@ -17,7 +17,7 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
-from pitxu.lib.gpio.gpio import Gpio
+from pitxu.lib.gpio.buttons import Buttons
 
 import sys
 import sounddevice
@@ -38,7 +38,7 @@ class MainClient(PyXavi):
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate: SpeechToText = None
     _raw_input_stream: sounddevice.RawInputStream = None
-    _gpio: Gpio = None
+    _buttons: Buttons = None
     _is_pitxu_active: bool = True
 
     _chatbot_client_callbacks: dict[str, callable] = None
@@ -134,12 +134,12 @@ class MainClient(PyXavi):
         await chatbot_session_manager.initialize()
         self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
     
-    def _initialize_gpio(self):
+    def _initialize_buttons(self):
         """
-        Initializes the GPIO module that will manage the physical buttons.
+        Initializes the Buttons module that will manage the physical buttons.
         """
-        self._gpio = Gpio(config=self._xconfig, params=self._xparams)
-        self._gpio.initialize_buttons()
+        self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+        self._buttons.initialize_buttons()
 
     def _load_language_statics(self):
 
@@ -211,9 +211,9 @@ class MainClient(PyXavi):
         self._interaction.show_init_phases(3, text="Language Statics")
         self._load_language_statics()
 
-        # Initialise the GPIO module
-        self._interaction.show_init_phases(4, text="GPIO")
-        self._initialize_gpio()
+        # Initialise the Buttons module
+        self._interaction.show_init_phases(4, text="Buttons")
+        self._initialize_buttons()
 
         try:
             # Read from microphone.
@@ -272,13 +272,13 @@ class MainClient(PyXavi):
 
                     # Check if the push to talk button is pressed to record the audio
                     sw_dictate = None
-                    if self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
+                    if self._buttons.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
                         self._log_debug("🎙️ Push to talk button is pressed, registering audio.")
                         recording_audio = True
                         self._interaction.unmute_microphone(input_stream=input_stream)
                     
                     # Check if the push to talk button is released to stop recording audio
-                    if not self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
+                    if not self._buttons.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
                         self._log_debug("🎙️ Push to talk button is released, stopping audio registration and starting recognition.")
                         recording_audio = False
                         self._interaction.mute_microphone(input_stream=input_stream)

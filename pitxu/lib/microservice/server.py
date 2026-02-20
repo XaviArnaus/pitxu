@@ -151,9 +151,12 @@ class Server(PyXavi, MicroserviceBase):
         bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
 
         audio_data = request.json.get("data_bytes", None)
+        audio_data_length = 0
+        dd(audio_data)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
-        logger.info(f"📥 Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
+            audio_data_length = len(audio_data)
+        logger.info(f"📥 Received /transcribe request with an audio of length: {audio_data_length}")
 
         counter = 0
         error = None
@@ -163,7 +166,7 @@ class Server(PyXavi, MicroserviceBase):
 
             # Process the audio data and get the transcription.
             # This is a loop where we pop chunks of the audio data and send them to the STT engine.
-            logger.debug(f"Processing audio data of {len(audio_data)} bytes in frames of {bytes_per_chunk} bytes")
+            logger.debug(f"Processing audio data of {audio_data_length} bytes in frames of {bytes_per_chunk} bytes")
             transcribed = None
             counter = 0
             while len(audio_data) > 0:
@@ -180,7 +183,7 @@ class Server(PyXavi, MicroserviceBase):
                 logger.warning("🟠 No transcription result returned.")
                 return {
                     "status": "ko",
-                    "received_bytes_length": len(audio_data),
+                    "received_bytes_length": audio_data_length,
                     "frames": counter,
                     "error": error,
                     "transcription": None
@@ -195,13 +198,14 @@ class Server(PyXavi, MicroserviceBase):
                     transcription = transcription + " " + transcribed["final"]
 
             # We may not have a result, but we may have a partial. Just use it.
-            if transcription is None and transcribed["partial"] is not None:
+            if transcription is None and transcribed["partial"] is not None and len(transcribed["partial"]) > 0:
                 logger.warning("🟠 No final transcription result returned, but we have a partial result. Returning the partial as the result.")
                 transcription = transcribed["partial"]
 
             # Log me baby
             logger.debug(f"✏️ Transcription result: {transcribed.get('result', None)}")
-            logger.debug(f"✏️ Partial transcription: {transcribed.get('partial', None)}")
+            logger.debug(f"✏️   Partial transcription: {transcribed.get('partial', None)}")
+            logger.debug(f"✏️   Final transcription: {transcribed.get('final', None)}")
 
             # Vosk holds whatever is in the current Result object. We need to clean it at the end of the transcription
             #   to avoid having old transcriptions in the next calls.
@@ -210,7 +214,7 @@ class Server(PyXavi, MicroserviceBase):
             # Return the final response.
             return {
                 "status": "ok", 
-                "received_bytes_length": len(audio_data),
+                "received_bytes_length": audio_data_length,
                 "frames": counter,
                 "error": error,
                 "transcription": transcription
@@ -228,7 +232,7 @@ class Server(PyXavi, MicroserviceBase):
 
         return {
             "status": "ko", 
-            "received_bytes_length": len(audio_data),
+            "received_bytes_length": audio_data_length,
             "error": error,
             "transcription": None
         }

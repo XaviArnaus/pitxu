@@ -17,7 +17,7 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
-from pitxu.lib.gpio.gpio import Gpio
+from pitxu.lib.gpio.buttons import Buttons
 
 import sys
 import sounddevice
@@ -38,7 +38,7 @@ class MainClientPTT(PyXavi):
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate: SpeechToText = None
     _raw_input_stream: sounddevice.RawInputStream = None
-    _gpio: Gpio = None
+    _buttons: Buttons = None
     _is_pitxu_active: bool = True
     _execution_mode: str = "client"
 
@@ -135,13 +135,24 @@ class MainClientPTT(PyXavi):
         await chatbot_session_manager.initialize()
         self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
     
-    def _initialize_gpio(self):
+    def _initialize_buttons(self):
         """
-        Initializes the GPIO module that will manage the physical buttons.
+        Initializes the Buttons module that will manage the physical buttons.
         """
-        self._gpio = Gpio(config=self._xconfig, params=self._xparams)
-        self._gpio.initialize_buttons()
+        self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+        self._buttons.initialize_buttons()
 
+        if self._buttons.buttons is not None and len(self._buttons.buttons) > 0:
+            button_names = list(self._buttons.buttons.keys())
+            self._xlog.info(f"Initialized buttons: {button_names}")
+
+            if self.PUSH_TO_TALK_BUTTON not in button_names:
+                self._xlog.warning(f"🟠 Push to talk button '{self.PUSH_TO_TALK_BUTTON}' not found in initialized buttons: {button_names}. " +
+                                   f"Assigning Push To Talk functionality to the first button in the list: {button_names[0]}")
+                self.PUSH_TO_TALK_BUTTON = button_names[0]
+        else:
+            self._xlog.error("No buttons initialized. Push to Talk functionality will not be available.")
+            self.close_nicely(avoid_final_exit=False)
     def _load_language_statics(self):
 
         # Load the greeting sentence
@@ -212,9 +223,9 @@ class MainClientPTT(PyXavi):
         self._interaction.show_init_phases(3, text="Language Statics")
         self._load_language_statics()
 
-        # Initialise the GPIO module
-        self._interaction.show_init_phases(4, text="GPIO")
-        self._initialize_gpio()
+        # Initialise the Buttons module
+        self._interaction.show_init_phases(4, text="Buttons")
+        self._initialize_buttons()
 
         try:
             # Read from microphone.
@@ -268,18 +279,18 @@ class MainClientPTT(PyXavi):
                     self.do_every_second_tasks()
 
                     # Show idle screen in eInk if not already showing it
-                    if not self._interaction.is_eink_in_idle_mode():
-                        self._interaction.show_idle()
+                    # if not self._interaction.is_eink_in_idle_mode():
+                    #     self._interaction.show_idle()
 
                     # Check if the push to talk button is pressed to record the audio
                     sw_dictate = None
-                    if self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
+                    if self._buttons.is_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
                         self._log_debug("🎙️ Push to talk button is pressed, registering audio.")
                         recording_audio = True
                         self._interaction.unmute_microphone(input_stream=input_stream)
                     
                     # Check if the push to talk button is released to stop recording audio
-                    if not self._gpio.is_button_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
+                    if not self._buttons.is_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
                         self._log_debug("🎙️ Push to talk button is released, stopping audio registration and starting recognition.")
                         recording_audio = False
                         self._interaction.mute_microphone(input_stream=input_stream)
@@ -305,22 +316,25 @@ class MainClientPTT(PyXavi):
 
                     # Analyze the question to see what to do.
                     text_has_exit_intention = self._text_has_exit_intention(question)
-                    text_is_only_trigger_words = self._text_is_only_trigger_words(question)
-                    text_initial_words_intend_to_trigger_interaction = self._text_initial_words_intend_to_trigger_interaction(question)
-                    text_continues_ongoing_interaction = self._text_continues_ongoing_interaction(question)
+                    # text_is_only_trigger_words = self._text_is_only_trigger_words(question)
+                    # text_initial_words_intend_to_trigger_interaction = self._text_initial_words_intend_to_trigger_interaction(question)
+                    # text_continues_ongoing_interaction = self._text_continues_ongoing_interaction(question)
 
                     # Avoid calling the Chatbot when we can exit directly.
-                    if text_has_exit_intention and text_continues_ongoing_interaction:
+                    # if text_has_exit_intention and text_continues_ongoing_interaction:
+                    if text_has_exit_intention:
                         # Just assume a goodbye
                         answer = self._goodbye_sentence
-                    # Avoid calling the Chatbot when the text is only meant for waking up the system.
-                    elif text_is_only_trigger_words:
-                        # Randomly choose one of the trigger answers
-                        import random
-                        answer = random.choice(self._trigger_answers)
-                    # Check if the text is meant to trigger or continue an interaction
-                    # Same as before, but the question is passed to the chatbot.
-                    elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
+                    # # Avoid calling the Chatbot when the text is only meant for waking up the system.
+                    # elif text_is_only_trigger_words:
+                    #     # Randomly choose one of the trigger answers
+                    #     import random
+                    #     answer = random.choice(self._trigger_answers)
+                    # # Check if the text is meant to trigger or continue an interaction
+                    # # Same as before, but the question is passed to the chatbot.
+                    # elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
+
+                    else:
 
                         # Here we start with the Chatbot.
                         # -------------------------------
@@ -339,24 +353,26 @@ class MainClientPTT(PyXavi):
                         self._interaction.wait_for_background_display_queue_to_empty()
                         self._interaction.set_chatbot_busy()
                         chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
-                        answer = chat_response.text
                         self._interaction.unset_chatbot_busy()
+
                         try:
-                            self._log_debug("Function calls in the chat history: " + ", ".join(chat_response.function_call_history.get_names()))
-                            if chat_response.function_call_history.get_last().has_response():
-                                self._log_debug("🗣️ Received function call response. Reacting.")
-                                # Shutdown and Reboot interrupt the flow and directly shutdown,
-                                # calling `close_nicely()` from there.
-                                # Keep in mind that:
-                                #   - here we may have played with BUSY flags.
-                                #   - repeating a question that involves a tool does not mean that the second time the tool gets called.
-                                #       It may just take the previous question and answer again.
-                                #       There may not be a second function call response.
-                                #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
-                                #       So the second time we may not be able to show the time on the screen, for example.
-                                self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                            # We react on the answer received from the Chatbot, that may include function call responses and code blocks,
+                            # or instructions for us to react, beyond the text to speak.
+                            # For example, we may have to execute a Shutdown.
+                            #
+                            # Keep in mind that:
+                            #   - repeating a question that involves a tool does not mean that in the second time the tool gets called.
+                            #       It may just take the previous question and answer again.
+                            #       There may not be a second function call response.
+                            #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
+                            #       So the second time we may not be able to show the time on the screen, for example.
+                            self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
+                            self.react_on_answer(chat_response=chat_response, input_stream=input_stream)
                         except Exception as e:
                             self._xlog.error("🛑 Error reacting to function call: " + str(e))
+                        
+                        # Finally, this is the answer string that moves on.
+                        answer = chat_response.text
 
                         # This waiting happens BEFORE we reached the answering phase with the interaction.say().
                         # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
@@ -365,11 +381,11 @@ class MainClientPTT(PyXavi):
                         # - Uncommenting again because seems like the block happens in interaction.say() instead.
                         self._interaction.wait_for_foreground_display_queue_to_empty()
 
-                    # Anything else is ignored.
-                    else:
-                        self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
-                        # Removing the question, as it could be an unwanted trigger for exit.
-                        question = ""
+                    # # Anything else is ignored.
+                    # else:
+                    #     self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
+                    #     # Removing the question, as it could be an unwanted trigger for exit.
+                    #     question = ""
 
                     # Do we actually have any answer?
                     if answer is not None and answer.strip() != "":
@@ -405,7 +421,7 @@ class MainClientPTT(PyXavi):
         except SpeechToTextException as ve:
             self._xlog.error("🛑 SpeechToTextException detected in MainClient run loop: " + str(ve))
         except Exception as e:
-            self._xlog.error("🛑 Error in MainClient run loop: " + str(e))
+            self._xlog.error("🛑 Error in MainClientPTT run loop: " + str(e))
             self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.
@@ -413,16 +429,25 @@ class MainClientPTT(PyXavi):
 
     # ------------- End of the main method run() -------------
     
-    def react_on_last_function_call(self, function_call_pair: FunctionCallPair, input_stream: sounddevice.RawInputStream = None) -> list[str]:
+    def react_on_answer(self, chat_response: ChatbotResponse, input_stream: sounddevice.RawInputStream = None) -> None:
         """
-        Reacts to the last function call beyond simply answering, like expressions, emotions, or actions.
+        Reacts to the received answer beyond simply answering, like expressions, emotions, or actions.
 
         Args:
-            function_call (FunctionCallPair): The last function call pair from the chatbot.
+            chat_response (ChatbotResponse): The last response from the chatbot.
         
         Returns:
-            list[str]: List of communications channels that should be ignored in the communication() method.
+            None
         """
+
+        if chat_response is None or \
+                chat_response.function_call_history is None or \
+                chat_response.function_call_history.get_last() is None or \
+                not chat_response.function_call_history.get_last().has_response():
+            return None
+        
+
+        # --- Code to react on function call ---
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
         #   or showing the hour in the Display if asked for the time...
@@ -433,7 +458,7 @@ class MainClientPTT(PyXavi):
         #   specific to search for here.
 
         try:
-
+            function_call_pair: FunctionCallPair = chat_response.function_call_history.get_last()
             if function_call_pair.has_response():
                 self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
                 
@@ -538,44 +563,67 @@ class MainClientPTT(PyXavi):
                         value,
                         args
                     )()
+            
+                # We should finish here. I didn't study yet cases when we have function calls AND anything else below.
+                return
 
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
+            self._xlog.debug(full_stack())
+        
+        # --- Code to react on chat_response more globally ---
+
+        # The idea here is to cover answers that do not trigger a function call.
+        # Lot of times is due to the chatbot repeating an answer, like "can you show me that code block again?"
+        #   It simply picks it back from his history, but we still want to react on the answer.
+
+        try:
+            if chat_response.code is not None:
+                self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
+                self._interaction.show_code_block_on_foreground(
+                    code=chat_response.code[0],
+                    for_seconds=10.0)
+                # Sometimes it answers with code but no text, so we make it more human:
+                if chat_response.text.strip() == "":
+                    chat_response.text = self._xconfig.get("language.code.empty_answer_with_code." + self._xparams.get("language"))
+
+        except Exception as e:
+            self._xlog.error("🛑 Error reacting to code block in answer: " + str(e))
             self._xlog.debug(full_stack())
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
-    def _text_continues_ongoing_interaction(self, question: str) -> bool:
-        # We may be in an ongoing interaction, so let's check the last interaction time
-        # We must take in account the time spent talking
-        if self._last_interaction_datetime is not None:
-            seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-            if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-                return True
+    # def _text_continues_ongoing_interaction(self, question: str) -> bool:
+    #     # We may be in an ongoing interaction, so let's check the last interaction time
+    #     # We must take in account the time spent talking
+    #     if self._last_interaction_datetime is not None:
+    #         seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
+    #         if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+    #             return True
         
-        # No ongoing interaction
-        return False
+    #     # No ongoing interaction
+    #     return False
     
-    def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
-        # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
-        for trigger_word in self._trigger_words:
-            if trigger_word in first_words:
-                return True
+    # def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
+    #     # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
+    #     first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+    #     for trigger_word in self._trigger_words:
+    #         if trigger_word in first_words:
+    #             return True
         
-        # No trigger word found
-        return False
+    #     # No trigger word found
+    #     return False
     
-    def _text_is_only_trigger_words(self, question: str) -> bool:
-        # Let's consider that from what the user said, all words need to be one of the trigger words
-        all_user_input = Text.remove_accents(question.lower().strip())
-        for trigger_word in self._trigger_words:
-            if trigger_word in all_user_input:
-                return True
+    # def _text_is_only_trigger_words(self, question: str) -> bool:
+    #     # Let's consider that from what the user said, all words need to be one of the trigger words
+    #     all_user_input = Text.remove_accents(question.lower().strip())
+    #     for trigger_word in self._trigger_words:
+    #         if trigger_word in all_user_input:
+    #             return True
         
-        # No trigger word found
-        return False
+    #     # No trigger word found
+    #     return False
     
     def close_nicely(self, avoid_final_exit=False):
         """
@@ -698,22 +746,22 @@ class MainClientPTT(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
             
-            # If the background display is idle, show interaction holding percentage if applicable
-            if not self._interaction.is_background_display_busy() and not self._xparams.get("execution_mode") == "client":
-                # Show the interaction holding percentage if we're expecting an interaction
-                if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
-                    # Calculate how much left in percentages the time to hold the interaction
-                    seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-                    if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-                        percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                        self._last_processed_interaction_percentage = percent_left
-                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
-                        self._interaction.show_interaction_holding_percentage(percent_left)
-                    elif self._last_processed_interaction_percentage >= 0:
-                        # Interaction time is over, and we were showing the percentage
-                        self._last_processed_interaction_percentage = -1
-                        self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        self._interaction.clear_background_display()
-            else:
-                self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+            # # If the background display is idle, show interaction holding percentage if applicable
+            # if not self._interaction.is_background_display_busy() and not self._xparams.get("execution_mode") == "client":
+            #     # Show the interaction holding percentage if we're expecting an interaction
+            #     if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
+            #         # Calculate how much left in percentages the time to hold the interaction
+            #         seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
+            #         if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+            #             percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+            #             self._last_processed_interaction_percentage = percent_left
+            #             self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
+            #             self._interaction.show_interaction_holding_percentage(percent_left)
+            #         elif self._last_processed_interaction_percentage >= 0:
+            #             # Interaction time is over, and we were showing the percentage
+            #             self._last_processed_interaction_percentage = -1
+            #             self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
+            #             self._interaction.clear_background_display()
+            # else:
+            #     self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     
