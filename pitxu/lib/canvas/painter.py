@@ -489,7 +489,7 @@ class Painter(PyXavi, Thread):
                 for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
                     self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
 
-                # What if we try the whole drawing startig by a clear screen?
+                # What if we try the whole drawing, starting by a clear screen?
                 if current_background_interaction is not None or current_foreground_interaction is not None:
                     self._log_debug(f"Painter Loop: Clearing screen on LCD display at the beginning of the loop.")
                     self.macros._soft_clear_rectangle(draw=self.draw)
@@ -613,7 +613,8 @@ class Painter(PyXavi, Thread):
                         # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
                         #   so we start with a new paint.
 
-                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time elapsed, moving to next foreground interaction if any.")
+                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
+                                        f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, moving to next foreground interaction if any.")
 
                         # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
                         foreground_starting_time = None
