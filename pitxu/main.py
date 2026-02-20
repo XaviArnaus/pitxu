@@ -351,7 +351,13 @@ class Main(PyXavi):
                                     #       There may not be a second function call response.
                                     #       And by taking get_last(), we may be showing a previous response that does not fit to the question.
                                     #       So the second time we may not be able to show the time on the screen, for example.
-                                    self.react_on_last_function_call(chat_response.function_call_history.get_last())
+                                    self.react_on_last_function_call(chat_response.function_call_history.get_last(), input_stream=input_stream)
+                                
+                                elif chat_response.code is not None:
+                                    self._log_debug(f"🗣️ Received {len(chat_response.code)} code blocks in the response. Reacting to the first one only.")
+                                    self._interaction.show_code_block_on_foreground(
+                                        code=chat_response.code[0],
+                                        for_seconds=10.0)
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
 

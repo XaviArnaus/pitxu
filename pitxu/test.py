@@ -150,16 +150,16 @@ class Test(PyXavi):
 
             # Delegate the run to Main
             self._xlog.debug("Testing the KITT mouth as LEDs in the LCD display")
-            parameters = parameters.merge(Dictionary({
+            self._xparams = self._xparams.merge(Dictionary({
                 "screen_size": expected_screen_size,
                 "device_config_prefix": "lcd"
             }))
-            device = DeviceWrapper(config=self._xconfig, params=parameters)
-            parameters.set("device", device)
-            canvas = Canvas(config=self._xconfig, params=parameters)
-            parameters.set("canvas", canvas)
-            macros = Macros(config=self._xconfig, params=parameters)
-            parameters.set("macros", macros)
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
+            self._xparams.set("macros", macros)
             
             if MODE_IN_USE == "direct":
                 self._xlog.debug("Using direct mode to draw KITT mouth while speaking...")
@@ -170,7 +170,7 @@ class Test(PyXavi):
                 from pitxu.lib.canvas.painter import Painter
                 from pitxu.lib.canvas.painter_commands import BackgroundComm
 
-                painter = Painter(config=self._xconfig, params=parameters)
+                painter = Painter(config=self._xconfig, params=self._xparams)
 
                 self._xlog.debug("Using painter mode to draw KITT mouth while speaking...")
                 # Painter mode
@@ -214,17 +214,98 @@ class Test(PyXavi):
 
             # Delegate the run to Main
             self._xlog.debug("Testing the KITT mouth as LEDs in the LCD display")
-            parameters = self._xparams.merge(Dictionary({
-                "screen_size": expected_screen_size
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": expected_screen_size,
+                "device_config_prefix": "dsi_lcd"
             }))
-            device = DeviceWrapper(config=self._xconfig, params=parameters)
-            parameters.set("device", device)
-            canvas = Canvas(config=self._xconfig, params=parameters)
-            parameters.set("canvas", canvas)
-            macros = Macros(config=self._xconfig, params=parameters)
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
 
             for i in range(0,5):
                 macros.kitt_horizontal_effect()
+
+            # Clear screen
+            device.clear()
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())
+    
+    def test_code_block(self):
+        try:
+            from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.objects.point import Point
+            from pitxu.lib.utils.text import Code
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing showing code blocks in the LCD display")
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": Point(int(self._xconfig.get("dsi_lcd.size.x")), int(self._xconfig.get("dsi_lcd.size.y"))),
+                "device_config_prefix": "dsi_lcd"
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
+
+            code = ["""```python
+def hello_world():
+    print("Hello, world!")
+```""",
+            """```python
+import logging
+import time
+... (your existing logging setup) ...
+try:
+    while True:
+        try:
+            logging.debug("Attempting to get microphone input...")
+            # Assuming getmicrophoneinput() now has a timeout
+            audiodata = getmicrophoneinput(timeoutseconds=5) # Example timeout
+
+            if audiodata:
+                logging.debug(f"Received audio data. Length/Size: {len(audiodata) if hasattr(audiodata, 'len') else 'N/A'}")
+                processaudiodata(audiodata)
+            else:
+                logging.warning("Microphone input function returned no audio data (possibly timed out). Waiting before retry.")
+                time.sleep(5) # Wait 5 seconds before trying again
+
+        except TimeoutError: # Or whatever specific timeout exception your library raises
+            logging.warning("Microphone input timed out. No data received. Waiting before retry.")
+            time.sleep(5) # Wait 5 seconds before trying again
+        except Exception as e:
+            logging.error(f"Error during microphone input: {e}", excinfo=True)
+            logging.info("Waiting before retrying after error.")
+            time.sleep(10) # Wait longer after an error
+            # Consider re-initializing the microphone here if errors persist
+            reinitializemicrophone()
+        ... rest of your loop if any ...
+except Exception as e:
+    logging.critical(f"Main loop terminated due to an unhandled exception: {e}", excinfo=True)
+finally:
+    logging.info("Script is exiting or main loop has finished.")
+```            
+            """]
+
+            counter = 1
+            for text in code:
+                self._xlog.debug(f"Showing text with code {counter}...")
+                text = Code.remove_code_language_identifier(text)
+                code_blocks = Code.extract_code_from_text(text)
+                self._xlog.debug(f"Extracted code blocks: {len(code_blocks)}")
+                for code_block in code_blocks:
+                    macros.code_block(code_block)
+                    self._xlog.debug("Pausing 3 seconds to let it show")
+                    time.sleep(2)
+                counter += 1
 
             # Clear screen
             device.clear()

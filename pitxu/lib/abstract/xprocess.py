@@ -65,8 +65,11 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 # We mark the process as busy
                 self.set_busy()
 
-                # Run the context-aware run_with_context() first
-                self.run_with_context(self._xconfig, self._xlog, action, param)
+                try:
+                    # Run the context-aware run_with_context() first
+                    self.run_with_context(self._xconfig, self._xlog, action, param)
+                except NotImplementedError as e:
+                    self._xlog.warning(f"🟠 NotImplementedError in Xprocess {self._PROCESS_NAME} run(). Will discard: {e}")
 
                 # We're not busy anymore
                 self.unset_busy()

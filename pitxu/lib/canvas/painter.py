@@ -584,6 +584,9 @@ class Painter(PyXavi, Thread):
                                                             header=current_foreground_interaction.parameter.get("header"),
                                                             font_header_size=current_foreground_interaction.parameter.get("font_header_size", 32),
                                                             padding=current_foreground_interaction.parameter.get("padding", 5))
+                    elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                        self._log_debug("Painter Loop: Drawing code block on LCD display.")
+                        self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
                     elif current_foreground_interaction.interaction == ForegroundComm.CLEAR:
                         # If we need to clear the foreground, actualy we use the iteration to draw nothing.
                         # this is because if we clean the foreground, we may loose the background that was painted before.
