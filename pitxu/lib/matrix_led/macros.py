@@ -178,7 +178,7 @@ class Macros(PyXavi):
             self._handable_canvas.send_to_device()
             time.sleep(delay)
 
-    def show_init_phase(self, phase):
+    def show_init_phase(self, phase, text=None):
 
         with self._max7219.create_canvas() as canvas:
             rows = math.floor(phase / 8) + 1

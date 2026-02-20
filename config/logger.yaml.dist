@@ -1,13 +1,21 @@
 # Specific logging level for the libraries used in the project.
 libs_logger:
-    # Piper
+    # Piper, defaults to INFO
     piper:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
         loglevel: 20
-    # GeminiChatbot
+    # GeminiChatbot, defaults to WARN
     gemini_chatbot:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
         loglevel: 30
+    # Flask, defaults to INFO
+    flask:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
+    # Urllib3, defaults to INFO
+    urllib3:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
     # Vosk. Note that Vosk is a C++ library with Python bindings, so the logging level
     #   has its own integers.
     vosk:
@@ -21,7 +29,7 @@ logger:
   # [String] Name of the logger
   name: "pitxu"
   # [String] Format of the log
-  format: "%(asctime)s [%(processName)-12s] %(levelname)-8s %(name)-12s %(message)s"
+  format: "%(asctime)s [%(processName)-14s] %(levelname)-8s %(name)-12s %(message)s"
   # File related parameters
   file:
     # [Bool] Dump the log into a file
@@ -62,6 +70,7 @@ logger:
             Display: CYAN_BRIGHT
             MatrixLed: MAGENTA_BRIGHT
             Piper: YELLOW_BRIGHT
+            TextToSpeech: YELLOW_BRIGHT
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
         by_thread:

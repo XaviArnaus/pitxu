@@ -11,10 +11,11 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
+from pitxu.lib.utils.xtime import Xtime
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 
-from definitions import ROOT_DIR, CONFIG_DIR
+from definitions import ROOT_DIR
 
 
 def load_environment():
@@ -62,7 +63,7 @@ def parse_arguments() -> dict:
 def tests():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         from pitxu.test import Test
         import inspect
@@ -105,7 +106,7 @@ def tests():
 def utils():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
         from pitxu.util import Util
         import inspect
@@ -147,23 +148,54 @@ def utils():
 def run():
     try:
         # Instantiating
-        config, logger, parameters = _initialize()
+        config, logger, parameters = initialize()
 
-        from pitxu.main import Main
+        # Discover which execution mode we are in, and log it.
+        # Get the execution mode. Ensure that we have an accepted value only.
+        # Default to the normal (local) execution mode.
+        exec_mode = config.get("app.execution_mode", "local")
+        if exec_mode not in ["local", "public", "client", "server"]:
+            logger.error(f"🛑 Invalid execution mode [{exec_mode}] in config. Accepted values are: local, public, client, server. Defaulting to 'local' mode.")
+            exec_mode = "local"
+        parameters.set("execution_mode", exec_mode)
 
-        # Delegate the run to Main
-        logger.debug("Starting Main run")
-        main = Main(config=config, params=parameters)
-        asyncio.run(main.run())
-        logger.info("End of the Main run")
+        # For "local" and "public" execution modes, we run the normal Main. 
+        # There is an IF in the Main to check if the server should be initialized or not.
+        if exec_mode in ["local", "public"]:
+            from pitxu.main import Main
+            logger.info("🚀 Starting in LOCAL execution mode")
+            main = Main(config=config, params=parameters)
+            asyncio.run(main.run())
+            logger.info("End of the Main run")
+
+        elif exec_mode == "client":
+            from pitxu.main_client_ptt import MainClientPTT
+            logger.info("🚀 Starting in CLIENT execution mode")
+            main_client = MainClientPTT(config=config, params=parameters)
+            asyncio.run(main_client.run())
+            logger.info("End of the Main Client run")
+
+        elif exec_mode == "server":
+            logger.error("🛑 SERVER execution mode is not implemented yet. Please run in 'local' or 'client' mode for now.")
+
 
     except RuntimeError as e:
         print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
     except Exception:
-        print(full_stack()) 
+        print(full_stack())
 
-def _initialize() -> tuple[Config, Logger, Dictionary]:
+# def patch_time():
+#     """
+#     Patch the time.sleep function for better performance on Linux systems.
+#     https://stackoverflow.com/a/66350772
+#     """
+#     import platform
+#     if platform.system() == "Linux":
+#         Xtime.patch_time()
+
+def initialize() -> tuple[Config, Logger, Dictionary]:
     load_environment()
+    # patch_time()
     config = ConfigLoader.load_config_files()
     logger = load_logger(config=config)
     parameters = Dictionary({

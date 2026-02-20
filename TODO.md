@@ -9,3 +9,5 @@
 [ ] Add any alert from a remainder into the chatbot's history, so it remembers having done so.
 [ ] Chatbot Historic: `Download > Filter >Store > Load` at a new session
 [ ] Now the Eyes statics are done by Canvas, not loading a new Image (which forced a clear() in eInk). Review if still happens (LCD doesn't)
+[ ] Parse the markdown answer and pick the **titles** on the bullet points, to present it in the screen while talking. 
+        Identify which text (sentence?) is every sintetized chunk (sentence?), then I can now when each sentence is spoken.

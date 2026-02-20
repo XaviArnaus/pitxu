@@ -72,7 +72,7 @@ class XprocessPool(PyXavi):
         if params is not None and params.get("initialize_from_main", True) is True:
             self.initialize_from_main(name)
     
-    def new(self, name: str, target, params: Dictionary = None):
+    def new(self, name: str, target, params: Dictionary = None) -> dict | None:
         self._xlog.debug("Creating and adding process [" + name + "] to the pool")
         if name in self._process:
             self._xlog.warning("process [" + name + "] already exists in the pool. Overwriting.")
@@ -80,21 +80,39 @@ class XprocessPool(PyXavi):
         if params is None:
             params = Dictionary()
         
+        output_queue = None
+        sentinel_output_queue = None
+        if params.key_exists("use_output_queue") and params.get("use_output_queue") is True:
+            output_queue = self._manager.JoinableQueue()
+            sentinel_output_queue = object()  # A unique value to signal the end of the output queue stream
+        
         queue = self._manager.JoinableQueue()
         self._queue[name] = queue
         self._process[name] = target(
             config=self._xconfig, 
             params=self._xparams.merge(origin=params), 
             queue=queue,
+            output_queue=output_queue,
+            sentinel_output_queue=sentinel_output_queue,
             busy_flag=self._shared_flags_per_queue.get(name, None)
         )
 
-    def new_and_start(self, name: str, target, params: Dictionary = None):
-        self.new(name, target, params=params)
+        if output_queue is not None:
+            return {
+                "output_queue": output_queue,
+                "sentinel_output_queue": sentinel_output_queue
+            }
+        else:
+            return None
+
+    def new_and_start(self, name: str, target, params: Dictionary = None) -> dict | None:
+        output_queue_params = self.new(name, target, params=params)
         self.start(name)
 
         if params is not None and params.get("initialize_from_main", True) is True:
             self.initialize_from_main(name)
+        
+        return output_queue_params
     
     def start(self, name: str):
         if name in self._process:

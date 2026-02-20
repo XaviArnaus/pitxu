@@ -49,10 +49,11 @@ class XprocessDisplayBackground(Xprocess):
             self._log_debug("XprocessDisplayBackground: Clearing background screen only.")
             self.clear_background()
         
-        if action == XprocAction.INIT_STEP and param != "":
-            step = int(param)
+        if action == XprocAction.INIT_STEP and param is not None:
+            step, text = param
+            step = int(step)
             # For now, just show the step number as a message
-            self.init_phase(step)
+            self.init_phase(step, text)
     
     # ------- Common functions ---------
     
@@ -80,7 +81,7 @@ class XprocessDisplayBackground(Xprocess):
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Background subclasses.")
 
-    def init_phase(self, phase: int):
+    def init_phase(self, phase: int, text: str = None):
         raise NotImplementedError("init_phase() must be implemented in Display Background subclasses.")
 
     def interaction_holding_percentage(self, percentage: int):

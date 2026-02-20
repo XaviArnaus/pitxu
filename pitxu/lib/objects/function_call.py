@@ -94,6 +94,26 @@ class FunctionCallHistory:
             print(full_stack())
 
         return FunctionCallHistory(history=function_call_pairs)
+    
+    def to_dict(self) -> list[dict]:
+        """
+        Converts the FunctionCallHistory to a list of dictionaries for easier consumption.
+
+        Returns:
+            A list of dictionaries representing the function call history.
+        """
+        return [pair.to_dict() for pair in self.history]
+    
+    @staticmethod
+    def from_dict(data: list[dict]):
+        """
+        Populates the FunctionCallHistory from a list of dictionaries.
+
+        Args:
+            data: A list of dictionaries containing the function call history data.
+        """
+        history = [FunctionCallPair.from_dict(pair_data) for pair_data in data]
+        return FunctionCallHistory(history=history)
 
     def _parse_full_history(self, response: GenerateContentResponse) -> list[FunctionCallPair]:
         """
@@ -261,6 +281,34 @@ class FunctionCallPair:
             A FunctionCallPair with None values.
         """
         return FunctionCallPair()
+    
+    def to_dict(self) -> dict:
+        """
+        Converts the FunctionCallPair to a dictionary for easier consumption.
+
+        Returns:
+            A dictionary representing the function call pair.
+        """
+        return {
+            "function_call": self.function_call.to_dict() if self.has_call() else None,
+            "function_response": self.function_response.to_dict() if self.has_response() else None
+        }
+    
+    @staticmethod
+    def from_dict(data: dict):
+        """
+        Populates the FunctionCallPair from a dictionary.
+
+        Args:
+            data: A dictionary containing the function call pair data.
+        """
+        function_call_data = data.get("function_call", None)
+        function_response_data = data.get("function_response", None)
+
+        function_call = FunctionCall.from_dict(function_call_data) if function_call_data is not None else None
+        function_response = FunctionResponse.from_dict(function_response_data) if function_response_data is not None else None
+
+        return FunctionCallPair(function_call=function_call, function_response=function_response)
 
 class FunctionCall:
     """
@@ -277,6 +325,30 @@ class FunctionCall:
     def __init__(self, name: str = "", arguments: dict = None):
         self.name = name
         self.arguments = arguments if arguments is not None else {}
+    
+    def to_dict(self) -> dict:
+        """
+        Converts the FunctionCall to a dictionary.
+
+        Returns:
+            A dictionary representing the function call.
+        """
+        return {
+            "name": self.name,
+            "arguments": self.arguments
+        }
+    
+    @staticmethod
+    def from_dict(data: dict):
+        """
+        Populates the FunctionCall from a dictionary.
+
+        Args:
+            data: A dictionary containing the function call data.
+        """
+        name = data.get("name", "")
+        arguments = data.get("arguments", {})
+        return FunctionCall(name=name, arguments=arguments)
 
 class FunctionResponse:
     """
@@ -294,3 +366,27 @@ class FunctionResponse:
     def __init__(self, name: str = "", response: dict = None):
         self.name = name
         self.response = response if response is not None else {}
+    
+    def to_dict(self) -> dict:
+        """
+        Converts the FunctionResponse to a dictionary.
+
+        Returns:
+            A dictionary representing the function response.
+        """
+        return {
+            "name": self.name,
+            "response": self.response
+        }
+    
+    @staticmethod
+    def from_dict(data: dict):
+        """
+        Populates the FunctionResponse from a dictionary.
+
+        Args:
+            data: A dictionary containing the function response data.
+        """
+        name = data.get("name", "")
+        response = data.get("response", {})
+        return FunctionResponse(name=name, response=response)

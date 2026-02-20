@@ -253,9 +253,12 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info(f"🚥 Drawing on DSI LCD: {text}")
         self._macros.draw_something()
 
-    def init_phase(self, phase: int):
-        self._xlog.info(f"🚥 Showing init phase {phase} on DSI LCD")
-        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter=phase))
+    def init_phase(self, phase: int, text: str = None):
+        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on DSI LCD")
+        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
+            "phase": phase,
+            "text": text
+        }))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")

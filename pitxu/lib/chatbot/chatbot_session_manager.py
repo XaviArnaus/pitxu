@@ -2,7 +2,7 @@ from pyxavi import Config, Logger, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.command import SystemDate, SystemTime, SystemPowerManagement, SystemVolume, SystemLanguage,\
+from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage,\
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
@@ -53,6 +53,7 @@ class ChatbotSessionManager(PyXavi):
             "lists": StatefulLists(config=self._xconfig, params=self._xparams),
             "mail": ServiceMail(config=self._xconfig, params=self._xparams),
             "print": ServicePrint(config=self._xconfig, params=self._xparams),
+            "system_network": SystemNetwork(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")

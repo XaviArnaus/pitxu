@@ -10,6 +10,15 @@ app:
   default_language: "ca"
   # Defines the supported languages. Must instersect STT, TTS and Gemini, and have definitions in this config.
   supported_languages: ["en-us", "ca", "de", "es"]
+  # [String] Defines the execution mode of the app. Possible values:
+  #   "local": Run as normal. The server is NOT started based on its own configuration.
+  #   "public": Run as normal, but also start the server in the same process. This is useful for development and testing, to avoid having to start the server separately.
+  #   "server": Run only as server. The client is expected to be running separately,
+  #     and will connect to this server to get STT, TTS and Chatbot interaction.
+  #     There won't be any interaction in the local host, only serving the client requests.
+  #   "client": Run only as client. The server is expected to be running separately,
+  #     and the client will connect to it to get STT, TTS and Chatbot interaction. 
+  execution_mode: "public"
 
 # Filesystem definition
 storage:
