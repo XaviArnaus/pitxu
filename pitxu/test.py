@@ -116,7 +116,7 @@ class Test(PyXavi):
                 draw.text(
                     xy=Point(expected_screen_size.x / 2, expected_screen_size.y / 2).to_image_point(),
                     text=text,
-                    font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "lib", "canvas", "fonts", "Font_with_emojis.ttc"), 25),
+                    font=ImageFont.truetype(os.path.join(ROOT_DIR, "pitxu", "fonts", "Font_with_emojis.ttc"), 25),
                     fill="white",
                     anchor="mm",
                     align="center")
