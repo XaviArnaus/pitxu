@@ -101,7 +101,10 @@ class Test(PyXavi):
                     image = Image.new("RGB", expected_screen_size.to_image_point(), "black")
                     draw = ImageDraw.Draw(image)
                 else:
-                    canvas = Canvas(config=self._xconfig, params=self._xparams.merge(Dictionary({"screen_size": expected_screen_size})))
+                    canvas = Canvas(config=self._xconfig, params=self._xparams.merge(Dictionary({
+                        "screen_size": expected_screen_size,
+                        "device_config_prefix": "lcd"
+                    })))
                     draw = canvas.get_canvas()
 
                 colors = ["red", "green", "blue", "yellow", "purple"]

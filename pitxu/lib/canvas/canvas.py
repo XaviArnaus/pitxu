@@ -135,7 +135,7 @@ class Canvas(PyXavi):
         if params.key_exists("device_config_prefix"):
             self.DEVICE_CONFIG_PREFIX = params.get("device_config_prefix")
         else:
-            raise ValueError("'Device config prefix' not provided in params. Cannot continue.")
+            raise ValueError("'device_config_prefix' not provided in params. Cannot continue.")
 
         # Getting the screen size from params or config
         if params.key_exists("screen_size"):
