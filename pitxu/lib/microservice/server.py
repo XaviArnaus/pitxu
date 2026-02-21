@@ -260,6 +260,13 @@ class Server(PyXavi, MicroserviceBase):
             # Set up of all the session context we need for the Chatbot and the MCP tools
             # async with chatbot.get_session_manager() as chatbot_session_manager:
 
+            # The chatbot works in an async way, so we need to run it in an event loop.
+            # The problem is that we're reusing the one from the main thread.
+            # We should not really use a different instance, as the GPIOs and everything is already taking the resources.
+            # Let's try to get a new event loop and see if it works.
+            if not asyncio.get_event_loop().is_running():
+                asyncio.set_event_loop(asyncio.new_event_loop())
+
             chat_response: ChatbotResponse = asyncio.run(chatbot.ask_async(question))
             answer = chat_response.text
             logger.debug(f"Returning response from chatbot: {answer}")
