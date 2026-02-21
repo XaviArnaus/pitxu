@@ -84,6 +84,20 @@ class ChatbotSessionManager(PyXavi):
 
     async def __aenter__(self):
         try:
+            # Whatif we want to have the context without re-initializing everything?
+            # if self.clients is None:
+            #     self._xlog.debug("ChatbotSessionManager: Initializing.")
+            #     await self.initialize()
+
+            # if  self.mcp_clients is not None and self.session_handlers is None:
+            #     self._xlog.debug("ChatbotSessionManager: Connecting to all MCP servers.")
+            #     if self.ENABLE_TRIVAGO_MCP:
+            #         self.session_handlers["trivago"] = await self.mcp_clients["trivago"]._connect()
+
+            # if self.tools is None or len(self.tools) == 0:
+            #     self._xlog.debug("ChatbotSessionManager: Initializing all tooling.")
+            #     await self.initialize_tooling()
+
             self._xlog.debug("ChatbotSessionManager: Initializing.")
             await self.initialize()
 

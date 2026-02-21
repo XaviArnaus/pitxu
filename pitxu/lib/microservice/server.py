@@ -257,18 +257,18 @@ class Server(PyXavi, MicroserviceBase):
             chatbot: GeminiChatbot = current_app.config['chatbot']
 
             # Set up of all the session context we need for the Chatbot and the MCP tools
-            async with chatbot.get_session_manager() as chatbot_session_manager:
+            # async with chatbot.get_session_manager() as chatbot_session_manager:
 
-                chat_response: ChatbotResponse = await chatbot.ask_async(question)
-                answer = chat_response.text
-                logger.debug(f"Returning response from chatbot: {answer}")
-                return {
-                    "status": "ok",
-                    "question": question,
-                    "answer": answer,
-                    "function_call_history": chat_response.function_call_history.to_dict() if chat_response.function_call_history else None,
-                    "error": error
-                }
+            chat_response: ChatbotResponse = await chatbot.ask_async(question)
+            answer = chat_response.text
+            logger.debug(f"Returning response from chatbot: {answer}")
+            return {
+                "status": "ok",
+                "question": question,
+                "answer": answer,
+                "function_call_history": chat_response.function_call_history.to_dict() if chat_response.function_call_history else None,
+                "error": error
+            }
         except Exception as e:
             error = str(e)
             logger.error(f"🛑 Error during chatbot response in the server [ask_chatbot] endpoint: {error}")
