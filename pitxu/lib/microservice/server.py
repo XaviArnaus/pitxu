@@ -1,4 +1,3 @@
-import base64
 from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -8,6 +7,8 @@ from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.command import SystemNetwork
 
 from flask import Flask, request, current_app
+import asyncio
+import base64
 import sys, logging
 
 class Server(PyXavi, MicroserviceBase):
@@ -244,7 +245,6 @@ class Server(PyXavi, MicroserviceBase):
         """
         from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
         from pitxu.lib.objects import ChatbotResponse
-        import asyncio
 
         # Framework initialization.
         logger = current_app.config['logger']
@@ -264,8 +264,7 @@ class Server(PyXavi, MicroserviceBase):
             # The problem is that we're reusing the one from the main thread.
             # We should not really use a different instance, as the GPIOs and everything is already taking the resources.
             # Let's try to get a new event loop and see if it works.
-            if not asyncio.get_event_loop().is_running():
-                asyncio.set_event_loop(asyncio.new_event_loop())
+            asyncio.set_event_loop(asyncio.new_event_loop())
 
             chat_response: ChatbotResponse = asyncio.run(chatbot.ask_async(question))
             answer = chat_response.text
