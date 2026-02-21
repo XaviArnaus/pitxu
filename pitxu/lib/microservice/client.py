@@ -35,7 +35,14 @@ class Client(PyXavi, MicroserviceBase):
         return self._do_get_request(endpoint=self.ENDPOINT_STATUS)
 
     def transcribe(self, data_bytes: bytes, sample_rate: int) -> str | None:
+
+        # Trying to get 16kHz audio from the input, this was left to be tested.
+        # import numpy as np
+        # numpy_bytes = np.frombuffer(data_bytes, dtype=np.int16)
+        # encoded_bytes = base64.b64encode(numpy_bytes).decode('utf-8')
+
         encoded_bytes = base64.b64encode(data_bytes).decode('utf-8')
+
         server_response = self._do_post_request(endpoint=self.ENDPOINT_TRANSCRIBE, data={
             "data_bytes": encoded_bytes,
             "sample_rate": sample_rate

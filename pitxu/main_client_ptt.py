@@ -233,8 +233,9 @@ class MainClientPTT(PyXavi):
             self._interaction.show_init_phases(5, text="Microphone")
             # Vosk wants the following parameters: 16kHz, mono, 16 bit.
             with sounddevice.RawInputStream(
-                            #samplerate=self._dictate.samplerate,
-                            samplerate=16000,
+                            samplerate=self._dictate.samplerate,
+                            # Tried like this, the server side is unable to transcribe.
+                            # samplerate=16000,
                             blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 
@@ -282,6 +283,9 @@ class MainClientPTT(PyXavi):
                     # if not self._interaction.is_eink_in_idle_mode():
                     #     self._interaction.show_idle()
 
+                    # The question gets a value when we transcribe successfully. Otherwise, should be always None.
+                    question = None
+
                     # Check if the push to talk button is pressed to record the audio
                     sw_dictate = None
                     if self._buttons.is_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
@@ -298,17 +302,21 @@ class MainClientPTT(PyXavi):
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                         question = self._dictate.recognize()
+
                         if question is None:
                             self._xlog.debug(f"🎙️ Nothing recognized")
                                             
                     # If at this point we still not have a question, finish the iteration here and loop again.
-                    if (question == None or question.strip() == ""):
+                    if (question is None or (question is not None and question.strip() == "")):
                         # Nothing recognized, nothing to process.
                         continue
 
                     # Still here? Then something got recognised.
                     self._log_debug("💬 Recognised dictate: " + question)
-                    self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    if sw_dictate is not None:
+                        self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+                    else:
+                        self._xlog.warning("🟠 Dictate " + str(dictate_count) + ": Stopwatch was not started for this dictate. That should not happen.")
                     dictate_count += 1
 
                     # Initialize the answer that collects until interaction.
@@ -316,23 +324,11 @@ class MainClientPTT(PyXavi):
 
                     # Analyze the question to see what to do.
                     text_has_exit_intention = self._text_has_exit_intention(question)
-                    # text_is_only_trigger_words = self._text_is_only_trigger_words(question)
-                    # text_initial_words_intend_to_trigger_interaction = self._text_initial_words_intend_to_trigger_interaction(question)
-                    # text_continues_ongoing_interaction = self._text_continues_ongoing_interaction(question)
 
                     # Avoid calling the Chatbot when we can exit directly.
-                    # if text_has_exit_intention and text_continues_ongoing_interaction:
                     if text_has_exit_intention:
                         # Just assume a goodbye
                         answer = self._goodbye_sentence
-                    # # Avoid calling the Chatbot when the text is only meant for waking up the system.
-                    # elif text_is_only_trigger_words:
-                    #     # Randomly choose one of the trigger answers
-                    #     import random
-                    #     answer = random.choice(self._trigger_answers)
-                    # # Check if the text is meant to trigger or continue an interaction
-                    # # Same as before, but the question is passed to the chatbot.
-                    # elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
 
                     else:
 
@@ -380,12 +376,6 @@ class MainClientPTT(PyXavi):
                         # - Commenting it out to see how it goes.
                         # - Uncommenting again because seems like the block happens in interaction.say() instead.
                         self._interaction.wait_for_foreground_display_queue_to_empty()
-
-                    # # Anything else is ignored.
-                    # else:
-                    #     self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
-                    #     # Removing the question, as it could be an unwanted trigger for exit.
-                    #     question = ""
 
                     # Do we actually have any answer?
                     if answer is not None and answer.strip() != "":
@@ -594,37 +584,6 @@ class MainClientPTT(PyXavi):
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
-    # def _text_continues_ongoing_interaction(self, question: str) -> bool:
-    #     # We may be in an ongoing interaction, so let's check the last interaction time
-    #     # We must take in account the time spent talking
-    #     if self._last_interaction_datetime is not None:
-    #         seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-    #         if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-    #             return True
-        
-    #     # No ongoing interaction
-    #     return False
-    
-    # def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
-    #     # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-    #     first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
-    #     for trigger_word in self._trigger_words:
-    #         if trigger_word in first_words:
-    #             return True
-        
-    #     # No trigger word found
-    #     return False
-    
-    # def _text_is_only_trigger_words(self, question: str) -> bool:
-    #     # Let's consider that from what the user said, all words need to be one of the trigger words
-    #     all_user_input = Text.remove_accents(question.lower().strip())
-    #     for trigger_word in self._trigger_words:
-    #         if trigger_word in all_user_input:
-    #             return True
-        
-    #     # No trigger word found
-    #     return False
-    
     def close_nicely(self, avoid_final_exit=False):
         """
         Close the application nicely, cleaning up resources and saving state.
@@ -743,25 +702,3 @@ class MainClientPTT(PyXavi):
         current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
-            # COMMENTING: This log is too much verbose, as it happens every second.
-            # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
-            
-            # # If the background display is idle, show interaction holding percentage if applicable
-            # if not self._interaction.is_background_display_busy() and not self._xparams.get("execution_mode") == "client":
-            #     # Show the interaction holding percentage if we're expecting an interaction
-            #     if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
-            #         # Calculate how much left in percentages the time to hold the interaction
-            #         seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-            #         if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-            #             percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-            #             self._last_processed_interaction_percentage = percent_left
-            #             self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
-            #             self._interaction.show_interaction_holding_percentage(percent_left)
-            #         elif self._last_processed_interaction_percentage >= 0:
-            #             # Interaction time is over, and we were showing the percentage
-            #             self._last_processed_interaction_percentage = -1
-            #             self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-            #             self._interaction.clear_background_display()
-            # else:
-            #     self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
-                    

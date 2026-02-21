@@ -131,7 +131,6 @@ class SpeechToText(PyXavi):
             self._xlog.debug(f"*️⃣ Audio input status: {status}")
 
         if not self.should_skip_audio_input() and self._queue is not None:
-            # print(time.inputBufferAdcTime)
             self._queue.put(bytes(indata))
     
     def build_recorded_audio_bytes(self) -> bytes:

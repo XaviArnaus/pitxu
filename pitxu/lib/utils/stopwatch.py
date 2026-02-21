@@ -35,7 +35,7 @@ class Stopwatch():
             del self._stopwatches_running[name]
             return self.get(name)
         else:
-            self._xlog.warning("[Stopwatch] No stopwatch named [" + name + "] to stop.")
+            self._xlog.warning(f"[Stopwatch] No stopwatch named [{name}] to stop.")
             return None
     
     def stop_all(self):
