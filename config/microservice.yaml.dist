@@ -15,3 +15,5 @@ client:
   host: "127.0.0.1"
   # [Integer] Port to connect to the server.
   port: 5000
+  # [Bool] Dump audio into files for further analysis.
+  dump_audio: False

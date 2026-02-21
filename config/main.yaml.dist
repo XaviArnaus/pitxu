@@ -38,6 +38,16 @@ storage:
     dsi_lcd: "mocked/dsi_lcd/"
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.png", ".keep"]
+  # Audio dumped files paths
+  audio:
+    # [String] Path for audio files
+    path: "audio/"
+    # [String] Path for input audio files
+    input: "input/"
+    # [String] Path for output audio files
+    output: "output/"
+    # [list<String>] Exclude the following files from cleaning
+    exclude_from_cleaning: ["_latest.wav", ".keep"]
 
 # Fonts
 fonts:

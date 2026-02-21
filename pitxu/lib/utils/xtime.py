@@ -11,6 +11,31 @@ class Xtime:
         return datetime.now().strftime(format)
     
     @staticmethod
+    def now() -> datetime:
+        """
+        Returns the current datetime object
+        Just a shortcut.
+        """
+        return datetime.now()
+    
+    @staticmethod
+    def now_str(format: str = "%Y-%m-%d %H:%M:%S.%f") -> str:
+        """
+        Returns the current time as a formatted string.
+        Just a shortcut for miliseconds.
+        """
+        return Xtime.now().strftime(format)
+    
+    @staticmethod
+    def now_key(format: str = "%Y-%m-%d %H:%M:%S.%f") -> str:
+        from slugify import slugify
+        """
+        Returns the current time as a formatted string.
+        Just a shortcut for miliseconds.
+        """
+        return slugify(Xtime.now().strftime(format), replacements=[[" ", "_"], [":", "-"], [".", "-"]])
+    
+    @staticmethod
     def now_milliseconds() -> int:
         """Returns the current time in milliseconds since epoch."""
         # return datetime.now().microsecond // 1000 + int(datetime.now().timestamp() * 1000)

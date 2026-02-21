@@ -198,6 +198,7 @@ class MainClientPTT(PyXavi):
 
         # Execute the initial maintenance tasks
         self._maintenance.clean_previous_mocked_images()
+        self._maintenance.clean_previous_generated_audios()
 
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
