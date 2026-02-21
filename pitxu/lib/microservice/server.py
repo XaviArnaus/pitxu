@@ -238,12 +238,13 @@ class Server(PyXavi, MicroserviceBase):
         }
     
     @server.route('/ask_chatbot', methods=['POST'])
-    async def ask_chatbot() -> str:
+    def ask_chatbot() -> str:
         """
         Method to send a query to the chatbot and get a response.
         """
         from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
         from pitxu.lib.objects import ChatbotResponse
+        import asyncio
 
         # Framework initialization.
         logger = current_app.config['logger']
@@ -259,7 +260,7 @@ class Server(PyXavi, MicroserviceBase):
             # Set up of all the session context we need for the Chatbot and the MCP tools
             # async with chatbot.get_session_manager() as chatbot_session_manager:
 
-            chat_response: ChatbotResponse = await chatbot.ask_async(question)
+            chat_response: ChatbotResponse = asyncio.run(chatbot.ask_async(question))
             answer = chat_response.text
             logger.debug(f"Returning response from chatbot: {answer}")
             return {
