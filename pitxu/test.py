@@ -77,9 +77,13 @@ class Test(PyXavi):
             from pitxu.lib.objects.rectangle import Rectangle
             from pitxu.lib.canvas.canvas import Canvas
             from PIL import ImageFont, ImageDraw, Image
-            # from pitxu.lib.canvas.macros import Macros as CanvasMacros
 
-            expected_screen_size = Point(280, 240)
+            # Trying to narrow down the definition for the screen size. Should be easier!
+            # expected_screen_size = Point(280, 240)
+            expected_screen_size = Point(240, 280)
+            self._xconfig.set("lcd.size.x", expected_screen_size.x)
+            self._xconfig.set("lcd.size.y", expected_screen_size.y)
+            self._xconfig.set("lcd.rotation", 0) # 90 or 270 depending on the screen orientation and how it's connected. Try both if the output is not correct.
 
             # Delegate the run to Main
             self._xlog.debug("Testing LCD display")

@@ -95,8 +95,8 @@ lcd:
   size:
     x: 280
     y: 240
-  # [bool] Rotate the display 180 degrees or not.
-  rotate: False
+  # [Integer] Rotate the display these degrees.
+  rotate: 90
   # Configuration regarding the fonts
   fonts:
     ultra: 85

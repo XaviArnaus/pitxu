@@ -246,8 +246,9 @@ class ST7789(PyXavi):
 
         original_width, original_height = image.size
 
-        # # We work with images in landscape but apparently the screen is in portrait
-        image = image.rotate(90, expand=True)
+        # We work with images in landscape but apparently the screen is in portrait
+        rotation = self._xconfig.get("lcd.rotate", 90)
+        image = image.rotate(rotation, expand=True)
         original_width, original_height = image.size
 
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
