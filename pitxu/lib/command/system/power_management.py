@@ -46,6 +46,107 @@ class SystemPowerManagement(PyXavi, Command):
             self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
             self._xlog.debug(full_stack())
             return -1
+    
+    def get_battery_level(self) -> int:
+        '''
+        Get the current battery level
+
+        Returns:
+            int: The current battery level as a percentage
+        '''
+        try:
+            max_retries = 2
+            retries = 0
+            while retries < max_retries:
+                try:
+                    voltage, capacity = self.ups.read_voltage_and_capacity()
+                    break
+                except Exception as e:
+                    retries += 1
+                    self._xlog.warning(f"⚠️ Retry {retries}/{max_retries} reading UPS battery level due to error: {e}")
+                    if retries >= max_retries:
+                        raise e
+            self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
+            return math.ceil(capacity)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
+            self._xlog.debug(full_stack())
+            return -1
+    
+    def get_power_consumption(self) -> float:
+        '''
+        Get the current power consumption in watts.
+
+        Returns:
+            float: The current power consumption in watts.
+        '''
+        try:
+            power_consumption = self.ups.power_consumption_watts()
+            self._xlog.debug(f"⚡️ Current power consumption: {power_consumption:.2f} W")
+            return round(power_consumption, 2)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error getting UPS power consumption: {e}")
+            self._xlog.debug(full_stack())
+            return -1.0
+    
+    def callback_get_power_consumption(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_power_consumption` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_power_consumption`.
+
+        """
+        try:
+            log.info(f"⚡️ Showing power consumption on Foreground display: {value} W")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon="⚡️",
+                text=f"{value} W",
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
+        except Exception as e:
+            log.error(f"🛑 Error showing power consumption on Foreground display: {e}")
+    
+    def get_total_charging_estimation_time(self) -> int:
+        '''
+        Get the estimated time to full charge in minutes.
+
+        Returns:
+            int: The estimated time to full charge in minutes.
+        '''
+        try:
+            voltage, capacity = self.ups.read_voltage_and_capacity()
+            current = self.ups.read_cpu_amps() / 1000  # Convert mA to A
+            if current <= 0:
+                self._xlog.warning("⚠️ Current is zero or negative, cannot estimate charging time.")
+                return -1
+            remaining_capacity = 100 - capacity
+            estimated_time_hours = (remaining_capacity / 100) * (capacity / current)
+            estimated_time_minutes = estimated_time_hours * 60
+            self._xlog.debug(f"⏳ Estimated time to full charge: {estimated_time_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
+            return math.ceil(estimated_time_minutes)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
+            self._xlog.debug(full_stack())
+            return -1
+    
+    def callback_get_total_charging_estimation_time(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        Callback for `get_total_charging_estimation_time` that gets called AFTER chatbot from `main`.
+
+        Args:
+            main_instance: The `main` application instance.
+            value: The value returned from the Chatbot AFTER it ran `get_total_charging_estimation_time`.
+
+        """
+        try:
+            log.info(f"⏳ Showing estimated time to full charge on Foreground display: {value} minutes")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon="⏳",
+                text=f"{value} min to full charge",
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
+        except Exception as e:
+            log.error(f"🛑 Error showing estimated time to full charge on Foreground display: {e}")
 
     def is_power_cable_connected(self) -> bool:
         '''
@@ -195,7 +296,9 @@ class SystemPowerManagement(PyXavi, Command):
                 self.shutdown_local_machine,
                 self.reboot_local_machine,
                 self.restart_system,
-                self.get_system_temperature_and_fan_speed]
+                self.get_system_temperature_and_fan_speed,
+                self.get_power_consumption,
+                self.get_total_charging_estimation_time]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -212,6 +315,10 @@ class SystemPowerManagement(PyXavi, Command):
             return self.callback_power_cable_connected
         elif function_name == "get_system_temperature_and_fan_speed":
             return self.callback_system_temperature_and_fan_speed
+        elif function_name == "get_power_consumption":
+            return self.callback_get_power_consumption
+        elif function_name == "get_total_charging_estimation_time":
+            return self.callback_get_total_charging_estimation_time
         return self.default_empty_callback
 
 # 2026-01-11 17:55:35,326 [MainProcess ] ERROR    pitxu        🛑 Error getting UPS battery level: [Errno 121] Remote I/O error
