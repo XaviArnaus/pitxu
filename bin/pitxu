@@ -147,6 +147,12 @@ utils() {
     cd "$DIR/.." && poetry run util -u "$2"
 }
 
+add_anti_standby_ssd_crontab() {
+    # Add a cron job to run the anti-standby script every 10 minutes
+    # WAS: (crontab -l 2>/dev/null; echo "*/10 * * * * touch /home/xavier/keepalive ; sync") | crontab -
+    (crontab -l 2>/dev/null; echo "*/10 * * * * touch ~/keepalive ; sync") | crontab -
+}
+
 # Main commandline interface
 # If no arguments are provided, we start pitxu in foreground
 #   Keep in mind that the service file also calls this script without arguments to start the service, 
@@ -171,6 +177,7 @@ case "$1" in
     "battery") battery_status ;;
     "link_alsa") link_alsa ;;
     "link_service") link_service ;;
+    "add_ssd_crontab") add_anti_standby_ssd_crontab ;;
     "cursor")
         case "$2" in
             "on") activate_cursor_blinking ;;
@@ -180,7 +187,7 @@ case "$1" in
         ;;
     "test") test_pitxu_foreground $@;;
     "util") utils $@;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|link_alsa|link_service|cursor|test|util]" ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|link_alsa|link_service|cursor|test|util|add_ssd_crontab]" ;;
     *) echo "Command unknown" ;;
 esac
 
