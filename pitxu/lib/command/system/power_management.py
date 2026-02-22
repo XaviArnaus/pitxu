@@ -320,27 +320,3 @@ class SystemPowerManagement(PyXavi, Command):
         elif function_name == "get_total_charging_estimation_time":
             return self.callback_get_total_charging_estimation_time
         return self.default_empty_callback
-
-# 2026-01-11 17:55:35,326 [MainProcess ] ERROR    pitxu        🛑 Error getting UPS battery level: [Errno 121] Remote I/O error
-# Jan 11 17:55:35 pitxu poetry[4847]: 2026-01-11 17:55:35,332 [MainProcess ] DEBUG    pitxu        Traceback (most recent call last):
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/usr/lib/python3.13/threading.py", line 1014, in _bootstrap
-# Jan 11 17:55:35 pitxu poetry[4847]:     self._bootstrap_inner()
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/usr/lib/python3.13/threading.py", line 1043, in _bootstrap_inner
-# Jan 11 17:55:35 pitxu poetry[4847]:     self.run()
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/usr/lib/python3.13/threading.py", line 994, in run
-# Jan 11 17:55:35 pitxu poetry[4847]:     self._target(*self._args, **self._kwargs)
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/usr/lib/python3.13/concurrent/futures/thread.py", line 93, in _worker
-# Jan 11 17:55:35 pitxu poetry[4847]:     work_item.run()
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/usr/lib/python3.13/concurrent/futures/thread.py", line 59, in run
-# Jan 11 17:55:35 pitxu poetry[4847]:     result = self.fn(*self.args, **self.kwargs)
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/_extra_utils.py", line 310, in invoke_function_from_dict_args
-# Jan 11 17:55:35 pitxu poetry[4847]:     return function_to_invoke(**converted_args)
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/home/xavier/pitxu/pitxu/lib/command/system/power_management.py", line 27, in get_battery_level
-# Jan 11 17:55:35 pitxu poetry[4847]:     voltage, capacity = self.ups.read_voltage_and_capacity()
-# Jan 11 17:55:35 pitxu poetry[4847]:                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/home/xavier/pitxu/pitxu/lib/ups/ups.py", line 37, in read_voltage_and_capacity
-# Jan 11 17:55:35 pitxu poetry[4847]:     voltage_read = self.bus.read_word_data(address, 2) # 0x02 w
-# Jan 11 17:55:35 pitxu poetry[4847]:   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/smbus2/smbus2.py", line 476, in read_word_data
-# Jan 11 17:55:35 pitxu poetry[4847]:     ioctl(self.fd, I2C_SMBUS, msg)
-# Jan 11 17:55:35 pitxu poetry[4847]:     ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-# Jan 11 17:55:35 pitxu poetry[4847]: OSError: [Errno 121] Remote I/O error
