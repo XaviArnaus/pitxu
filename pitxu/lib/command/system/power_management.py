@@ -122,9 +122,11 @@ class SystemPowerManagement(PyXavi, Command):
                 return -1
             remaining_capacity = 100 - capacity
             estimated_time_hours = (remaining_capacity / 100) * (capacity / current)
-            estimated_time_minutes = estimated_time_hours * 60
-            self._xlog.debug(f"⏳ Estimated time to full charge: {estimated_time_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
-            return math.ceil(estimated_time_minutes)
+            estimated = math.modf(estimated_time_hours)
+            estimated_hours = estimated[1]
+            estimated_minutes = estimated[0] * 60
+            self._xlog.debug(f"⏳ Estimated time to full charge: {estimated_hours:.0f} hours {estimated_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
+            return f"{int(estimated_hours)}h {int(estimated_minutes)}m"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
             self._xlog.debug(full_stack())
@@ -140,10 +142,10 @@ class SystemPowerManagement(PyXavi, Command):
 
         """
         try:
-            log.info(f"⏳ Showing estimated time to full charge on Foreground display: {value} minutes")
+            log.info(f"⏳ Showing estimated time to full charge on Foreground display: {value}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="⏳",
-                text=f"{value} min to full charge",
+                text=f"{value} to full charge",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing estimated time to full charge on Foreground display: {e}")
