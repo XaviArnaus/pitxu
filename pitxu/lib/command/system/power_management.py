@@ -127,8 +127,8 @@ class SystemPowerManagement(PyXavi, Command):
             estimated = math.modf(estimated[0] * 24)
             estimated_hours = estimated[1]
             estimated_minutes = estimated[0] * 60
-            self._xlog.debug(f"⏳ Estimated time to full charge:{" " + f'{estimated_days} days ' if estimated_days > 0 else ""} {estimated_hours:.0f} hours {estimated_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
-            return f"{f'{estimated_days}d ' if estimated_days > 0 else ''}{int(estimated_hours)}h {int(estimated_minutes)}m"
+            self._xlog.debug(f"⏳ Estimated time to full charge:{" " + f'{int(estimated_days)} days ' if estimated_days > 0 else ""} {int(estimated_hours)} hours {int(estimated_minutes)} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
+            return f"{f'{int(estimated_days)}d ' if estimated_days > 0 else ''}{int(estimated_hours)}h {int(estimated_minutes)}m"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
             self._xlog.debug(full_stack())
