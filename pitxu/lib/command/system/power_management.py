@@ -121,12 +121,14 @@ class SystemPowerManagement(PyXavi, Command):
                 self._xlog.warning("⚠️ Current is zero or negative, cannot estimate charging time.")
                 return -1
             remaining_capacity = 100 - capacity
-            estimated_time_hours = (remaining_capacity / 100) * (capacity / current)
-            estimated = math.modf(estimated_time_hours)
+            estimated_time_days = ((remaining_capacity / 100) * (capacity / current)) / 24
+            estimated = math.modf(estimated_time_days)
+            estimated_days = estimated[1]
+            estimated = math.modf(estimated[0] * 24)
             estimated_hours = estimated[1]
             estimated_minutes = estimated[0] * 60
-            self._xlog.debug(f"⏳ Estimated time to full charge: {estimated_hours:.0f} hours {estimated_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
-            return f"{int(estimated_hours)}h {int(estimated_minutes)}m"
+            self._xlog.debug(f"⏳ Estimated time to full charge:{" " + f'{estimated_days} days ' if estimated_days > 0 else ""} {estimated_hours:.0f} hours {estimated_minutes:.2f} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
+            return f"{f'{estimated_days}d ' if estimated_days > 0 else ''}{int(estimated_hours)}h {int(estimated_minutes)}m"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
             self._xlog.debug(full_stack())
