@@ -88,7 +88,7 @@ class System:
     @staticmethod
     def _read_hardware_metric(command_args, strip_chars): #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
         try:
-            output = System._run_command(" ".join(command_args)).decode("utf-8") # runs a command w/ args and captures its output converting to UTF-8 encoded string
+            output = System._run_command(" ".join(command_args)) # runs a command w/ args and captures its output converting to UTF-8 encoded string
             metric_str = output.split("=")[1].strip().rstrip(strip_chars)
                         # split output string into a list using "="
                         # [1] selects the second element of the list
