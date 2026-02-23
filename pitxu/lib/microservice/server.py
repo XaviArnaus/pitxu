@@ -5,6 +5,7 @@ from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.command import SystemNetwork
+from pitxu.lib.command import SystemPowerManagement
 
 from flask import Flask, request, current_app
 import asyncio
@@ -122,13 +123,13 @@ class Server(PyXavi, MicroserviceBase):
         return {
             "status": "ok",
             "modules_enabled": {
-                "foreground_display": config.get(f"{foreground_display_id}.mock", False),
-                "background_display": config.get(f"{background_display_id}.mock", False),
-                "stt": config.get("speech_to_text.mock", True),
-                "tts": config.get("text_to_speech.mock", True),
+                "foreground_display": not config.get(f"{foreground_display_id}.mock", False),
+                "background_display": not config.get(f"{background_display_id}.mock", False),
+                "stt": not config.get("speech_to_text.mock", True),
+                "tts": not config.get("text_to_speech.mock", True),
                 "chatbot": not config.get("chatbot.mock", True),
-                "ups": config.get("ups.mock", True),
-                "gpio": config.get("gpio.mock", True)
+                "ups": not config.get("ups.mock", True),
+                "gpio": not config.get("gpio.mock", True)
             },
             "parameters": {
                 "language": language,
@@ -137,6 +138,13 @@ class Server(PyXavi, MicroserviceBase):
             },
             "host": {
                 "platform": sys.platform,
+            },
+            "system": {
+                "battery_status": SystemPowerManagement.get_battery_level(),
+                "power_cable_connected": SystemPowerManagement.is_power_cable_connected(),
+                "consumption_watts": SystemPowerManagement.get_power_consumption(),
+                "charging_eta": SystemPowerManagement.get_total_charging_estimation_time(),
+                "cpu_temperature": SystemPowerManagement.get_system_temperature_and_fan_speed()
             }
         }
     
