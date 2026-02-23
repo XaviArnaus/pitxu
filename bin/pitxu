@@ -114,27 +114,37 @@ link_service() {
 
 # Commandline to clear the Pitxu screen
 clear_pitxu_screen() {
-     cd "$DIR/.." && poetry run util -u clear_displays
+    cd "$DIR/.." && poetry run util -u clear_displays
 }
 
 # Commandline to list the sound devices, for debugging
 sounddevices() {
-     cd "$DIR/.." && poetry run util -u query_sound_devices
+    cd "$DIR/.." && poetry run util -u query_sound_devices
 }
 
 # Commandline to check the battery status, for debugging
 battery_status() {
-     cd "$DIR/.." && poetry run util -u battery_status
+    cd "$DIR/.." && poetry run util -u battery_status
 }
 
 # Commandline to gather the system status from the endpoint
 system_status() {
-     curl -s http://localhost:5000/status | jq
+    curl -s http://localhost:5000/status | jq
+}
+
+# Commandline to turn off the DSI backlight.
+dsi_backlight_off() {
+    sudo -E sh -c 'echo 1 > /sys/class/backlight/11-0045/bl_power'
+}
+
+# Commandline to turn on the DSI backlight.
+dsi_backlight_on() {
+    sudo -E sh -c 'echo 1 > /sys/class/backlight/11-0045/bl_power'
 }
 
 # Commandline to activate the screen cursor blinking
 activate_cursor_blinking() {
-     TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1
+    TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1
 }
 
 # Commandline to deactivate the screen cursor blinking
@@ -184,6 +194,13 @@ case "$1" in
     "link_alsa") link_alsa ;;
     "link_service") link_service ;;
     "add_ssd_crontab") add_anti_standby_ssd_crontab ;;
+    "dsi_backlight") 
+        case "$2" in
+            "on") dsi_backlight_on ;;
+            "off") dsi_backlight_off ;;
+            *) echo "Usage: pitxu dsi_backlight [on|off]" ;;
+        esac
+        ;;
     "cursor")
         case "$2" in
             "on") activate_cursor_blinking ;;
@@ -193,7 +210,7 @@ case "$1" in
         ;;
     "test") test_pitxu_foreground $@;;
     "util") utils $@;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|system|link_alsa|link_service|cursor|test|util|add_ssd_crontab]" ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|system|link_alsa|link_service|cursor|dsi_backlight|test|util|add_ssd_crontab]" ;;
     *) echo "Command unknown" ;;
 esac
 
