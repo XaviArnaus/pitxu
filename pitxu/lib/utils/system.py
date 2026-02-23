@@ -54,14 +54,14 @@ class System:
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
     
     @staticmethod
-    def get_power_throttle() -> dict:
+    def get_power_throttle(test_bin_value = None) -> list:
         """
         Returns a dictionary describing the current power throttle state of the system.
         
         https://gist.github.com/Paraphraser/17fb6320d0e896c6446fb886e1207c7e
         https://www.raspberrypi.com/documentation/computers/os.html#get_throttled
         https://forum-raspberrypi.de/forum/thread/47322-vcgencmd-get-throttled-in-python-auswerten/
-
+        https://github.com/HarlemSquirrel/scripts/blob/master/rpi-check-throttling.py
         """
         try:
             map = {
@@ -75,8 +75,12 @@ class System:
                 19: "Soft temperature reached since last reboot"
             }
 
-            throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
-            throttle_bin = bin(int(throttle_str, 16)) # convert the cleaned-up string to an integer (base 16) and then to binary
+            if test_bin_value is not None:
+                throttle_bin = test_bin_value
+            else:
+                throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
+                throttle_bin = bin(int(throttle_str, 16)) # convert the cleaned-up string to an integer (base 16) and then to binary
+
             report = []
             for bit, description in map.items():
                 if len(throttle_bin) > bit and throttle_bin[0 - bit - 1] == '1':
