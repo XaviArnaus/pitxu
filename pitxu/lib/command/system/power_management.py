@@ -116,7 +116,7 @@ class SystemPowerManagement(PyXavi, Command):
         '''
         try:
             voltage, capacity = self.ups.read_voltage_and_capacity()
-            current = self.ups.read_cpu_amps() / 1000  # Convert mA to A
+            current = self.ups.read_cpu_amps()  # Convert mA to A
             if current <= 0:
                 self._xlog.warning("⚠️ Current is zero or negative, cannot estimate charging time.")
                 return -1
