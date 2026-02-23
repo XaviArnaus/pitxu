@@ -58,6 +58,6 @@ fonts:
 
 ups:
   # Whether to enable UPS support
-  mocked: True
+  mock: True
   # I2C address of the UPS
   i2c_address: 0x36

@@ -143,8 +143,8 @@ class Server(PyXavi, MicroserviceBase):
             "modules_enabled": {
                 "foreground_display": not config.get(f"{foreground_display_id}.mock", False),
                 "background_display": not config.get(f"{background_display_id}.mock", False),
-                "stt": not config.get("speech_to_text.mock", True),
-                "tts": not config.get("text_to_speech.mock", True),
+                "stt": not config.get("speech-to-text.mock", True),
+                "tts": not config.get("text-to-speech.mock", True),
                 "chatbot": not config.get("chatbot.mock", True),
                 "ups": not config.get("ups.mock", True),
                 "gpio": not config.get("gpio.mock", True)

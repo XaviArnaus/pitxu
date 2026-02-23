@@ -186,8 +186,8 @@ class Macros(PyXavi):
                     " | LCD: " + ("mocked" if self._xconfig.get("lcd.mock", True) else "real") + \
                     "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
                     " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real") + \
-                    "\nUPS: " + ("mocked" if self._xconfig.get("ups.mocked", True) else "real") + \
-                    " | GPIO: " + ("real" if self._xconfig.get("gpio.enabled", False) else "mocked")
+                    "\nUPS: " + ("mocked" if self._xconfig.get("ups.mock", True) else "real") + \
+                    " | GPIO: " + ("mocked" if self._xconfig.get("gpio.mock", True) else "real")
                     
         draw.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
