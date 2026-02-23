@@ -69,10 +69,11 @@ class System:
 
             throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
             code = int(throttle_str, 16) # convert the cleaned-up string to an integer (base 16) and return it.
-            return {
-                "code": code,
-                "description": map.get(code, "Unknown throttle state")
-            }
+            report = []
+            for bit, description in map.items():
+                if code & (1 << bit):
+                    report.append(description)
+            return report
         except Exception as e:
             raise Exception(f"Error reading throttle state: {e}")
 
