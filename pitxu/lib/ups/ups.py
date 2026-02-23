@@ -63,10 +63,7 @@ class UPS(PyXavi):
 
         try:
             output = check_output(command_args).decode("utf-8") # runs a command w/ args and captures its output converting to UTF-8 encoded string
-            dd(output)
             metric_str = output.split("=")[1].strip().rstrip(strip_chars)
-            dd(metric_str)
-            dd(float(metric_str))
                         # split output string into a list using "="
                         # [1] selects the second element of the list
                         # strip any leading/trailing whitespace
