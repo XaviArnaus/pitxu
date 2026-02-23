@@ -4,7 +4,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.utils.system import System
 
 from subprocess import check_output
 
@@ -169,8 +169,8 @@ class SystemPowerManagement(PyXavi, Command):
             dict: A dictionary with 'temperature' in Celsius and 'fan_speed' in RPM.
         '''
         try:
-            temperature = round(int(check_output("cat /sys/class/thermal/thermal_zone*/temp", shell=True).decode()) / 1000, 1)
-            fan_speed = round(int(check_output("cat /sys/class/hwmon/hwmon*/fan1_input", shell=True).decode()) / 1000, 1) * 1000
+            temperature = System.get_cpu_temperature()
+            fan_speed = System.get_cpu_fan_speed()
             self._log_debug(f"🌡️ Current system temperature: {temperature} °C, 💨 Fan speed: {fan_speed} RPM")
             return {
                 "temperature": temperature,
@@ -288,6 +288,55 @@ class SystemPowerManagement(PyXavi, Command):
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing power cable connected status on eInk: {e}")
+    
+    def is_screen_on(self) -> bool:
+        '''
+        Check if the DSI backlight is on.
+
+        Returns:
+            bool: True if the DSI backlight is on, False otherwise.
+        '''
+        return System.get_dsi_backlight_status()
+    
+    def turn_off_screen(self) -> bool:
+        '''
+        Turn off the DSI backlight.
+
+        Returns:
+            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+        '''
+        System.set_dsi_backlight_off()
+        return self.is_screen_on()
+    
+    def turn_on_screen(self) -> bool:
+        '''
+        Turn on the DSI backlight.
+
+        Returns:
+            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+        '''
+        System.set_dsi_backlight_on()
+        return self.is_screen_on()
+    
+    def callback_is_screen_on(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        Callback for `is_screen_on` that gets called AFTER chatbot from `main`.
+
+        Args:
+            log: The logger instance to log messages.
+            interaction: The Interaction instance to interact with the user and display information.
+            value: The value returned from the Chatbot AFTER it ran `is_screen_on`.
+            args: Additional arguments that may be needed for the callback.
+
+        """
+        try:
+            log.info(f"💡 Showing screen ON/OFF status on Foreground display: {'On' if value else 'Off'}")
+            interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon="💡",
+                text=f"Screen is {'On' if value else 'Off'}",
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
+        except Exception as e:
+            log.error(f"🛑 Error showing screen status on Foreground display: {e}")
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -302,7 +351,10 @@ class SystemPowerManagement(PyXavi, Command):
                 self.restart_system,
                 self.get_system_temperature_and_fan_speed,
                 self.get_power_consumption,
-                self.get_total_charging_estimation_time]
+                self.get_total_charging_estimation_time,
+                self.is_screen_on,
+                self.turn_off_screen,
+                self.turn_on_screen]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -323,4 +375,6 @@ class SystemPowerManagement(PyXavi, Command):
             return self.callback_get_power_consumption
         elif function_name == "get_total_charging_estimation_time":
             return self.callback_get_total_charging_estimation_time
+        elif function_name == "is_screen_on" or function_name == "turn_off_screen" or function_name == "turn_on_screen":
+            return self.callback_is_screen_on
         return self.default_empty_callback

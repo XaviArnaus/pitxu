@@ -5,7 +5,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.utils.system import System
 
 
 class SystemNetwork(PyXavi, Command):
@@ -23,25 +23,10 @@ class SystemNetwork(PyXavi, Command):
             str: The local network IP address or an error message if it cannot be retrieved.
         '''
         try:
-            return self._get_default_network_interface().get("ip")
+            return System.get_default_network_interface().get("ip")
         except Exception as e:
-            self._xlog.error(f"Error getting current time: {e}")
-            return "Error"
-    
-    @staticmethod
-    def _get_default_network_interface():
-        import ifcfg
-
-        data = ifcfg.default_interface()
-        if data is None:
-            return None
-        return {
-            "name": data.get("name"),
-            "ip": data.get("inet"),
-            "netmask": data.get("netmask"),
-            "broadcast": data.get("broadcast"),
-            "mac": data.get("ether"),
-        }
+            self._xlog.error(f"🛑 Error getting current IP address: {e}")
+            return "Error getting the IP address: " + str(e)
 
     def callback_get_local_network_ip(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
