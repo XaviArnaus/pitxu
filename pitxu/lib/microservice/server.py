@@ -140,6 +140,11 @@ class Server(PyXavi, MicroserviceBase):
         # TODO: we should check first the state AND THEN the config values.
         return {
             "status": "ok",
+            "app": {
+                "version": params.get("app_version", "?"),
+                "execution_mode": config.get("app.execution_mode", "?"),
+                "chatbot_name": config.get("chatbot.name", "?"),
+            },
             "modules_enabled": {
                 "foreground_display": not config.get(f"{foreground_display_id}.mock", False),
                 "background_display": not config.get(f"{background_display_id}.mock", False),
