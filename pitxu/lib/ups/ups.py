@@ -5,7 +5,7 @@ from pathlib import Path
 from subprocess import check_output, CalledProcessError, call
 import smbus2
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class UPS(PyXavi):
@@ -63,14 +63,17 @@ class UPS(PyXavi):
 
         try:
             output = check_output(command_args).decode("utf-8") # runs a command w/ args and captures its output converting to UTF-8 encoded string
+            dd(output)
             metric_str = output.split("=")[1].strip().rstrip(strip_chars)
+            dd(metric_str)
+            dd(float(metric_str))
                         # split output string into a list using "="
                         # [1] selects the second element of the list
                         # strip any leading/trailing whitespace
                         # further strips specific characters (strip_chars) from result
             return float(metric_str) # converts the cleaned-up string to float and returns it.
         except (CalledProcessError, ValueError) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
-            print(f"Error reading hardware metric: {e}")
+            self._xlog.error(f"Error reading hardware metric: {e}")
             return None
 
     def read_cpu_volts(self) -> float: 
