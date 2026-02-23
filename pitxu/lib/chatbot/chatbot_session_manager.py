@@ -61,6 +61,9 @@ class ChatbotSessionManager(PyXavi):
             trivago_mcp_accommodation_search = TrivagoMCPAccommodationSearch(config=self._xconfig, params=self._xparams)
             self.mcp_clients["trivago"] = trivago_mcp_accommodation_search.get_client()
     
+    def get_clients(self) -> dict[str, Command]:
+        return self.clients
+    
     async def initialize_tooling(self):
 
         if self.ENABLE_TOOLS is False:

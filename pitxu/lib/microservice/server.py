@@ -119,6 +119,22 @@ class Server(PyXavi, MicroserviceBase):
         language = config.get("app.default_language", "?")
         language = params.get("language", language)
 
+        # Feature initialization.
+        chatbot = current_app.config['chatbot']
+        tools = chatbot.get_session_manager().get_clients() if chatbot is not None else {}
+        if "power_management" in tools:
+            battery_status = SystemPowerManagement.get_battery_level()
+            power_cable_connected = SystemPowerManagement.is_power_cable_connected()
+            consumption_watts = SystemPowerManagement.get_power_consumption()
+            charging_eta = SystemPowerManagement.get_total_charging_estimation_time()
+            cpu_temperature = SystemPowerManagement.get_system_temperature_and_fan_speed()
+        else:
+            battery_status = "N/A"
+            power_cable_connected = "N/A"
+            consumption_watts = "N/A"
+            charging_eta = "N/A"
+            cpu_temperature = "N/A"
+
         # TODO: we should check first the state AND THEN the config values.
         return {
             "status": "ok",
@@ -140,11 +156,11 @@ class Server(PyXavi, MicroserviceBase):
                 "platform": sys.platform,
             },
             "system": {
-                "battery_status": SystemPowerManagement.get_battery_level(),
-                "power_cable_connected": SystemPowerManagement.is_power_cable_connected(),
-                "consumption_watts": SystemPowerManagement.get_power_consumption(),
-                "charging_eta": SystemPowerManagement.get_total_charging_estimation_time(),
-                "cpu_temperature": SystemPowerManagement.get_system_temperature_and_fan_speed()
+                "battery_status": battery_status,
+                "power_cable_connected": power_cable_connected,
+                "consumption_watts": consumption_watts,
+                "charging_eta": charging_eta,
+                "cpu_temperature": cpu_temperature
             }
         }
     
