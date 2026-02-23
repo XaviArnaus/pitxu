@@ -67,8 +67,7 @@ class System:
                 19:"soft temperature reached since last reboot"
             }
 
-            output = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
-            throttle_str = output.split("=")[1].strip() # split output string into a list using "=" and select the second element, then strip any leading/trailing whitespace
+            throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
             code = int(throttle_str, 16) # convert the cleaned-up string to an integer (base 16) and return it.
             return {
                 "code": code,
