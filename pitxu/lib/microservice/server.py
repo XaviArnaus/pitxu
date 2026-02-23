@@ -122,12 +122,14 @@ class Server(PyXavi, MicroserviceBase):
         # Feature initialization.
         chatbot = current_app.config['chatbot']
         tools = chatbot.get_session_manager().get_clients() if chatbot is not None else {}
-        if "power_management" in tools:
-            battery_status = SystemPowerManagement.get_battery_level()
-            power_cable_connected = SystemPowerManagement.is_power_cable_connected()
-            consumption_watts = SystemPowerManagement.get_power_consumption()
-            charging_eta = SystemPowerManagement.get_total_charging_estimation_time()
-            cpu_temperature = SystemPowerManagement.get_system_temperature_and_fan_speed()
+        power_management: SystemPowerManagement = tools.get("power_management", None) if tools is not None else None
+       
+        if power_management is not None:
+            battery_status =  power_management.get_battery_level()
+            power_cable_connected =  power_management.is_power_cable_connected()
+            consumption_watts = power_management.get_power_consumption()
+            charging_eta = power_management.get_total_charging_estimation_time()
+            cpu_temperature = power_management.get_system_temperature_and_fan_speed()
         else:
             battery_status = "N/A"
             power_cable_connected = "N/A"
