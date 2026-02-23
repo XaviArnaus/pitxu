@@ -125,13 +125,13 @@ class Server(PyXavi, MicroserviceBase):
         power_management: SystemPowerManagement = tools.get("power_management", None) if tools is not None else None
        
         if power_management is not None:
-            battery_status =  power_management.get_battery_level()
+            battery_percentage =  power_management.get_battery_level()
             power_cable_connected =  power_management.is_power_cable_connected()
             consumption_watts = power_management.get_power_consumption()
             charging_eta = power_management.get_total_charging_estimation_time()
             cpu_temperature = power_management.get_system_temperature_and_fan_speed()
         else:
-            battery_status = "N/A"
+            battery_percentage = "N/A"
             power_cable_connected = "N/A"
             consumption_watts = "N/A"
             charging_eta = "N/A"
@@ -158,7 +158,7 @@ class Server(PyXavi, MicroserviceBase):
                 "platform": sys.platform,
             },
             "system": {
-                "battery_status": battery_status,
+                "battery_percentage": battery_percentage,
                 "power_cable_connected": power_cable_connected,
                 "consumption_watts": consumption_watts,
                 "charging_eta": charging_eta,
