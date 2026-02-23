@@ -3,19 +3,19 @@
 class System:
     
     @staticmethod
-    def get_dsi_backlight_status():
+    def get_dsi_backlight_status() -> bool:
         return "0" == System._run_command("cat /sys/class/backlight/11-0045/bl_power")
 
     @staticmethod
-    def set_dsi_backlight_on():
-        return System._run_command("sudo -E sh -c 'echo 0 > /sys/class/backlight/11-0045/bl_power'")
+    def set_dsi_backlight_on() -> None:
+        System._run_command("sudo -E sh -c 'echo 0 > /sys/class/backlight/11-0045/bl_power'")
     
     @staticmethod
-    def set_dsi_backlight_off():
-        return System._run_command("sudo -E sh -c 'echo 1 > /sys/class/backlight/11-0045/bl_power'")
+    def set_dsi_backlight_off() -> None:
+        System._run_command("sudo -E sh -c 'echo 1 > /sys/class/backlight/11-0045/bl_power'")
     
     @staticmethod
-    def get_default_network_interface():
+    def get_default_network_interface() -> dict:
         import ifcfg
 
         data = ifcfg.default_interface()
@@ -30,31 +30,31 @@ class System:
         }
     
     @staticmethod
-    def get_cpu_temperature():
+    def get_cpu_temperature() -> float:
         return round(int(System._run_command("cat /sys/class/thermal/thermal_zone*/temp")) / 1000, 1)
     
     @staticmethod
-    def get_cpu_fan_speed():
+    def get_cpu_fan_speed() -> float:
         return round(int(System._run_command("cat /sys/class/hwmon/hwmon*/fan1_input")) / 1000, 1)
     
     @staticmethod
     def get_cpu_volts() -> float: 
-        return System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_V"], 'V') # return current cpu voltage
+        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_V"], 'V')) # return current cpu voltage
 
     @staticmethod
     def get_cpu_amps() -> float:
-        return System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_A"], 'A') # reurn current cpu amperage
+        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_A"], 'A')) # reurn current cpu amperage
 
     @staticmethod
     def get_cpu_temp() -> float:
-        return System._read_hardware_metric(["vcgencmd", "measure_temp"], "'C") # return current cpu temp
+        return float(System._read_hardware_metric(["vcgencmd", "measure_temp"], "'C")) # return current cpu temp
 
     @staticmethod
     def get_input_voltage() -> float:
-        return System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V') # return input voltage
+        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
     
     @staticmethod
-    def get_power_throttle() -> int:
+    def get_power_throttle() -> dict:
         try:
             map = {
                 0:"currently under-voltage",
@@ -78,7 +78,7 @@ class System:
             raise Exception(f"Error reading throttle state: {e}")
 
     @staticmethod
-    def _run_command(command):
+    def _run_command(command) -> str:
         import subprocess
         result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
@@ -86,7 +86,7 @@ class System:
         return result.stdout.decode().strip()
     
     @staticmethod
-    def _read_hardware_metric(command_args, strip_chars): #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
+    def _read_hardware_metric(command_args, strip_chars) -> str: #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
         try:
             output = System._run_command(" ".join(command_args)) # runs a command w/ args and captures its output converting to UTF-8 encoded string
             metric_str = output.split("=")[1].strip().rstrip(strip_chars)
@@ -94,6 +94,6 @@ class System:
                         # [1] selects the second element of the list
                         # strip any leading/trailing whitespace
                         # further strips specific characters (strip_chars) from result
-            return float(metric_str) # converts the cleaned-up string to float and returns it.
+            return metric_str # converts the cleaned-up string to float and returns it.
         except (Exception) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
             raise Exception(f"Error reading hardware metric: {e}")
