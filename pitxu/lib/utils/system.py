@@ -55,24 +55,32 @@ class System:
     
     @staticmethod
     def get_power_throttle() -> dict:
+        """
+        Returns a dictionary describing the current power throttle state of the system.
+        
+        https://gist.github.com/Paraphraser/17fb6320d0e896c6446fb886e1207c7e
+        https://www.raspberrypi.com/documentation/computers/os.html#get_throttled
+        https://forum-raspberrypi.de/forum/thread/47322-vcgencmd-get-throttled-in-python-auswerten/
+
+        """
         try:
             map = {
-                0:"currently under-voltage",
-                1:"ARM frequency currently capped",
-                2:"currently throttled",
-                3:"soft temperature limit reached",
-                16:"under-voltage has occurred since last reboot",
-                17:"ARM frequency capping has occurred since last reboot",
-                18:"throttling has occurred since last reboot",
-                19:"soft temperature reached since last reboot"
+                0: "Surrently under-voltage",
+                1: "ARM frequency currently capped",
+                2: "Currently throttled",
+                3: "Soft temperature limit reached",
+                16: "Under-voltage has occurred since last reboot",
+                17: "ARM frequency capping has occurred since last reboot",
+                18: "Throttling has occurred since last reboot",
+                19: "Soft temperature reached since last reboot"
             }
 
             throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
-            code = int(throttle_str, 16) # convert the cleaned-up string to an integer (base 16) and return it.
+            throttle_bin = bin(int(throttle_str, 16)) # convert the cleaned-up string to an integer (base 16) and then to binary
             report = []
             for bit, description in map.items():
-                if code & (1 << bit):
-                    report.append(description)
+                if len(throttle_bin) > bit and throttle_bin[0 - bit - 1] == '1':
+                    report.append({"code": bit, "description": description})
             return report
         except Exception as e:
             raise Exception(f"Error reading throttle state: {e}")
