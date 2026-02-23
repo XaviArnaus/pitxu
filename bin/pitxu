@@ -127,6 +127,11 @@ battery_status() {
      cd "$DIR/.." && poetry run util -u battery_status
 }
 
+# Commandline to gather the system status from the endpoint
+system_status() {
+     curl -s http://localhost:5000/status | jq
+}
+
 # Commandline to activate the screen cursor blinking
 activate_cursor_blinking() {
      TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1
@@ -175,6 +180,7 @@ case "$1" in
     "clear") clear_pitxu_screen ;;
     "sounddevices") sounddevices ;;
     "battery") battery_status ;;
+    "system") system_status ;;
     "link_alsa") link_alsa ;;
     "link_service") link_service ;;
     "add_ssd_crontab") add_anti_standby_ssd_crontab ;;
@@ -187,7 +193,7 @@ case "$1" in
         ;;
     "test") test_pitxu_foreground $@;;
     "util") utils $@;;
-    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|link_alsa|link_service|cursor|test|util|add_ssd_crontab]" ;;
+    "help") echo "Usage: pitxu [start|stop|restart|status|help|clear|sounddevices|battery|system|link_alsa|link_service|cursor|test|util|add_ssd_crontab]" ;;
     *) echo "Command unknown" ;;
 esac
 

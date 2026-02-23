@@ -192,7 +192,11 @@ The following is initially required:
 sudo apt install git
 ```
 
-### ❗️ All Linux/Debian code dependencies in one line
+### Debian packages to support the Python application
+
+The following are the system dependencies that are needed at OS level so that the Python application works.
+
+#### ❗️ All Linux/Debian code dependencies in one line
 
 Debian packages can be installed all at once. Just make sure that I did not forget to add in this line anything from the below sections, I'm just putting them all together here.
 
@@ -200,7 +204,7 @@ Debian packages can be installed all at once. Just make sure that I did not forg
 sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools libasound2-plugins
 ```
 
-### Ability to build other dependencies: `python3-dev`
+#### Ability to build other dependencies: `python3-dev`
 
 Some dependencies are built at installing time. Please have the `python3-dev` pachage installed beforehand:
 
@@ -208,7 +212,7 @@ Some dependencies are built at installing time. Please have the `python3-dev` pa
 sudo apt install python3-dev
 ```
 
-### Related to `Pillow`
+#### Related to `Pillow`
 
 This is needed for the internal Pillow support, we interact with the displays by drawing images.
 
@@ -216,7 +220,7 @@ This is needed for the internal Pillow support, we interact with the displays by
 sudo apt install libjpeg-dev zlib1g-dev libfreetype6-dev
 ```
 
-### Related to `Gemini`
+#### Related to `Gemini`
 
 This is needed for the internal Gemini support.
 
@@ -224,7 +228,7 @@ This is needed for the internal Gemini support.
 sudo apt install libffi-dev
 ```
 
-### Related to `pyaudio`
+#### Related to `pyaudio`
 
 This is needed for the internal Pyaudio support, required by the `sounddevices` package.
 
@@ -238,7 +242,7 @@ ALSA needs a plugins package to allow samplerate conversions.
 sudo apt install libasound2-plugins
 ```
 
-### Related to `lgpio`
+#### Related to `lgpio`
 
 This is needed for the internal GPIO support
 
@@ -246,12 +250,24 @@ This is needed for the internal GPIO support
 sudo apt install swig liblgpio-dev
 ```
 
-### Related to `i2c`
+#### Related to `i2c`
 
 This is not needed for the Python / Poetry application to work, but it's useful to debug and identify the own hardware.
 
 ```
 sudo apt install i2c-tools
+```
+
+### Packages to support some other operations
+
+The packages suggested to install here are optional, but they are referenced by some funcionality and are strongly encouraged
+
+#### `jq` to process JSON at shell.
+
+This is used for presenting the pitxu server answers when being triggered from the `bin/pitxu` script
+
+```
+sudo apt install jq
 ```
 
 ### Add the user into the `video` group (only required for the DSI display)
