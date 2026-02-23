@@ -35,7 +35,7 @@ class System:
     
     @staticmethod
     def get_cpu_fan_speed() -> float:
-        return round(int(System._run_command("cat /sys/class/hwmon/hwmon*/fan1_input")) / 1000, 1)
+        return int(System._run_command("cat /sys/class/hwmon/hwmon*/fan1_input"))
     
     @staticmethod
     def get_cpu_volts() -> float: 
