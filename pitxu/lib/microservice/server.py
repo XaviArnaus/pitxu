@@ -4,8 +4,6 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
-from pitxu.lib.command import SystemNetwork
-from pitxu.lib.command import SystemPowerManagement
 
 from flask import Flask, request, current_app
 import asyncio
@@ -55,6 +53,8 @@ class Server(PyXavi, MicroserviceBase):
         self._log_debug("End of Server initialization")
     
     def initialize(self):
+        from pitxu.lib.utils.system import System
+
         self._xlog.info("Starting Server")
 
         with self.server.app_context():
@@ -77,7 +77,7 @@ class Server(PyXavi, MicroserviceBase):
 
         self._xlog.info(
             f"Server accepts connections now: " +
-            f"{self.PROTOCOL}://{SystemNetwork._get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
+            f"{self.PROTOCOL}://{System.get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
     
     def close(self):
         self._xlog.info("Closing Server")
@@ -107,6 +107,9 @@ class Server(PyXavi, MicroserviceBase):
     # Status endpoint to check if the service is alive and get some info about it.
     @server.route('/status')
     def status():
+        from pitxu.lib.command import SystemPowerManagement
+        from pitxu.lib.utils.system import System
+
         # Framework initialization.
         config = current_app.config['config']
         logger = current_app.config['logger']
@@ -167,7 +170,11 @@ class Server(PyXavi, MicroserviceBase):
                 "power_cable_connected": power_cable_connected,
                 "consumption_watts": consumption_watts,
                 "charging_eta": charging_eta,
-                "cpu_temperature": cpu_temperature
+                "cpu_temperature": cpu_temperature["temperature"] if isinstance(cpu_temperature, dict) else "N/A",
+                "cpu_fan_speed": cpu_temperature["fan_speed"] if isinstance(cpu_temperature, dict) else "N/A"
+            },
+            "reports": {
+                "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"
             }
         }
     
