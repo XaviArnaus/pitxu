@@ -65,7 +65,7 @@ class System:
         """
         try:
             map = {
-                0: "Surrently under-voltage",
+                0: "Currently under-voltage",
                 1: "ARM frequency currently capped",
                 2: "Currently throttled",
                 3: "Soft temperature limit reached",
@@ -76,10 +76,10 @@ class System:
             }
 
             if test_bin_value is not None:
-                throttle_bin = test_bin_value
+                throttle_bin = bin(test_bin_value)
             else:
                 throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
-                throttle_bin = bin(int(throttle_str, 16)) # convert the cleaned-up string to an integer (base 16) and then to binary
+                throttle_bin = bin(int(throttle_str, 0)) # convert the cleaned-up string to an integer (base 16) and then to binary
 
             report = []
             for bit, description in map.items():
