@@ -18,6 +18,8 @@ class XprocAction:
     # Text To Speech.
     # Perhaps the displays show something too meanwhile.
     SAY: str = "SAY"
+    GATHER_TTS: str = "GATHER_TTS"
+    PLAY_TTS: str = "PLAY_TTS"
     SAY_OUTPUT_QUEUE: str = "SAY_OUTPUT_QUEUE"
 
     # Display eInk

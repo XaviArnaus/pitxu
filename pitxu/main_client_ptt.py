@@ -299,10 +299,17 @@ class MainClientPTT(PyXavi):
                         self._log_debug("🎙️ Push to talk button is released, stopping audio registration and starting recognition.")
                         recording_audio = False
                         self._interaction.mute_microphone(input_stream=input_stream)
+                        
+                        # Place some feedback to the user so that it knows that the audio has been registered and is being processed.
+                        self._interaction.show_thinking()
+                        self._interaction.set_chatbot_busy()
 
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
                         question = self._dictate.recognize()
+
+                        # We have the answer, unset the busy state.
+                        self._interaction.unset_chatbot_busy()
 
                         if question is None:
                             self._xlog.debug(f"🎙️ Nothing recognized")

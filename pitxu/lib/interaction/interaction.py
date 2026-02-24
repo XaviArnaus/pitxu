@@ -214,20 +214,52 @@ class Interaction(PyXavi):
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
 
-        # The background display depends on the configuration.
-        self._log_debug(f"🗣️ Sending SAY command to Background display")
-        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
+        # If we're in client mode, this is going to the server, so it may take time.
+        # Show the thinking effect while grabbing the TTS response from the server.
+        if self._xconfig.get("app.execution_mode") == "client":
+            self._log_debug(f"🗣️ Execution mode is 'client', the speech flow is different")
 
-        # Speech is a direct process command.
-        self._log_debug(f"🗣️ Sending SAY command to Speaker")
-        self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+            # Gathering the TTS response from the server may take time.
+            # We do it in a split step, so we can show the thinking animation while waiting for the server 
+            # to respond with the TTS audio bytes.
+            self.show_thinking()
 
-        # We want that the main thread waits until the actions finished in the subprocesses
-        self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
-        self.wait_for_speaker_to_start_and_finish_speaking()
-        self.wait_for_busy_background_display_to_idle()
-        # COMMENTED: This should not be needed. Display is not busy, no elements waiting FOR THIS INTERACTION.
-        # self.wait_for_background_display_queue_to_empty()
+            self._log_debug(f"🗣️ Gatehring TTS from the server")
+            self.process_pool.send(QUEUE_SPEAKER, XprocAction.GATHER_TTS, message)
+
+            self.wait_for_server_to_start_and_finish_thinking()
+
+            # Now the TTS class has the audio bytes, now we do the "normal" flow.
+
+            # The background display depends on the configuration.
+            self._log_debug(f"🗣️ Sending SAY command to Background display")
+            self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
+
+            # Speech is a direct process command.
+            self._log_debug(f"🗣️ Sending PLAY_TTS command to Speaker")
+            self.process_pool.send(QUEUE_SPEAKER, XprocAction.PLAY_TTS)
+
+            # We want that the main thread waits until the actions finished in the subprocesses
+            self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
+            self.wait_for_speaker_to_start_and_finish_speaking()
+            self.wait_for_busy_background_display_to_idle()
+
+        else:
+
+            # The background display depends on the configuration.
+            self._log_debug(f"🗣️ Sending SAY command to Background display")
+            self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
+
+            # Speech is a direct process command.
+            self._log_debug(f"🗣️ Sending SAY command to Speaker")
+            self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+
+            # We want that the main thread waits until the actions finished in the subprocesses
+            self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
+            self.wait_for_speaker_to_start_and_finish_speaking()
+            self.wait_for_busy_background_display_to_idle()
+            # COMMENTED: This should not be needed. Display is not busy, no elements waiting FOR THIS INTERACTION.
+            # self.wait_for_background_display_queue_to_empty()
     
     def generate_speech_audio_bytes(self, message: str) -> dict:
         """
@@ -429,6 +461,10 @@ class Interaction(PyXavi):
     def wait_for_speaker_to_start_and_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_SPEAKER_BUSY)
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+    
+    def wait_for_server_to_start_and_finish_thinking(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_CHATBOT_BUSY)
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_CHATBOT_BUSY)
     
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
