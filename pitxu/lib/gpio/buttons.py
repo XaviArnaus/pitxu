@@ -75,6 +75,7 @@ class Buttons(PyXavi):
             # We have a real button
             # Feels like it performs the `when_pressed` and inmediately jumps to `when_released`.
             # I'm trying now with `when_held` from 1 sec on.
+            # TODO: The conclusions of the test are in `self.is_pressed` method.
             self.buttons[button_name].hold_time = 1
             self.buttons[button_name].hold_repeat = False
             # self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
@@ -124,8 +125,12 @@ class Buttons(PyXavi):
                 self._xlog.error(f"Button [{button_name}] not defined")
                 raise KeyError(f"Button [{button_name}] not defined")
 
-            # return self.buttons[button_name].is_pressed
-            return self.buttons[button_name].is_held
+            return self.buttons[button_name].is_pressed
+        
+            # The following `is_held` does not improve. During the 1 sec of hold_time, the button is still considered "pressed".
+            #   but returns RELEASED because the hold_time is still "running".
+            # What I want to achieve is only a single call to the callback.
+            #return self.buttons[button_name].is_held
 
     def _new_button(self, name: str, pin: int, mocked_as: str) -> MockedButton:
         if self.is_mocked():
