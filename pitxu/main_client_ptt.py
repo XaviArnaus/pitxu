@@ -319,7 +319,7 @@ class MainClientPTT(PyXavi):
                             else:
                                 error = str(stte)
 
-                            cls._xlog.error("🛑 Error during SpeechToText recognition: " + error)
+                            cls._xlog.error("🛑 Error during SpeechToText recognition in MainClientPTT: " + error)
                             question = None
 
                         # We have the answer, unset the busy state.
@@ -475,7 +475,8 @@ class MainClientPTT(PyXavi):
                 # Clean background after initialisation.
                 # NOTE: I suspect double clear due to background & combined inheritance method execution.
                 #   Please check.
-                self._interaction.clear_background_display()
+                self._interaction.clear_combined_display()
+                self._interaction.wait_for_all_queues_to_empty()
                 self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)

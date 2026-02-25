@@ -75,14 +75,16 @@ class SpeechToText(PyXavi):
         except queue.ShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
-        # except SpeechToTextException as stte:
-        #     # It's handled in Main, don't even log it here
-        #     raise stte
+        except SpeechToTextException as stte:
+            # It's handled in Main, don't even log it here
+            # Still, it's an exception under control, we captrure and bubble it up so it does not get 
+            # handled by the generic Exception block.
+            raise stte
         except BrokenPipeError as bpe:
             self.is_active = False
             raise SpeechToTextException("SpeechToText BrokenPipeError: " + str(bpe))
         except Exception as e:
-            self._xlog.error("🛑 Error during SpeechToText recognition: " + str(e))
+            self._xlog.error("🛑 Error during server transcription: " + str(e))
             self._xlog.error(full_stack())
             self.close()
             return None
