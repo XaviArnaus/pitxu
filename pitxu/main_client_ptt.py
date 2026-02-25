@@ -259,12 +259,6 @@ class MainClientPTT(PyXavi):
                 self._interaction.show_init_phases(7, text="Chatbot")
                 await self._initialize_chatbot()
 
-                # Clean background after initialisation.
-                # NOTE: I suspect double clear due to background & combined inheritance method execution.
-                #   Please check.
-                self._interaction.clear_background_display()
-                self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
-
                 # Before we start with the loop, let's set the last interaction time to now
                 # It just started, there was a greating after all.
                 # Maybe the user wants to talk straight away without the trigger words.
@@ -434,14 +428,22 @@ class MainClientPTT(PyXavi):
                         # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                         cls._last_interaction_datetime = datetime.now()
 
-                # Assign the callbacks to the push to talk button
+                # Embedding the general flags into a var to be passed into the callbacks.
                 flags = {
                     "recording_audio": recording_audio,
                     "dictate_count": dictate_count,
                     "answer_count": answer_count,
                 }
-                self._buttons.set_pressed_callback(self.PUSH_TO_TALK_BUTTON, on_push_to_talk_pressed, (self, self.PUSH_TO_TALK_BUTTON, flags))
-                self._buttons.set_released_callback(self.PUSH_TO_TALK_BUTTON, on_push_to_talk_released, (self, self.PUSH_TO_TALK_BUTTON, flags))
+                # Set the press callback for the Push To Talk button
+                self._buttons.set_pressed_callback(
+                    button_name=self.PUSH_TO_TALK_BUTTON, 
+                    callback=on_push_to_talk_pressed, 
+                    args=(self, self.PUSH_TO_TALK_BUTTON, flags))
+                # Set the release callback for the Push To Talk button
+                self._buttons.set_released_callback(
+                    button_name=self.PUSH_TO_TALK_BUTTON, 
+                    callback=on_push_to_talk_released, 
+                    args=(self, self.PUSH_TO_TALK_BUTTON, flags))
 
                 # Just to support the mocked buttons, we start listening for events.
                 self._buttons.start_listening()
@@ -453,6 +455,12 @@ class MainClientPTT(PyXavi):
                 self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
                 self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
                 self._scheduler.run()
+
+                # Clean background after initialisation.
+                # NOTE: I suspect double clear due to background & combined inheritance method execution.
+                #   Please check.
+                self._interaction.clear_background_display()
+                self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
                 signal.pause()

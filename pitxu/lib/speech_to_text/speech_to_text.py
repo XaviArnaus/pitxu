@@ -76,7 +76,6 @@ class SpeechToText(PyXavi):
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
         except SpeechToTextException as stte:
-            self.is_active = False
             # It's handled in Main, don't even log it here
             raise stte
         except BrokenPipeError as bpe:
