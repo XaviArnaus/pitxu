@@ -275,10 +275,6 @@ class MainClientPTT(PyXavi):
                 # The idea here is to set all callbacks for all actions, to avoid running a forever loop.
                 #
 
-                # Initialise the Buttons module
-                self._interaction.show_init_phases(4, text="Buttons")
-                self._initialize_buttons()
-
                 # Initialize the flags
                 # question = ""
                 dictate_count = 0
