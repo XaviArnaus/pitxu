@@ -99,12 +99,18 @@ class SpeechToText(PyXavi):
         sample_rate = self._get_samplerate()
         self._log_debug(f"STT: Requesting transcription of [{len(data)}] bytes of audio data at sample rate: [{sample_rate}]")
         server_answer = self._client.transcribe(data_bytes=data, sample_rate=sample_rate)
-        if server_answer["error"] is not None:
-            error_message = server_answer.get("error")
-            raise SpeechToTextException(f"Error from STT server: {error_message}")
+
+        if server_answer is None:
+            self._xlog.error("STT: No response from server for transcription request")
+            raise SpeechToTextException("No response from server for transcription request")
+        
+        if server_answer.get("status", "ko") != "ok":
+            error = "Unknown error" if "error" not in server_answer else server_answer["error"]
+            self._xlog.error("STT: Server returned error status for transcription request: " + str(error))
+            raise SpeechToTextException("Server returned error status for transcription request: " + str(server_answer))
         
         if server_answer["transcription"] is None:
-            self._log_debug("STT server returned no transcription")
+            self._xlog.error("STT server returned no transcription")
             return None
 
         result_text = str(server_answer["transcription"]).replace("\n", "").strip()

@@ -200,6 +200,17 @@ class Server(PyXavi, MicroserviceBase):
             audio_data_length = len(audio_data)
         logger.info(f"📥 Received /transcribe request with an audio of length: {audio_data_length}")
 
+        # It's not normal to not receive anything.
+        if len(audio_data) == 0:
+            logger.warning("🟠 No audio data received.")
+            return {
+                "status": "ko",
+                "received_bytes_length": audio_data_length,
+                "frames": 0,
+                "error": "Empty audio data received",
+                "transcription": None
+            }
+
         counter = 0
         error = None
         try:

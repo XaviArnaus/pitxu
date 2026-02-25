@@ -310,13 +310,28 @@ class MainClientPTT(PyXavi):
 
                         # Recognize what comes from the microphone
                         sw_dictate = cls._stopwatch.continue_or_start(name="dictate" + str(flags.get("dictate_count", 0)))
-                        question = cls._dictate.recognize()
+                        error = None
+                        try:
+                            question = cls._dictate.recognize()
+                        except SpeechToTextException as stte:
+                            error = str(stte)
+                            cls._xlog.error("🛑 Error during SpeechToText recognition: " + error)
+                            question = None
 
                         # We have the answer, unset the busy state.
                         cls._interaction.unset_chatbot_busy()
 
                         if question is None:
                             cls._xlog.debug(f"🎙️ Nothing recognized")
+                    
+                    # Let's show any possible error in the screen
+                    if error is not None:
+                        cls._interaction.show_arbitrary_text_on_foreground(
+                            icon="⚠️",
+                            text="Error: " + error,
+                            font_size=20,
+                            duration=5.0
+                        )
                     
                     # If at this point we still not have a question, finish the iteration here and loop again.
                     if (question is None or (question is not None and question.strip() == "")):
