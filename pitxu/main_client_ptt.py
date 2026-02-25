@@ -310,7 +310,12 @@ class MainClientPTT(PyXavi):
                         try:
                             question = cls._dictate.recognize()
                         except SpeechToTextException as stte:
-                            error = str(stte)
+
+                            if stte.server_response is not None:
+                                error = stte.server_response.get("error", "Unknown error during transcription")
+                            else:
+                                error = str(stte)
+
                             cls._xlog.error("🛑 Error during SpeechToText recognition: " + error)
                             question = None
 

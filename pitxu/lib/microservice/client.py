@@ -92,7 +92,7 @@ class Client(PyXavi, MicroserviceBase):
                 "received_bytes_length": server_response.get("received_bytes_length", None),
                 "frames": server_response.get("frames", None),
                 "error": server_response.get("error", "Unknown error"),
-                "transcription": None
+                "transcription": server_response.get("transcription", None)
             }
 
     def ask_chatbot(self, question: str) -> ChatbotResponse:
