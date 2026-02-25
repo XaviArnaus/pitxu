@@ -294,6 +294,10 @@ class MainClientPTT(PyXavi):
                 def on_push_to_talk_released(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
                     cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
                                     ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
+                    
+                    if button.is_held:
+                        cls._xlog.debug(f"🎙️ Button [{button_name}] is held now. Ignoring release event to avoid multiple triggers.")
+                        return
 
                     # Initialize the question that travels the flow
                     question = ""
