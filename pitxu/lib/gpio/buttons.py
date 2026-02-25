@@ -75,10 +75,10 @@ class Buttons(PyXavi):
             # We have a real button
             # Feels like it performs the `when_pressed` and inmediately jumps to `when_released`.
             # I'm trying now with `when_held` from 1 sec on.
-            # self.buttons[button_name].hold_time = 1
-            # self.buttons[button_name].hold_repeat = False
-            self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
-            # self.buttons[button_name].when_held = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].hold_time = 1
+            self.buttons[button_name].hold_repeat = False
+            # self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_held = lambda: callback(self.buttons[button_name], **kargs)
     
     def set_released_callback(self, button_name: str, callback: callable, kargs: dict = {}):
         if self.is_mocked():
