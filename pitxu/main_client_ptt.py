@@ -449,6 +449,7 @@ class MainClientPTT(PyXavi):
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
                 self._interaction.show_init_phases(9, text="Schedulers")
+                self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
                 self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
                 self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
                 self._scheduler.run()
