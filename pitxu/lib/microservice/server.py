@@ -181,6 +181,8 @@ class Server(PyXavi, MicroserviceBase):
     # Endpoint to receive an audio byte array to make it through the pipeline
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
+        import numpy as np
+
         # Framework initialization.
         config = current_app.config['config']
         logger = current_app.config['logger']
@@ -194,6 +196,7 @@ class Server(PyXavi, MicroserviceBase):
         dd(audio_data)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
+            # audio_data = np.frombuffer(audio_data, dtype=np.int16)
             audio_data_length = len(audio_data)
         logger.info(f"📥 Received /transcribe request with an audio of length: {audio_data_length}")
 

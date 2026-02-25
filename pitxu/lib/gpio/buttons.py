@@ -30,9 +30,65 @@ class Buttons(PyXavi):
             self._xlog.error(f"Error initializing GPIO buttons: {e}")
             self._xlog.debug(full_stack())
         
-        # Now if the mocked buttons manager exists, start listening
+        # # Now if the mocked buttons manager exists, start listening
+        # if self.mocked_buttons_manager is not None:
+        #     self.mocked_buttons_manager.start_listening()
+    
+
+    def start_listening(self):
+        """
+        Start listening to the buttons. This is only needed for mocked buttons,
+        as real buttons will trigger callbacks without the need of a listener.
+        """
         if self.mocked_buttons_manager is not None:
             self.mocked_buttons_manager.start_listening()
+    
+    def set_pressed_callback(self, button_name: str, callback: callable, args: tuple = ()):
+        if self.is_mocked():
+            if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:
+                self._xlog.error(f"Button [{button_name}] not defined in mocked buttons manager")
+                raise KeyError(f"Button [{button_name}] not defined in mocked buttons manager")
+            
+            # We don't have a real button
+            def on_press(key):
+                if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
+                    self._xlog.debug(f"Mocked button [{button_name}] was PRESSED, calling callback...")
+                    callback(*args)
+
+            # We need to set the callbacks for both press and release, to be able to detect when the button is released
+            # self.mocked_buttons_manager._on_press = on_press
+            self.mocked_buttons_manager._on_press = on_press
+
+        else:
+            if button_name not in self.buttons or self.buttons[button_name] is None:
+                self._xlog.error(f"Button [{button_name}] not defined")
+                raise KeyError(f"Button [{button_name}] not defined")
+
+            # We have a real button
+            self.buttons[button_name].when_pressed = lambda: callback(*args)
+    
+    def set_released_callback(self, button_name: str, callback: callable, args: tuple = ()):
+        if self.is_mocked():
+            if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:
+                self._xlog.error(f"Button [{button_name}] not defined in mocked buttons manager")
+                raise KeyError(f"Button [{button_name}] not defined in mocked buttons manager")
+
+            # # We don't have a real button
+            def on_release(key):
+                if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
+                    self._xlog.debug(f"Mocked button [{button_name}] was RELEASED, calling callback...")
+                    callback(*args)
+
+            # self.mocked_buttons_manager._on_release = on_release
+            self.mocked_buttons_manager._on_release = on_release
+
+        else:
+            if button_name not in self.buttons or self.buttons[button_name] is None:
+                self._xlog.error(f"Button [{button_name}] not defined")
+                raise KeyError(f"Button [{button_name}] not defined")
+
+            # We have a real button
+            self.buttons[button_name].when_released = lambda: callback(*args)
 
     def is_pressed(self, button_name: str) -> bool:
         
@@ -138,7 +194,7 @@ class MockedButtons(PyXavi):
     def start_listening(self):
         from pynput.keyboard import Listener
 
-        self._listener = Listener(on_press=self._on_press, on_release=self._on_release)
+        self._listener = Listener(on_press=self._on_press, on_release=self._on_release, args=())
         self._listener.start()
 
     def stop_listening(self):
