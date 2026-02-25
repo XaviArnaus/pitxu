@@ -10,7 +10,7 @@ from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
-                                            StartupForegroundPaint, CodeBlockForegroundPaint,\
+                                            StartupForegroundPaint, CodeBlockForegroundPaint, ErrorForegroundPaint,\
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
@@ -205,6 +205,19 @@ class DsiLcd(XprocessDisplayCombined):
         # The config takes precedence over the parameter that is hardcoded from Main
         show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
         self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        # Draw the error splash screen
+        self._xlog.info(f"👀 Showing error screen")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("error_splash", for_seconds)
+        self.painter.just_paint(
+            foreground_interaction=ErrorForegroundPaint(
+                parameter={
+                    "text": text,
+                    "font_size": self.canvas.FONT_SIZE_MEDIUM,
+                    "font_header_size": self.canvas.FONT_SIZE_BIG}, 
+                for_seconds=show_for_seconds))
     
     def show_code_block(self, param: dict):
         self._xlog.info(f"👀 Showing code block on DSI LCD.")

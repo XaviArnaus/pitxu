@@ -326,11 +326,9 @@ class MainClientPTT(PyXavi):
                     
                     # Let's show any possible error in the screen
                     if error is not None:
-                        cls._interaction.show_arbitrary_text_on_foreground(
-                            icon="⚠️",
-                            text="Error: " + error,
-                            font_size=20,
-                            duration=5.0
+                        cls._interaction.show_error(
+                            text=error,
+                            for_seconds=3
                         )
                     
                     # If at this point we still not have a question, finish the iteration here and loop again.

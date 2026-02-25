@@ -336,6 +336,15 @@ class Interaction(PyXavi):
         Show the startup splash screen on the Foreground display.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP, str(for_seconds))
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        """
+        Show the error screen on the Foreground display.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ERROR, {
+            "text": text,
+            "for_seconds": for_seconds
+        })
 
     def show_init_phases(self, step: int, text: str = None):
         """

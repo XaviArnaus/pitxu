@@ -60,6 +60,17 @@ class XprocessDisplayForeground(Xprocess):
             else:
                 self.splash_startup(for_seconds=float(param))
         
+        # Shows the Error screen
+        if action == XprocAction.SHOW_ERROR:
+            if param is None or param == "":
+                self.show_error(text="Unknown error")
+            elif isinstance(param, str):
+                self.show_error(text=param)
+            elif isinstance(param, dict):
+                text = param.get("text", "Unknown error")
+                for_seconds = param.get("for_seconds", 3.0)
+                self.show_error(text=text, for_seconds=for_seconds)
+        
         # Clears the screen
         if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
             self.clear()
@@ -115,6 +126,9 @@ class XprocessDisplayForeground(Xprocess):
 
     def splash_startup(self, for_seconds: float = 3.0):
         raise NotImplementedError("splash_startup() must be implemented in Display Foreground subclasses.")
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        raise NotImplementedError("show_error() must be implemented in Display Foreground subclasses.")
 
     # ------- Communication with Flags ---------
 

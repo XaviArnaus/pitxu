@@ -215,9 +215,33 @@ class StartupForegroundPaint(ForegroundPaint):
             ignore_maintain_time=False
         )
 
+class ErrorForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: dict = None, for_seconds: float = 5.0):
+        if name is None:
+            name = "ErrorForegroundPaint"
+        super(ErrorForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            parameter={
+                "text": parameter.get("text"),
+                "icon": "❌",
+                "font_size": parameter.get("font_size", 24),
+                "header": "Error",
+                "font_header_size": parameter.get("font_header_size", 32),
+                "padding": parameter.get("padding", 5)
+            },
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            maintain_paint_for_seconds=for_seconds,
+            ignore_maintain_time=False
+        )
+
 class CodeBlockForegroundPaint(ForegroundPaint):
 
-    def __init__(self, name = None, parameter: any = None, for_seconds: float = 10.0):
+    def __init__(self, name = None, parameter: dict = None, for_seconds: float = 10.0):
         if name is None:
             name = "CodeBlockForegroundPaint"
         super(CodeBlockForegroundPaint, self).__init__(

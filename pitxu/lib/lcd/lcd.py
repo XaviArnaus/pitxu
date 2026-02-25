@@ -8,7 +8,7 @@ from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
-                                            StartupForegroundPaint, \
+                                            StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
@@ -242,6 +242,28 @@ class Lcd(XprocessDisplayCombined):
             "phase": phase,
             "text": text
         }))
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        # Draw the error splash screen
+        self._xlog.info(f"👀 Showing error splash screen")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("error_splash", for_seconds)
+        self.painter.just_paint(
+            foreground_interaction=ErrorForegroundPaint(
+                parameter={
+                    "text": text,
+                    "font_size": self.canvas.FONT_SIZE_SMEDIUM,
+                    "font_header_size": self.canvas.FONT_SIZE_BIG}, 
+                for_seconds=show_for_seconds))
+    
+    def show_code_block(self, param: dict):
+        self._xlog.info(f"👀 Showing code block on LCD.")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("code_block", param.get("for_seconds", 10.0))
+        self.painter.just_paint(
+            foreground_interaction=CodeBlockForegroundPaint(
+                parameter={"text": param.get("code", "")}, 
+                for_seconds=show_for_seconds))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
