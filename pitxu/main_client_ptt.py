@@ -1,4 +1,5 @@
 from subprocess import call
+from threading import Timer
 
 from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
 
@@ -424,6 +425,10 @@ class MainClientPTT(PyXavi):
 
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
+                every_minute = Timer(60.0, self.do_every_minute_tasks)
+                every_second = Timer(1.0, self.do_every_second_tasks)
+                every_minute.start()
+                every_second.start()
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
                 signal.pause()
