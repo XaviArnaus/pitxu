@@ -114,7 +114,8 @@ class Buttons(PyXavi):
             self._xlog.debug(f"Creating real button [{name}] for pin [{pin}]")
             from gpiozero import Button
 
-            return Button(pin, pull_up=False)
+            # return Button(pin, pull_up=False)
+            return Button(pin, pull_up=True)
     
     def close(self):
         if self.mocked_buttons_manager is not None:
