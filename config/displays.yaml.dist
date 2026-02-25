@@ -114,6 +114,10 @@ lcd:
     foreground_notification: 3.0
     # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
     startup_splash: 4.0
+    # [Float] Time showing a code block in the foreground. Defaults to 10.0 secs
+    code_block_foreground_notification: 10.0
+    # [Float] Time showing an error message in the foreground. Defaults to 3.0 secs
+    error: 3.0
     # [Float] General delay between frames when animating. Defaults to 0.05 secs
     default_delay_between_frames: 0.05
     # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames
@@ -159,6 +163,10 @@ dsi_lcd:
     foreground_notification: 3.0
     # [Float] Time showing the "startup splash" screen. Defaults to 3.0 secs
     startup_splash: 4.0
+    # [Float] Time showing a code block in the foreground. Defaults to 10.0 secs
+    code_block_foreground_notification: 10.0
+    # [Float] Time showing an error message in the foreground. Defaults to 3.0 secs
+    error: 3.0
     # [Float] General delay between frames when animating. Defaults to 0.05 secs
     default_delay_between_frames: 0.05
     # [Float] Delay for the "thinking" animation frames. Defaults to default_delay_between_frames

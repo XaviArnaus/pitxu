@@ -201,16 +201,16 @@ class DsiLcd(XprocessDisplayCombined):
 
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
-        self._xlog.info(f"👀 Showing startup splash screen")
+        self._xlog.info(f"👀 Showing startup splash screen for {for_seconds} seconds")
         # The config takes precedence over the parameter that is hardcoded from Main
         show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
         self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
     
     def show_error(self, text: str, for_seconds: float = 3.0):
         # Draw the error splash screen
-        self._xlog.info(f"👀 Showing error screen")
+        self._xlog.info(f"👀 Showing error screen for {for_seconds} seconds")
         # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("error_splash", for_seconds)
+        show_for_seconds = self.interaction_delays.get("error", for_seconds)
         self.painter.just_paint(
             foreground_interaction=ErrorForegroundPaint(
                 parameter={

@@ -323,13 +323,21 @@ class MainClientPTT(PyXavi):
 
                         if question is None:
                             cls._xlog.debug(f"🎙️ Nothing recognized")
+                            if error is None:
+                                # This way we trigger a UX feedback saying that nothing was recognized.
+                                cls._interaction.show_error(
+                                    text="Nothing recognized",
+                                    for_seconds=3
+                                )
+                                # Also we can make it say it.
+                                cls._interaction.say(cls._xconfig.get("language.transcription_error." + cls._xparams.get("language"), "I didn't understand you."))
                     
-                    # Let's show any possible error in the screen
-                    if error is not None:
-                        cls._interaction.show_error(
-                            text=error,
-                            for_seconds=3
-                        )
+                        # Let's show any possible error in the screen
+                        if error is not None:
+                            cls._interaction.show_error(
+                                text=error,
+                                for_seconds=3
+                            )
                     
                     # If at this point we still not have a question, finish the iteration here and loop again.
                     if (question is None or (question is not None and question.strip() == "")):
@@ -411,10 +419,10 @@ class MainClientPTT(PyXavi):
                         answer = Text.replace_known_text(answer, cls._xconfig.get("language.text_replacements." + cls._xparams.get("language"), {}))
 
                         # Answer
-                        sw_answer = cls._stopwatch.start(name="answer" + str(answer_count))
+                        sw_answer = cls._stopwatch.start(name="answer" + str(flags.get("answer_count", 0)))
                         cls._interaction.say(answer)
-                        cls._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(cls._stopwatch.stop(sw_answer)))
-                        answer_count += 1
+                        cls._xlog.debug("⏱️  Answer " + str(flags.get("answer_count", 0)) + ": " + str(cls._stopwatch.stop(sw_answer)))
+                        flags["answer_count"] += 1
 
                         # If we were communicating an error, it's over and start new
                         if cls._interaction.is_chatbot_error():

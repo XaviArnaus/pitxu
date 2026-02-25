@@ -70,6 +70,11 @@ language:
     es: "El idioma '%s' no está soportado."
     en-us: "The language '%s' is not supported."
     de: "Die Sprache '%s' wird nicht unterstützt."
+  transcription_error:
+    ca: "No t'he entès."
+    es: "No te he entendido."
+    en-us: "I didn't understand you."
+    de: "Ich habe dich nicht verstanden."
   languages_per_language:
     ca:
       en-us: "anglès"

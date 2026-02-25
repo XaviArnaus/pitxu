@@ -677,7 +677,7 @@ class Painter(PyXavi, Thread):
                         if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False):
                             self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False)
                 
-                # If we had a request to clean the foreground after the painting, we do it now,
+                # If we had a request to remove the foreground after the painting, we do it now,
                 #   just in case we didn't remove it yet
                 #   (we know it's removed if foreground_starting_time is None, because it's reset
                 #   when the current_foreground_interaction.maintain_paint_for_seconds is exceeded).
@@ -686,6 +686,13 @@ class Painter(PyXavi, Thread):
                 if current_foreground_interaction is not None and \
                     current_foreground_interaction.remove_interaction_after_painting is True and \
                     foreground_starting_time is None:
+
+                    # Before removing it, check if it also included a final screen clearing.
+                    if current_foreground_interaction.final_screen_clearing:
+                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] included a final screen clearing, telling to painter loop.")
+                        final_clearing_needed = True
+
+                    # And now we can safely remove the foreground interaction.
                     self._log_debug(f"Painter: Removing foreground interaction [{current_foreground_interaction.name}] after painting as requested.")
                     self.remove_foreground_interaction(interaction=current_foreground_interaction)
                 
