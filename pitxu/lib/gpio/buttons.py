@@ -45,7 +45,7 @@ class Buttons(PyXavi):
         else:
             self._xlog.debug("Not starting buttons listener, not mocked")
     
-    def set_pressed_callback(self, button_name: str, callback: callable, args: tuple = ()):
+    def set_pressed_callback(self, button_name: str, callback: callable, kargs: dict = {}):
         if self.is_mocked():
             if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:
                 self._xlog.error(f"Button [{button_name}] not defined in mocked buttons manager")
@@ -55,7 +55,7 @@ class Buttons(PyXavi):
             def on_press(key):
                 if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
                     self._xlog.debug(f"Mocked button [{button_name}] was PRESSED, calling callback...")
-                    callback(*args)
+                    callback(key, **kargs)
 
             # We need to set the callbacks for both press and release, to be able to detect when the button is released
             # self.mocked_buttons_manager._on_press = on_press
@@ -67,9 +67,9 @@ class Buttons(PyXavi):
                 raise KeyError(f"Button [{button_name}] not defined")
 
             # We have a real button
-            self.buttons[button_name].when_pressed = lambda: callback(*args)
+            self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
     
-    def set_released_callback(self, button_name: str, callback: callable, args: tuple = ()):
+    def set_released_callback(self, button_name: str, callback: callable, kargs: dict = {}):
         if self.is_mocked():
             if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:
                 self._xlog.error(f"Button [{button_name}] not defined in mocked buttons manager")
@@ -79,7 +79,7 @@ class Buttons(PyXavi):
             def on_release(key):
                 if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
                     self._xlog.debug(f"Mocked button [{button_name}] was RELEASED, calling callback...")
-                    callback(*args)
+                    callback(key, **kargs)
 
             # self.mocked_buttons_manager._on_release = on_release
             self.mocked_buttons_manager._on_release = on_release
@@ -90,7 +90,7 @@ class Buttons(PyXavi):
                 raise KeyError(f"Button [{button_name}] not defined")
 
             # We have a real button
-            self.buttons[button_name].when_released = lambda: callback(*args)
+            self.buttons[button_name].when_released = lambda: callback(self.buttons[button_name], **kargs)
 
     def is_pressed(self, button_name: str) -> bool:
         

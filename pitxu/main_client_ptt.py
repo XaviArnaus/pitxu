@@ -154,8 +154,9 @@ class MainClientPTT(PyXavi):
                                    f"Assigning Push To Talk functionality to the first button in the list: {button_names[0]}")
                 self.PUSH_TO_TALK_BUTTON = button_names[0]
         else:
-            self._xlog.error("No buttons initialized. Push to Talk functionality will not be available.")
+            self._xlog.error("No buttons initialized. Push to Talk functionality will not be available. Closing.")
             self.close_nicely(avoid_final_exit=False)
+
     def _load_language_statics(self):
 
         # Load the greeting sentence
@@ -281,16 +282,18 @@ class MainClientPTT(PyXavi):
                 # The callbacks are the actual loop iteration, happening when we want it to react (that's the button pressed/released).
                 # The old loop is the on_release() basically.
 
-                def on_push_to_talk_pressed(cls: MainClientPTT, button_name: str, flags: dict = {}):
-                    cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered.")
+                def on_push_to_talk_pressed(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
+                    cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered. We were " +
+                                    ("recording audio." if flags.get("recording_audio", False) else "Not recording audio."))
                     
                     if not flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
                         cls._interaction.unmute_microphone(input_stream=input_stream)
 
-                def on_push_to_talk_released(cls: MainClientPTT, button_name: str, flags: dict = {}):
-                    cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered.")
+                def on_push_to_talk_released(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
+                    cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
+                                    ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
 
                     # Initialize the question that travels the flow
                     question = ""
@@ -443,12 +446,20 @@ class MainClientPTT(PyXavi):
                 self._buttons.set_pressed_callback(
                     button_name=self.PUSH_TO_TALK_BUTTON, 
                     callback=on_push_to_talk_pressed, 
-                    args=(self, self.PUSH_TO_TALK_BUTTON, flags))
+                    kargs={
+                        "cls": self,
+                        "button_name": self.PUSH_TO_TALK_BUTTON,
+                        "flags": flags
+                    })
                 # Set the release callback for the Push To Talk button
                 self._buttons.set_released_callback(
                     button_name=self.PUSH_TO_TALK_BUTTON, 
                     callback=on_push_to_talk_released, 
-                    args=(self, self.PUSH_TO_TALK_BUTTON, flags))
+                    kargs={
+                        "cls": self,
+                        "button_name": self.PUSH_TO_TALK_BUTTON,
+                        "flags": flags
+                    })
 
                 # Just to support the mocked buttons, we start listening for events.
                 self._buttons.start_listening()
