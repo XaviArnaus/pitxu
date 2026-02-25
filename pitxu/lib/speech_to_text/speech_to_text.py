@@ -75,9 +75,9 @@ class SpeechToText(PyXavi):
         except queue.ShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
-        except SpeechToTextException as stte:
-            # It's handled in Main, don't even log it here
-            raise stte
+        # except SpeechToTextException as stte:
+        #     # It's handled in Main, don't even log it here
+        #     raise stte
         except BrokenPipeError as bpe:
             self.is_active = False
             raise SpeechToTextException("SpeechToText BrokenPipeError: " + str(bpe))
@@ -106,7 +106,7 @@ class SpeechToText(PyXavi):
         if server_answer.get("error", None) is not None:
             error = "Unknown error" if "error" not in server_answer else server_answer["error"]
             self._xlog.error("STT: Server returned error status for transcription request: " + str(error))
-            raise SpeechToTextException("Server returned error status for transcription request: " + str(error), server_answer=server_answer)
+            raise SpeechToTextException("Server returned error status for transcription request: " + str(error), server_answer)
         
         if server_answer["transcription"] is None:
             self._xlog.error("STT server returned no transcription")
