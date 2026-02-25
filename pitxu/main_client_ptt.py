@@ -282,31 +282,52 @@ class MainClientPTT(PyXavi):
                 # The callbacks are the actual loop iteration, happening when we want it to react (that's the button pressed/released).
                 # The old loop is the on_release() basically.
 
-                def on_push_to_talk_pressed(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
-                    cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered. We were " +
-                                    ("recording audio." if flags.get("recording_audio", False) else "Not recording audio."))
-                    
-                    if not isinstance(button, str) and button.is_pressed == False:
-                        cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is not actually pressed. Ignoring this callback execution.")
-                        return
+                def on_button_interact(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
 
-                    if not flags.get("recording_audio", False):
+                    cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
+                                    "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
+                                    "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
+
+                    # is_pressed = False
+
+                    # if isinstance(button, str):
+                        
+                    # else:
+                    #     is_pressed = button.is_pressed
+
+                    # Init.
+                    question = ""
+                    is_pressed = cls._buttons.is_pressed(button_name)
+
+                # def on_push_to_talk_pressed(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
+                    # cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered. We were " +
+                    #                 ("recording audio." if flags.get("recording_audio", False) else "Not recording audio."))
+                    
+                    # if not isinstance(button, str) and button.is_pressed == False:
+                    #     cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is not actually pressed. Ignoring this callback execution.")
+                    #     return
+
+                    if is_pressed and not flags.get("recording_audio", False):
+
+                    # if not flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
                         cls._interaction.unmute_microphone(input_stream=input_stream)
 
-                def on_push_to_talk_released(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
-                    cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
-                                    ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
+                # def on_push_to_talk_released(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
+                    # cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
+                    #                 ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
                     
-                    if not isinstance(button, str) and button.is_pressed == True:
-                        cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is still pressed. Ignoring this callback execution.")
-                        return
+                    # if not isinstance(button, str) and button.is_pressed == True:
+                    #     cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is still pressed. Ignoring this callback execution.")
+                    #     return
 
-                    # Initialize the question that travels the flow
-                    question = ""
+                    # # Initialize the question that travels the flow
+                    # question = ""
+
+                    if not is_pressed and flags.get("recording_audio", False):
                     
-                    if flags.get("recording_audio", False):
+                    # if flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Stopping audio registration for button [{button_name}] release and starting recognition.")
                         flags["recording_audio"] = False
                         cls._interaction.mute_microphone(input_stream=input_stream)
@@ -450,10 +471,29 @@ class MainClientPTT(PyXavi):
                     "dictate_count": dictate_count,
                     "answer_count": answer_count,
                 }
+                # # Set the press callback for the Push To Talk button
+                # self._buttons.set_pressed_callback(
+                #     button_name=self.PUSH_TO_TALK_BUTTON, 
+                #     callback=on_push_to_talk_pressed, 
+                #     kargs={
+                #         "cls": self,
+                #         "button_name": self.PUSH_TO_TALK_BUTTON,
+                #         "flags": flags
+                #     })
+                # # Set the release callback for the Push To Talk button
+                # self._buttons.set_released_callback(
+                #     button_name=self.PUSH_TO_TALK_BUTTON, 
+                #     callback=on_push_to_talk_released, 
+                #     kargs={
+                #         "cls": self,
+                #         "button_name": self.PUSH_TO_TALK_BUTTON,
+                #         "flags": flags
+                #     })
+
                 # Set the press callback for the Push To Talk button
                 self._buttons.set_pressed_callback(
                     button_name=self.PUSH_TO_TALK_BUTTON, 
-                    callback=on_push_to_talk_pressed, 
+                    callback=on_button_interact, 
                     kargs={
                         "cls": self,
                         "button_name": self.PUSH_TO_TALK_BUTTON,
@@ -462,7 +502,7 @@ class MainClientPTT(PyXavi):
                 # Set the release callback for the Push To Talk button
                 self._buttons.set_released_callback(
                     button_name=self.PUSH_TO_TALK_BUTTON, 
-                    callback=on_push_to_talk_released, 
+                    callback=on_button_interact, 
                     kargs={
                         "cls": self,
                         "button_name": self.PUSH_TO_TALK_BUTTON,

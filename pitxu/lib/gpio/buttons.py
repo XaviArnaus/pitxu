@@ -55,10 +55,16 @@ class Buttons(PyXavi):
             def on_press(key):
                 if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
                     self._xlog.debug(f"Mocked button [{button_name}] was PRESSED, calling callback...")
+
+                    # We set the value to hold the "pressed" state.
+                    #   I think this can also be simply the received param `key`
+                    mocked_key = self.mocked_buttons_manager.buttons_by_name[button_name]
+                    self.mocked_buttons_manager.buttons[mocked_key] = True
+
+                    # Now call the callback
                     callback(key, **kargs)
 
-            # We need to set the callbacks for both press and release, to be able to detect when the button is released
-            # self.mocked_buttons_manager._on_press = on_press
+            # We need to set the callbacks for both press and release, to be able to detect when the button is releasedss
             self.mocked_buttons_manager._on_press = on_press
 
         else:
@@ -84,9 +90,15 @@ class Buttons(PyXavi):
             def on_release(key):
                 if self.mocked_buttons_manager.buttons_by_name.get(button_name) == key:
                     self._xlog.debug(f"Mocked button [{button_name}] was RELEASED, calling callback...")
+
+                    # We set the value to hold the "pressed" state.
+                    #   I think this can also be simply the received param `key`
+                    mocked_key = self.mocked_buttons_manager.buttons_by_name[button_name]
+                    self.mocked_buttons_manager.buttons[mocked_key] = False
+
+                    # Now call the callback
                     callback(key, **kargs)
 
-            # self.mocked_buttons_manager._on_release = on_release
             self.mocked_buttons_manager._on_release = on_release
 
         else:
@@ -189,12 +201,14 @@ class MockedButtons(PyXavi):
         value = self.buttons[key]
         return value
     
-    def _on_press(self, key):
+    def _on_press(self, key: str):
+        # Be aware that this method is never called, as we place callbacks replacing it.
         if key in self.buttons:
             self._xlog.debug(f"Mocking GPIO: {key} key was PRESSED")
             self.buttons[key] = True
     
-    def _on_release(self, key):
+    def _on_release(self, key: str):
+        # Be aware that this method is never called, as we place callbacks replacing it.
         if key in self.buttons:
             self._xlog.debug(f"Mocking GPIO: {key} key was RELEASED")
             self.buttons[key] = False
