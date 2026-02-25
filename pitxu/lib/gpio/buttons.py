@@ -78,6 +78,7 @@ class Buttons(PyXavi):
             self.buttons[button_name].hold_time = 1
             self.buttons[button_name].hold_repeat = False
             # self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_pressed = None
             self.buttons[button_name].when_held = lambda: callback(self.buttons[button_name], **kargs)
     
     def set_released_callback(self, button_name: str, callback: callable, kargs: dict = {}):
@@ -123,7 +124,8 @@ class Buttons(PyXavi):
                 self._xlog.error(f"Button [{button_name}] not defined")
                 raise KeyError(f"Button [{button_name}] not defined")
 
-            return self.buttons[button_name].is_pressed
+            # return self.buttons[button_name].is_pressed
+            return self.buttons[button_name].is_held
 
     def _new_button(self, name: str, pin: int, mocked_as: str) -> MockedButton:
         if self.is_mocked():
