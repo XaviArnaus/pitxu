@@ -286,6 +286,10 @@ class MainClientPTT(PyXavi):
                     cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered. We were " +
                                     ("recording audio." if flags.get("recording_audio", False) else "Not recording audio."))
                     
+                    if not isinstance(button, str) and button.is_pressed == False:
+                        cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is not actually pressed. Ignoring this callback execution.")
+                        return
+
                     if not flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
@@ -295,8 +299,8 @@ class MainClientPTT(PyXavi):
                     cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
                                     ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
                     
-                    if button.is_held:
-                        cls._xlog.debug(f"🎙️ Button [{button_name}] is held now. Ignoring release event to avoid multiple triggers.")
+                    if not isinstance(button, str) and button.is_pressed == True:
+                        cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is still pressed. Ignoring this callback execution.")
                         return
 
                     # Initialize the question that travels the flow
