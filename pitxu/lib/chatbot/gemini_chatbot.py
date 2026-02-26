@@ -12,10 +12,11 @@ from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, 
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import time, anyio, math
+import anyio, math
 import fastmcp
 from collections import Counter
 import logging
+import asyncio
 
 class GeminiChatbot(PyXavi):
     """
@@ -174,9 +175,10 @@ class GeminiChatbot(PyXavi):
                     try:
                         if retries > 0:
                             self._xlog.debug("Waiting " + str(delay_between_retries * retries) + " seconds (" + str(retries) + "/" + str(max_retries) + ") before retrying...")
-                            time.sleep(delay_between_retries * retries)
-                        
+                            await asyncio.sleep(delay_between_retries * retries)
+
                         response = await self._chat.send_message(question)
+                        # response = await self._query(question)
                         outcome = ChatbotResponse.from_response(response)
                         if outcome.error is not None:
                             # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?
@@ -321,3 +323,28 @@ class GeminiChatbot(PyXavi):
                         )
                         retries += 1
                 return outcome
+    
+    async def _query(self, question: str) -> dict:
+        
+        current_event_loop = None
+        response = None
+        try:
+            current_event_loop = asyncio.get_running_loop()
+            self._xlog.debug("There is already a running event loop in the main context")
+            if current_event_loop is not None:
+                if current_event_loop.is_running():
+                    self._xlog.debug("Current event loop is running, using it for the chatbot ask method")
+                else:
+                    self._xlog.debug("Current event loop is not running, creating a new one for the chatbot ask method")
+                    current_event_loop = asyncio.set_event_loop(asyncio.new_event_loop())
+        except RuntimeError:
+            self._xlog.debug("No running event loop in the main context, creating a new one for the chatbot ask method")
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            current_event_loop = asyncio.get_running_loop()
+
+        future = await current_event_loop.run_in_executor(None, self._chat.send_message, question)
+        result = await asyncio.gather(future)
+        if result is not None and len(result) > 0:
+            response = result[0]
+        
+        return response

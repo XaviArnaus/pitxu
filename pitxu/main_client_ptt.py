@@ -70,7 +70,7 @@ class MainClientPTT(PyXavi):
 
     VERBOSE_DEBUG: bool = True
 
-    def __init__(self, config: Config = None, params: Dictionary = None):
+    def __init__(self, config: Config = None, params: Dictionary = None, asyncio_runner: asyncio.Runner = None):
 
         super(MainClientPTT, self).init_pyxavi(config=config, params=params)
 
@@ -103,6 +103,9 @@ class MainClientPTT(PyXavi):
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
+
+        # We're being run under an asyncio.Runner, so we can get it from the parameters and use it in the classes that need it.
+        self._asyncio_runner = asyncio_runner
     
     def _handle_sigterm(self, sig, frame):
         """

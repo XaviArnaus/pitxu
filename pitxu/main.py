@@ -22,6 +22,7 @@ from pitxu.lib.microservice.server import Server
 import sys
 import sounddevice
 import time
+import asyncio
 from copy import deepcopy
 from datetime import datetime
 
@@ -42,6 +43,7 @@ class Main(PyXavi):
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _raw_input_stream: sounddevice.RawInputStream = None
+    _asyncio_runner: asyncio.Runner = None
 
     _is_pitxu_active: bool = True
 
@@ -67,7 +69,7 @@ class Main(PyXavi):
 
     VERBOSE_DEBUG: bool = True
 
-    def __init__(self, config: Config = None, params: Dictionary = None):
+    def __init__(self, config: Config = None, params: Dictionary = None, asyncio_runner: asyncio.Runner = None):
 
         super(Main, self).init_pyxavi(config=config, params=params)
 
@@ -103,6 +105,9 @@ class Main(PyXavi):
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
+
+        # We're being run under an asyncio.Runner, so we can get it from the parameters and use it in the classes that need it.
+        self._asyncio_runner = asyncio_runner
     
     def _handle_sigterm(self, sig, frame):
         """
@@ -191,6 +196,7 @@ class Main(PyXavi):
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
+            params.set("asyncio_runner", self._asyncio_runner)
             self._server = Server(config=self._xconfig, params=params)
             self._server.initialize()
         else:
