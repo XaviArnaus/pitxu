@@ -1,5 +1,3 @@
-import sched
-
 from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
 
 import signal
@@ -24,6 +22,8 @@ import sounddevice
 import time
 from datetime import datetime
 import asyncio
+import logging
+from apscheduler.schedulers.background import BackgroundScheduler
 
 class MainClientPTT(PyXavi):
 
@@ -48,7 +48,7 @@ class MainClientPTT(PyXavi):
     _interaction: Interaction = None
     _reactions: Reactions = None
 
-    _scheduler: sched.scheduler = None
+    _scheduler: BackgroundScheduler = None
     _maintenance: Maintenance = None
     _reminders: Reminders = None
 
@@ -67,6 +67,8 @@ class MainClientPTT(PyXavi):
     SPANISH: str = "es"
 
     PUSH_TO_TALK_BUTTON: str = "side"
+
+    SCHEDULER_LIB_LOGLEVEL = logging.WARNING
 
     VERBOSE_DEBUG: bool = True
 
@@ -103,6 +105,9 @@ class MainClientPTT(PyXavi):
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
+
+        # Dependencies lib's log level
+        self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.scheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
     
     def _handle_sigterm(self, sig, frame):
         """
@@ -212,6 +217,24 @@ class MainClientPTT(PyXavi):
             "input_stream": input_stream
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
+    
+    def _initialize_schedulers(self):
+        """
+        Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
+        """
+
+        self._xlog.info("Initialising Schedulers")
+
+        # self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
+        # self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
+        # self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
+        # self._scheduler.run(blocking=False)
+
+        self._scheduler = BackgroundScheduler()
+        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', minutes=1, args=[None])
+        self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+        self._scheduler.start()
 
     async def run(self):
 
@@ -494,16 +517,17 @@ class MainClientPTT(PyXavi):
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
                 self._interaction.show_init_phases(10, text="Schedulers")
-                self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
-                self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
-                self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
-                self._scheduler.run(blocking=False)
+                self._initialize_schedulers()
 
                 # Clean background after initialisation.
                 self._log_debug("Clearing displays after initialisation.")
                 self._interaction.clear_combined_display()
                 self._interaction.wait_for_all_queues_to_empty()
                 self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
+
+                # At this point, all initialisations are done.
+                # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
+                self._xlog.info("🟢 All initialisations done, entering idle state, waiting for interactions...")
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
                 signal.pause()
@@ -555,6 +579,9 @@ class MainClientPTT(PyXavi):
         # Reactivate the microphone because it keeps the state on shutdowns / reboots.
         # We never want it to be muted when starting.
         self._interaction.unmute_microphone()
+
+        # The scheduler contains a thread, so close it properly.
+        self._scheduler.shutdown()
 
         # Persist state
         self.persist_state()
