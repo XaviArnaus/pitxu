@@ -81,7 +81,8 @@ class Reactions(PyXavi):
         else:
             try:
 
-                chat_response = self.handle_answer_with_code_block(chat_response)
+                if chat_response.has_code():
+                    chat_response = self.handle_answer_with_code_block(chat_response)
             
             except Exception as e:
                 self._xlog.error("🛑 Error reacting to an answer: " + str(e))

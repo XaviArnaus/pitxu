@@ -38,6 +38,9 @@ class ChatbotResponse:
     def set_error(self, error: FinishReason):
         self.error = error
     
+    def has_code(self) -> bool:
+        return self.code is not None and len(self.code) > 0
+    
     def add_pair_to_function_call_history(self, pair: FunctionCallPair):
         self.function_call_history.add_pair(pair)
     
