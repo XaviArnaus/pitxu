@@ -6,7 +6,6 @@ from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 
 from flask import Flask, request, current_app
-import asyncio
 import base64
 import sys, logging
 
@@ -21,7 +20,6 @@ class Server(PyXavi, MicroserviceBase):
     chatbot = None
     chatbot_client_callbacks = None
     output_interaction = None
-    asyncio_runner = None
 
     VERBOSE_DEBUG: bool = True
     FLASK_LIB_LOG_LEVEL: int = logging.INFO
@@ -51,12 +49,6 @@ class Server(PyXavi, MicroserviceBase):
         self._log_debug("Setting Server log level to: " + str(self.FLASK_LIB_LOG_LEVEL))
         logging.getLogger("flask").setLevel(self.FLASK_LIB_LOG_LEVEL)
 
-        # Acquire the asytncio runner from the parameters, which should have been set in the initial Pitxu runner.
-        if params.key_exists("asyncio_runner"):
-            self.asyncio_runner = params.get("asyncio_runner")
-        else:
-            raise ValueError("Asyncio runner must be provided in params with key 'asyncio_runner'")
-
         self._log_debug("End of Server initialization")
     
     def initialize(self):
@@ -78,7 +70,6 @@ class Server(PyXavi, MicroserviceBase):
             self.server.config['chatbot'] = self.chatbot
             self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
             self.server.config['output_interaction'] = self.output_interaction
-            self.server.config['asyncio_runner'] = self.asyncio_runner
 
         # Start the server
         self.start_server()
@@ -308,7 +299,7 @@ class Server(PyXavi, MicroserviceBase):
 
         # Framework initialization.
         logger = current_app.config['logger']
-        asyncio_runner: asyncio.Runner = current_app.config["asyncio_runner"]
+        # asyncio_runner: asyncio.Runner = current_app.config["asyncio_runner"]
 
         question = request.json.get("question", None)
         logger.info(f"📥 Received /ask_chatbot request with question: {question}")
@@ -318,25 +309,7 @@ class Server(PyXavi, MicroserviceBase):
             # Feature initialization.
             chatbot: GeminiChatbot = current_app.config['chatbot']
 
-            # Set up of all the session context we need for the Chatbot and the MCP tools
-            # async with chatbot.get_session_manager() as chatbot_session_manager:
-
-            # The chatbot works in an async way, so we need to run it in an event loop.
-            # The problem is that we're reusing the one from the main thread.
-            # We should not really use a different instance, as the GPIOs and everything is already taking the resources.
-            # Let's try to get a new event loop and see if it works.
-            # asyncio.set_event_loop(asyncio.new_event_loop())
-
-            if asyncio_runner is None:
-                raise ValueError("Asyncio runner is not available in the server context, cannot run the chatbot ask method")
-            
-            loop = asyncio_runner.get_loop()
-            
-            if loop is not None:
-                chat_response: ChatbotResponse = await chatbot.ask_async(question)
-            else:
-                chat_response: ChatbotResponse = asyncio_runner.run(chatbot.ask_async(question))
-                # chat_response: ChatbotResponse = loop.run_until_complete(chatbot.ask_async(question))
+            chat_response: ChatbotResponse = await chatbot.ask_async(question)
             answer = chat_response.text if chat_response else None
 
             logger.debug(f"Returning response from chatbot: {answer}")

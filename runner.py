@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 import importlib.metadata
-import sounddevice
 import asyncio
 import logging
 import argparse
@@ -11,7 +10,6 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
-from pitxu.lib.utils.xtime import Xtime
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 
@@ -164,17 +162,15 @@ def run():
         if exec_mode in ["local", "public"]:
             from pitxu.main import Main
             logger.info("🚀 Starting in LOCAL execution mode")
-            with asyncio.Runner(debug=True) as runner:
-                main = Main(config=config, params=parameters, asyncio_runner=runner)
-                runner.run(main.run())
+            main = Main(config=config, params=parameters)
+            asyncio.run(main.run())
             logger.info("End of the Main run")
 
         elif exec_mode == "client":
             from pitxu.main_client_ptt import MainClientPTT
             logger.info("🚀 Starting in CLIENT execution mode")
-            with asyncio.Runner(debug=True) as runner:
-                main_client = MainClientPTT(config=config, params=parameters, asyncio_runner=runner)
-                runner.run(main_client.run())
+            main_client = MainClientPTT(config=config, params=parameters)
+            asyncio.run(main_client.run())
             logger.info("End of the Main Client run")
 
         elif exec_mode == "server":

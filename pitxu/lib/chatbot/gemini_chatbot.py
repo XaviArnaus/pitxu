@@ -155,7 +155,15 @@ class GeminiChatbot(PyXavi):
                 config=types.GenerateContentConfig(
                     system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
                     tools=tools,
-                    temperature=0.1
+                    temperature=0.1,
+                    # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
+                    #   or from the Asyncio library, when sending a chatbot message from the Flask server,
+                    #   only in the second request (the first goes through).
+                    # One explanation would be in how Flask manages asyncio calls (own thread that gets closed after request):
+                    #   https://flask.palletsprojects.com/en/stable/async-await/
+                    # The hack comes from here:
+                    #   https://stackoverflow.com/questions/78117476/event-loop-is-closed-in-flask-langchain-asyncio-app
+                    http_options=types.HttpOptions(headers={"Connection": "close"})
                 )
             )
         self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
@@ -178,7 +186,6 @@ class GeminiChatbot(PyXavi):
                             await asyncio.sleep(delay_between_retries * retries)
 
                         response = await self._chat.send_message(question)
-                        # response = await self._query(question)
                         outcome = ChatbotResponse.from_response(response)
                         if outcome.error is not None:
                             # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?
@@ -323,28 +330,3 @@ class GeminiChatbot(PyXavi):
                         )
                         retries += 1
                 return outcome
-    
-    async def _query(self, question: str) -> dict:
-        
-        current_event_loop = None
-        response = None
-        try:
-            current_event_loop = asyncio.get_running_loop()
-            self._xlog.debug("There is already a running event loop in the main context")
-            if current_event_loop is not None:
-                if current_event_loop.is_running():
-                    self._xlog.debug("Current event loop is running, using it for the chatbot ask method")
-                else:
-                    self._xlog.debug("Current event loop is not running, creating a new one for the chatbot ask method")
-                    current_event_loop = asyncio.set_event_loop(asyncio.new_event_loop())
-        except RuntimeError:
-            self._xlog.debug("No running event loop in the main context, creating a new one for the chatbot ask method")
-            asyncio.set_event_loop(asyncio.new_event_loop())
-            current_event_loop = asyncio.get_running_loop()
-
-        future = await current_event_loop.run_in_executor(None, self._chat.send_message, question)
-        result = await asyncio.gather(future)
-        if result is not None and len(result) > 0:
-            response = result[0]
-        
-        return response
