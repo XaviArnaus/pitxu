@@ -28,23 +28,6 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
 
         # ---------- common interaction actions ----------
         
-        # Clears the screen
-        if action == XprocAction.CLEAR:
-            self.clear()
-        
-        # Clears the screen using a partial white
-        if action == XprocAction.SOFT_CLEAR:
-            self.soft_clear()
-        
-        # Clears the background screen only
-        if action == XprocAction.LED_CLEAR or action == XprocAction.BACKGROUND_CLEAR:
-            self._log_debug("XprocessDisplayCombined: Clearing background screen only.")
-            self.clear_background()
-        
-        # Clears the foreground screen only
-        if action == XprocAction.EINK_CLEAR or action == XprocAction.FOREGROUND_CLEAR:
-            self.clear_foreground()
-        
         # Now we're not
         self._log_debug("XprocessDisplayCombined: Finished processing action, unsetting busy status.")
         self.unset_busy()

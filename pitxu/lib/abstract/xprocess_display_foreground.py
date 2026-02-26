@@ -72,11 +72,12 @@ class XprocessDisplayForeground(Xprocess):
                 self.show_error(text=text, for_seconds=for_seconds)
         
         # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
+        if action == XprocAction.CLEAR:
             self.clear()
         
         # Clears the foreground screen only
-        if action == XprocAction.EINK_CLEAR or action == XprocAction.FOREGROUND_CLEAR:
+        if action == XprocAction.FOREGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
+            self._log_debug("XprocessDisplayForeground: Clearing foreground screen only.")
             self.clear_foreground()
         
         # Clears the screen using a partial white

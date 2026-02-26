@@ -457,8 +457,6 @@ class Interaction(PyXavi):
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.CLEAR)
 
     def clear_background_display(self):
-        # TODO: This should be unified into a XprocAction.SOFT_CLEAR / XprocAction.CLEAR
-        # self.process_pool.send(self._get_active_background_display_queue(), XprocAction.LED_CLEAR)
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
     
     def clear_combined_display(self):

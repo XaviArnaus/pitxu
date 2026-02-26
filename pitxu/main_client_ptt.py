@@ -497,11 +497,10 @@ class MainClientPTT(PyXavi):
                 self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
                 self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
                 self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
-                self._scheduler.run()
+                self._scheduler.run(blocking=False)
 
                 # Clean background after initialisation.
-                # NOTE: I suspect double clear due to background & combined inheritance method execution.
-                #   Please check.
+                self._log_debug("Clearing displays after initialisation.")
                 self._interaction.clear_combined_display()
                 self._interaction.wait_for_all_queues_to_empty()
                 self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
