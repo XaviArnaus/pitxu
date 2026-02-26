@@ -1,10 +1,8 @@
-from subprocess import call
 import sched
 
 from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
 
 import signal
-from functools import partial
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
@@ -14,10 +12,11 @@ from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
-from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
+from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.gpio.buttons import Buttons
 
 import sys
@@ -45,6 +44,9 @@ class MainClientPTT(PyXavi):
     _execution_mode: str = "client"
 
     _chatbot_client_callbacks: dict[str, callable] = None
+
+    _interaction: Interaction = None
+    _reactions: Reactions = None
 
     _scheduler: sched.scheduler = None
     _maintenance: Maintenance = None
@@ -74,9 +76,6 @@ class MainClientPTT(PyXavi):
 
         # Handle SIGTERM for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_sigterm)
-
-        # Logger in params for other classes to use
-        # self._xparams.set("logger", self._xlog)
 
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
@@ -112,6 +111,9 @@ class MainClientPTT(PyXavi):
         This allows the service to stop gracefully when receiving a termination signal,
         that happens with systemctl stop or reboot commands.
         """
+
+        # TODO: Now that there is no loop, and there is a signal.pause() at the end of the run() method,
+        #   we should check if this handler is still needed, and if it works as expected.
         self._xlog.warning('SIGTERM received in MainClient, closing nicely now...')
         self.close_nicely()
     
@@ -195,6 +197,21 @@ class MainClientPTT(PyXavi):
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
+    
+    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+        """
+        Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
+        """
+
+        self._xlog.info("Initialising Reactions class")
+
+        params: Dictionary = Dictionary({
+            "interaction": self._interaction,
+            "client_callbacks": self._chatbot_client_callbacks,
+            "close_nicely_callback": self.close_nicely,
+            "input_stream": input_stream
+        })
+        self._reactions = Reactions(config=self._xconfig, params=params)
 
     async def run(self):
 
@@ -212,12 +229,6 @@ class MainClientPTT(PyXavi):
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
-
-        # At this point, we better wait for all queues to be empty.
-        # COMMENTED: Do we really need to wait for queues?
-        # UNCOMMENTED: Hunting some Race Condition that makes the last 0.5s of the TTS to be input in SST.
-        # self._interaction.wait_for_foreground_display_queue_to_empty()
-        # self._interaction.show_init_phases(3, text="Foreground Display Queue Empty")
 
         # Initialise the SpeechToText module,
         # that will be responsible for recognizing the audio and sending it to the server for transcription.
@@ -265,13 +276,16 @@ class MainClientPTT(PyXavi):
                 # Maybe the user wants to talk straight away without the trigger words.
                 self._last_interaction_datetime = datetime.now()
 
+                # Initialize the Reactions class
+                self._interaction.show_init_phases(8, text="Reactions")
+                self._initialize_reactions(input_stream=input_stream)
 
                 # The callback approach
                 # ---------------------
                 #
                 # The idea here is to set all callbacks for all actions, to avoid running a forever loop.
                 #
-                self._interaction.show_init_phases(8, text="PTT Callbacks")
+                self._interaction.show_init_phases(9, text="PTT Callbacks")
 
                 # Initialize the flags
                 # question = ""
@@ -279,8 +293,14 @@ class MainClientPTT(PyXavi):
                 answer_count = 0
                 recording_audio = False
 
-                # The callbacks are the actual loop iteration, happening when we want it to react (that's the button pressed/released).
-                # The old loop is the on_release() basically.
+                # The callbacks are the old loop iteration, happening when we want it to react (that's the button pressed/released for PTT).
+
+                # The actual idea was to have 2 different callbacks for the PPT button, one for the press and another for the release,
+                # But I was unable to make it work correctly with the gpiozero buttons callback support.
+                # I found that both were being called at the same time no matter what, so I ended it setting the same callback for both
+                # and checking the button state inside the callback to know if it's a press or a release.
+                # Also I did tests with the "when_held" besides "when pressed", and work as expected but still calls the callback 
+                # when pressing, repeating the call to the callback, and being then weak on the control.
 
                 def on_button_interact(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
 
@@ -288,46 +308,18 @@ class MainClientPTT(PyXavi):
                                     "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
                                     "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
 
-                    # is_pressed = False
-
-                    # if isinstance(button, str):
-                        
-                    # else:
-                    #     is_pressed = button.is_pressed
-
                     # Init.
                     question = ""
                     is_pressed = cls._buttons.is_pressed(button_name)
 
-                # def on_push_to_talk_pressed(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
-                    # cls._log_debug(f"🎙️ Button [{button_name}] pressed callback triggered. We were " +
-                    #                 ("recording audio." if flags.get("recording_audio", False) else "Not recording audio."))
-                    
-                    # if not isinstance(button, str) and button.is_pressed == False:
-                    #     cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is not actually pressed. Ignoring this callback execution.")
-                    #     return
-
                     if is_pressed and not flags.get("recording_audio", False):
 
-                    # if not flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
                         cls._interaction.unmute_microphone(input_stream=input_stream)
 
-                # def on_push_to_talk_released(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
-                    # cls._log_debug(f"🎙️ Button [{button_name}] released callback triggered. We were " +
-                    #                 ("recording audio." if flags.get("recording_audio", False) else "NOT recording audio."))
-                    
-                    # if not isinstance(button, str) and button.is_pressed == True:
-                    #     cls._log_debug(f"The callback for button [{button_name}] is triggered, but the button is still pressed. Ignoring this callback execution.")
-                    #     return
-
-                    # # Initialize the question that travels the flow
-                    # question = ""
-
                     if not is_pressed and flags.get("recording_audio", False):
                     
-                    # if flags.get("recording_audio", False):
                         cls._log_debug(f"🎙️ Stopping audio registration for button [{button_name}] release and starting recognition.")
                         flags["recording_audio"] = False
                         cls._interaction.mute_microphone(input_stream=input_stream)
@@ -429,7 +421,7 @@ class MainClientPTT(PyXavi):
                             #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
                             #       So the second time we may not be able to show the time on the screen, for example.
                             cls._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
-                            cls.react_on_answer(chat_response=chat_response, input_stream=input_stream)
+                            cls._reactions.react_on_answer(chat_response=chat_response)
                         except Exception as e:
                             cls._xlog.error("🛑 Error reacting to function call: " + str(e))
                         
@@ -464,6 +456,11 @@ class MainClientPTT(PyXavi):
                         # Last thing to do is to remember this as the last interaction.
                         # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                         cls._last_interaction_datetime = datetime.now()
+                    
+                    # Now that we spoke the answer, behave according to the exit intention of the text.
+                    if text_has_exit_intention:
+                        cls._xlog.info("Exit intention detected in the transcription, closing MainClientPTT nicely.")
+                        cls.close_nicely()
 
                 # Embedding the general flags into a var to be passed into the callbacks.
                 flags = {
@@ -471,24 +468,6 @@ class MainClientPTT(PyXavi):
                     "dictate_count": dictate_count,
                     "answer_count": answer_count,
                 }
-                # # Set the press callback for the Push To Talk button
-                # self._buttons.set_pressed_callback(
-                #     button_name=self.PUSH_TO_TALK_BUTTON, 
-                #     callback=on_push_to_talk_pressed, 
-                #     kargs={
-                #         "cls": self,
-                #         "button_name": self.PUSH_TO_TALK_BUTTON,
-                #         "flags": flags
-                #     })
-                # # Set the release callback for the Push To Talk button
-                # self._buttons.set_released_callback(
-                #     button_name=self.PUSH_TO_TALK_BUTTON, 
-                #     callback=on_push_to_talk_released, 
-                #     kargs={
-                #         "cls": self,
-                #         "button_name": self.PUSH_TO_TALK_BUTTON,
-                #         "flags": flags
-                #     })
 
                 # Set the press callback for the Push To Talk button
                 self._buttons.set_pressed_callback(
@@ -514,7 +493,7 @@ class MainClientPTT(PyXavi):
 
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
-                self._interaction.show_init_phases(9, text="Schedulers")
+                self._interaction.show_init_phases(10, text="Schedulers")
                 self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
                 self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
                 self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
@@ -531,332 +510,24 @@ class MainClientPTT(PyXavi):
                 signal.pause()
 
                 # Now that the pause has resumed, means that we are meant to close.
-                self.close_nicely()
+                # Make sure we leave the state properly
+                self._xlog.debug("🏁 Exit signal detected.")
+                self._interaction.unset_eink_idle_mode()
+                self._interaction.wait_for_foreground_display_queue_to_empty()
+                self._interaction.wait_for_busy_foreground_display_to_idle()
 
                 # --------- End of the callback approach ---------
 
-                # question = ""
-                # dictate_count = 0
-                # answer_count = 0
-                # recording_audio = False
-                # while(not self._text_has_exit_intention(question) and self._is_pitxu_active):
-
-                #     # Check the things to do every minute
-                #     # This includes reminders checking and speaking them out.
-                #     self.do_every_minute_tasks()
-
-                #     # Check the things to do every second
-                #     # This includes checking for interaction holding time
-                #     self.do_every_second_tasks()
-
-                #     # Show idle screen in eInk if not already showing it
-                #     # if not self._interaction.is_eink_in_idle_mode():
-                #     #     self._interaction.show_idle()
-
-                #     # The question gets a value when we transcribe successfully. Otherwise, should be always None.
-                #     question = None
-
-                #     # Check if the push to talk button is pressed to record the audio
-                #     sw_dictate = None
-                #     if self._buttons.is_pressed(self.PUSH_TO_TALK_BUTTON) and not recording_audio:
-                #         self._log_debug("🎙️ Push to talk button is pressed, registering audio.")
-                #         recording_audio = True
-                #         self._interaction.unmute_microphone(input_stream=input_stream)
-                    
-                #     # Check if the push to talk button is released to stop recording audio
-                #     if not self._buttons.is_pressed(self.PUSH_TO_TALK_BUTTON) and recording_audio:
-                #         self._log_debug("🎙️ Push to talk button is released, stopping audio registration and starting recognition.")
-                #         recording_audio = False
-                #         self._interaction.mute_microphone(input_stream=input_stream)
-                        
-                #         # Place some feedback to the user so that it knows that the audio has been registered and is being processed.
-                #         self._interaction.show_thinking()
-                #         self._interaction.set_chatbot_busy()
-
-                #         # Recognize what comes from the microphone
-                #         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
-                #         question = self._dictate.recognize()
-
-                #         # We have the answer, unset the busy state.
-                #         self._interaction.unset_chatbot_busy()
-
-                #         if question is None:
-                #             self._xlog.debug(f"🎙️ Nothing recognized")
-                                            
-                #     # If at this point we still not have a question, finish the iteration here and loop again.
-                #     if (question is None or (question is not None and question.strip() == "")):
-                #         # Nothing recognized, nothing to process.
-                #         continue
-
-                #     # Still here? Then something got recognised.
-                #     self._log_debug("💬 Recognised dictate: " + question)
-                #     if sw_dictate is not None:
-                #         self._xlog.debug("⏱️  Dictate " + str(dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-                #     else:
-                #         self._xlog.warning("🟠 Dictate " + str(dictate_count) + ": Stopwatch was not started for this dictate. That should not happen.")
-                #     dictate_count += 1
-
-                #     # Initialize the answer that collects until interaction.
-                #     answer = None
-
-                #     # Analyze the question to see what to do.
-                #     text_has_exit_intention = self._text_has_exit_intention(question)
-
-                #     # Avoid calling the Chatbot when we can exit directly.
-                #     if text_has_exit_intention:
-                #         # Just assume a goodbye
-                #         answer = self._goodbye_sentence
-
-                #     else:
-
-                #         # Here we start with the Chatbot.
-                #         # -------------------------------
-
-                #         # We set it as busy in shared memory, so the Background Display can show the thinking effect
-                #         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
-                #         #   to react on the busy flag changes and be displayed on time.
-                #         self._interaction.show_thinking()
-                #         # I am going to try to show the question while thinking.
-                #         # It may give some time to the LCD to show the previous called thinking effect.
-                #         self._interaction.show_arbitrary_text_on_foreground_while_thinking(
-                #             icon="👤",
-                #             text=question,
-                #             font_size=24,
-                #         )
-                #         self._interaction.wait_for_background_display_queue_to_empty()
-                #         self._interaction.set_chatbot_busy()
-                #         chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
-                #         self._interaction.unset_chatbot_busy()
-
-                #         try:
-                #             # We react on the answer received from the Chatbot, that may include function call responses and code blocks,
-                #             # or instructions for us to react, beyond the text to speak.
-                #             # For example, we may have to execute a Shutdown.
-                #             #
-                #             # Keep in mind that:
-                #             #   - repeating a question that involves a tool does not mean that in the second time the tool gets called.
-                #             #       It may just take the previous question and answer again.
-                #             #       There may not be a second function call response.
-                #             #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
-                #             #       So the second time we may not be able to show the time on the screen, for example.
-                #             self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
-                #             self.react_on_answer(chat_response=chat_response, input_stream=input_stream)
-                #         except Exception as e:
-                #             self._xlog.error("🛑 Error reacting to function call: " + str(e))
-                        
-                #         # Finally, this is the answer string that moves on.
-                #         answer = chat_response.text
-
-                #         # This waiting happens BEFORE we reached the answering phase with the interaction.say().
-                #         # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
-                #         # It will be waiting forever because the TTS has not started yet.
-                #         # - Commenting it out to see how it goes.
-                #         # - Uncommenting again because seems like the block happens in interaction.say() instead.
-                #         self._interaction.wait_for_foreground_display_queue_to_empty()
-
-                #     # Do we actually have any answer?
-                #     if answer is not None and answer.strip() != "":
-                    
-                #         # Clean the answer first, just in case
-                #         answer = Text.remove_emojis(answer)
-                #         answer = Text.remove_markdown(answer)
-                #         answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
-
-                #         # Answer
-                #         sw_answer = self._stopwatch.start(name="answer" + str(answer_count))
-                #         self._interaction.say(answer)
-                #         self._xlog.debug("⏱️  Answer " + str(answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                #         answer_count += 1
-
-                #         # If we were communicating an error, it's over and start new
-                #         if self._interaction.is_chatbot_error():
-                #             self._interaction.unset_chatbot_error()
-                        
-                #         # Last thing to do is to remember this as the last interaction.
-                #         # Has to happen at the very last otherwise the time is consumed by the possible answering process.
-                #         self._last_interaction_datetime = datetime.now()
-                
-                # # We arrived here because the user wanted to exit the main loop
-                # # Make sure we leave the state properly
-                # self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                # self._interaction.unset_eink_idle_mode()
-                # self._interaction.wait_for_foreground_display_queue_to_empty()
-                # self._interaction.wait_for_busy_foreground_display_to_idle()
-
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from MainClient")
-        except SpeechToTextException as ve:
-            self._xlog.error("🛑 SpeechToTextException detected in MainClient run loop: " + str(ve))
         except Exception as e:
             self._xlog.error("🛑 Error in MainClientPTT run loop: " + str(e))
             self._xlog.error(full_stack())  
         
-        # # However it happened, just close nicely.
-        # self.close_nicely()
+        # However it happened, just close nicely.
+        self.close_nicely()
 
     # ------------- End of the main method run() -------------
-    
-    def react_on_answer(self, chat_response: ChatbotResponse, input_stream: sounddevice.RawInputStream = None) -> None:
-        """
-        Reacts to the received answer beyond simply answering, like expressions, emotions, or actions.
-
-        Args:
-            chat_response (ChatbotResponse): The last response from the chatbot.
-        
-        Returns:
-            None
-        """
-
-        if chat_response is None or \
-                chat_response.function_call_history is None or \
-                chat_response.function_call_history.get_last() is None or \
-                not chat_response.function_call_history.get_last().has_response():
-            return None
-        
-
-        # --- Code to react on function call ---
-
-        # The idea here is to be able to use the hardware as part of the response, like moving eyes,
-        #   or showing the hour in the Display if asked for the time...
-        #
-        # More importantly, this is the way to perform a proper close_nicely(), besides just
-        #   shutting down or rebooting the system without caring.
-        # For this last point to happen, we need to control the answer of the tool, give something
-        #   specific to search for here.
-
-        try:
-            function_call_pair: FunctionCallPair = chat_response.function_call_history.get_last()
-            if function_call_pair.has_response():
-                self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
-                
-                # We must start by the specifics. If none of them match, we go to the generic error handling.
-                if function_call_pair.function_name == "error":
-                    self._xlog.debug("🚨  Showing the ERROR in the eInk")
-
-                    self._interaction.unset_eink_idle_mode()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                        icon="🚨",
-                        text=function_call_pair.function_response.response.get("result", "unknown"),
-                        font_size=Canvas.FONT_SIZE_BIG)
-
-                elif function_call_pair.function_name == "shutdown_local_machine":
-                    self._xlog.debug("💤 Preparing for shutdown...")
-                    self.close_nicely(avoid_final_exit=True)
-                    try:
-                        self._log_debug("Calling system shutdown now...")
-                        call("sudo nohup shutdown -h now", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during shutdown: {e}")
-                elif function_call_pair.function_name == "reboot_local_machine":
-                    self._xlog.debug("♻️  Preparing for reboot...")
-                    self.close_nicely(avoid_final_exit=True)
-                    try:
-                        self._log_debug("Calling system shutdown now...")
-                        call("sudo nohup reboot", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during reboot: {e}")
-                elif function_call_pair.function_name == "restart_system":
-                    self._xlog.debug("🔄 Preparing to restart system...")
-                    self.close_nicely()
-                elif function_call_pair.function_name == "change_system_language":
-                    self._xlog.debug("🌐 Preparing to change system language...")
-                    result = function_call_pair.function_response.response.get("result", False)
-                    intended_language = function_call_pair.function_call.arguments.get("new_language", "unknown")
-
-                    if isinstance(result, bool) and result is False:
-                        # This means that the language change failed internally. Most likely because we could not understand
-                        # the requested language or it is not supported.
-                        result = self._xconfig.get(f"language.language_not_supported.{self._xparams.get('language')}") % intended_language
-
-                    if isinstance(result, str) and result not in self._supported_languages:
-                        # This means that the result of the function returned anything but a supported language.
-                        # Most likely is an error string. Simply let it say it.
-                        self._xlog.debug("🚨 Showing the ERROR in the eInk")
-
-                        self._interaction.unset_eink_idle_mode()
-                        self._interaction.wait_for_foreground_display_queue_to_empty()
-                        self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                        self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                            icon="🚨",
-                            text=result,
-                            font_size=Canvas.FONT_SIZE_BIG)
-
-                    else:
-                        # We have here the new desired language code.
-                        try:
-                            # The very first thing is to set the language in the app's state.
-                            self._state.set("language", result)
-                            self._state.write_file()
-                            self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
-
-                            # If we close the app now, the micrphone is still muted, and gets conserved.
-                            self._interaction.unmute_microphone(input_stream=input_stream)
-
-                            # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
-                            self.close_nicely()
-                            self._xlog.info("🌐 Exiting with code 42 to indicate language change")
-                            # Feels like does not really exit, as logs show that afterwards it tries to unmute the microphone.
-                            # Trying now to change from exit(42) to sys.exit(42)
-                            sys.exit(42)
-                        except Exception as e:
-                            self._xlog.error(f"🛑 Failed to change system language to '{result}': {e}")
-
-                    # Whatever we did, reactivate the microphone
-                    # Note that for changing the language, we unmuted first and then exit, so in this case it should not hit here.
-                    self._interaction.unmute_microphone(input_stream=input_stream)
-                
-                # Here we can parse the function response and act accordingly
-                # For example, if the function call is to get the current time, we can display it on an eInk screen
-                elif function_call_pair.function_name in self._chatbot_client_callbacks.keys():
-                    # Generic callback execution for other functions that have a defined callback
-
-                    value = function_call_pair.function_response.response.get("result", "unknown")
-                    args = function_call_pair.function_call.arguments
-                    self._xlog.debug("📺 Executing callback with value: " + str(value))
-                    self._interaction.unset_eink_idle_mode()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                    # Here we call the callback from within the command, passing the context of `main._interaction` and the value
-                    # Whatever happens, it's done there inside.
-                    partial(
-                        self._chatbot_client_callbacks[function_call_pair.function_name],
-                        self._xlog,
-                        self._interaction,
-                        value,
-                        args
-                    )()
-            
-                # We should finish here. I didn't study yet cases when we have function calls AND anything else below.
-                return
-
-        except Exception as e:
-            self._xlog.error("🛑 Error reacting to function call: " + str(e))
-            self._xlog.debug(full_stack())
-        
-        # --- Code to react on chat_response more globally ---
-
-        # The idea here is to cover answers that do not trigger a function call.
-        # Lot of times is due to the chatbot repeating an answer, like "can you show me that code block again?"
-        #   It simply picks it back from his history, but we still want to react on the answer.
-
-        try:
-            if chat_response.code is not None:
-                self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
-                self._interaction.show_code_block_on_foreground(
-                    code=chat_response.code[0],
-                    for_seconds=10.0)
-                # Sometimes it answers with code but no text, so we make it more human:
-                if chat_response.text.strip() == "":
-                    chat_response.text = self._xconfig.get("language.code.empty_answer_with_code." + self._xparams.get("language"))
-
-        except Exception as e:
-            self._xlog.error("🛑 Error reacting to code block in answer: " + str(e))
-            self._xlog.debug(full_stack())
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
