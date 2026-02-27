@@ -89,6 +89,9 @@ class Vosk(PyXavi):
             elif self.is_active and self._queue is not None:
                 data = self._queue.get()
                 recognize_outcome = self.process_audio_chunk(data)
+                recognize_final_outcome = self.process_remaining_vosk()
+                if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
+                    recognize_outcome["final"] = recognize_final_outcome["final"]
                 # Since Vosk can return both partial and final results, for normal "local" Pitxu
                 #   we completely ignore the partial.
                 if recognize_outcome.get("result") is not None:
@@ -130,20 +133,35 @@ class Vosk(PyXavi):
                 self._xlog.debug(f"Vosk: Recognized text: [{result_text}]")
                 outcome["result"] = result_text
 
-            if self._recognizer.FinalResult():
-                result = json.loads(self._recognizer.FinalResult())
-                result_text = str(result["text"]).replace("\n", "").strip()
-                if result_text == "":
-                    outcome["final"] = None
-                else:
-                    self._xlog.debug(f"Vosk: Final recognized text: [{result_text}]")
-                    outcome["final"] = result_text
+            # if self._recognizer.FinalResult():
+            #     result = json.loads(self._recognizer.FinalResult())
+            #     result_text = str(result["text"]).replace("\n", "").strip()
+            #     if result_text == "":
+            #         outcome["final"] = None
+            #     else:
+            #         self._xlog.debug(f"Vosk: Final recognized text: [{result_text}]")
+            #         outcome["final"] = result_text
             
         else:
             result = json.loads(self._recognizer.PartialResult())
             outcome["partial"] = str(result["partial"]).replace("\n", "").strip()
 
         return outcome
+    
+    def process_remaining_vosk(self) -> str | None:
+        outcome = {
+            "result": None,
+            "partial": None,
+            "final": None
+        }
+        if self._recognizer.FinalResult():
+            result = json.loads(self._recognizer.FinalResult())
+            result_text = str(result["text"]).replace("\n", "").strip()
+            if result_text == "":
+                outcome["final"] = None
+            else:
+                self._xlog.debug(f"Vosk: Final recognized text: [{result_text}]")
+                outcome["final"] = result_text
     
     def reset_result(self):
         """

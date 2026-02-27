@@ -219,19 +219,33 @@ class Server(PyXavi, MicroserviceBase):
             # Process the audio data and get the transcription.
             # This is a loop where we pop chunks of the audio data and send them to the STT engine.
             logger.debug(f"Processing audio data of {audio_data_length} bytes in frames of {bytes_per_chunk} bytes")
-            transcribed = None
+            transcribed = []
             counter = 0
             while len(audio_data) > 0:
                 chunk = audio_data[:bytes_per_chunk]
                 audio_data = audio_data[bytes_per_chunk:]
 
                 logger.debug(f"Processing chunk of {len(chunk)} bytes, remaining audio data length: {len(audio_data)} bytes")
-                transcribed = stt.process_audio_chunk(chunk)
+                chunk_transcribed = stt.process_audio_chunk(chunk)
+                if chunk_transcribed is not None and "result" in chunk_transcribed and chunk_transcribed["result"] is not None:
+                    transcribed.append(chunk_transcribed)
 
                 counter += 1
             
+            # Process any remaining audio in Vosk
+            remaining_transcribed = stt.process_remaining_vosk()
+            if remaining_transcribed is not None and "final" in remaining_transcribed and remaining_transcribed["final"] is not None:
+                transcribed.append(remaining_transcribed)
+            
+            # Now merge all the transcribed chunks into a single transcription result.
+            transcribed_completed = {
+                "result": " ".join([t["result"] for t in transcribed if t.get("result", None) is not None]),
+                "partial": " ".join([t["partial"] for t in transcribed if t.get("partial", None) is not None]),
+                "final": " ".join([t["final"] for t in transcribed if t.get("final", None) is not None])
+            }
+
             # It's not normal to not receive anything.
-            if transcribed is None:
+            if transcribed_completed is None:
                 logger.warning("🟠 No transcription result returned.")
                 return {
                     "status": "ko",
@@ -242,22 +256,23 @@ class Server(PyXavi, MicroserviceBase):
                 }
             
             # Build the transcription to be returned.
-            transcription = transcribed["result"]
-            if transcribed["final"] is not None and len(transcribed["final"]) > 0:
+            transcription = transcribed_completed["result"]
+            if transcribed_completed["final"] is not None and len(transcribed_completed["final"]) > 0:
                 if transcription is None:
-                    transcription = transcribed["final"]
+                    transcription = transcribed_completed["final"]
                 else:
-                    transcription = transcription + " " + transcribed["final"]
+                    transcription = transcription + " " + transcribed_completed["final"]
 
             # We may not have a result, but we may have a partial. Just use it.
-            if transcription is None and transcribed["partial"] is not None and len(transcribed["partial"]) > 0:
+            if transcription is None and transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
                 logger.warning("🟠 No final transcription result returned, but we have a partial result. Returning the partial as the result.")
-                transcription = transcribed["partial"]
+                transcription = transcribed_completed["partial"]
 
             # Log me baby
-            logger.debug(f"✏️ Transcription result: {transcribed.get('result', None)}")
-            logger.debug(f"✏️   Partial transcription: {transcribed.get('partial', None)}")
-            logger.debug(f"✏️   Final transcription: {transcribed.get('final', None)}")
+            logger.debug(f"✏️ Transcription: {transcription}")
+            logger.debug(f"✏️   Transcribed Result: {transcribed_completed.get('result', None)}")
+            logger.debug(f"✏️   Transcribed Partial: {transcribed_completed.get('partial', None)}")
+            logger.debug(f"✏️   Transcribed Final: {transcribed_completed.get('final', None)}")
 
             # Vosk holds whatever is in the current Result object. We need to clean it at the end of the transcription
             #   to avoid having old transcriptions in the next calls.
