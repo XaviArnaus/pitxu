@@ -248,7 +248,7 @@ class Server(PyXavi, MicroserviceBase):
             if remaining_transcribed is not None and "final" in remaining_transcribed and remaining_transcribed["final"] is not None:
                 transcribed["final"].append(remaining_transcribed["final"])
             
-            # dd(transcribed)
+            dd(transcribed)
             
             # Now merge all the transcribed chunks into a single transcription result.
             transcribed_completed = {
@@ -257,7 +257,7 @@ class Server(PyXavi, MicroserviceBase):
                 "partial": " ".join(list(dict.fromkeys(transcribed["partial"]))) if len(transcribed["partial"]) > 0 else None,
                 "final": " ".join(transcribed["final"]) if len(transcribed["final"]) > 0 else None
             }
-            # dd(transcribed_completed)
+            dd(transcribed_completed)
 
             # It's not normal to not receive anything.
             if transcribed_completed is None:
