@@ -78,168 +78,15 @@ class MainClientPTT(PyXavi):
         super(MainClientPTT, self).init_pyxavi(config=config, params=params)
 
         # Handle SIGTERM for graceful shutdown
-        signal.signal(signal.SIGTERM, self._handle_sigterm)
+        # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
+        #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
+        #   that we catch in the run() method and call close_nicely().
+        # signal.signal(signal.SIGTERM, self._handle_sigterm)
 
-        # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
-
-        # Initial Language. 1st from the state, then from the config, and last default to Catalan.
-        language = self._state.get("language", config.get("app.default_language", self.CATALAN))
-        self._xparams.set("language", language)
-
-        # Initialize Maintenance utility
-        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
-
-        # Supported Languages
-        self._supported_languages = config.get("app.supported_languages")
-
-        # Check and complain if the initial language is not supported
-        if self._xparams.get("language") not in self._supported_languages:
-            self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")
-            self._xlog.error("🛑 Please change the initial language in the state file or the default language in the config file to one of the supported languages.")
-            self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
-            self._xlog.error("🛑 Exiting now.")
-            sys.exit(1)
-
-        # The Reminders functionality
-        self._reminders = Reminders(config=self._xconfig, params=self._xparams)
-
-        # Stopwatch to measure times
-        self._stopwatch = Stopwatch()
-
-        # Dependencies lib's log level
-        self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.scheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
-        self.TZLOCAL_LIB_LOGLEVEL = self._xconfig.get("libs_logger.tzlocal.loglevel", self.TZLOCAL_LIB_LOGLEVEL)
-
-    def _handle_sigterm(self, sig, frame):
-        """
-        Handle SIGTERM signal
-
-        This allows the service to stop gracefully when receiving a termination signal,
-        that happens with systemctl stop or reboot commands.
-        """
-
-        # TODO: Now that there is no loop, and there is a signal.pause() at the end of the run() method,
-        #   we should check if this handler is still needed, and if it works as expected.
-        self._xlog.warning('SIGTERM received in MainClient, closing nicely now...')
-        self.close_nicely()
+        # Prepare the instance.
+        # The big part of the initializations are done in run() as part of "the run"
+        self._instantiate()   
     
-    def _initialize_speech_to_text(self):
-        """
-        Initializes the Speech-to-Text module that will call the server to transcribe the audio.
-        """
-
-        self._dictate = SpeechToText(config=self._xconfig, params=self._xparams)
-        self._dictate.initialize()
-
-    async def _initialize_chatbot(self):
-        """
-        Initializes the Generic Chatbot and the Session Manager and gathers the callbacks definition.
-        that manages the session context for the Chatbot and the MCP tools.
-
-        The idea is that we don't need the Chatbot,
-        but it returns answers that may involve tools that we want to react on.
-        """
-        self._chatbot = GenericChatbot(config=self._xconfig, params=self._xparams)
-        self._chatbot.initialize()
-
-        chatbot_session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
-        await chatbot_session_manager.initialize()
-        self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
-    
-    def _initialize_buttons(self):
-        """
-        Initializes the Buttons module that will manage the physical buttons.
-        """
-        self._buttons = Buttons(config=self._xconfig, params=self._xparams)
-        self._buttons.initialize_buttons()
-
-        if self._buttons.buttons is not None and len(self._buttons.buttons) > 0:
-            button_names = list(self._buttons.buttons.keys())
-            self._xlog.info(f"Initialized buttons: {button_names}")
-
-            if self.PUSH_TO_TALK_BUTTON not in button_names:
-                self._xlog.warning(f"🟠 Push to talk button '{self.PUSH_TO_TALK_BUTTON}' not found in initialized buttons: {button_names}. " +
-                                   f"Assigning Push To Talk functionality to the first button in the list: {button_names[0]}")
-                self.PUSH_TO_TALK_BUTTON = button_names[0]
-        else:
-            self._xlog.error("No buttons initialized. Push to Talk functionality will not be available. Closing.")
-            self.close_nicely(avoid_final_exit=False)
-
-    def _load_language_statics(self):
-
-        # Load the greeting sentence
-        self._xlog.debug("Load Greeting with language [" + self._xparams.get("language") + "]")
-        self._greeting_sentence = self._xconfig.get("language.greeting." + self._xparams.get("language"))
-
-        # Load the goodbye sentence
-        self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
-        self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
-
-        # Load trigger words
-        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
-        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
-
-        # Load trigger answers
-        self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
-        self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
-
-        # Compile exit words
-        all_possible_exit_words = []
-        for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
-            for word in exit_words:
-                if word not in all_possible_exit_words:
-                    all_possible_exit_words.append(word)
-        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
-        self._exit_words = all_possible_exit_words
-    
-    def _initialize_interactions(self):
-        """
-        Initialisation of the Interaction class, that manages output (TTS and displays)
-        """
-
-        self._xlog.info("Initialising Interaction class")
-        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
-
-        # We start with the microphone muted.
-        # At this point we don't have the Input Stream yet, just making sure that we start muted.
-        self._interaction.mute_microphone()
-    
-    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
-        """
-        Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
-        """
-
-        self._xlog.info("Initialising Reactions class")
-
-        params: Dictionary = Dictionary({
-            "interaction": self._interaction,
-            "client_callbacks": self._chatbot_client_callbacks,
-            "close_nicely_callback": self.close_nicely,
-            "input_stream": input_stream
-        })
-        self._reactions = Reactions(config=self._xconfig, params=params)
-    
-    def _initialize_schedulers(self):
-        """
-        Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
-        """
-
-        self._xlog.info("Initialising Schedulers")
-
-        # self._scheduler = sched.scheduler(timefunc=time.time, delayfunc=time.sleep)
-        # self._scheduler.enter(60.0, 1, self.do_every_minute_tasks)
-        # self._scheduler.enter(1.0, 1, self.do_every_second_tasks)
-        # self._scheduler.run(blocking=False)
-
-        self._scheduler = BackgroundScheduler()
-        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
-        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
-        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', minutes=1, args=[None])
-        # At the moment, we don't need to run tasks every second.
-        # self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
-        self._scheduler.start()
-
     async def run(self):
 
         sw_init = self._stopwatch.start(name="init")
@@ -252,10 +99,6 @@ class MainClientPTT(PyXavi):
         self._initialize_interactions()
         # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
         self._interaction.show_init_phases(1, text="💬 Interactions")
-
-        # Startup splash. It should be understood as a "Loading..." screen.
-        # We set it for 4s, but it may be overridden by the display config block for the related display.
-        # self._interaction.startup_splash(for_seconds=4.0)
 
         # Initialise the SpeechToText module,
         # that will be responsible for recognizing the audio and sending it to the server for transcription.
@@ -315,7 +158,6 @@ class MainClientPTT(PyXavi):
                 self._interaction.show_init_phases(9, text="↩️  PTT Callbacks")
 
                 # Initialize the flags
-                # question = ""
                 dictate_count = 0
                 answer_count = 0
                 recording_audio = False
@@ -344,10 +186,12 @@ class MainClientPTT(PyXavi):
                         cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered, but was a misfire. Ignoring")
                         return
 
+                    # Now comes the real callback logic involving the buttons and the recording state.
                     cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
                                     "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
                                     "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
 
+                    # Here we want to start recording the audio
                     if is_pressed and not flags.get("recording_audio", False):
 
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
@@ -361,6 +205,8 @@ class MainClientPTT(PyXavi):
                             color=cls._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
                         cls._interaction.wait_for_foreground_display_queue_to_empty()
 
+                    # Here we want to stop recording and start the interaction pipeline:
+                    #   Transcribe > Chatbot > Tools / React > Answer / Show > Wait for next interaction.
                     if not is_pressed and flags.get("recording_audio", False):
                     
                         cls._log_debug(f"🎙️ Stopping audio registration for button [{button_name}] release and starting recognition.")
@@ -579,6 +425,171 @@ class MainClientPTT(PyXavi):
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
+    
+    # ------------ Initializations and closings -------------
+
+    def _instantiate(self):
+        """
+        The initialization of the MainClientPTT itself, what you would include in __init__()
+        """
+        # Initialize State
+        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+
+        # Initial Language. 1st from the state, then from the config, and last default to Catalan.
+        language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
+        self._xparams.set("language", language)
+
+        # Initialize Maintenance utility
+        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
+
+        # Supported Languages
+        self._supported_languages = self._xconfig.get("app.supported_languages")
+
+        # Check and complain if the initial language is not supported
+        if self._xparams.get("language") not in self._supported_languages:
+            self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")
+            self._xlog.error("🛑 Please change the initial language in the state file or the default language in the config file to one of the supported languages.")
+            self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
+            self._xlog.error("🛑 Exiting now.")
+            sys.exit(1)
+
+        # The Reminders functionality
+        self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+
+        # Stopwatch to measure times
+        self._stopwatch = Stopwatch()
+
+        # Dependencies lib's log level
+        self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.scheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
+        self.TZLOCAL_LIB_LOGLEVEL = self._xconfig.get("libs_logger.tzlocal.loglevel", self.TZLOCAL_LIB_LOGLEVEL)
+
+
+    # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
+    #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
+    #   that we catch in the run() method and call close_nicely().
+    # def _handle_sigterm(self, sig, frame):
+    #     """
+    #     Handle SIGTERM signal
+
+    #     This allows the service to stop gracefully when receiving a termination signal,
+    #     that happens with systemctl stop or reboot commands.
+    #     """
+
+    #     # TODO: Now that there is no loop, and there is a signal.pause() at the end of the run() method,
+    #     #   we should check if this handler is still needed, and if it works as expected.
+    #     self._xlog.warning('SIGTERM received in MainClient, closing nicely now...')
+    #     self.close_nicely()
+    
+    def _initialize_speech_to_text(self):
+        """
+        Initializes the Speech-to-Text module that will call the server to transcribe the audio.
+        """
+
+        self._dictate = SpeechToText(config=self._xconfig, params=self._xparams)
+        self._dictate.initialize()
+
+    async def _initialize_chatbot(self):
+        """
+        Initializes the Generic Chatbot and the Session Manager and gathers the callbacks definition.
+        that manages the session context for the Chatbot and the MCP tools.
+
+        The idea is that we don't need the Chatbot,
+        but it returns answers that may involve tools that we want to react on.
+        """
+        self._chatbot = GenericChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot.initialize()
+
+        chatbot_session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
+        await chatbot_session_manager.initialize()
+        self._chatbot_client_callbacks = chatbot_session_manager.get_client_callbacks_by_function_name()
+    
+    def _initialize_buttons(self):
+        """
+        Initializes the Buttons module that will manage the physical buttons.
+        """
+        self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+        self._buttons.initialize_buttons()
+
+        if self._buttons.buttons is not None and len(self._buttons.buttons) > 0:
+            button_names = list(self._buttons.buttons.keys())
+            self._xlog.info(f"Initialized buttons: {button_names}")
+
+            if self.PUSH_TO_TALK_BUTTON not in button_names:
+                self._xlog.warning(f"🟠 Push to talk button '{self.PUSH_TO_TALK_BUTTON}' not found in initialized buttons: {button_names}. " +
+                                   f"Assigning Push To Talk functionality to the first button in the list: {button_names[0]}")
+                self.PUSH_TO_TALK_BUTTON = button_names[0]
+        else:
+            self._xlog.error("No buttons initialized. Push to Talk functionality will not be available. Closing.")
+            self.close_nicely(avoid_final_exit=False)
+
+    def _load_language_statics(self):
+
+        # Load the greeting sentence
+        self._xlog.debug("Load Greeting with language [" + self._xparams.get("language") + "]")
+        self._greeting_sentence = self._xconfig.get("language.greeting." + self._xparams.get("language"))
+
+        # Load the goodbye sentence
+        self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
+        self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
+
+        # Load trigger words
+        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
+        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
+
+        # Load trigger answers
+        self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
+        self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
+
+        # Compile exit words
+        all_possible_exit_words = []
+        for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
+            for word in exit_words:
+                if word not in all_possible_exit_words:
+                    all_possible_exit_words.append(word)
+        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._exit_words = all_possible_exit_words
+    
+    def _initialize_interactions(self):
+        """
+        Initialisation of the Interaction class, that manages output (TTS and displays)
+        """
+
+        self._xlog.info("Initialising Interaction class")
+        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
+
+        # We start with the microphone muted.
+        # At this point we don't have the Input Stream yet, just making sure that we start muted.
+        self._interaction.mute_microphone()
+    
+    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+        """
+        Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
+        """
+
+        self._xlog.info("Initialising Reactions class")
+
+        params: Dictionary = Dictionary({
+            "interaction": self._interaction,
+            "client_callbacks": self._chatbot_client_callbacks,
+            "close_nicely_callback": self.close_nicely,
+            "input_stream": input_stream
+        })
+        self._reactions = Reactions(config=self._xconfig, params=params)
+    
+    def _initialize_schedulers(self):
+        """
+        Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
+        """
+
+        self._xlog.info("Initialising Schedulers")
+
+        self._scheduler = BackgroundScheduler()
+        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
+        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', minutes=1, args=[None])
+        # At the moment, we don't need to run tasks every second.
+        # self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+        self._scheduler.start()
     
     def close_nicely(self, avoid_final_exit=False):
         """

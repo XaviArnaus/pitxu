@@ -277,9 +277,16 @@ class Server(PyXavi, MicroserviceBase):
                     transcription = transcription + " " + transcribed_completed["final"]
 
             # We may not have a result, but we may have a partial. Just use it.
-            if transcription is None and transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
-                logger.warning("🟠 No final transcription result returned, but we have a partial result. Returning the partial as the result.")
-                transcription = transcribed_completed["partial"]
+            # if transcription is None and transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
+
+            # If we have anything in Partial, means that even Vosk does not consider it a result, it contains recognized text that
+            #   otherwise we'd loose. Append it to the current transcription.
+            if transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
+                logger.warning("🟠 Remaining partial to be appended to the transcription!")
+                if transcription is None:
+                    transcription = transcribed_completed["partial"]
+                else:
+                    transcription = transcription + " " + transcribed_completed["partial"]
 
             # Log me baby
             logger.debug(f"✏️ Transcription: {transcription}")
