@@ -220,7 +220,7 @@ class Server(PyXavi, MicroserviceBase):
             transcribed = []
             transcribed = {
                 "result": [],
-                "partial": [],
+                "partial": "",
                 "final": []
             }
             counter = 0
@@ -235,7 +235,8 @@ class Server(PyXavi, MicroserviceBase):
                     if chunk_transcribed.get("result", None) is not None:
                         transcribed["result"].append(chunk_transcribed["result"])
                     if chunk_transcribed.get("partial", None) is not None:
-                        transcribed["partial"].append(chunk_transcribed["partial"])
+                        # Partials are accummulative. Do not pile them up.
+                        transcribed["partial"] = chunk_transcribed["partial"]
                     if chunk_transcribed.get("final", None) is not None:
                         transcribed["final"].append(chunk_transcribed["final"])
 
@@ -251,8 +252,7 @@ class Server(PyXavi, MicroserviceBase):
             # Now merge all the transcribed chunks into a single transcription result.
             transcribed_completed = {
                 "result": " ".join(transcribed["result"]) if len(transcribed["result"]) > 0 else None,
-                # The list(dict.fromkeys(...)) is a trick to remove duplicates while preserving order
-                "partial": " ".join(list(dict.fromkeys(transcribed["partial"]))) if len(transcribed["partial"]) > 0 else None,
+                "partial": transcribed["partial"] if len(transcribed["partial"]) > 0 else None,
                 "final": " ".join(transcribed["final"]) if len(transcribed["final"]) > 0 else None
             }
             dd(transcribed_completed)
