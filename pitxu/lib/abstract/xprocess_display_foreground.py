@@ -83,6 +83,16 @@ class XprocessDisplayForeground(Xprocess):
         # Clears the screen using a partial white
         if action == XprocAction.SOFT_CLEAR:
             self.soft_clear()
+        
+        # Now see if we need to do any extended action for the given action.
+        self.extended_foreground_run(config, logger, action, param)
+    
+    def extended_foreground_run(self, config: Config, logger: logging, action: XprocAction, param: any):
+        """
+        This is called from _run_foreground_interaction(), allowing for child classes
+        to easily extend the actions they manage without needing to override the whole method.
+        """
+        pass
     
     # ------- Common functions ---------
     

@@ -1,6 +1,7 @@
 from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
 from definitions import ROOT_DIR
 
@@ -8,10 +9,23 @@ import time, json, os
 
 class Test(PyXavi):
 
+    shared_memory: SharedMemoryManager = None
+
     VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Test, self).init_pyxavi(config=config, params=params)
+
+        # The majority of the tests, in case they use shared memory, they expect
+        # to find it already initialised, so we need to do it here in the init of the Test class.
+        self.shared_memory = SharedMemoryManager(config=config, params=params)
+        self.shared_memory.initialize_new_shared_memory_flags()
+    
+    def close(self):
+
+        # Cleaning up the shared memory, just in case.
+        if self.shared_memory is not None:
+            self.shared_memory.cleanup_shared_memory_flags()
     
     # -------- The tests themselves --------
 
@@ -140,7 +154,79 @@ class Test(PyXavi):
         except RuntimeError as e:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
-            print(full_stack()) 
+            print(full_stack())
+    
+    def test_client_startup_phase(self):
+        try:
+            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.objects.point import Point
+
+            MODE_IN_USE = "paint" # Valid values: "paint", "direct"
+
+            expected_screen_size = Point(280, 240)
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing the Startup with Phase")
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": expected_screen_size,
+                "device_config_prefix": "lcd"
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
+            self._xparams.set("macros", macros)
+            
+            if MODE_IN_USE == "direct":
+                self._xlog.debug("Using direct mode")
+                # Direct mode, no painter
+                for i in range(0,3):
+                    self._xlog.debug(f"Drawing phase {i}...")
+                    draw = canvas.get_canvas()
+                    macros.draw_foreground_init_phase(draw=draw, parameter={
+                        "phase": i,
+                        "text": f"Phase {i}"
+                    })
+                    device.display(canvas.get_image())
+                    time.sleep(2)
+            else:
+                from pitxu.lib.canvas.painter import Painter
+                from pitxu.lib.canvas.paint_objects import StartupWithPhaseForegroundPaint
+
+                painter = Painter(config=self._xconfig, params=self._xparams)
+
+                self._xlog.debug("Using painter mode")
+                # Painter mode
+
+                # Setting what to show and start the painting loop
+                for i in range(0,3):
+                    self._xlog.debug(f"Drawing phase {i}...")
+                    painter.just_paint(foreground_interaction=StartupWithPhaseForegroundPaint(
+                        name=f"StartupWithPhaseForegroundPaint-{i}", 
+                        parameter={
+                        "phase": i,
+                        "text": f"Phase {i}"
+                        }
+                    ))
+                    time.sleep(2)
+
+                # Reached here? Stop the painting
+                painter.stop()
+
+                # We could have done a close, that stops and cleans up.
+                painter.close()
+
+            # Clear screen
+            device.clear()
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())
 
     def test_mouth_in_lcd(self):
         try:

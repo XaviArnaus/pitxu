@@ -54,6 +54,16 @@ class XprocessDisplayBackground(Xprocess):
             step = int(step)
             # For now, just show the step number as a message
             self.init_phase(step, text)
+        
+        # Now see if we need to do any extended action for the given action.
+        self.extended_background_run(config, logger, action, param)
+    
+    def extended_background_run(self, config: Config, logger: logging, action: XprocAction, param: any):
+        """
+        This is called from _run_background_interaction(), allowing for child classes
+        to easily extend the actions they manage without needing to override the whole method.
+        """
+        pass
     
     # ------- Common functions ---------
     

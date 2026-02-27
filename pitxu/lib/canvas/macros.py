@@ -288,16 +288,6 @@ class Macros(PyXavi):
         if heigh_text < max_lenght_height:
             extra_space = max_lenght_height - heigh_text
             text_anchor_point.y += extra_space / 2
-
-        # Now this is managed by the Foreground Frame
-        # draw.rectangle(
-        #     Rectangle(
-        #         Point(padding_rectangle, padding_rectangle), 
-        #         Point(self._display_size.x - padding_rectangle, self._display_size.y - padding_rectangle)
-        #     ).to_image_rectangle(),
-        #     outline = self.canvas.COLOR_BLACK,
-        #     fill = self.canvas.COLOR_WHITE,
-        #     width = 1)
         
         # Ensure that the text fits in the square.
         # text = self.wrap_text_if_needed(draw, text, (self._display_size.x - (2 * padding_rectangle) - (2 * padding_code_text)) - 2, code_text_font)
@@ -652,7 +642,7 @@ class Macros(PyXavi):
             else:
                 counter += 1
 
-    def show_init_step(self, phase):
+    def show_init_phase(self, phase):
 
         draw = self.canvas.get_canvas(reset_base_image = False)
 
@@ -674,6 +664,49 @@ class Macros(PyXavi):
             cols = 8 if y < rows - 1 else phase % 8
             for x in range(0, cols):
                 self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
+
+    def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
+        # Configurations
+        padding = 15
+
+        # Main title
+        title = self._xconfig.get("app.name")
+        version = self._xparams.get("app_version")
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 1.5).to_image_point(),
+                    text = title + "  v" + version, 
+                    font = self.canvas.FONT_HUGE, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Mocked features line
+        mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 4).to_image_point(),
+                    text = mocked_line, 
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Draw a line between the title and the subtitle
+        draw.line(
+            Rectangle(
+                Point(padding, (self._display_size.y / 3) * 2), 
+                Point(self._display_size.x - padding, (self._display_size.y / 3) * 2)
+            ).to_image_rectangle(),
+            fill = self.canvas.COLOR_FOREGROUND,
+            width = 1)
+        
+        # Phases
+        phase = parameter.get("phase", 0)
+        text = parameter.get("text", None)
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 6.5).to_image_point(),
+                    # text = f"{phase} - {text}", 
+                    text = text,
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
     
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)

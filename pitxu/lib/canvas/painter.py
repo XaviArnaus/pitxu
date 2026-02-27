@@ -394,8 +394,10 @@ class Painter(PyXavi, Thread):
         for item in queue:
             # Over the interactions with the same type, 
             if item.interaction == interaction.interaction:
-                # We keep the current interaction being painted, to avoid fucking up the current painting loop iteration..
-                if current_interaction is not None and item.name == current_interaction.name:
+                # We keep the current interaction being painted, to avoid fucking up the current painting loop iteration.
+                # Unless it is explicitly defined.
+                if current_interaction is not None and item.name == current_interaction.name and \
+                    item.overwrite_current_interaction_with_same_type == False:
                     new_queue.append(item)
                 # We keep the given interaction as parameter. This function is called at the moment of setting a new interaction,
                 #   so we actually shouldn't end up here ever.
@@ -583,7 +585,10 @@ class Painter(PyXavi, Thread):
                     # Now the expected interactions.
                     if current_foreground_interaction.interaction == ForegroundComm.STARTUP:
                         self._log_debug("Painter Loop: Drawing startup splash screen on LCD display.")
-                        self.macros.draw_startup_splash(draw=self.draw) 
+                        self.macros.draw_startup_splash(draw=self.draw)
+                    elif current_foreground_interaction.interaction == ForegroundComm.STARTUP_WITH_PHASE:
+                        self._log_debug("Painter Loop: Drawing startup with phase screen on LCD display.")
+                        self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
                     elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT:
                         self._log_debug("Painter Loop: Drawing arbitrary text on LCD display.")
                         self.macros.draw_arbitrary_text_centered(draw=self.draw, text=current_foreground_interaction.parameter)

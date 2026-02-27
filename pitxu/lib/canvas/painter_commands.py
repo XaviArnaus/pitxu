@@ -10,6 +10,7 @@ class BackgroundComm:
 class ForegroundComm:
 
     STARTUP: str = "STARTUP"
+    STARTUP_WITH_PHASE: str = "STARTUP_WITH_PHASE"
     ARBITRARY_TEXT: str = "ARBITRARY_TEXT"
     ARBITRARY_TEXT_ICON: str = "ARBITRARY_TEXT_ICON"
     CODE_BLOCK: str = "CODE_BLOCK"

@@ -11,6 +11,7 @@ class Paint:
     delay_between_frames: float = 0.05  # Delay between frames in seconds
     final_screen_clearing: bool = False  # Whether to clear the screen at the end of the interaction
     remove_interaction_after_painting: bool = True  # Whether to remove the interaction after painting
+    overwrite_current_interaction_with_same_type: bool = False  # Whether to overwrite the current interaction with the same type
 
     # Mirrors the activerness of a paint, between 2 events of Busy Flag callbacks
     is_expecting_end_callback: bool = False
@@ -26,6 +27,7 @@ class Paint:
                  delay_between_frames: float = 0.05,
                  final_screen_clearing: bool = False,
                  remove_interaction_after_painting: bool = True,
+                 overwrite_current_interaction_with_same_type: bool = False,
                  start_callback: callable = None,
                  end_callback: callable = None):
         self.name = name
@@ -34,7 +36,7 @@ class Paint:
         self.delay_between_frames = delay_between_frames
         self.final_screen_clearing = final_screen_clearing
         self.remove_interaction_after_painting = remove_interaction_after_painting
-        
+        self.overwrite_current_interaction_with_same_type = overwrite_current_interaction_with_same_type
         # They are not used yet.
         self.start_callback = start_callback
         self.end_callback = end_callback
@@ -52,6 +54,7 @@ class ForegroundPaint(Paint):
                  delay_between_frames: float = 0.05,
                  final_screen_clearing: bool = False,
                  remove_interaction_after_painting: bool = True,
+                 overwrite_current_interaction_with_same_type: bool = False,
                  maintain_paint_for_seconds: float = 3.0,
                  ignore_maintain_time: bool = False,
                  start_callback: callable = None,
@@ -63,6 +66,7 @@ class ForegroundPaint(Paint):
             delay_between_frames=delay_between_frames,
             final_screen_clearing=final_screen_clearing,
             remove_interaction_after_painting=remove_interaction_after_painting,
+            overwrite_current_interaction_with_same_type=overwrite_current_interaction_with_same_type,
             start_callback=start_callback,
             end_callback=end_callback
         )
@@ -81,6 +85,7 @@ class BackgroundPaint(Paint):
                  delay_between_frames: float = 0.05,
                  final_screen_clearing: bool = False,
                  remove_interaction_after_painting: bool = True,
+                 overwrite_current_interaction_with_same_type: bool = False,
                  loop_iterations: int = 1,
                  start_callback: callable = None,
                  end_callback: callable = None):
@@ -91,6 +96,7 @@ class BackgroundPaint(Paint):
             delay_between_frames=delay_between_frames,
             final_screen_clearing=final_screen_clearing,
             remove_interaction_after_painting=remove_interaction_after_painting,
+            overwrite_current_interaction_with_same_type=overwrite_current_interaction_with_same_type,
             start_callback=start_callback,
             end_callback=end_callback
         )
@@ -213,6 +219,20 @@ class StartupForegroundPaint(ForegroundPaint):
             remove_interaction_after_painting=True,
             maintain_paint_for_seconds=for_seconds,
             ignore_maintain_time=False
+        )
+
+class StartupWithPhaseForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "StartupWithPhaseForegroundPaint"
+        super(StartupWithPhaseForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.STARTUP_WITH_PHASE,
+            parameter=parameter,
+            final_screen_clearing=True,
+            remove_interaction_after_painting=False,
+            overwrite_current_interaction_with_same_type = True
         )
 
 class ErrorForegroundPaint(ForegroundPaint):

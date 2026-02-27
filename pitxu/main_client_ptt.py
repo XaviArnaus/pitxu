@@ -69,6 +69,7 @@ class MainClientPTT(PyXavi):
     PUSH_TO_TALK_BUTTON: str = "side"
 
     SCHEDULER_LIB_LOGLEVEL = logging.WARNING
+    TZLOCAL_LIB_LOGLEVEL = logging.INFO
 
     VERBOSE_DEBUG: bool = True
 
@@ -108,7 +109,8 @@ class MainClientPTT(PyXavi):
 
         # Dependencies lib's log level
         self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.scheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
-    
+        self.TZLOCAL_LIB_LOGLEVEL = self._xconfig.get("libs_logger.tzlocal.loglevel", self.TZLOCAL_LIB_LOGLEVEL)
+
     def _handle_sigterm(self, sig, frame):
         """
         Handle SIGTERM signal
@@ -232,8 +234,10 @@ class MainClientPTT(PyXavi):
 
         self._scheduler = BackgroundScheduler()
         logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
         self._scheduler.add_job(self.do_every_minute_tasks, 'interval', minutes=1, args=[None])
-        self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+        # At the moment, we don't need to run tasks every second.
+        # self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
         self._scheduler.start()
 
     async def run(self):
@@ -247,29 +251,29 @@ class MainClientPTT(PyXavi):
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
         # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
-        self._interaction.show_init_phases(1, text="Interactions")
+        self._interaction.show_init_phases(1, text="💬 Interactions")
 
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
-        self._interaction.startup_splash(for_seconds=4.0)
+        # self._interaction.startup_splash(for_seconds=4.0)
 
         # Initialise the SpeechToText module,
         # that will be responsible for recognizing the audio and sending it to the server for transcription.
-        self._interaction.show_init_phases(2, text="Speech-to-Text")
+        self._interaction.show_init_phases(2, text="🗣️  Speech-to-Text")
         self._initialize_speech_to_text()
 
         # Load all language statics, like the exit words and the greeting / goodbye sentences
-        self._interaction.show_init_phases(3, text="Language Statics")
+        self._interaction.show_init_phases(3, text="🔤 Language Statics")
         self._load_language_statics()
 
         # Initialise the Buttons module
-        self._interaction.show_init_phases(4, text="Buttons")
+        self._interaction.show_init_phases(4, text="🔘 Buttons")
         self._initialize_buttons()
 
         try:
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
-            self._interaction.show_init_phases(5, text="Microphone")
+            self._interaction.show_init_phases(5, text="🎙️  Microphone")
             # Vosk wants the following parameters: 16kHz, mono, 16 bit.
             with sounddevice.RawInputStream(
                             # samplerate=self._dictate.samplerate,
@@ -284,14 +288,14 @@ class MainClientPTT(PyXavi):
                 
                 # Welcome greeting
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self._interaction.show_init_phases(6, text="Greeting")
+                self._interaction.show_init_phases(6, text="👋 Greeting")
                 self._interaction.show_idle()
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 # Load the Chatbot Callbacks definitions,
                 #   that are needed to react on the possible tool calls in the answers.
-                self._interaction.show_init_phases(7, text="Chatbot")
+                self._interaction.show_init_phases(7, text="🤖 Chatbot")
                 await self._initialize_chatbot()
 
                 # Before we start with the loop, let's set the last interaction time to now
@@ -300,7 +304,7 @@ class MainClientPTT(PyXavi):
                 self._last_interaction_datetime = datetime.now()
 
                 # Initialize the Reactions class
-                self._interaction.show_init_phases(8, text="Reactions")
+                self._interaction.show_init_phases(8, text="⚡️ Reactions")
                 self._initialize_reactions(input_stream=input_stream)
 
                 # The callback approach
@@ -308,7 +312,7 @@ class MainClientPTT(PyXavi):
                 #
                 # The idea here is to set all callbacks for all actions, to avoid running a forever loop.
                 #
-                self._interaction.show_init_phases(9, text="PTT Callbacks")
+                self._interaction.show_init_phases(9, text="↩️  PTT Callbacks")
 
                 # Initialize the flags
                 # question = ""
@@ -516,7 +520,7 @@ class MainClientPTT(PyXavi):
 
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
-                self._interaction.show_init_phases(10, text="Schedulers")
+                self._interaction.show_init_phases(10, text="⏱️  Schedulers")
                 self._initialize_schedulers()
 
                 # Clean background after initialisation.
@@ -527,6 +531,7 @@ class MainClientPTT(PyXavi):
 
                 # At this point, all initialisations are done.
                 # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
+                self._interaction.show_init_phases(11, text="✅ Ready")
                 self._xlog.info("🟢 All initialisations done, entering idle state, waiting for interactions...")
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)

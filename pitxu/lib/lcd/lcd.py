@@ -2,6 +2,7 @@ import time
 from PIL import Image
 
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
+from pitxu.lib.objects.xproc_action import XprocAction
 from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
@@ -9,6 +10,7 @@ from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
                                             StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
+                                            StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
@@ -96,6 +98,13 @@ class Lcd(XprocessDisplayCombined):
         self.canvas.close_canvas()
 
     # ------- Foreground functions ---------
+
+    # def extended_foreground_run(self, config, logger, action, param):
+        
+    #     # For the Client's "lcd" display, I want to try a different init_phase(),
+    #     #   that is shown in the foreground and gives prettier info.
+    #     if action == XprocAction.INIT_STEP and param is not None:
+    #         self.init_phase(phase=param.get("phase", 0), text=param.get("text", None))
 
     def show(self, text: str):
         # Draw the text bubble
@@ -218,6 +227,15 @@ class Lcd(XprocessDisplayCombined):
             foreground_interaction=CodeBlockForegroundPaint(
                 parameter={"text": param.get("code", "")}, 
                 for_seconds=show_for_seconds))
+    
+    # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
+    def init_phase(self, phase: int, text: str = None):
+        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+        self.painter.just_paint(foreground_interaction=StartupWithPhaseForegroundPaint(name=f"StartupWithPhaseForegroundPaint-{phase}", parameter={
+            "phase": phase,
+            "text": text
+        }))
 
     # ------- Common functions ---------
     
@@ -258,12 +276,12 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")
         self._macros.draw_something()
 
-    def init_phase(self, phase: int, text: str = None):
-        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
-        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
-            "phase": phase,
-            "text": text
-        }))
+    # def init_phase(self, phase: int, text: str = None):
+    #     self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+    #     self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
+    #         "phase": phase,
+    #         "text": text
+    #     }))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
