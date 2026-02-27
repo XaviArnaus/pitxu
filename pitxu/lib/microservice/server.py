@@ -180,12 +180,12 @@ class Server(PyXavi, MicroserviceBase):
     # Endpoint to receive an audio byte array to make it through the pipeline
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
-        import numpy as np
+        from functools import reduce
 
         # Framework initialization.
-        config = current_app.config['config']
+        # config = current_app.config['config']
         logger = current_app.config['logger']
-        params = current_app.config['params']
+        # params = current_app.config['params']
 
         # Endpoint initialisation
         bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
@@ -227,7 +227,7 @@ class Server(PyXavi, MicroserviceBase):
 
                 logger.debug(f"Processing chunk of {len(chunk)} bytes, remaining audio data length: {len(audio_data)} bytes")
                 chunk_transcribed = stt.process_audio_chunk(chunk)
-                if chunk_transcribed is not None and "result" in chunk_transcribed and chunk_transcribed["result"] is not None:
+                if chunk_transcribed is not None:
                     transcribed.append(chunk_transcribed)
 
                 counter += 1
@@ -240,11 +240,40 @@ class Server(PyXavi, MicroserviceBase):
             dd(transcribed)
             
             # Now merge all the transcribed chunks into a single transcription result.
+            # transcribed_completed = {
+            #     "result": "".join([t["result"] for t in transcribed if t.get("result", None) is not None]),
+            #     "partial": "".join([t["partial"] for t in transcribed if t.get("partial", None) is not None]),
+            #     "final": "".join([t["final"] for t in transcribed if t.get("final", None) is not None])
+            # }
+            # transcribed_completed = list(reduce(
+            #     lambda c, t: {
+            #         "result": c.get("result", "") + " " + t.get("result", ""),
+            #         "partial": c.get("partial", "") + " " + t.get("partial", ""),
+            #         "final": c.get("final", "") + " " + t.get("final", "")
+            #     }, 
+            #     transcribed))
             transcribed_completed = {
-                "result": " ".join([t["result"] for t in transcribed if t.get("result", None) is not None]),
-                "partial": " ".join([t["partial"] for t in transcribed if t.get("partial", None) is not None]),
-                "final": " ".join([t["final"] for t in transcribed if t.get("final", None) is not None])
+                "result": "",
+                "partial": "",
+                "final": ""
             }
+            last_partial = ""
+            for t in transcribed:
+                # Results should be appended.
+                if t.get("result", None) is not None:
+                    transcribed_completed["result"] += " " + t["result"]
+                # Partials may be repeated alogn the chunks, so avoid adding them if already have them.
+                if t.get("partial", "") != last_partial:
+                    transcribed_completed["partial"] += " " + t["partial"]
+                    last_partial = t["partial"]
+                # We should only have one final, if any.
+                if t.get("final", None) is not None:
+                    # Still, log it otherwise, so my head does not explode.
+                    if transcribed_completed["final"] != "":
+                        logger.warning("🟠 Multiple final transcriptions received, which is not normal. Appending them together, but check the logs to understand why this is happening.")
+                        transcribed_completed["final"] += " "
+                    transcribed_completed["final"] += t["final"]
+            dd(transcribed_completed)
 
             # It's not normal to not receive anything.
             if transcribed_completed is None:
