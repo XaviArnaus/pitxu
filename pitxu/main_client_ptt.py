@@ -331,25 +331,45 @@ class MainClientPTT(PyXavi):
 
                 def on_button_interact(button, cls: MainClientPTT = None, button_name: str = None, flags: dict = {}):
 
-                    cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
-                                    "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
-                                    "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
-
                     # Init.
                     question = ""
                     is_pressed = cls._buttons.is_pressed(button_name)
+                    recording = flags.get("recording_audio", False)
+
+                    # Stupid trick to avoid misfires.
+                    if (is_pressed and recording == True) or (not is_pressed and recording == False):
+                        # This means that we are in a state where the button is being pressed but we are already recording, 
+                        #   or the button is released but we are not recording.
+                        # In both cases, we should not do anything, because we are already in the correct state for the button.
+                        cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered, but was a misfire. Ignoring")
+                        return
+
+                    cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
+                                    "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
+                                    "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
 
                     if is_pressed and not flags.get("recording_audio", False):
 
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
                         cls._interaction.unmute_microphone(input_stream=input_stream)
+                        # Because the input stream starts with it, it may take a bit extra. That's why we wait.
+                        cls._interaction.wait_for_microphone_to_be_unmuted()
+                        cls._interaction.show_arbitrary_icon_on_foreground(
+                            icon="🎙️", 
+                            text="SPEAK NOW", 
+                            color=cls._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
+                        cls._interaction.wait_for_foreground_display_queue_to_empty()
 
                     if not is_pressed and flags.get("recording_audio", False):
                     
                         cls._log_debug(f"🎙️ Stopping audio registration for button [{button_name}] release and starting recognition.")
                         flags["recording_audio"] = False
+                        cls._interaction.clear_foreground_display()
+                        cls._interaction.wait_for_foreground_display_queue_to_empty()
+                        cls._interaction.wait_for_busy_foreground_display_to_idle()
                         cls._interaction.mute_microphone(input_stream=input_stream)
+                        cls._interaction.wait_for_microphone_to_be_muted()
                         
                         # Place some feedback to the user so that it knows that the audio has been registered and is being processed.
                         cls._interaction.show_thinking()

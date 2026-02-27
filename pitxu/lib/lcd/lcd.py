@@ -8,7 +8,7 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
                                             StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
                                             StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
@@ -99,12 +99,16 @@ class Lcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
-    # def extended_foreground_run(self, config, logger, action, param):
+    def extended_foreground_run(self, config, logger, action, param):
         
-    #     # For the Client's "lcd" display, I want to try a different init_phase(),
-    #     #   that is shown in the foreground and gives prettier info.
-    #     if action == XprocAction.INIT_STEP and param is not None:
-    #         self.init_phase(phase=param.get("phase", 0), text=param.get("text", None))
+        # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
+        if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+            self.show_arbitrary_icon(param)
+    
+    def show_arbitrary_icon(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary icon on LCD.")
+        self.painter.just_paint(foreground_interaction=ArbitraryIconForegroundPaint(parameter=param))
 
     def show(self, text: str):
         # Draw the text bubble

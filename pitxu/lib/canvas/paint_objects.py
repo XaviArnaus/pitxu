@@ -173,6 +173,22 @@ class ArbitraryContentForegroundPaint(ForegroundPaint):
             ignore_maintain_time=False
         )
 
+class ArbitraryIconForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "ArbitraryIconForegroundPaint"
+        super(ArbitraryIconForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.ARBITRARY_ICON,
+            parameter=parameter,
+            # Be careful with this, this places a black screen over whatever is already painted in the canvas.
+            # (so, it removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            ignore_maintain_time=True
+        )
+
 class ArbitraryContentWhileSpeakingForegroundPaint(ForegroundPaint):
 
     def __init__(self, name = None, parameter: any = None):

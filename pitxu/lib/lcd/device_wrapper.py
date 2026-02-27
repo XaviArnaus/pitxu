@@ -5,6 +5,7 @@ import logging
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.objects.point import Point
 
 from PIL import Image
 
@@ -19,6 +20,7 @@ class DeviceWrapper(PyXavi, Device):
     path_for_mocked_images: str = None
 
     device = None
+    screen_size: Point = None
 
     def __init__(self, config: Config, params: Dictionary):
         super(DeviceWrapper, self).init_pyxavi(config=config, params=params)
@@ -35,6 +37,8 @@ class DeviceWrapper(PyXavi, Device):
             self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
             if os.path.exists(self.path_for_mocked_images) == False:
                 os.makedirs(self.path_for_mocked_images)
+            
+            self.screen_size = self._xconfig.get("screen_size")
 
     def display(self, image: Image.Image, partial: bool = True):
         if (self.is_spi_allowed()):
@@ -50,7 +54,9 @@ class DeviceWrapper(PyXavi, Device):
             # self.device._reset_lcd() -> Apparently this causes the LCD to stop working.
             self.device.clear()
         else:
-            pass
+            if self.screen_size is not None:
+                soft_clear_image = Image.new("RGB", (self.screen_size.x, self.screen_size.y), (0, 0, 0))
+                self.display(soft_clear_image, partial=False)
     
     def is_spi_allowed(self) -> bool:
         import platform

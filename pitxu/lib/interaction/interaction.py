@@ -380,6 +380,21 @@ class Interaction(PyXavi):
             "font_header_size": font_header_size,
             "padding": padding
         })
+    
+    def show_arbitrary_icon_on_foreground(
+            self,
+            icon: str = None,
+            text: str = None,
+            color: str = None
+        ):
+        """
+        Shows arbitrary icon on the foreground display.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND, {
+            "icon": icon,
+            "text": text,
+            "color": color
+        })
 
     def show_arbitrary_text_on_foreground_while_speaking(
             self,
@@ -454,7 +469,8 @@ class Interaction(PyXavi):
             self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SOFT_CLEAR)
 
         # Full clear, to ensure a reset.
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.CLEAR)
+        # self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.CLEAR)
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.FOREGROUND_CLEAR)
 
     def clear_background_display(self):
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
@@ -497,6 +513,12 @@ class Interaction(PyXavi):
     def wait_for_busy_speech_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
+    def wait_for_microphone_to_be_unmuted(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_MICROPHONE_MUTED)
+    
+    def wait_for_microphone_to_be_muted(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_MICROPHONE_MUTED)
+    
     def wait_for_all_busy_processes_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_all_busy_process_to_idle()
     
@@ -514,18 +536,18 @@ class Interaction(PyXavi):
     # --------- Proxy functions for Shared Memory Management ---------
 
     def mute_microphone(self, input_stream: RawInputStream = None):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
-        self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
         if input_stream:
             self._log_debug("🔇 Stopping the input stream as microphone is muted.")
             input_stream.stop()
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
+        self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
     def unmute_microphone(self, input_stream: RawInputStream = None):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
-        self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
         if input_stream:
             self._log_debug("🔊 Starting the input stream as microphone is unmuted.")
             input_stream.start()
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
+        self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
     def is_microphone_muted(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)

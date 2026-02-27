@@ -708,6 +708,25 @@ class Macros(PyXavi):
                     anchor = "mm",
                     align = "center")
     
+    def draw_arbitrary_icon(self, draw: ImageDraw.ImageDraw, icon: str, text: str = None, color: str = None):
+
+        if color is None:
+            color = self.canvas.COLOR_FOREGROUND
+
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) - (30 if text else 0)).to_image_point(),
+                    text = icon,
+                    font = self.canvas.FONT_ULTRA, 
+                    fill = color,
+                    anchor = "mm",
+                    align = "center")
+        if text:
+            draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) + 30).to_image_point(),
+                    text = f"{icon}\n{text}" if text else icon, 
+                    font = self.canvas.FONT_BIG, 
+                    fill = color,
+                    anchor = "mm",
+                    align = "center")
+    
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)
         self._soft_clear_rectangle(draw=draw)

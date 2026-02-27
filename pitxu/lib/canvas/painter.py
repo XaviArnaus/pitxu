@@ -61,11 +61,18 @@ class Painter(PyXavi, Thread):
 
     def set_foreground_interaction(self, interaction: ForegroundPaint):
         self._log_debug(f"Setting foreground interaction to [{interaction.name}] with parameter [{interaction.parameter}].")
-        # In case we have anything from the same type waiting to be shown, we discarded first.
-        #   If wwe didin't show it yet, there is no point to keep waiting, the flow already went somewhere else.
+        # In case we have anything from the same type waiting to be shown, we discard it first.
+        #   If we didn't show it yet, there is no point to keep waiting, the flow already went somewhere else.
         self._remove_duplicated_interaction_types_from_queue(interaction=interaction)
-        # Now add the new interaction to the queue
-        self.foreground_paint.append(interaction)
+
+        # If the interaction is actually a CLEAR, we want to remove all the previous interactions of the same type,
+        # to have the inmediate effect of clearing the Foreground.
+        if interaction.interaction == ForegroundComm.CLEAR:
+            self._log_debug(f"Foreground interaction [{interaction.name}] is a CLEAR. Removing all previous interactions from the queue.")
+            self.remove_all_foreground_interactions()
+        else:
+            # Now add the new interaction to the queue
+            self.foreground_paint.append(interaction)
 
         self._log_debug(f"Foreground interaction queue after setting last: {', '.join([item.name for item in self.foreground_paint])}.")
     
@@ -447,7 +454,7 @@ class Painter(PyXavi, Thread):
             time.sleep(min_delay)
 
     def run(self):
-        self._log_debug(f"Painter run(): 🟢 About to start the main thread loop.")
+        self._log_debug(f"Painter run(): 🟢 About to start the Painter's main thread loop.")
 
         # We need an overall loop that keeps the thread alive.
         # The close() method will set the should_finish flag to True, which will break this loop.
@@ -601,6 +608,12 @@ class Painter(PyXavi, Thread):
                                                             header=current_foreground_interaction.parameter.get("header"),
                                                             font_header_size=current_foreground_interaction.parameter.get("font_header_size", 32),
                                                             padding=current_foreground_interaction.parameter.get("padding", 5))
+                    elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_ICON:
+                        self._log_debug("Painter Loop: Drawing arbitrary icon on LCD display.")
+                        self.macros.draw_arbitrary_icon(draw=self.draw,
+                                                        icon=current_foreground_interaction.parameter.get("icon"),
+                                                        text=current_foreground_interaction.parameter.get("text", None),
+                                                        color=current_foreground_interaction.parameter.get("color", None)),
                     elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
                         self._log_debug("Painter Loop: Drawing code block on LCD display.")
                         self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
