@@ -234,6 +234,9 @@ class Server(PyXavi, MicroserviceBase):
                 if chunk_transcribed is not None:
                     if chunk_transcribed.get("result", None) is not None:
                         transcribed["result"].append(chunk_transcribed["result"])
+                        # We only get a result after several partials, and then the partial accummulator gets cleared.
+                        # So take the chance to clear the stored partials until now, to avoid merging them again any time later.
+                        transcribed["partial"] = ""
                     if chunk_transcribed.get("partial", None) is not None:
                         # Partials are accummulative. Do not pile them up.
                         transcribed["partial"] = chunk_transcribed["partial"]
