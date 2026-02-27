@@ -180,8 +180,6 @@ class Server(PyXavi, MicroserviceBase):
     # Endpoint to receive an audio byte array to make it through the pipeline
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
-        from functools import reduce
-
         # Framework initialization.
         # config = current_app.config['config']
         logger = current_app.config['logger']
