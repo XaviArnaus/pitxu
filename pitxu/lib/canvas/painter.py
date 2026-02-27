@@ -9,7 +9,7 @@ from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags
 
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_COMMUNICATION_BUSY, \
                         FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END
 
 from PIL import ImageDraw
@@ -316,6 +316,38 @@ class Painter(PyXavi, Thread):
         # 3. Start the painting loop
         self.start_or_resume_paint()
     
+    def paint_into_background_while_communicating(self, background_interaction: BackgroundPaint):
+        
+        # 1. First we definethe start callback, that waits for the speaker to be busy and then sets the interactions
+        # 2. Then we define the end callback to stop the painting when the speaker is not busy anymore
+        # 3. Then we start the loop. It should wait until the speaker is busy to start painting, and then stop when it is not busy anymore.
+
+        # Start callback definition: we want to paint when the speaker is busy
+        start_callback = self._generate_callback(
+            interaction=background_interaction,
+            when=LOOP_START,
+            channel=BACKGROUND_CHANNEL,
+            flag_name=SHARED_COMMUNICATION_BUSY,
+            for_value=True,
+            extra_callback=lambda interaction=background_interaction: setattr(interaction, "is_expecting_end_callback", True)
+        )
+        # End callback definition: we want to stop painting when the speaker is not busy anymore
+        end_callback = self._generate_callback(
+            interaction=background_interaction,
+            when=LOOP_END,
+            channel=BACKGROUND_CHANNEL,
+            flag_name=SHARED_COMMUNICATION_BUSY,
+            for_value=False,
+            extra_callback=lambda interaction=background_interaction: setattr(interaction, "is_expecting_end_callback", False)
+        )
+        
+        # 1. Register the start callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=SHARED_COMMUNICATION_BUSY, for_value=True, callback=start_callback)
+        # 2. Register the end callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=SHARED_COMMUNICATION_BUSY, for_value=False, callback=end_callback)
+        # 3. Start the painting loop
+        self.start_or_resume_paint()
+    
     
     def _generate_callback(self,
                            interaction: ForegroundPaint | BackgroundPaint,
@@ -526,6 +558,14 @@ class Painter(PyXavi, Thread):
                         else:
                             self._log_debug(f"Painter Loop: Drawing Thinking Left screen on LCD display, frame [{frame}].")
                             self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame)
+                    elif current_background_interaction.interaction == BackgroundComm.COMMUNICATING:
+                        frame = current_iteration % (current_background_interaction.loop_iterations // 2)
+                        if current_iteration < (current_background_interaction.loop_iterations // 2):
+                            self._log_debug(f"Painter Loop: Drawing Communicating Right screen on LCD display, frame [{frame}].")
+                            self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
+                        else:
+                            self._log_debug(f"Painter Loop: Drawing Communicating Left screen on LCD display, frame [{frame}].")
+                            self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
                     elif current_background_interaction.interaction == BackgroundComm.SPEAKING:
                         frame = current_iteration % (current_background_interaction.loop_iterations // 2)
                         if current_iteration < (current_background_interaction.loop_iterations // 2):

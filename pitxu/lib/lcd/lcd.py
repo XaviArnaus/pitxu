@@ -7,14 +7,14 @@ from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
+from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, CommunicatingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
                                             StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
                                             StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE, SHARED_COMMUNICATION_BUSY
 
 class Lcd(XprocessDisplayCombined):
     '''
@@ -105,6 +105,9 @@ class Lcd(XprocessDisplayCombined):
         #   that is shown in the foreground and gives prettier info.
         if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
             self.show_arbitrary_icon(param)
+        
+        if action == XprocAction.COMMUNICATING:
+            self.show_kitt_scanner_while_communicating()
     
     def show_arbitrary_icon(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary icon on LCD.")
@@ -274,6 +277,12 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
         self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
+    
+    def show_kitt_scanner_while_communicating(self):
+        self._xlog.info(f"🤖 Showing KITT communicating on LCD.")
+        self.painter.paint_into_background_while_communicating(background_interaction=CommunicatingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("communicating", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
     def show(self, text: str):

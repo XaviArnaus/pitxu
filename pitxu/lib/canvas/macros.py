@@ -478,7 +478,7 @@ class Macros(PyXavi):
     
     # ------ Background effects adapted to LCD -------
 
-    def kitt_horizontal_effect(self, delay: float = 0.1, should_stop: bool = False):
+    def kitt_horizontal_effect(self, delay: float = 0.1, color: str = None):
         self._log_debug("Starting KITT effect")
 
         draw = self.canvas.get_canvas(reset_base_image = False)
@@ -487,26 +487,26 @@ class Macros(PyXavi):
 
         # Move right
         for i in range(8):
-            self.draw_kitt_horizontal_effect_left(draw=draw, frame=i)
+            self.draw_kitt_horizontal_effect_left(draw=draw, frame=i, color=color)
 
             self.device.display(image)
             time.sleep(delay)
 
         # Move left
         for i in range(8):
-            self.draw_kitt_horizontal_effect_right(draw=draw, frame=i)
+            self.draw_kitt_horizontal_effect_right(draw=draw, frame=i, color=color)
 
             self.device.display(image)
             time.sleep(delay)
     
-    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
             self._soft_clear_rectangle(draw=draw)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
             # We count which is the current frame for the drawing.
             # If we have reached the frame, we stop drawing more.
@@ -515,14 +515,14 @@ class Macros(PyXavi):
             else:
                 counter += 1
     
-    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
             # We count which is the current frame for the drawing.
             # If we have reached the frame, we stop drawing more.

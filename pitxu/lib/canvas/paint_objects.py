@@ -130,6 +130,20 @@ class ThinkingBackgroundPaint(BackgroundPaint):
             loop_iterations=16
         )
 
+class CommunicatingBackgroundPaint(BackgroundPaint):
+
+    def __init__(self, name = None, delay_between_frames: float = 0.05):
+        if name is None:
+            name = "CommunicatingBackgroundPaint"
+        super(CommunicatingBackgroundPaint, self).__init__(
+            name=name,
+            interaction=BackgroundComm.COMMUNICATING,
+            delay_between_frames=delay_between_frames,
+            final_screen_clearing=True,
+            remove_interaction_after_painting=False,
+            loop_iterations=16
+        )
+
 class InitPhaseBackgroundPaint(BackgroundPaint):
 
     def __init__(self, name = None, parameter: any = None):

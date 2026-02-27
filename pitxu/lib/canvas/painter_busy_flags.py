@@ -4,7 +4,7 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
-                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY
+                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY, SHARED_COMMUNICATION_BUSY
 
 class PainterBusyFlags(PyXavi):
 
@@ -26,12 +26,14 @@ class PainterBusyFlags(PyXavi):
         SHARED_MATRIX_BUSY,
         SHARED_LCD_BUSY,
         SHARED_DSI_LCD_BUSY,
-        SHARED_CHATBOT_BUSY
+        SHARED_CHATBOT_BUSY,
+        SHARED_COMMUNICATION_BUSY
     ]
 
     MANDATORY_FULL_CYCLE_BUSY_FLAGS = [
         SHARED_SPEAKER_BUSY,
-        SHARED_CHATBOT_BUSY
+        SHARED_CHATBOT_BUSY,
+        SHARED_COMMUNICATION_BUSY
     ]
 
     VERBOSE_DEBUG: bool = False

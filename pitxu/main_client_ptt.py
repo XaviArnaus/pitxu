@@ -183,7 +183,7 @@ class MainClientPTT(PyXavi):
                         # This means that we are in a state where the button is being pressed but we are already recording, 
                         #   or the button is released but we are not recording.
                         # In both cases, we should not do anything, because we are already in the correct state for the button.
-                        cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered, but was a misfire. Ignoring")
+                        # cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered, but was a misfire. Ignoring")
                         return
 
                     # Now comes the real callback logic involving the buttons and the recording state.
@@ -218,8 +218,8 @@ class MainClientPTT(PyXavi):
                         cls._interaction.wait_for_microphone_to_be_muted()
                         
                         # Place some feedback to the user so that it knows that the audio has been registered and is being processed.
-                        cls._interaction.show_thinking()
-                        cls._interaction.set_chatbot_busy()
+                        cls._interaction.show_communicating()
+                        cls._interaction.set_communication_busy()
 
                         # Recognize what comes from the microphone
                         sw_dictate = cls._stopwatch.continue_or_start(name="dictate" + str(flags.get("dictate_count", 0)))
@@ -237,7 +237,7 @@ class MainClientPTT(PyXavi):
                             question = None
 
                         # We have the answer, unset the busy state.
-                        cls._interaction.unset_chatbot_busy()
+                        cls._interaction.unset_communication_busy()
 
                         if question is None:
                             cls._xlog.debug(f"🎙️ Nothing recognized")

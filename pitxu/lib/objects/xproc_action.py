@@ -44,6 +44,7 @@ class XprocAction:
     LED: str = "LED"    # This should be removed, should not actually be used.
     INIT_STEP: str = "INIT_STEP"
     THINKING: str = "THINKING"
+    COMMUNICATING: str = "COMMUNICATING"
     SHOW_IMAGE_LED: str = "SHOW_IMAGE_LED"  # This is not used.
     INTERACTION_HOLDING_PERCENTAGE: str = "INTERACTION_HOLDING_PERCENTAGE"
 
