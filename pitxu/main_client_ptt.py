@@ -532,7 +532,7 @@ class MainClientPTT(PyXavi):
                 # At this point, all initialisations are done.
                 # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
                 self._interaction.show_init_phases(11, text="✅ Ready")
-                self._xlog.info("🟢 All initialisations done, entering idle state, waiting for interactions...")
+                self._xlog.info("✅ All initialisations done, entering idle state, waiting for interactions...")
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
                 signal.pause()

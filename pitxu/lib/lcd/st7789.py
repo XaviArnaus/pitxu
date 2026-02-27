@@ -252,7 +252,6 @@ class ST7789(PyXavi):
         original_width, original_height = image.size
 
         # Ensure that the image fits into the screen. Otherwise, preprocess it.
-        # if not Point(original_width, original_height).equals_to(self.user_screen_size):
         if not Point(original_width, original_height).equals_to(Point(self.LCD_WIDTH, self.LCD_HEIGHT)):
             image = self._preprocess_image(image)
             original_width, original_height = image.size
