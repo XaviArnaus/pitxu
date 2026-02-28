@@ -1621,6 +1621,19 @@ files = [
 ]
 
 [[package]]
+name = "macwifi"
+version = "0.0.5"
+description = "Macwifi is a Python module that helps you to manage the WiFi on macOS."
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+markers = "sys_platform == \"darwin\""
+files = [
+    {file = "macwifi-0.0.5-py3-none-any.whl", hash = "sha256:d448bbccae337df43d4482cdae15192de3469751fc312de18ce8184c137f5b8e"},
+    {file = "macwifi-0.0.5.tar.gz", hash = "sha256:10256a1b602dfca993da957d837a062c727755f1c96c013ff550c7682e02609c"},
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 description = "Python port of markdown-it. Markdown parsing, done right!"
@@ -3960,4 +3973,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "7a4311bf1ef4fbab4e543834b817679db1937e8f50728998fc298f47197a6d42"
+content-hash = "7bdda2174652cd9dff130582858d0cc984904f25b880eb3875215b087bf0c3a0"

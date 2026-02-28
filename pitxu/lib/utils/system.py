@@ -30,6 +30,64 @@ class System:
         }
     
     @staticmethod
+    def get_connected_wifi() -> list[dict]:
+        import platform
+        """
+        Get the list of available WiFi networks
+        """
+        os = platform.system()
+        networks = []
+
+        if os.lower() == "linux":
+            # Use nmcli to get WiFi networks
+            result = System._run_command("nmcli -t -f SSID,SECURITY,SIGNAL dev wifi")
+            lines = result.strip().split('\n')
+            for line in lines:
+                parts = line.split(':')
+                if len(parts) >= 3:
+                    ssid = parts[0]
+                    security = parts[1]
+                    signal = parts[2]
+                    networks.append({
+                        "ssid": ssid,
+                        "security": security,
+                        "signal": signal
+                    })
+        elif os.lower() == "windows":
+            # Use netsh to get WiFi networks
+            wifi = System._run_command("netsh WLAN show interfaces")
+            # data = wifi.decode('utf-8')
+            lines = wifi.split('\n')
+            for line in lines:
+                if "SSID" in line:
+                    ssid = line.split(':')[1].strip()
+                    networks.append({
+                        "ssid": ssid
+                    })
+        elif os.lower() == "darwin":
+            import macwifi
+
+            data = macwifi.get_wifi_info()
+            lines = data.split('\n')
+            info = {}
+            for line in lines:
+                if "SSID" in line and "BSSID" not in line:
+                    ssid = line.split(':')[1].strip()
+                    info["ssid"] = ssid
+                if "link auth" in line:
+                    security = line.split(':')[1].strip()
+                    info["security"] = security
+
+            if info:
+                networks.append(info)
+                info = {}
+        else:
+            # Unsupported OS for WiFi scanning
+            pass
+        # dd(networks)
+        return networks
+    
+    @staticmethod
     def get_cpu_temperature() -> float:
         return round(int(System._run_command("cat /sys/class/thermal/thermal_zone*/temp")) / 1000, 1)
     

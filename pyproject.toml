@@ -38,6 +38,7 @@ rpi-hardware-pwm = "^0.3.1"
 ifcfg = "^0.24"
 soundfile = "^0.13.1"
 apscheduler = "^3.11.2"
+macwifi = [{version="^0.0.5", markers="sys_platform=='darwin'"}]
 
 [tool.poetry.scripts]
 main = "runner:run"

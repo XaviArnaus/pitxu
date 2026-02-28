@@ -208,6 +208,9 @@ class MainClientPTT(PyXavi):
                     # Here we want to stop recording and start the interaction pipeline:
                     #   Transcribe > Chatbot > Tools / React > Answer / Show > Wait for next interaction.
                     if not is_pressed and flags.get("recording_audio", False):
+
+                        cls._log_debug(f"Delaying one second the stop audio registration for button [{button_name}] release")
+                        time.sleep(1)
                     
                         cls._log_debug(f"🎙️ Stopping audio registration for button [{button_name}] release and starting recognition.")
                         flags["recording_audio"] = False
