@@ -89,15 +89,17 @@ class Vosk(PyXavi):
             elif self.is_active and self._queue is not None:
                 data = self._queue.get()
                 recognize_outcome = self.process_audio_chunk(data)
-                recognize_final_outcome = self.process_remaining_vosk()
-                if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
-                    recognize_outcome["final"] = recognize_final_outcome["final"]
+                # DO NOT USE FinalResult() UNLESS YOU KNOW FOR SURE THAT THE STREAM HAS ENDED.
+                # recognize_final_outcome = self.process_remaining_vosk()
+                # if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
+                #     recognize_outcome["final"] = recognize_final_outcome["final"]
+
                 # Since Vosk can return both partial and final results, for normal "local" Pitxu
                 #   we completely ignore the partial.
                 if recognize_outcome.get("result") is not None:
                     result = recognize_outcome.get("result")
-                    if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
-                        result = result + " " + recognize_outcome.get("final")
+                    # if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
+                    #     result = result + " " + recognize_outcome.get("final")
                     return result
         except queue.ShutDown as e:
             self.is_active = False
@@ -118,6 +120,16 @@ class Vosk(PyXavi):
     def process_audio_chunk(self, data: bytes) -> str | None:
         """
         Method to be called to process audio data received from the microphone input or the server endpoint.
+
+        Some notes for my further "me":
+        - When silence is detected AcceptWaveform() returns True and you can retrieve the result with Result(). 
+            If it returns False you can retrieve a partial result with PartialResult().
+            The FinalResult() means the stream is ended, buffers are flushed and you retrieve the remaining result which could be silence.
+        - This means that we CAN NOT use FinalResult() unless we know that we don't receive more audio (for example, with PTT),
+            otherwise Vosk flushes the buffers and we end up not receiving any result.
+        - Proof: I added the FinalResult() included in the loop for AcceptWaveform(), and Vosk only worked for the PTT client. The normal
+            local Pitxu stopped working because Vosk was flushing the buffers every time it received a chunk of audio.
+
         """
         outcome = {
             "result": None,
@@ -133,14 +145,9 @@ class Vosk(PyXavi):
                 self._xlog.debug(f"Vosk: Recognized text: [{result_text}]")
                 outcome["result"] = result_text
 
-            # if self._recognizer.FinalResult():
-            #     result = json.loads(self._recognizer.FinalResult())
-            #     result_text = str(result["text"]).replace("\n", "").strip()
-            #     if result_text == "":
-            #         outcome["final"] = None
-            #     else:
-            #         self._xlog.debug(f"Vosk: Final recognized text: [{result_text}]")
-            #         outcome["final"] = result_text
+            # DO NOT USE FinalResult() UNLESS YOU KNOW FOR SURE THAT THE STREAM HAS ENDED.
+            # final_result = self._recognizer.FinalResult()
+            # ...
             
         else:
             result = json.loads(self._recognizer.PartialResult())
@@ -154,8 +161,9 @@ class Vosk(PyXavi):
             "partial": None,
             "final": None
         }
-        if self._recognizer.FinalResult():
-            result = json.loads(self._recognizer.FinalResult())
+        final_result = self._recognizer.FinalResult()
+        if final_result:
+            result = json.loads(final_result)
             result_text = str(result["text"]).replace("\n", "").strip()
             if result_text == "":
                 outcome["final"] = None
@@ -181,11 +189,15 @@ class Vosk(PyXavi):
         Audio blocks are sentences.
         """
         if status:
+            self._xlog.debug(f"Vosk callback: Audio input status: {status}")
             print(status, file=sys.stderr)
 
         if not self.should_skip_audio_input() and self._queue is not None:
+            # self._xlog.debug(f"Vosk callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
             # print(time.inputBufferAdcTime)
             self._queue.put(bytes(indata))
+        # else:
+        #     self._xlog.debug("Vosk callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
 
     def _int_or_str(self, text):
         """Helper function for argument parsing."""
