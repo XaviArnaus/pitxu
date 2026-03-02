@@ -748,6 +748,10 @@ class Main(PyXavi):
                 self._reminders.delete_reminder(date_str, time_str)
                 # Reset the last interaction time, as we just spoke
                 self._last_interaction_datetime = datetime.now()
+            
+            # Every minute, log a bunch of metrics defined internally.
+            # It also accepts a dict, that will be merged with the internal metrics.
+            self._maintenance.log_metrics()
     
     # ------- Stuff to do every second -------
 

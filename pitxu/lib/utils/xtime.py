@@ -3,11 +3,14 @@ import time
 
 class Xtime:
 
-    glibc = None
+    FORMAT: str = "%Y-%m-%d %H:%M:%S"
+    FORMAT_WITH_MILLISECONDS: str = "%Y-%m-%d %H:%M:%S.%f"
 
     @staticmethod
-    def current_time_str(format: str = "%Y-%m-%d %H:%M:%S") -> str:
+    def current_time_str(format: str = None) -> str:
         """Returns the current time as a formatted string."""
+        if format is None:
+            format = Xtime.FORMAT
         return datetime.now().strftime(format)
     
     @staticmethod
@@ -19,20 +22,24 @@ class Xtime:
         return datetime.now()
     
     @staticmethod
-    def now_str(format: str = "%Y-%m-%d %H:%M:%S.%f") -> str:
+    def now_str(format: str = None) -> str:
         """
         Returns the current time as a formatted string.
         Just a shortcut for miliseconds.
         """
+        if format is None:
+            format = Xtime.FORMAT_WITH_MILLISECONDS
         return Xtime.now().strftime(format)
     
     @staticmethod
-    def now_key(format: str = "%Y-%m-%d %H:%M:%S.%f") -> str:
+    def now_key(format: str = None) -> str:
         from slugify import slugify
         """
         Returns the current time as a formatted string.
         Just a shortcut for miliseconds.
         """
+        if format is None:
+            format = Xtime.FORMAT_WITH_MILLISECONDS
         return slugify(Xtime.now().strftime(format), replacements=[[" ", "_"], [":", "-"], [".", "-"]])
     
     @staticmethod

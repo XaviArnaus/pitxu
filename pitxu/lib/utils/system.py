@@ -150,12 +150,12 @@ class System:
 
     @staticmethod
     def _run_command(command: str) -> str:
-        from subprocess import run, PIPE, CalledProcessError, CompletedProcess
+        from subprocess import run, CalledProcessError, CompletedProcess
 
         error = None
         result: CompletedProcess = None
         try:
-            result = run(command, shell=True, stdout=PIPE, stderr=PIPE)
+            result = run(command, shell=True, capture_output=True)
             if result.returncode != 0:
                 raise CalledProcessError(result.returncode, command, output=result.stdout, stderr=result.stderr)
             result = result.stdout.decode('utf-8')

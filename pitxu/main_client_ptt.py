@@ -644,9 +644,15 @@ class MainClientPTT(PyXavi):
         self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
         logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
+        # EVERY MINUTE
         self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
+
+        # EVERY SECOND
         # At the moment, we don't need to run tasks every second.
         # self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+
+        # EVERY NIGHT AT 3 AM
+        self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
         self._scheduler.start()
     
     def close_nicely(self, avoid_final_exit=False):
@@ -786,6 +792,10 @@ class MainClientPTT(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+            
+            # Every minute, log a bunch of metrics defined internally.
+            # It also accepts a dict, that will be merged with the internal metrics.
+            self._maintenance.log_metrics()
     
     # ------- Stuff to do every second -------
 
@@ -794,3 +804,10 @@ class MainClientPTT(PyXavi):
         current_second = int(time.time())
         if current_second > self._last_processed_second:
             self._last_processed_second = current_second
+    
+    # ------------- Stuff to do daily -------------
+
+    def do_at_night_tasks(self):
+
+        # At night, we want to clear the logs that are older than the retention period.
+        self._maintenance.rotate_metrics_logs()
