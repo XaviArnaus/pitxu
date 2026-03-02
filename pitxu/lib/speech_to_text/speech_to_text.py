@@ -134,8 +134,8 @@ class SpeechToText(PyXavi):
         Audio blocks are sentences.
         """
         if status:
-            print(status, file=sys.stderr)
-            self._xlog.debug(f"*️⃣ Audio input status: {status}")
+            # print(status, file=sys.stderr)
+            self._xlog.debug(f"*️⃣  Audio input callback's status: {status}")
 
         if not self.should_skip_audio_input() and self._queue is not None:
             self._queue.put(bytes(indata))

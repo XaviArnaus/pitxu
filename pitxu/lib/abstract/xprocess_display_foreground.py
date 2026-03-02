@@ -38,9 +38,15 @@ class XprocessDisplayForeground(Xprocess):
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING and param:
             self.show_arbitrary_text_while_thinking(param)
+        
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING and param:
+            self.show_arbitrary_text_while_networking(param)
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
+        
+        if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+            self.show_arbitrary_icon_on_foreground(param)
         
         if action == XprocAction.SHOW_CODE_BLOCK and param:
             self.show_code_block(param)
@@ -122,9 +128,15 @@ class XprocessDisplayForeground(Xprocess):
 
     def show_arbitrary_text_while_thinking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Foreground subclasses.")
+    
+    def show_arbitrary_text_while_networking(self, param: dict):
+        raise NotImplementedError("show_arbitrary_text_while_networking() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_on_foreground(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Foreground subclasses.")
+    
+    def show_arbitrary_icon_on_foreground(self, param: dict):
+        raise NotImplementedError("show_arbitrary_icon_on_foreground() must be implemented in Display Foreground subclasses.")
 
     def splash_ready(self):
         raise NotImplementedError("splash_ready() must be implemented in Display Foreground subclasses.")

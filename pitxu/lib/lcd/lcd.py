@@ -7,14 +7,15 @@ from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, CommunicatingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
+from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, NetworkingBackgroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, \
+                                            ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileNetworkingForegroundPaint, \
                                             StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
                                             StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE, SHARED_COMMUNICATION_BUSY
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE, SHARED_NETWORK_BUSY
 
 class Lcd(XprocessDisplayCombined):
     '''
@@ -103,13 +104,14 @@ class Lcd(XprocessDisplayCombined):
         
         # For the Client's "lcd" display, I want to try a different init_phase(),
         #   that is shown in the foreground and gives prettier info.
-        if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
-            self.show_arbitrary_icon(param)
+        # if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+        #     self.show_arbitrary_icon(param)
         
-        if action == XprocAction.COMMUNICATING:
-            self.show_kitt_scanner_while_communicating()
+        # if action == XprocAction.NETWORKING:
+        #     self.show_kitt_scanner_while_networking()
+        pass
     
-    def show_arbitrary_icon(self, param: dict):
+    def show_arbitrary_icon_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary icon on LCD.")
         self.painter.just_paint(foreground_interaction=ArbitraryIconForegroundPaint(parameter=param))
 
@@ -155,6 +157,12 @@ class Lcd(XprocessDisplayCombined):
 
         self.painter.paint_into_foreground_while_thinking(
             foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
+    
+    def show_arbitrary_text_while_networking(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary text on LCD while networking.")
+
+        self.painter.paint_into_foreground_while_networking(
+            foreground_interaction=ArbitraryContentWhileNetworkingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
@@ -279,10 +287,10 @@ class Lcd(XprocessDisplayCombined):
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
-    def show_kitt_scanner_while_communicating(self):
-        self._xlog.info(f"🤖 Showing KITT communicating on LCD.")
-        self.painter.paint_into_background_while_communicating(background_interaction=CommunicatingBackgroundPaint(
-            delay_between_frames=self.interaction_delays.get("communicating", self.interaction_delays.get("default_delay_between_frames", 0.05))
+    def show_kitt_scanner_while_networking(self):
+        self._xlog.info(f"🤖 Showing KITT networking on LCD.")
+        self.painter.paint_into_background_while_networking(background_interaction=NetworkingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("networking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
     def show(self, text: str):

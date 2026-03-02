@@ -7,7 +7,7 @@ import sounddevice
 import logging
 import time
 
-from definitions import SHARED_CHATBOT_BUSY, SHARED_SPEAKER_BUSY, SHARED_COMMUNICATION_BUSY
+from definitions import SHARED_CHATBOT_BUSY, SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY
 
 class TextToSpeech(Xprocess):
 
@@ -114,11 +114,11 @@ class TextToSpeech(Xprocess):
         self._log_debug("🔈 Unsetting Chatbot as busy.")
     
     def set_communication_busy(self):
-        self.write_shared_memory_flag(SHARED_COMMUNICATION_BUSY, True)
+        self.write_shared_memory_flag(SHARED_NETWORK_BUSY, True)
         self._log_debug("🔈 Setting Communication as busy.")
     
     def unset_communication_busy(self):
-        self.write_shared_memory_flag(SHARED_COMMUNICATION_BUSY, False)
+        self.write_shared_memory_flag(SHARED_NETWORK_BUSY, False)
         self._log_debug("🔈 Unsetting Communication as busy.")
 
         

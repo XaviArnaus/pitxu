@@ -15,7 +15,7 @@ from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
-                        SHARED_SPEAKER_BUSY, SHARED_COMMUNICATION_BUSY,\
+                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY,\
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
@@ -222,12 +222,12 @@ class Interaction(PyXavi):
             # Gathering the TTS response from the server may take time.
             # We do it in a split step, so we can show the thinking animation while waiting for the server 
             # to respond with the TTS audio bytes.
-            self.show_communicating()
+            self.show_networking()
 
             self._log_debug(f"🗣️ Gatehring TTS from the server")
             self.process_pool.send(QUEUE_SPEAKER, XprocAction.GATHER_TTS, message)
 
-            self.wait_for_server_to_start_and_finish_communicating()
+            self.wait_for_server_to_start_and_finish_networking()
 
             # Now the TTS class has the audio bytes, now we do the "normal" flow.
 
@@ -331,17 +331,17 @@ class Interaction(PyXavi):
 
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.THINKING)
     
-    def show_communicating(self):
+    def show_networking(self):
         """
-        Triggers a "communicating" interaction on the background display.
+        Triggers a "networking" interaction on the background display.
 
-        This needs the SHARED_COMMUNICATION_BUSY flag to be set by the Communication/Main process.
+        This needs the SHARED_NETWORK_BUSY flag to be set by the Communication/Main process.
         TODO: this is a clear candidate to the BusyFlagsManager automatic handling.
         """
 
-        self._xlog.debug("🤖 Triggering communicating interaction on background display.")
+        self._xlog.debug("🤖 Triggering networking interaction on background display.")
 
-        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.COMMUNICATING)
+        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.NETWORKING)
     
     def startup_splash(self, for_seconds: float = 3.0):
         """
@@ -452,6 +452,27 @@ class Interaction(PyXavi):
             "padding": padding
         })
     
+    def show_arbitrary_text_on_foreground_while_networking(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5
+        ):
+        """
+        Shows arbitrary text on the foreground display only while networking.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding
+        })
+    
     def show_code_block_on_foreground(self, code: str, for_seconds: float = 10.0):
         """
         Shows a code block on the foreground display.
@@ -503,9 +524,9 @@ class Interaction(PyXavi):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_CHATBOT_BUSY)
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_CHATBOT_BUSY)
     
-    def wait_for_server_to_start_and_finish_communicating(self):
-        self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_COMMUNICATION_BUSY)
-        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_COMMUNICATION_BUSY)
+    def wait_for_server_to_start_and_finish_networking(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_be_busy(SHARED_NETWORK_BUSY)
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_NETWORK_BUSY)
     
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
@@ -582,15 +603,15 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_BUSY)
     
     def set_communication_busy(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_COMMUNICATION_BUSY, True)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_NETWORK_BUSY, True)
         self._log_debug("🤖 Setting Communication as busy.")
     
     def unset_communication_busy(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_COMMUNICATION_BUSY, False)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_NETWORK_BUSY, False)
         self._log_debug("🤖 Unsetting Communication as busy.")
     
     def is_communication_busy(self) -> bool:
-        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_COMMUNICATION_BUSY)
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_NETWORK_BUSY)
 
     def is_chatbot_error(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR)

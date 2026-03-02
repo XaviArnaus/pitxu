@@ -130,14 +130,14 @@ class ThinkingBackgroundPaint(BackgroundPaint):
             loop_iterations=16
         )
 
-class CommunicatingBackgroundPaint(BackgroundPaint):
+class NetworkingBackgroundPaint(BackgroundPaint):
 
     def __init__(self, name = None, delay_between_frames: float = 0.05):
         if name is None:
-            name = "CommunicatingBackgroundPaint"
-        super(CommunicatingBackgroundPaint, self).__init__(
+            name = "NetworkingBackgroundPaint"
+        super(NetworkingBackgroundPaint, self).__init__(
             name=name,
-            interaction=BackgroundComm.COMMUNICATING,
+            interaction=BackgroundComm.NETWORKING,
             delay_between_frames=delay_between_frames,
             final_screen_clearing=True,
             remove_interaction_after_painting=False,
@@ -225,6 +225,22 @@ class ArbitraryContentWhileThinkingForegroundPaint(ForegroundPaint):
         if name is None:
             name = "ArbitraryContentWhileThinkingForegroundPaint"
         super(ArbitraryContentWhileThinkingForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            parameter=parameter,
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            ignore_maintain_time=True
+        )
+
+class ArbitraryContentWhileNetworkingForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "ArbitraryContentWhileNetworkingForegroundPaint"
+        super(ArbitraryContentWhileNetworkingForegroundPaint, self).__init__(
             name=name,
             interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
             parameter=parameter,

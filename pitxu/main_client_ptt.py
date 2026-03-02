@@ -231,7 +231,7 @@ class MainClientPTT(PyXavi):
                         cls._interaction.wait_for_microphone_to_be_muted()
                         
                         # Place some feedback to the user so that it knows that the audio has been registered and is being processed.
-                        cls._interaction.show_communicating()
+                        cls._interaction.show_networking()
                         cls._interaction.set_communication_busy()
 
                         # Recognize what comes from the microphone
@@ -348,6 +348,13 @@ class MainClientPTT(PyXavi):
                         answer = Text.remove_emojis(answer)
                         answer = Text.remove_markdown(answer)
                         answer = Text.replace_known_text(answer, cls._xconfig.get("language.text_replacements." + cls._xparams.get("language"), {}))
+
+                        # The Client first needs to gather the answer from the server. Meanwhile, show the question as an overlay
+                        cls._interaction.show_arbitrary_text_on_foreground_while_networking(
+                            icon="👤",
+                            text=question,
+                            font_size=24,
+                        )
 
                         # Answer
                         sw_answer = cls._stopwatch.start(name="answer" + str(flags.get("answer_count", 0)))

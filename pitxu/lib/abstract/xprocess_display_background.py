@@ -37,6 +37,10 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.THINKING:
             self.show_kitt_scanner_while_thinking()
         
+        # Show KITT scanner while networking
+        if action == XprocAction.NETWORKING:
+            self.show_kitt_scanner_while_networking()
+        
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             self.interaction_holding_percentage(int(param))
         
@@ -87,6 +91,9 @@ class XprocessDisplayBackground(Xprocess):
     
     def show_kitt_scanner_while_thinking(self):
         raise NotImplementedError("show_kitt_scanner_while_thinking() must be implemented in Display Background subclasses.")
+    
+    def show_kitt_scanner_while_networking(self):
+        raise NotImplementedError("show_kitt_scanner_while_networking() must be implemented in Display Background subclasses.")
 
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Background subclasses.")
