@@ -379,7 +379,8 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            show_for_seconds = None
         ):
         """
         Shows arbitrary text on the foreground display.
@@ -390,7 +391,8 @@ class Interaction(PyXavi):
             "font_size": font_size,
             "header": header,
             "font_header_size": font_header_size,
-            "padding": padding
+            "padding": padding,
+            "show_for_seconds": show_for_seconds
         })
     
     def show_arbitrary_icon_on_foreground(

@@ -56,7 +56,7 @@ class DeviceWrapper(PyXavi, Device):
         else:
             if self.screen_size is not None:
                 soft_clear_image = Image.new("RGB", (self.screen_size.x, self.screen_size.y), (0, 0, 0))
-                self.display(soft_clear_image, partial=False)
+                self.display(soft_clear_image)
     
     def is_spi_allowed(self) -> bool:
         import platform

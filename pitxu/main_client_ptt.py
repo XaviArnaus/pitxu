@@ -16,6 +16,9 @@ from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextEx
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.gpio.buttons import Buttons
+from pitxu.lib.utils.xtime import Xtime
+from pitxu.lib.utils.system import System
+from pitxu.lib.microservice.client import Client
 
 import sys
 import sounddevice
@@ -24,6 +27,8 @@ from datetime import datetime
 import asyncio
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
+from apscheduler.executors.pool import ProcessPoolExecutor
 
 class MainClientPTT(PyXavi):
 
@@ -34,12 +39,14 @@ class MainClientPTT(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
+    _idle_minutes_to_show_status: int = 2
 
     _chatbot: GenericChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate: SpeechToText = None
     _raw_input_stream: sounddevice.RawInputStream = None
     _buttons: Buttons = None
+
     _is_pitxu_active: bool = True
     _execution_mode: str = "client"
 
@@ -51,6 +58,8 @@ class MainClientPTT(PyXavi):
     _scheduler: BackgroundScheduler = None
     _maintenance: Maintenance = None
     _reminders: Reminders = None
+
+    _client: Client = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -404,7 +413,15 @@ class MainClientPTT(PyXavi):
                 self._xlog.info("✅ All initialisations done, entering idle state, waiting for interactions...")
 
                 # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
-                signal.pause()
+                # Here it was a signal.pause() before, but it fails to hold the application when the APscheduler triggers and
+                #   executes any System.* function that uses a subprocess.run(). Feels like the subprocess.run() sends any SIGINT or SIGTERM or any other
+                #   and the signal.pause() gets it and releases the pause, and the app finishes.
+                # I've tried to catch all possible signals and no avail. I surrended to end up using a while-loop, but I really don't like it.
+                try:
+                    while True:
+                        await asyncio.sleep(1)
+                except (KeyboardInterrupt, SystemExit) as e:
+                    self._xlog.info("Pressed Control + C from MainClient.run() or received termination signal, exiting MainClientPTT run loop.")
 
                 # Now that the pause has resumed, means that we are meant to close.
                 # Make sure we leave the state properly
@@ -463,8 +480,14 @@ class MainClientPTT(PyXavi):
         self._stopwatch = Stopwatch()
 
         # Dependencies lib's log level
-        self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.scheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
+        self.SCHEDULER_LIB_LOGLEVEL = self._xconfig.get("libs_logger.apscheduler.loglevel", self.SCHEDULER_LIB_LOGLEVEL)
         self.TZLOCAL_LIB_LOGLEVEL = self._xconfig.get("libs_logger.tzlocal.loglevel", self.TZLOCAL_LIB_LOGLEVEL)
+
+        # Idle mode after some minutes of inactivity
+        self._idle_minutes_to_show_status = self._xconfig.get("maintenance.idle_minutes", self._idle_minutes_to_show_status)
+
+        # Interaction with the Pitxu server
+        self._client = Client(config=self._xconfig, params=self._xparams)
 
 
     # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
@@ -584,12 +607,26 @@ class MainClientPTT(PyXavi):
         Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
         """
 
-        self._xlog.info("Initialising Schedulers")
+        def job_listener(event):
+            if event.exception:
+                self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
+            else:
+                self._xlog.debug("✅ Scheduled job executed successfully: " + str(event.job_id))
 
-        self._scheduler = BackgroundScheduler()
+        self._xlog.info("Initialising Schedulers")
+        self._scheduler = BackgroundScheduler(
+            job_defaults={
+                "coalesce": True
+            }
+        )
+        self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+
+        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
         logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
         logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
-        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', minutes=1, args=[None])
+
+        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
         # At the moment, we don't need to run tasks every second.
         # self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
         self._scheduler.start()
@@ -707,6 +744,30 @@ class MainClientPTT(PyXavi):
                 self._reminders.delete_reminder(date_str, time_str)
                 # Reset the last interaction time, as we just spoke
                 self._last_interaction_datetime = datetime.now()
+            
+            # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
+            if Xtime.now_minus_seconds_milliseconds(seconds=self._idle_minutes_to_show_status * 60 * 1000) > self._last_interaction_datetime.second * 1000:
+                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes, showing status information.")
+
+                try:
+                    wifis = System.get_connected_wifi()
+                    network = System.get_default_network_interface()
+                    response = self._client.status() if self._execution_mode == "client" else {"status": "off"}
+                    server_status = response.get("status", "off")
+                    text = wifis[0].get("ssid", "Not connected") + "\n" + \
+                        network.get("ip", "Not connected") + "\n" + \
+                        ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}")
+                    
+                    self._interaction.show_arbitrary_text_on_foreground(
+                        icon="💤",
+                        text=text,
+                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_SMALL,
+                        header="Idle Status",
+                        font_header_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
+                        show_for_seconds=15)
+
+                except (Exception, RuntimeError) as e:
+                    self._xlog.error("🛑 Error while showing idle status information: " + str(e))
     
     # ------- Stuff to do every second -------
 

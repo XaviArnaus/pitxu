@@ -503,6 +503,10 @@ class Painter(PyXavi, Thread):
             # It is set via the end-callbacks when registering painting while busy flags.
             final_clearing_needed = False
 
+            # Keep track of what were the previous interactions, so we can try to avoid unnecessary drawings if the interactions didn't change.
+            previous_foreground_interaction: ForegroundPaint = None
+            previous_background_interaction: BackgroundPaint = None
+
             # We control the painting loop via the running flag.
             while self.is_running():
 
@@ -779,5 +783,14 @@ class Painter(PyXavi, Thread):
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0 and \
                     not final_clearing_needed:
+
                     self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, stopping the painting loop.")
                     self.stop()
+                
+                # If we only have a foreground paint, reduce the speed of the loop to avoid burning the CPU for example.
+                # Please note that here we're not using the current_background_interaction variable directly,
+                #   but rather calling the getter method to ensure we're getting the latest state.
+                if self.get_current_foreground_interaction() is not None and self.get_current_background_interaction() is None:
+
+                    self._log_debug("Only foreground paint remaining, applying extra delay.")
+                    time.sleep(0.5)

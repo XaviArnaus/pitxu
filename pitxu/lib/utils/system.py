@@ -1,4 +1,5 @@
-
+import signal
+from contextlib import contextmanager
 
 class System:
     
@@ -148,12 +149,28 @@ class System:
             raise Exception(f"Error reading throttle state: {e}")
 
     @staticmethod
-    def _run_command(command) -> str:
-        import subprocess
-        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode != 0:
-            raise Exception(f"Command failed: {result.stderr.decode()}")
-        return result.stdout.decode().strip()
+    def _run_command(command: str) -> str:
+        from subprocess import run, PIPE, CalledProcessError
+
+        error = None
+        result = None
+        try:
+            result = run(command, shell=True, stdout=PIPE, stderr=PIPE)
+        except CalledProcessError as e:
+            error = "Command failed. Return code: " + str(e.returncode) + ". Output: " + e.output.decode('utf-8')
+        except FileNotFoundError:
+            error = "Command not found: " + command
+        except Exception as e:
+            error = "Error running command: " + str(e)
+
+        if result is None:
+            if error is not None:
+                print(error)
+                raise Exception(error)
+            print("Command did not return any output.")
+            raise Exception(f"Command failed: [{command}]")
+
+        return result
     
     @staticmethod
     def _read_hardware_metric(command_args, strip_chars) -> str: #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **

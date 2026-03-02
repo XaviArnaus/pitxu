@@ -121,12 +121,17 @@ class Macros(PyXavi):
 
     def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
         try:
-            width_text = canvas.textlength(text.replace("\n", ""), font)
+            lines = text.split("\n")
+            longest_line = max(lines, key=lambda line: canvas.textlength(line, font=font))
+            width_text = canvas.textlength(longest_line, font)
             if(width_text <= max_width):
+                # self._xlog.debug(f"No need to wrap text as its width [{width_text}] is less than max width [{max_width}]")
                 return text
             else:
+                # self._xlog.debug(f"Wrapping text as its width [{width_text}] is greater than max width [{max_width}]")
                 # Remove all possible current line breaks and then split by words
-                words = text.replace("\n", " ").split(" ")
+                # words = text.replace("\n", " ").split(" ")
+                words = text.split()
                 new_text = ""
                 current_line = ""
                 

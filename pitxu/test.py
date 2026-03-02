@@ -528,6 +528,70 @@ finally:
         except Exception:
             print(full_stack())
     
+    def test_status_idle_screen(self):
+        try:
+            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.objects.point import Point
+            from pitxu.lib.utils.system import System
+            from pitxu.lib.microservice.client import Client
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing the Status Idle Screen")
+
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": Point(int(self._xconfig.get("lcd.size.x")), int(self._xconfig.get("lcd.size.y"))),
+                "device_config_prefix": "lcd"
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
+
+            client = Client(config=self._xconfig, params=self._xparams)
+            execution_mode = "public"
+
+            self._xlog.debug("Gathering network information and server connection status to show in the idle screen...")
+            wifis = System.get_connected_wifi()
+            network = System.get_default_network_interface()
+            response = client.status() if execution_mode == "public" else {"status": "off"}
+            server_status = response.get("status", "off")
+            text = wifis[0].get("ssid", "Not connected") + "\n" + \
+                    network.get("ip", "Not connected") + "\n" + \
+                    ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}") + "\n"
+            
+            self._xlog.debug(f"Network info and server status to show: \n{text}")
+            
+            self._xlog.debug("Showing idle status screen with network info and server connection status...")
+            macros.draw_arbitrary_text_with_icon(
+                    draw=canvas.get_canvas(),
+                    icon="💤",
+                    text=text,
+                    font_size=canvas.FONT_SIZE_SMALL,
+                    header="Idle",
+                    font_header_size=canvas.FONT_SIZE_BIG)
+            
+            self._xlog.debug("Showing image and pausing 3 seconds to let it show")
+            device.display(canvas.get_image())
+            time.sleep(3)
+
+            self._xlog.debug("Clearing idle status screen...")
+            # Clear screen
+            device.clear()
+
+            self._xlog.debug("Closing device and canvas...")
+            canvas.close_canvas()
+            
+
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())
+    
     def test_audio_files(self):
         try:
             import base64

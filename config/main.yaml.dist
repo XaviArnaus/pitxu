@@ -49,6 +49,10 @@ storage:
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.wav", ".keep"]
 
+maintenance:
+  # [Int] number of minutes of insactivity to consider the app idle and show some status information in the screen.
+  idle_minutes: 2
+
 # Fonts
 fonts:
   # [String] Path for font files
