@@ -648,7 +648,7 @@ class Painter(PyXavi, Thread):
                     if foreground_starting_time is None:
                         # It was, so we set the starting time and then we control how much it is getting shown.
                         self._log_debug(f"Painter: New foreground paint detected: [{current_foreground_interaction.name}], starting to show it now.")
-                        foreground_starting_time = Xtime.now_milliseconds()
+                        foreground_starting_time = Xtime.now_as_milliseconds()
 
                     # Because we may have painted anything related to the background first, we need to paint again the foreground over it.
                     # That's why, even a flushed image stays until changed, we need to keep on repainting it.
@@ -704,7 +704,7 @@ class Painter(PyXavi, Thread):
                     # We may have reached the end of the foreground paint showing time.
                     # We now allow new foregrounds to be painted. This is useful when the expected time for a foreground is shorter than
                     #   the background showing time. We can show the next foreground paint.
-                    if Xtime.now_minus_seconds_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
+                    if Xtime.now_minus_seconds_as_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
                         not current_foreground_interaction.ignore_maintain_time:
                         # If we remove the foreground we may loose the one that may have been set while showing the previous interaction, so no.
                         # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
@@ -713,8 +713,8 @@ class Painter(PyXavi, Thread):
                         self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
                                         f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
                         self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_foreground_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
-                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_milliseconds()}]," +
-                                        f" diff is [{(Xtime.now_milliseconds() - foreground_starting_time) / 1000}]sec.")
+                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_as_milliseconds()}]," +
+                                        f" diff is [{(Xtime.now_as_milliseconds() - foreground_starting_time) / 1000}]sec.")
 
                         # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
                         foreground_starting_time = None
