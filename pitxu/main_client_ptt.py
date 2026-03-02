@@ -211,6 +211,10 @@ class MainClientPTT(PyXavi):
                             color=cls._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
                         cls._interaction.wait_for_foreground_display_queue_to_empty()
 
+                        # Because network can be slow, identify this button event as an interaction, so we avoid any idle status being
+                        #   shown while the user is in the middle of an interaction.
+                        cls._last_interaction_datetime = datetime.now()
+
                     # Here we want to stop recording and start the interaction pipeline:
                     #   Transcribe > Chatbot > Tools / React > Answer / Show > Wait for next interaction.
                     if not is_pressed and flags.get("recording_audio", False):
