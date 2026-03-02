@@ -755,7 +755,7 @@ class MainClientPTT(PyXavi):
                 self._last_interaction_datetime = datetime.now()
             
             # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
-            if Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.second * 1000:
+            if Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
                 self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes, showing status information.")
 
                 try:
