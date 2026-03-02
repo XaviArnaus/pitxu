@@ -150,12 +150,15 @@ class System:
 
     @staticmethod
     def _run_command(command: str) -> str:
-        from subprocess import run, PIPE, CalledProcessError
+        from subprocess import run, PIPE, CalledProcessError, CompletedProcess
 
         error = None
-        result = None
+        result: CompletedProcess = None
         try:
             result = run(command, shell=True, stdout=PIPE, stderr=PIPE)
+            if result.returncode != 0:
+                raise CalledProcessError(result.returncode, command, output=result.stdout, stderr=result.stderr)
+            result = result.stdout.decode('utf-8')
         except CalledProcessError as e:
             error = "Command failed. Return code: " + str(e.returncode) + ". Output: " + e.output.decode('utf-8')
         except FileNotFoundError:
