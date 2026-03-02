@@ -49,8 +49,8 @@ class DeviceWrapper(PyXavi, Device):
             else:
                 file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
                 image.save(file_path)
-                file_path = self.path_for_mocked_images + "_latest.png"
-                image.save(file_path)
+            file_path = self.path_for_mocked_images + "_latest.png"
+            image.save(file_path)
     
     def clear(self):
         if (self.is_spi_allowed()):

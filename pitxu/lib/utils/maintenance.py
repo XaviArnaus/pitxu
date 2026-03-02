@@ -21,6 +21,9 @@ class Maintenance(PyXavi):
     # Parallel logger
     _maintenance_logger: JsonLogger = None
 
+    # It's stupid to collect all the data and not have it available to be used by the whole application.
+    _last_gathered_metrics: Dictionary = None
+
     # Client support for connecting to Pitxu
     _client: Client = None
 
@@ -65,8 +68,8 @@ class Maintenance(PyXavi):
         
         self._maintenance_logger = JsonLogger(self._xconfig, self._xparams)
     
-    def get_logger(self) -> JsonLogger:
-        return self._maintenance_logger
+    def get_last_gathered_metrics(self) -> Dictionary:
+        return self._last_gathered_metrics
     
     def is_pitxu_server_alive(self) -> bool:
         try:
@@ -124,7 +127,7 @@ class Maintenance(PyXavi):
                 }
             
             if self._xconfig.get("app.execution_mode", "local") == "client":
-                local_metrics["pitxu_server_alive"] = self.is_pitxu_server_alive()
+                local_metrics["pitxu_server_alive"] = "alive" if self.is_pitxu_server_alive() else "unreachable"
         
         except Exception as e:
             self._xlog.error(f"Error collecting maintenance metrics: {e}")
@@ -136,6 +139,11 @@ class Maintenance(PyXavi):
             **local_metrics,
             **metrics
         }
+
+        # Create a Dictionary out of it and keep it available for the whole application to use it.
+        self._last_gathered_metrics = Dictionary(metrics)
+
+        # Now log it.
         self._maintenance_logger.log(metrics)
         self._xlog.debug(f"🗒️ Logged maintenance metrics.")
     

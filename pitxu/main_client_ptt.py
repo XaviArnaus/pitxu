@@ -769,18 +769,21 @@ class MainClientPTT(PyXavi):
                 # Reset the last interaction time, as we just spoke
                 self._last_interaction_datetime = datetime.now()
             
+            # Every minute, log a bunch of metrics defined internally.
+            # It also accepts a dict, that will be merged with the internal metrics.
+            self._maintenance.log_metrics()
+            
             # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
             if Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
                 self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes, showing status information.")
 
                 try:
-                    wifis = System.get_connected_wifi()
-                    network = System.get_default_network_interface()
-                    response = self._client.status() if self._execution_mode == "client" else {"status": "off"}
-                    server_status = response.get("status", "off")
-                    text = wifis[0].get("ssid", "Not connected") + "\n" + \
-                        network.get("ip", "Not connected") + "\n" + \
-                        ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}")
+                    wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "Not connected")
+                    network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "Not connected")
+                    server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
+                    text = wifi.replace("N/A", "Not connected") + "\n" + \
+                        network.replace("N/A", "Not connected") + "\n" + \
+                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected: {server_status}")
                     
                     self._interaction.show_arbitrary_text_on_foreground(
                         icon="💤",
@@ -792,10 +795,6 @@ class MainClientPTT(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
-            
-            # Every minute, log a bunch of metrics defined internally.
-            # It also accepts a dict, that will be merged with the internal metrics.
-            self._maintenance.log_metrics()
     
     # ------- Stuff to do every second -------
 
