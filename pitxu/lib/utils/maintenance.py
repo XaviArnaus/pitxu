@@ -96,13 +96,17 @@ class Maintenance(PyXavi):
 
                 local_metrics["cpu"] = {
                     "temperature": System.get_cpu_temperature(),
-                    "fan_speed": System.get_cpu_fan_speed(),
                     "volts": System.get_cpu_volts(),
                     "amps": System.get_cpu_amps(),
                     "temp": System.get_cpu_temp(),
                     "input_voltage": System.get_input_voltage(),
                     "power_throttle": System.get_power_throttle()
                 }
+                try:
+                    local_metrics["cpu"]["fan_speed"] = System.get_cpu_fan_speed()
+                except Exception as e:
+                    self._log_debug(f"Could not get the Fan Speed. Most likely this device does not have it.")
+
                 local_metrics["memory"] = System.get_memory_usage()
                 local_metrics["pitxu_process_memory"] = System.get_pitxu_memory_use()
                 local_metrics["load"] = System.get_system_load()
