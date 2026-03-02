@@ -62,7 +62,14 @@ class Vosk(PyXavi):
                 self._xlog.info("Vosk: Loading default model for language: " + language)
                 self._model = Model(lang=language)
 
-            self.samplerate = self._get_samplerate()
+            # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
+            # otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
+            if self._xparams.get("samplerate", None) is not None:
+                self.samplerate = self._xparams.get("samplerate")
+                self._xlog.debug(f"Vosk: Samplerate set from params: {self.samplerate}")
+            else:
+                self.samplerate = self._get_samplerate()
+            
             self.device = self._xconfig.get("speech-to-text.input_device", None)
             self._xlog.debug(f"Vosk: Samplerate {self.samplerate}, Device {self.device}")
 

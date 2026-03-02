@@ -123,12 +123,18 @@ class MainClientPTT(PyXavi):
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
             self._interaction.show_init_phases(5, text="🎙️  Microphone")
+
+            # Set the samplerate that we're going to settle for the Client (ensure that the server has the EXACT SAME VALUE)
+            # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
+            samplerate = self._xconfig.get("client.input_samplerate", self._dictate.samplerate)
+
             # Vosk wants the following parameters: 16kHz, mono, 16 bit.
             with sounddevice.RawInputStream(
                             # samplerate=self._dictate.samplerate,
                             # Tried like this, the server side is unable to transcribe.
+                            samplerate=samplerate,
                             # samplerate=16000,
-                            samplerate=44100,
+                            # samplerate=44100,
                             blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 

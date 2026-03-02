@@ -21,6 +21,8 @@ class Server(PyXavi, MicroserviceBase):
     chatbot_client_callbacks = None
     output_interaction = None
 
+    stt_samplerate: int = None
+
     VERBOSE_DEBUG: bool = True
     FLASK_LIB_LOG_LEVEL: int = logging.INFO
 
@@ -44,6 +46,15 @@ class Server(PyXavi, MicroserviceBase):
         else:
             raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
         
+        if params.key_exists("samplerate"):
+            self.stt_samplerate = params.get("samplerate")
+            self._xlog.debug(f"Server: STT samplerate set from params: {self.stt_samplerate}")
+        elif self._xconfig.key_exists("server.input_samplerate"):
+            self.stt_samplerate = self._xconfig.get("server.input_samplerate", None)
+            self._xlog.debug(f"Server: STT samplerate set from config: {self.stt_samplerate}")
+        else:
+            self._xlog.debug("Server: No STT samplerate provided in params or config, using default gathered from microphone input.")
+        
         # Set the log levels for the Piper libraries based on the configuration
         self.FLASK_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.flask.loglevel", self.FLASK_LIB_LOG_LEVEL)
         self._log_debug("Setting Server log level to: " + str(self.FLASK_LIB_LOG_LEVEL))
@@ -66,6 +77,10 @@ class Server(PyXavi, MicroserviceBase):
             # Vosk needs its own instance, otherwise in "public" execution mode it mixes its michrophone callback
             #   with the server endpoint calls and it produces a segmentation fault.
             self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+
+            if not self._xparams.key_exists("samplerate") and self.stt_samplerate is not None:
+                self._xparams.set("samplerate", self.stt_samplerate)
+
             self.server.config['stt'] = Vosk(config=self._xconfig, params=self._xparams)
             self.server.config['chatbot'] = self.chatbot
             self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks

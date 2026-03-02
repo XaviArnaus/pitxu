@@ -8,6 +8,9 @@ server:
   # [Integer] Port to bind the server to.
   # Will accept connections to this port.
   port: 5000
+  # [Integer] The sample rate to use for the transcription endpoint.
+  # This will be set in the Vosk's Kaldi Recognizer settings in the server. Be sure that the value matches server and client.
+  input_samplerate: 16000
 
 # Parameters related to the client connecting to the server endpoints for interacting with the server
 client:
@@ -17,3 +20,6 @@ client:
   port: 5000
   # [Bool] Dump audio into files for further analysis.
   dump_audio: False
+  # [Integer] The sample rate to use for the input audio.
+  # This will be set in the Audio Input settings in the client. Be sure that the value matches server and client.
+  input_samplerate: 16000
