@@ -760,7 +760,7 @@ class MainClientPTT(PyXavi):
                         icon="💤",
                         text=text,
                         font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_SMALL,
-                        header="Idle Status",
+                        header="Idle",
                         font_header_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
                         show_for_seconds=15)
 
