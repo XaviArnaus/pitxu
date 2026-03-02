@@ -25,7 +25,7 @@ from datetime import datetime
 import asyncio
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import EVENT_JOB_ERROR
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 class MainClientPTT(PyXavi):
 
@@ -607,6 +607,9 @@ class MainClientPTT(PyXavi):
         def job_listener(event):
             if event.exception:
                 self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
+            # We already show some minimal logging for each job executed. This is not really needed beyond debug.
+            # else:
+            #     self._log_debug("✅ Scheduled job executed successfully: " + str(event.job_id))
 
         self._xlog.info("Initialising Schedulers")
         self._scheduler = BackgroundScheduler(
@@ -614,7 +617,7 @@ class MainClientPTT(PyXavi):
                 "coalesce": True
             }
         )
-        self._scheduler.add_listener(job_listener, EVENT_JOB_ERROR)
+        self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
         self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
         logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
