@@ -19,7 +19,7 @@ class SharedMemoryManager(PyXavi):
         # On purpose not including Microphone in the busy waiters, as it does not block other processes
         # "microphone_muted": SHARED_MICROPHONE_MUTED,
         "chatbot_busy": SHARED_CHATBOT_BUSY,
-        "communication_busy": SHARED_NETWORK_BUSY
+        "network_busy": SHARED_NETWORK_BUSY
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_flag: dict[int, str] = {
@@ -34,7 +34,7 @@ class SharedMemoryManager(PyXavi):
         SHARED_EINK_IDLE_MODE: "eink_idle_mode",
         SHARED_LCD_IDLE_MODE: "lcd_idle_mode",
         SHARED_DSI_LCD_IDLE_MODE: "dsi_lcd_idle_mode",
-        SHARED_NETWORK_BUSY: "communication_busy"
+        SHARED_NETWORK_BUSY: "network_busy"
     }
 
     WAITING_SLEEP_SECONDS = 0.01

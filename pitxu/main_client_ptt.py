@@ -18,6 +18,7 @@ from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.system import System
 from pitxu.lib.microservice.client import Client
 
+import signal
 import sys
 import sounddevice
 import time
@@ -87,7 +88,8 @@ class MainClientPTT(PyXavi):
         # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
         #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
         #   that we catch in the run() method and call close_nicely().
-        # signal.signal(signal.SIGTERM, self._handle_sigterm)
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
 
         # Prepare the instance.
         # The big part of the initializations are done in run() as part of "the run"
@@ -507,18 +509,19 @@ class MainClientPTT(PyXavi):
     # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
     #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
     #   that we catch in the run() method and call close_nicely().
-    # def _handle_sigterm(self, sig, frame):
-    #     """
-    #     Handle SIGTERM signal
+    def _handle_signal(self, sig, frame):
+        """
+        Handle signals for graceful shutdown.
+        This is set to handle SIGTERM, that is the signal sent by systemctl stop and reboot commands.
 
-    #     This allows the service to stop gracefully when receiving a termination signal,
-    #     that happens with systemctl stop or reboot commands.
-    #     """
+        This allows the service to stop gracefully when receiving a termination signal,
+        that happens with systemctl stop or reboot commands.
+        """
 
-    #     # TODO: Now that there is no loop, and there is a signal.pause() at the end of the run() method,
-    #     #   we should check if this handler is still needed, and if it works as expected.
-    #     self._xlog.warning('SIGTERM received in MainClient, closing nicely now...')
-    #     self.close_nicely()
+        signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
+
+        self._xlog.warning(f"🔪 Signal [{signal_name}] received in MainClient, closing nicely now...")
+        self.close_nicely()
     
     def _initialize_speech_to_text(self):
         """
