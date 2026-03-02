@@ -44,10 +44,13 @@ class DeviceWrapper(PyXavi, Device):
         if (self.is_spi_allowed()):
             self.device.draw_image(image)
         else:
-            file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
-            image.save(file_path)
-            file_path = self.path_for_mocked_images + "_latest.png"
-            image.save(file_path)
+            if (self._xconfig.get("displays.discard_mocked_images", False)):
+                self._log_debug("Won't store mocked image due to [displays.discard_mocked_images].")
+            else:
+                file_path = self.path_for_mocked_images + datetime.now().strftime("%Y%m%d-%H%M%S.%f") + ".png"
+                image.save(file_path)
+                file_path = self.path_for_mocked_images + "_latest.png"
+                image.save(file_path)
     
     def clear(self):
         if (self.is_spi_allowed()):

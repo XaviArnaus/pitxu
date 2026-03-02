@@ -2,8 +2,9 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.system import System
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.json_logger import JsonLogger
+from pitxu.lib.microservice.client import Client
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary, full_stack
 
 import platform
 import os
@@ -19,6 +20,9 @@ class Maintenance(PyXavi):
 
     # Parallel logger
     _maintenance_logger: JsonLogger = None
+
+    # Client support for connecting to Pitxu
+    _client: Client = None
 
     # TODO: This has to be pre-loaded by param after collecting all running displays from Main.
     DEFAULT_STORAGE_PATH = "storage/"
@@ -52,6 +56,8 @@ class Maintenance(PyXavi):
         ]
         self._excluded_audio_filenames = self._xconfig.get("storage.audio.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
+        self._client = Client(config=config, params=params)
+
         # Initialize the maintenance logger.
         self._init_maintenance_logger()
     
@@ -62,6 +68,17 @@ class Maintenance(PyXavi):
     def get_logger(self) -> JsonLogger:
         return self._maintenance_logger
     
+    def is_pitxu_server_alive(self) -> bool:
+        try:
+            status = self._client.status()
+            if status and status.get("status") == "ok":
+                return True
+            else:
+                return False
+        except Exception as e:
+            self._xlog.error(f"Error checking Pitxu server status: {e}")
+            return False
+    
     def log_metrics(self, metrics: dict = {}):
 
         # Initialize the metrics entry.
@@ -69,31 +86,50 @@ class Maintenance(PyXavi):
             "timestamp": Xtime.current_time_str(),
         }
 
-        # CPU data is only available under linux.
-        if self._is_linux():
-            local_metrics["cpu"] = {
-                "temperature": System.get_cpu_temperature(),
-                "fan_speed": System.get_cpu_fan_speed(),
-                "volts": System.get_cpu_volts(),
-                "amps": System.get_cpu_amps(),
-                "temp": System.get_cpu_temp(),
-                "input_voltage": System.get_input_voltage(),
-                "power_throttle": System.get_power_throttle()
-            }
-        
-        # Network data is available under linux and macos.
-        wifis = System.get_connected_wifi()
-        if wifis and len(wifis) > 0:
-            wifi_ssid = wifis[0].get("ssid", "N/A")
-        else:
-            wifi_ssid = "N/A"
-        network = System.get_default_network_interface()
-        ip = network.get("ip", "N/A") if network else "N/A"
+        try:
 
-        local_metrics["network"] = {
-            "wifi_ssid": wifi_ssid,
-            "ip": ip
-        }
+            # This data is only available under linux.
+            if self._is_linux():
+
+                local_metrics["cpu"] = {
+                    "temperature": System.get_cpu_temperature(),
+                    "fan_speed": System.get_cpu_fan_speed(),
+                    "volts": System.get_cpu_volts(),
+                    "amps": System.get_cpu_amps(),
+                    "temp": System.get_cpu_temp(),
+                    "input_voltage": System.get_input_voltage(),
+                    "power_throttle": System.get_power_throttle()
+                }
+                local_metrics["memory"] = System.get_memory_usage()
+                local_metrics["pitxu_process_memory"] = System.get_pitxu_memory_use()
+                local_metrics["load"] = System.get_system_load()
+                local_metrics["uptime"] = System.get_system_uptime()
+            
+            # This data is only available under linux and macos.
+            if self._is_linux() or self._is_macos():
+
+                local_metrics["disk"] = System.get_disk_usage()
+            
+                wifis = System.get_connected_wifi()
+                if wifis and len(wifis) > 0:
+                    wifi_ssid = wifis[0].get("ssid", "N/A")
+                else:
+                    wifi_ssid = "N/A"
+                network = System.get_default_network_interface()
+                ip = network.get("ip", "N/A") if network else "N/A"
+
+                local_metrics["network"] = {
+                    "wifi_ssid": wifi_ssid,
+                    "ip": ip
+                }
+            
+            if self._xconfig.get("app.execution_mode", "local") == "client":
+                local_metrics["pitxu_server_alive"] = self.is_pitxu_server_alive()
+        
+        except Exception as e:
+            self._xlog.error(f"Error collecting maintenance metrics: {e}")
+            self._xlog.debug(full_stack())
+            local_metrics["error"] = str(e)
 
         # Now merge and log.
         metrics = {

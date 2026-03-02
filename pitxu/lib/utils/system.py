@@ -1,5 +1,4 @@
-import signal
-from contextlib import contextmanager
+import psutil, os, platform
 
 class System:
     
@@ -32,7 +31,6 @@ class System:
     
     @staticmethod
     def get_connected_wifi() -> list[dict]:
-        import platform
         """
         Get the list of available WiFi networks
         """
@@ -147,6 +145,68 @@ class System:
             return report
         except Exception as e:
             raise Exception(f"Error reading throttle state: {e}")
+    
+    @staticmethod
+    def get_system_uptime() -> float:
+        return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
+    
+    @staticmethod
+    def get_system_load() -> list[float]:
+        return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+    
+    @staticmethod
+    def get_memory_usage() -> dict:
+        meminfo = System._run_command("cat /proc/meminfo")
+
+        # We only want the following fields from meminfo:
+        fields = ["MemTotal", "MemFree", "MemAvailable", "Buffers", "Cached", "SwapTotal", "SwapFree"]
+
+        meminfo_dict = {}
+        for line in meminfo.splitlines():
+            parts = line.split(':')
+            if len(parts) == 2:
+                key = parts[0].strip()
+                if key in fields:
+                    value = parts[1].strip().split()[0] # Get the numeric value, ignoring units
+                    meminfo_dict[key] = int(value) # Convert to integer (kilobytes)
+        return meminfo_dict
+
+    @staticmethod
+    def get_pitxu_memory_use() -> dict:
+
+        pid = os.getpid()
+        process = psutil.Process(pid)
+        mem_info = process.memory_info()
+        return {
+            "resident_set_size": mem_info.rss, # Resident Set Size: the non-swapped physical memory the process is using.
+            "virtual_memory_size": mem_info.vms, # Virtual Memory Size: the total amount of virtual memory used by the process.
+            # "shared_memory": mem_info.shared, # Shared Memory: the amount of memory shared with other processes.
+            # "text": mem_info.text, # Text (code): the amount of memory used by executable code.
+            # "library": mem_info.lib, # Library: the amount of memory used by loaded libraries.
+            # "data": mem_info.data, # Data + Stack: the amount of memory used by data and stack.
+            # "dirty": mem_info.dirty # Dirty Pages: the amount of memory that is marked as dirty (modified but not yet written to disk).
+        }
+
+    @staticmethod
+    def get_disk_usage() -> dict:
+        df_output = System._run_command("df -h /") # Get disk usage for root partition
+        lines = df_output.splitlines()
+        if len(lines) < 2:
+            raise Exception("Unexpected output from df command")
+        
+        # The second line contains the data we need
+        parts = lines[1].split()
+        if len(parts) < 6:
+            raise Exception("Unexpected output format from df command")
+        
+        return {
+            "filesystem": parts[0],
+            "size": parts[1],
+            "used": parts[2],
+            "available": parts[3],
+            "use_percent": parts[4],
+            "mounted_on": parts[5]
+        }
 
     @staticmethod
     def _run_command(command: str) -> str:
