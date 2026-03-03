@@ -33,11 +33,11 @@ class Xtime:
     
     @staticmethod
     def now_key(format: str = None) -> str:
-        from slugify import slugify
         """
         Returns the current time as a formatted string.
         Just a shortcut for miliseconds.
         """
+        from slugify import slugify
         if format is None:
             format = Xtime.FORMAT_WITH_MILLISECONDS
         return slugify(Xtime.now().strftime(format), replacements=[[" ", "_"], [":", "-"], [".", "-"]])
@@ -54,3 +54,14 @@ class Xtime:
         if seconds is None:
             raise ValueError("Xtime.now_minus_seconds_as_milliseconds() requires a valid \"seconds\" argument.")
         return Xtime.now_as_milliseconds() - int(seconds * 1000)
+    
+    @staticmethod
+    def slugify_datetime(dt: datetime, format: str = None) -> str:
+        """
+        Converts a datetime object to a slugified string based on the given format.
+        If no format is provided, it defaults to FORMAT_WITH_MILLISECONDS.
+        """
+        from slugify import slugify
+        if format is None:
+            format = Xtime.FORMAT_WITH_MILLISECONDS
+        return slugify(dt.strftime(format), replacements=[[" ", "_"], [":", "-"], [".", "-"]])
