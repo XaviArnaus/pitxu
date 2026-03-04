@@ -9,13 +9,21 @@ nmcli con show
 ```
 
 ## 2. Show the metric that tells the prio of a specific Wifi connection
+
 ```
 nmcli con show CATALUNYA_LLIURE | grep ipv4.route-metric
+nmcli con show CATALUNYA_LLIURE | grep connection.autoconnect-priority
 ```
 
 ## 3. Set the metric to a highest number above the others
+⚠️ The following didn't work.
 ```
 sudo nmcli con modify CATALUNYA_LLIURE ipv4.route-metric 100
+```
+
+Trying now this:
+```
+sudo nmcli con modify CATALUNYA_LLIURE connection.autoconnect-priority 10
 ```
 
 ## 4. Start the connection
