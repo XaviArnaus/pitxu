@@ -38,6 +38,8 @@ class MainClientPTT(PyXavi):
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
     _idle_minutes_to_show_status: int = 2
+    _last_connectivity_check_within_interaction: datetime = None
+    _seconds_before_check_within_interaction: int = 5
 
     _chatbot: GenericChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
@@ -143,25 +145,13 @@ class MainClientPTT(PyXavi):
                             channels=1,
                             callback=self._dictate.callback) as input_stream:
                 
-                # Welcome greeting
-                sw_greeting = self._stopwatch.start(name="greeting")
-                self._interaction.show_init_phases(6, text="👋 Greeting")
-                self._interaction.show_idle()
-                self._interaction.say(self._greeting_sentence)
-                self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
-
                 # Load the Chatbot Callbacks definitions,
                 #   that are needed to react on the possible tool calls in the answers.
-                self._interaction.show_init_phases(7, text="🤖 Chatbot")
+                self._interaction.show_init_phases(6, text="🤖 Chatbot")
                 await self._initialize_chatbot()
 
-                # Before we start with the loop, let's set the last interaction time to now
-                # It just started, there was a greating after all.
-                # Maybe the user wants to talk straight away without the trigger words.
-                self._last_interaction_datetime = datetime.now()
-
                 # Initialize the Reactions class
-                self._interaction.show_init_phases(8, text="⚡️ Reactions")
+                self._interaction.show_init_phases(7, text="⚡️ Reactions")
                 self._initialize_reactions(input_stream=input_stream)
 
                 # The callback approach
@@ -169,7 +159,7 @@ class MainClientPTT(PyXavi):
                 #
                 # The idea here is to set all callbacks for all actions, to avoid running a forever loop.
                 #
-                self._interaction.show_init_phases(9, text="↩️  PTT Callbacks")
+                self._interaction.show_init_phases(8, text="↩️  PTT Callbacks")
 
                 # Initialize the flags
                 dictate_count = 0
@@ -190,10 +180,11 @@ class MainClientPTT(PyXavi):
                     # Init.
                     question = ""
                     is_pressed = cls._buttons.is_pressed(button_name)
-                    recording = flags.get("recording_audio", False)
+                    is_recording = flags.get("recording_audio", False)
+                    has_connection = flags.get("have_connection", None)
 
                     # Stupid trick to avoid misfires.
-                    if (is_pressed and recording == True) or (not is_pressed and recording == False):
+                    if (is_pressed and is_recording == True) or (not is_pressed and is_recording == False):
                         # This means that we are in a state where the button is being pressed but we are already recording, 
                         #   or the button is released but we are not recording.
                         # In both cases, we should not do anything, because we are already in the correct state for the button.
@@ -201,12 +192,26 @@ class MainClientPTT(PyXavi):
                         return
 
                     # Now comes the real callback logic involving the buttons and the recording state.
-                    cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
-                                    "   - " + ("recording audio." if flags.get("recording_audio", False) else "Not recording audio.") + "\n" +
-                                    "   - Button state is " + ("PRESSED." if cls._buttons.is_pressed(button_name) else "RELEASED."))
+                    # cls._log_debug(f"🎙️ Button [{button_name}] interact callback triggered: \n" +
+                    #                 "   - " + ("recording audio." if is_recording else "Not recording audio.") + "\n" +
+                    #                 "   - Button state is " + ("PRESSED." if is_pressed else "RELEASED."))
+                    
+                    # Now, if we already know that there is no connectivity with the server, we don't even accept to start recording.
+                    # But use the chance to retry, at least once every 5 seconds.
+                    if has_connection == False and \
+                        (
+                            cls._last_connectivity_check_within_interaction is None or \
+                            (datetime.now() - cls._last_connectivity_check_within_interaction).total_seconds() > cls._seconds_before_check_within_interaction
+                        ):
+                            cls._log_debug(f"🎙️ No connectivity with the server for the last {cls._seconds_before_check_within_interaction} seconds, retrying connectivity check...")
+                            cls._last_connectivity_check_within_interaction = datetime.now()
+                            # Retry connectivity check here
+                            has_connection = flags["have_connection"] = cls.check_connectivity()
 
-                    # Here we want to start recording the audio
-                    if is_pressed and not flags.get("recording_audio", False):
+                    # Here we want to start recording the audio.
+                    # We don't accept to start recording if we don't have connection with the server.
+                    # We accept not knowing it (None), so we can check it while the user is talking.
+                    if is_pressed and not is_recording and has_connection != False:
 
                         cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
                         flags["recording_audio"] = True
@@ -223,9 +228,43 @@ class MainClientPTT(PyXavi):
                         #   shown while the user is in the middle of an interaction.
                         cls._last_interaction_datetime = datetime.now()
 
+                        # While the user is talking, we also check if there is connectivity with the server, 
+                        # and if not, we show an error and cancel the interaction.
+                        if has_connection is None:
+                            cls._log_debug(f"🎙️ Connectivity with the server is unknown at the moment of starting recording, checking connectivity...")
+                            has_connection = cls.check_connectivity()
+                        if not has_connection:
+
+                            # Register this state in the flags
+                            flags["have_connection"] = False
+
+                            # Stop recording.
+                            flags["recording_audio"] = False
+                            cls._interaction.mute_microphone(input_stream=input_stream)
+                            cls._interaction.wait_for_microphone_to_be_muted()
+                            cls._dictate.wipe_audio_queue()
+
+                            # Show an error.
+                            error_message = cls._xconfig.get("language.connectivity_error." + cls._xparams.get("language"))
+                            cls._interaction.show_error(
+                                text=error_message,
+                                for_seconds=5
+                            )
+                            cls._interaction.wait_for_foreground_display_queue_to_empty()
+                            cls._interaction.wait_for_busy_foreground_display_to_idle()
+
+                            # Clear the display.
+                            cls._interaction.clear_foreground_display()
+                            cls._interaction.wait_for_foreground_display_queue_to_empty()
+                            cls._interaction.wait_for_busy_foreground_display_to_idle()
+                        else:
+                            # We set have_connection to True so we don't continuously check for it while recording.
+                            flags["have_connection"] = True
+
                     # Here we want to stop recording and start the interaction pipeline:
                     #   Transcribe > Chatbot > Tools / React > Answer / Show > Wait for next interaction.
-                    if not is_pressed and flags.get("recording_audio", False):
+                    # Here we only accept to have connection. The check should happen before it.
+                    if not is_pressed and is_recording and has_connection != False:
 
                         cls._log_debug(f"Delaying one second the stop audio registration for button [{button_name}] release")
                         time.sleep(1)
@@ -388,6 +427,7 @@ class MainClientPTT(PyXavi):
                     "recording_audio": recording_audio,
                     "dictate_count": dictate_count,
                     "answer_count": answer_count,
+                    "have_connection": None
                 }
 
                 # Set the press callback for the Push To Talk button
@@ -414,8 +454,37 @@ class MainClientPTT(PyXavi):
 
                 # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
                 #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
-                self._interaction.show_init_phases(10, text="⏱️  Schedulers")
+                self._interaction.show_init_phases(9, text="⏱️  Schedulers")
                 self._initialize_schedulers()
+
+                # Before interacting, check the connectivity with the server, and if not connected, show an error and wait until it's back.
+                already_shown_connectivity_error = False
+                while not self.check_connectivity():
+                    try:
+                        if not already_shown_connectivity_error:
+                            # No connectivity, show an error and wait for connectivity to be back.
+                            error_message = self._xconfig.get("language.connectivity_error." + self._xparams.get("language"))
+                            self._interaction.show_error(
+                                text=error_message,
+                                for_seconds=5
+                            )
+                            already_shown_connectivity_error = True
+                        
+                        await asyncio.sleep(self._seconds_before_check_within_interaction)
+                    except (KeyboardInterrupt, SystemExit):
+                        raise KeyboardInterrupt("Pressed Control + C while waiting for connectivity in MainClientPTT run loop.")
+
+                # Welcome greeting
+                sw_greeting = self._stopwatch.start(name="greeting")
+                self._interaction.show_init_phases(10, text="👋 Greeting")
+                self._interaction.show_idle()
+                self._interaction.say(self._greeting_sentence)
+                self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
+
+                # Before we start with the loop, let's set the last interaction time to now
+                # It just started, there was a greating after all.
+                # Maybe the user wants to talk straight away without the trigger words.
+                self._last_interaction_datetime = datetime.now()
 
                 # Clean background after initialisation.
                 self._log_debug("Clearing displays after initialisation.")
@@ -655,6 +724,27 @@ class MainClientPTT(PyXavi):
         self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
         self._scheduler.start()
     
+    def check_connectivity(self):
+        """
+        Checks the connectivity with the server by sending a ping request.
+        If the ping fails, it shows an error on the screen and says it.
+        """
+
+        self._log_debug("Checking connectivity with the server...")
+        have_connectivity = False
+        try:
+            if self._maintenance.is_pitxu_server_alive():
+                self._log_debug("✅ Connectivity with the server.")
+                have_connectivity = True
+            else:
+                self._log_debug("❌ No connectivity with the server.")
+                have_connectivity = False
+        except Exception as e:
+            self._xlog.error("🛑 Connectivity check failed: " + str(e))
+            have_connectivity = False
+        
+        return have_connectivity
+    
     def close_nicely(self, avoid_final_exit=False):
         """
         Close the application nicely, cleaning up resources and saving state.
@@ -774,16 +864,19 @@ class MainClientPTT(PyXavi):
             self._maintenance.log_metrics()
             
             # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
-            if Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
-                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes, showing status information.")
+            # Also, if we never interacted, asume we're idle.
+            if self._last_interaction_datetime is None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+                
+                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), showing status information.")
 
                 try:
-                    wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "Not connected")
-                    network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "Not connected")
+                    wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "SSID: Not connected")
+                    network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "IP: Not connected")
                     server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
-                    text = wifi.replace("N/A", "Not connected") + "\n" + \
-                        network.replace("N/A", "Not connected") + "\n" + \
-                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected: {server_status}")
+                    text = wifi.replace("N/A", "SSID: Not connected") + "\n" + \
+                        network.replace("N/A", "IP: Not connected") + "\n" + \
+                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
                     
                     self._interaction.show_arbitrary_text_on_foreground(
                         icon="💤",

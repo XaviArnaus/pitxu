@@ -140,6 +140,15 @@ class SpeechToText(PyXavi):
         if not self.should_skip_audio_input() and self._queue is not None:
             self._queue.put(bytes(indata))
     
+    def wipe_audio_queue(self):
+        """
+        Utility method to wipe the audio queue, in case we want to discard any previously recorded audio data.
+        It will keep getting data from the queue until it's empty.
+        """
+        if self._queue is not None:
+            while not self._queue.empty():
+                self._queue.get()
+    
     def build_recorded_audio_bytes(self) -> bytes:
         """
         Utility method to build the recorded audio bytes from the queue.

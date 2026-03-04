@@ -129,21 +129,25 @@ class Macros(PyXavi):
                 return text
             else:
                 # self._xlog.debug(f"Wrapping text as its width [{width_text}] is greater than max width [{max_width}]")
-                # Remove all possible current line breaks and then split by words
-                # words = text.replace("\n", " ").split(" ")
-                words = text.split()
                 new_text = ""
-                current_line = ""
-                
-                for word in words:
-                    test_line = current_line + (" " if current_line != "" else "") + word
-                    width_test_line = canvas.textlength(test_line, font)
-                    if(width_test_line <= max_width):
-                        current_line = test_line
+                for line in lines:
+                    if canvas.textlength(line, font) > max_width:
+                        # Remove all possible current line breaks and then split by words
+                        # words = text.replace("\n", " ").split(" ")
+                        words = text.split()
+                        current_line = ""
+                        
+                        for word in words:
+                            test_line = current_line + (" " if current_line != "" else "") + word
+                            width_test_line = canvas.textlength(test_line, font)
+                            if(width_test_line <= max_width):
+                                current_line = test_line
+                            else:
+                                new_text += current_line + "\n"
+                                current_line = word
+                        new_text += current_line
                     else:
-                        new_text += current_line + "\n"
-                        current_line = word
-                new_text += current_line
+                        new_text += line + "\n"
                 return new_text
         except ValueError as e:
             self._xlog.error(f"Error wrapping text [{text}]: {e}")

@@ -116,24 +116,27 @@ class Maintenance(PyXavi):
                 local_metrics["pitxu_process_memory"] = System.get_pitxu_memory_use()
                 local_metrics["load"] = System.get_system_load()
                 local_metrics["uptime"] = System.get_system_uptime()
-            
-            # This data is only available under linux and macos.
-            if self._is_linux() or self._is_macos():
 
-                local_metrics["disk"] = System.get_disk_usage()
-            
                 wifis = System.get_connected_wifi()
                 if wifis and len(wifis) > 0:
                     wifi_ssid = wifis[0].get("ssid", "N/A")
                 else:
                     wifi_ssid = "N/A"
+                local_metrics["network"] = {
+                    "wifi_ssid": wifi_ssid
+                }
+            
+            # This data is only available under linux and macos.
+            if self._is_linux() or self._is_macos():
+
+                local_metrics["disk"] = System.get_disk_usage()
+                
                 network = System.get_default_network_interface()
                 ip = network.get("ip", "N/A") if network else "N/A"
 
-                local_metrics["network"] = {
-                    "wifi_ssid": wifi_ssid,
-                    "ip": ip
-                }
+                if "network" not in local_metrics:
+                    local_metrics["network"] = {}
+                local_metrics["network"]["ip"] = ip
             
             if self._xconfig.get("app.execution_mode", "local") == "client":
                 local_metrics["pitxu_server_alive"] = "alive" if self.is_pitxu_server_alive() else "unreachable"
