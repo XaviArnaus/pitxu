@@ -35,3 +35,12 @@ sudo nmcli connection up CATALUNYA_LLIURE
 ```
 sudo systemctl restart NetworkManager
 ```
+
+# Notes
+
+Take a look at this (both together):
+https://askubuntu.com/questions/1348220/how-does-networkmanager-choose-which-wifi-network-to-connect-to-when-muliple-are?noredirect=1&lq=1
+https://unix.stackexchange.com/questions/615085/automatically-reconnecting-to-wifi
+
+*TL;DR:*
+> `NetworkManager` does not choose which network to connect to at all; instead, `wpa_supplicant` does. `NetworkManager` simply tries to keep every active connection online, and then it delegates the work to other utilities based on the type of connection involved. For wireless and certain wired 802.1x connections, that's the job of `wpa_supplicant`
