@@ -255,7 +255,7 @@ class MainClientPTT(PyXavi):
                             )
                             cls._interaction.wait_for_foreground_display_queue_to_empty()
                             cls._interaction.wait_for_busy_foreground_display_to_idle()
-                            time.sleep(5)
+                            time.sleep(6)
 
                             # Clear the display.
                             cls._interaction.clear_foreground_display()
