@@ -65,3 +65,13 @@ class Xtime:
         if format is None:
             format = Xtime.FORMAT_WITH_MILLISECONDS
         return slugify(dt.strftime(format), replacements=[[" ", "_"], [":", "-"], [".", "-"]])
+
+    @staticmethod
+    def str_to_datetime(date_str: str, format: str = None) -> datetime:
+        """
+        Converts a date string to a datetime object based on the given format.
+        If no format is provided, it defaults to FORMAT.
+        """
+        if format is None:
+            format = Xtime.FORMAT
+        return datetime.strptime(date_str, format)

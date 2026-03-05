@@ -6,6 +6,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.utils.json_logger import JsonLogger
+from pitxu.lib.utils.xtime import Xtime
 
 import logging
 
@@ -18,19 +19,19 @@ class SystemJsonMetrics(PyXavi, Command):
         super(SystemJsonMetrics, self).init_pyxavi(config=config, params=params)
 
     def get_metrics_between_datetimes(self, start_time: str, end_time: str) -> str:
-        '''
+        f'''
         Get the system metrics between the specified start and end times.
 
         Args:
-            start_time (str): The start time for the metrics in ISO format.
-            end_time (str): The end time for the metrics in ISO format.
+            start_time (str): The start time for the metrics in {Xtime.FORMAT} format.
+            end_time (str): The end time for the metrics in {Xtime.FORMAT} format.
 
         Returns:
             list[dict]: A list of log entries between the specified times.
         '''
         try:
-            start_datetime = datetime.fromisoformat(start_time)
-            end_datetime = datetime.fromisoformat(end_time)
+            start_datetime = Xtime.str_to_datetime(start_time)
+            end_datetime = Xtime.str_to_datetime(end_time)
             json_logger = JsonLogger(config=self._xconfig, params=self._xparams)
             return json_logger.get_logs(start_datetime, end_datetime)
         except Exception as e:
