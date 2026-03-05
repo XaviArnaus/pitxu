@@ -17,22 +17,24 @@ class SystemJsonMetrics(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(SystemJsonMetrics, self).init_pyxavi(config=config, params=params)
 
-    def get_metrics_between_datetimes(self, start_time: datetime, end_time: datetime) -> str:
+    def get_metrics_between_datetimes(self, start_time: str, end_time: str) -> str:
         '''
         Get the system metrics between the specified start and end times.
 
         Args:
-            start_time (datetime): The start time for the metrics.
-            end_time (datetime): The end time for the metrics.
+            start_time (str): The start time for the metrics in ISO format.
+            end_time (str): The end time for the metrics in ISO format.
 
         Returns:
             list[dict]: A list of log entries between the specified times.
         '''
         try:
-            json_logger = JsonLogger()
-            return json_logger.get_logs(start_time, end_time)
+            start_datetime = datetime.fromisoformat(start_time)
+            end_datetime = datetime.fromisoformat(end_time)
+            json_logger = JsonLogger(config=self._xconfig, params=self._xparams)
+            return json_logger.get_logs(start_datetime, end_datetime)
         except Exception as e:
-            self._xlog.error(f"Error getting metrics: {e}")
+            self._xlog.error(f"🛑 Error getting metrics: {e}")
             return "Error"
     
     def callback_get_metrics_between_datetimes(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
