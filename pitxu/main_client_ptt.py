@@ -213,7 +213,9 @@ class MainClientPTT(PyXavi):
                     # We accept not knowing it (None), so we can check it while the user is talking.
                     if is_pressed and not is_recording and has_connection != False:
 
-                        cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press.")
+                        cls._log_debug(f"🎙️ Starting to record audio for button [{button_name}] press. Connectivity is " + 
+                                       ("unknown, will check while talking..." if has_connection is None else \
+                                        "available." if has_connection else "unavailable"))
                         flags["recording_audio"] = True
                         cls._interaction.unmute_microphone(input_stream=input_stream)
                         # Because the input stream starts with it, it may take a bit extra. That's why we wait.
@@ -263,8 +265,24 @@ class MainClientPTT(PyXavi):
 
                     # Here we want to stop recording and start the interaction pipeline:
                     #   Transcribe > Chatbot > Tools / React > Answer / Show > Wait for next interaction.
-                    # Here we only accept to have connection. The check should happen before it.
-                    if not is_pressed and is_recording and has_connection != False:
+                    if not is_pressed and is_recording:
+
+                        # Before anything, ensure that we have connection.
+                        if not has_connection:
+                            cls._log_debug(f"🎙️ Stopping recording for button [{button_name}] release, but there is no connectivity with the server, aborting.")
+                            flags["recording_audio"] = False
+                            cls._interaction.clear_foreground_display()
+                            cls._dictate.wipe_audio_queue()
+                            error_message = cls._xconfig.get("language.connectivity_error." + cls._xparams.get("language"))
+                            cls._interaction.show_error(
+                                text=error_message,
+                                for_seconds=5
+                            )
+                            cls._interaction.wait_for_foreground_display_queue_to_empty()
+                            cls._interaction.wait_for_busy_foreground_display_to_idle()
+                            cls._interaction.mute_microphone(input_stream=input_stream)
+                            cls._interaction.wait_for_microphone_to_be_muted()
+                            return
 
                         cls._log_debug(f"Delaying one second the stop audio registration for button [{button_name}] release")
                         time.sleep(1)
