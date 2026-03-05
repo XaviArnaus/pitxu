@@ -5,6 +5,8 @@ class Xtime:
 
     FORMAT: str = "%Y-%m-%d %H:%M:%S"
     FORMAT_WITH_MILLISECONDS: str = "%Y-%m-%d %H:%M:%S.%f"
+    FORMAT_WITHOUT_SECONDS: str = "%Y-%m-%dT%H:%M:%S"
+    FORMAT_ISO: str = "%Y-%m-%dT%H:%M:%S"
 
     @staticmethod
     def current_time_str(format: str = None) -> str:

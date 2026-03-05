@@ -30,8 +30,21 @@ class SystemJsonMetrics(PyXavi, Command):
             list[dict]: A list of log entries between the specified times.
         '''
         try:
-            start_datetime = Xtime.str_to_datetime(start_time)
-            end_datetime = Xtime.str_to_datetime(end_time)
+            format_start = Xtime.FORMAT
+
+            if len(start_time.split("T")) == 2:
+                format_start = Xtime.FORMAT_ISO 
+            elif len(start_time.split(":")) == 2:
+                format_start = Xtime.FORMAT_WITHOUT_SECONDS
+
+            format_end = Xtime.FORMAT
+            if len(end_time.split("T")) == 2:
+                format_end = Xtime.FORMAT_ISO
+            elif len(end_time.split(":")) == 2:
+                format_end = Xtime.FORMAT_WITHOUT_SECONDS
+
+            start_datetime = Xtime.str_to_datetime(start_time, format_start)
+            end_datetime = Xtime.str_to_datetime(end_time, format_end)
             json_logger = JsonLogger(config=self._xconfig, params=self._xparams)
             return json_logger.get_logs(start_datetime, end_datetime)
         except Exception as e:
