@@ -23,15 +23,15 @@ class SystemJsonMetrics(PyXavi, Command):
         Get the system metrics between the specified start and end times.
 
         Args:
-            start_time (str): The start time for the metrics in {Xtime.FORMAT} format.
-            end_time (str): The end time for the metrics in {Xtime.FORMAT} format.
+            start_time (str): The start time for the metrics in YYYY-MM-DD HH:MM:SS format.
+            end_time (str): The end time for the metrics in YYYY-MM-DD HH:MM:SS format.
 
         Returns:
             list[dict]: A list of log entries between the specified times.
         '''
         try:
-            format_start = Xtime.FORMAT
 
+            format_start = Xtime.FORMAT
             if len(start_time.split("T")) == 2:
                 format_start = Xtime.FORMAT_ISO 
             elif len(start_time.split(":")) == 2:
@@ -49,6 +49,7 @@ class SystemJsonMetrics(PyXavi, Command):
             return json_logger.get_logs(start_datetime, end_datetime)
         except Exception as e:
             self._xlog.error(f"🛑 Error getting metrics: {e}")
+            self._xlog.debug(full_stack())
             return "Error"
     
     def callback_get_metrics_between_datetimes(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
