@@ -247,6 +247,7 @@ class MainClientPTT(PyXavi):
                             cls._dictate.wipe_audio_queue()
 
                             # Show an error.
+                            cls._interaction.clear_foreground_display()
                             error_message = cls._xconfig.get("language.connectivity_error." + cls._xparams.get("language"))
                             cls._interaction.show_error(
                                 text=error_message,
