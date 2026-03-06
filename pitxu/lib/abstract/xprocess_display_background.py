@@ -37,15 +37,19 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.THINKING:
             self.show_kitt_scanner_while_thinking()
         
+        # Show KITT scanner while networking
+        if action == XprocAction.NETWORKING:
+            self.show_kitt_scanner_while_networking()
+        
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             self.interaction_holding_percentage(int(param))
         
         # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.LED_CLEAR:
+        if action == XprocAction.CLEAR:
             self.clear()
         
         # Clears the background screen only
-        if action == XprocAction.LED_CLEAR or action == XprocAction.BACKGROUND_CLEAR:
+        if action == XprocAction.BACKGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
             self._log_debug("XprocessDisplayBackground: Clearing background screen only.")
             self.clear_background()
         
@@ -54,6 +58,16 @@ class XprocessDisplayBackground(Xprocess):
             step = int(step)
             # For now, just show the step number as a message
             self.init_phase(step, text)
+        
+        # Now see if we need to do any extended action for the given action.
+        self.extended_background_run(config, logger, action, param)
+    
+    def extended_background_run(self, config: Config, logger: logging, action: XprocAction, param: any):
+        """
+        This is called from _run_background_interaction(), allowing for child classes
+        to easily extend the actions they manage without needing to override the whole method.
+        """
+        pass
     
     # ------- Common functions ---------
     
@@ -77,6 +91,9 @@ class XprocessDisplayBackground(Xprocess):
     
     def show_kitt_scanner_while_thinking(self):
         raise NotImplementedError("show_kitt_scanner_while_thinking() must be implemented in Display Background subclasses.")
+    
+    def show_kitt_scanner_while_networking(self):
+        raise NotImplementedError("show_kitt_scanner_while_networking() must be implemented in Display Background subclasses.")
 
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Background subclasses.")

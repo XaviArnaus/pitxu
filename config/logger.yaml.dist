@@ -21,6 +21,14 @@ libs_logger:
     vosk:
         # [Integer] Log level.
         loglevel: -1
+    # APScheduler, defaults to WARNING
+    apscheduler:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 30
+    # tzlocal, related to APScheduler, defaults to INFO
+    tzlocal:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
 
 # Logging config
 logger:

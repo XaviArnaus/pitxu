@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pitxu"
-version = "0.3.0"
+version = "0.3.1"
 description = "Chatbot for the Raspberry Pi Zero 2w"
 authors = ["Xavi <xavi@arnaus.net>"]
 readme = "README.md"
@@ -36,6 +36,9 @@ flask = {extras = ["async"], version = "^3.1.2"}
 pynput = "^1.8.1"
 rpi-hardware-pwm = "^0.3.1"
 ifcfg = "^0.24"
+soundfile = "^0.13.1"
+apscheduler = "^3.11.2"
+macwifi = [{version="^0.0.5", markers="sys_platform=='darwin'"}]
 
 [tool.poetry.scripts]
 main = "runner:run"

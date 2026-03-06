@@ -11,7 +11,7 @@ gpio:
     devices:
       - name: side
         pin: 17
-        mocked_as: "ctrl"
+        mocked_as: "space"
   
   # Fan definition
   fans:

@@ -2,17 +2,20 @@ import time
 from PIL import Image
 
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
+from pitxu.lib.objects.xproc_action import XprocAction
 from pitxu.lib.lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
-                                            StartupForegroundPaint, \
+from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, NetworkingBackgroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, \
+                                            ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileNetworkingForegroundPaint, \
+                                            StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
+                                            StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE, SHARED_NETWORK_BUSY
 
 class Lcd(XprocessDisplayCombined):
     '''
@@ -97,6 +100,21 @@ class Lcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
+    def extended_foreground_run(self, config, logger, action, param):
+        
+        # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
+        # if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+        #     self.show_arbitrary_icon(param)
+        
+        # if action == XprocAction.NETWORKING:
+        #     self.show_kitt_scanner_while_networking()
+        pass
+    
+    def show_arbitrary_icon_on_foreground(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary icon on LCD.")
+        self.painter.just_paint(foreground_interaction=ArbitraryIconForegroundPaint(parameter=param))
+
     def show(self, text: str):
         # Draw the text bubble
         self._xlog.info(f"👀 Showing text bubble on LCD.")
@@ -139,6 +157,12 @@ class Lcd(XprocessDisplayCombined):
 
         self.painter.paint_into_foreground_while_thinking(
             foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
+    
+    def show_arbitrary_text_while_networking(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary text on LCD while networking.")
+
+        self.painter.paint_into_foreground_while_networking(
+            foreground_interaction=ArbitraryContentWhileNetworkingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on LCD.")
@@ -196,6 +220,37 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info(f"👀 Showing startup splash screen")
         show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
         self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        # Draw the error splash screen
+        self._xlog.info(f"👀 Showing error splash screen for {for_seconds} seconds")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("error_splash", for_seconds)
+        self.painter.just_paint(
+            foreground_interaction=ErrorForegroundPaint(
+                parameter={
+                    "text": text,
+                    "font_size": self.canvas.FONT_SIZE_MEDIUM,
+                    "font_header_size": self.canvas.FONT_SIZE_BIG}, 
+                for_seconds=show_for_seconds))
+    
+    def show_code_block(self, param: dict):
+        self._xlog.info(f"👀 Showing code block on LCD.")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("code_block", param.get("for_seconds", 10.0))
+        self.painter.just_paint(
+            foreground_interaction=CodeBlockForegroundPaint(
+                parameter={"text": param.get("code", "")}, 
+                for_seconds=show_for_seconds))
+    
+    # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
+    def init_phase(self, phase: int, text: str = None):
+        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+        self.painter.just_paint(foreground_interaction=StartupWithPhaseForegroundPaint(name=f"StartupWithPhaseForegroundPaint-{phase}", parameter={
+            "phase": phase,
+            "text": text
+        }))
 
     # ------- Common functions ---------
     
@@ -232,16 +287,22 @@ class Lcd(XprocessDisplayCombined):
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
+    def show_kitt_scanner_while_networking(self):
+        self._xlog.info(f"🤖 Showing KITT networking on LCD.")
+        self.painter.paint_into_background_while_networking(background_interaction=NetworkingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("networking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
+    
     def show(self, text: str):
         self._xlog.info(f"🚥 Drawing on LCD: {text}")
         self._macros.draw_something()
 
-    def init_phase(self, phase: int, text: str = None):
-        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
-        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
-            "phase": phase,
-            "text": text
-        }))
+    # def init_phase(self, phase: int, text: str = None):
+    #     self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+    #     self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
+    #         "phase": phase,
+    #         "text": text
+    #     }))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")

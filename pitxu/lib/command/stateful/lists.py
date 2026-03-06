@@ -479,3 +479,20 @@ class StatefulLists(PyXavi, Command):
             return similarity
         else:
             return 0.0
+
+# 2026-02-24 16:22:16,637 [MainProcess  | MainThread  ] INFO     oscar        Reacting to a Chatbot answer:
+# 	- Text: I have deleted the last entry, "extend the animation of thinking to the audio", from your "To Do Client" list.
+# 	- Function Calls: ['delete_entry_from_list']
+# 	- Code blocks: 0
+# 2026-02-24 16:22:16,637 [MainProcess  | MainThread  ] DEBUG    oscar        ⚡️ Reacting to function call: delete_entry_from_list
+# 2026-02-24 16:22:16,638 [MainProcess  | MainThread  ] DEBUG    oscar        📺 Executing callback with value: {'created at': '', 'created_at': '2026-02-24 09:28', 'list_name': 'To do client', 'text': 'extend the animation of thinking to the audio'}
+# 2026-02-24 16:22:16,640 [MainProcess  | MainThread  ] DEBUG    oscar        Waiting for queue lcd_queue to empty. Has now: 0 elements.
+# 2026-02-24 16:22:16,642 [MainProcess  | MainThread  ] DEBUG    oscar        The queue lcd_queue is empty now. I've sleept 0s.
+# 2026-02-24 16:22:16,643 [MainProcess  | MainThread  ] DEBUG    oscar        Waiting for the process lcd_busy to idle. It's now: IDLE.
+# 2026-02-24 16:22:16,644 [MainProcess  | MainThread  ] DEBUG    oscar        The process lcd_busy is idle now. I've slept 0s.
+# 2026-02-24 16:22:16,645 [MainProcess  | MainThread  ] DEBUG    oscar        📝 Showing Entries for List after an single-entry action, on Foreground display: {'created at': '', 'created_at': '2026-02-24 09:28', 'list_name': 'To do client', 'text': 'extend the animation of thinking to the audio'}
+# 2026-02-24 16:22:16,647 [MainProcess  | MainThread  ] DEBUG    oscar        📝 Retrieving entries for the list [To do client]
+# 2026-02-24 16:22:16,649 [MainProcess  | MainThread  ] ERROR    oscar        🛑 No list found for [To do client]
+# 2026-02-24 16:22:16,650 [MainProcess  | MainThread  ] ERROR    oscar        🛑 Error showing Entries for List with highlight on Foreground display: 'bool' object is not iterable
+# 2026-02-24 16:22:16,652 [MainProcess  | MainThread  ] DEBUG    oscar        Waiting for queue lcd_queue to empty. Has now: 0 elements.
+# 2026-02-24 16:22:16,653 [MainProcess  | MainThread  ] DEBUG    oscar        The queue lcd_queue is empty now. I've sleept 0s.

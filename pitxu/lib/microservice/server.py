@@ -1,13 +1,12 @@
-import base64
 from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
-from pitxu.lib.command import SystemNetwork
 
 from flask import Flask, request, current_app
+import base64
 import sys, logging
 
 class Server(PyXavi, MicroserviceBase):
@@ -21,6 +20,8 @@ class Server(PyXavi, MicroserviceBase):
     chatbot = None
     chatbot_client_callbacks = None
     output_interaction = None
+
+    stt_samplerate: int = None
 
     VERBOSE_DEBUG: bool = True
     FLASK_LIB_LOG_LEVEL: int = logging.INFO
@@ -45,14 +46,25 @@ class Server(PyXavi, MicroserviceBase):
         else:
             raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
         
+        if params.key_exists("samplerate"):
+            self.stt_samplerate = params.get("samplerate")
+            self._xlog.debug(f"Server: STT samplerate set from params: {self.stt_samplerate}")
+        elif self._xconfig.key_exists("server.input_samplerate"):
+            self.stt_samplerate = self._xconfig.get("server.input_samplerate", None)
+            self._xlog.debug(f"Server: STT samplerate set from config: {self.stt_samplerate}")
+        else:
+            self._xlog.debug("Server: No STT samplerate provided in params or config, using default gathered from microphone input.")
+        
         # Set the log levels for the Piper libraries based on the configuration
         self.FLASK_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.flask.loglevel", self.FLASK_LIB_LOG_LEVEL)
         self._log_debug("Setting Server log level to: " + str(self.FLASK_LIB_LOG_LEVEL))
         logging.getLogger("flask").setLevel(self.FLASK_LIB_LOG_LEVEL)
-        
+
         self._log_debug("End of Server initialization")
     
     def initialize(self):
+        from pitxu.lib.utils.system import System
+
         self._xlog.info("Starting Server")
 
         with self.server.app_context():
@@ -65,6 +77,10 @@ class Server(PyXavi, MicroserviceBase):
             # Vosk needs its own instance, otherwise in "public" execution mode it mixes its michrophone callback
             #   with the server endpoint calls and it produces a segmentation fault.
             self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+
+            if not self._xparams.key_exists("samplerate") and self.stt_samplerate is not None:
+                self._xparams.set("samplerate", self.stt_samplerate)
+
             self.server.config['stt'] = Vosk(config=self._xconfig, params=self._xparams)
             self.server.config['chatbot'] = self.chatbot
             self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
@@ -75,7 +91,7 @@ class Server(PyXavi, MicroserviceBase):
 
         self._xlog.info(
             f"Server accepts connections now: " +
-            f"{self.PROTOCOL}://{SystemNetwork._get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
+            f"{self.PROTOCOL}://{System.get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
     
     def close(self):
         self._xlog.info("Closing Server")
@@ -105,6 +121,9 @@ class Server(PyXavi, MicroserviceBase):
     # Status endpoint to check if the service is alive and get some info about it.
     @server.route('/status')
     def status():
+        from pitxu.lib.command import SystemPowerManagement
+        from pitxu.lib.utils.system import System
+
         # Framework initialization.
         config = current_app.config['config']
         logger = current_app.config['logger']
@@ -117,17 +136,40 @@ class Server(PyXavi, MicroserviceBase):
         language = config.get("app.default_language", "?")
         language = params.get("language", language)
 
+        # Feature initialization.
+        chatbot = current_app.config['chatbot']
+        tools = chatbot.get_session_manager().get_clients() if chatbot is not None else {}
+        power_management: SystemPowerManagement = tools.get("power_management", None) if tools is not None else None
+       
+        if power_management is not None:
+            battery_percentage =  power_management.get_battery_level()
+            power_cable_connected =  power_management.is_power_cable_connected()
+            consumption_watts = power_management.get_power_consumption()
+            charging_eta = power_management.get_total_charging_estimation_time()
+            cpu_temperature = power_management.get_system_temperature_and_fan_speed()
+        else:
+            battery_percentage = "N/A"
+            power_cable_connected = "N/A"
+            consumption_watts = "N/A"
+            charging_eta = "N/A"
+            cpu_temperature = "N/A"
+
         # TODO: we should check first the state AND THEN the config values.
         return {
             "status": "ok",
+            "app": {
+                "version": params.get("app_version", "?"),
+                "execution_mode": config.get("app.execution_mode", "?"),
+                "chatbot_name": config.get("chatbot.name", "?"),
+            },
             "modules_enabled": {
-                "foreground_display": config.get(f"{foreground_display_id}.mock", False),
-                "background_display": config.get(f"{background_display_id}.mock", False),
-                "stt": config.get("speech_to_text.mock", True),
-                "tts": config.get("text_to_speech.mock", True),
+                "foreground_display": not config.get(f"{foreground_display_id}.mock", False),
+                "background_display": not config.get(f"{background_display_id}.mock", False),
+                "stt": not config.get("speech-to-text.mock", True),
+                "tts": not config.get("text-to-speech.mock", True),
                 "chatbot": not config.get("chatbot.mock", True),
-                "ups": config.get("ups.mock", True),
-                "gpio": config.get("gpio.mock", True)
+                "ups": not config.get("ups.mock", True),
+                "gpio": not config.get("gpio.mock", True)
             },
             "parameters": {
                 "language": language,
@@ -136,6 +178,17 @@ class Server(PyXavi, MicroserviceBase):
             },
             "host": {
                 "platform": sys.platform,
+            },
+            "system": {
+                "battery_percentage": battery_percentage,
+                "power_cable_connected": power_cable_connected,
+                "consumption_watts": consumption_watts,
+                "charging_eta": charging_eta,
+                "cpu_temperature": cpu_temperature["temperature"] if isinstance(cpu_temperature, dict) else "N/A",
+                "cpu_fan_speed": cpu_temperature["fan_speed"] if isinstance(cpu_temperature, dict) else "N/A"
+            },
+            "reports": {
+                "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"
             }
         }
     
@@ -143,17 +196,32 @@ class Server(PyXavi, MicroserviceBase):
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
         # Framework initialization.
-        config = current_app.config['config']
+        # config = current_app.config['config']
         logger = current_app.config['logger']
-        params = current_app.config['params']
+        # params = current_app.config['params']
 
         # Endpoint initialisation
         bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
 
         audio_data = request.json.get("data_bytes", None)
+        audio_data_length = 0
+        dd(audio_data)
         if audio_data is not None:
             audio_data = base64.b64decode(audio_data)
-        logger.info(f"📥 Received /transcribe request with an audio of length: {len(audio_data) if audio_data is not None else 0}")
+            # audio_data = np.frombuffer(audio_data, dtype=np.int16)
+            audio_data_length = len(audio_data)
+        logger.info(f"📥 Received /transcribe request with an audio of length: {audio_data_length}")
+
+        # It's not normal to not receive anything.
+        if len(audio_data) == 0:
+            logger.warning("🟠 No audio data received.")
+            return {
+                "status": "ko",
+                "received_bytes_length": audio_data_length,
+                "frames": 0,
+                "error": "Empty audio data received",
+                "transcription": None
+            }
 
         counter = 0
         error = None
@@ -163,45 +231,83 @@ class Server(PyXavi, MicroserviceBase):
 
             # Process the audio data and get the transcription.
             # This is a loop where we pop chunks of the audio data and send them to the STT engine.
-            logger.debug(f"Processing audio data of {len(audio_data)} bytes in frames of {bytes_per_chunk} bytes")
-            transcribed = None
+            logger.debug(f"Processing audio data of {audio_data_length} bytes in frames of {bytes_per_chunk} bytes")
+            transcribed = []
+            transcribed = {
+                "result": [],
+                "partial": "",
+                "final": []
+            }
             counter = 0
             while len(audio_data) > 0:
                 chunk = audio_data[:bytes_per_chunk]
                 audio_data = audio_data[bytes_per_chunk:]
 
                 logger.debug(f"Processing chunk of {len(chunk)} bytes, remaining audio data length: {len(audio_data)} bytes")
-                transcribed = stt.process_audio_chunk(chunk)
+                chunk_transcribed = stt.process_audio_chunk(chunk)
+
+                if chunk_transcribed is not None:
+                    if chunk_transcribed.get("result", None) is not None:
+                        transcribed["result"].append(chunk_transcribed["result"])
+                        # We only get a result after several partials, and then the partial accummulator gets cleared.
+                        # So take the chance to clear the stored partials until now, to avoid merging them again any time later.
+                        transcribed["partial"] = ""
+                    if chunk_transcribed.get("partial", None) is not None:
+                        # Partials are accummulative. Do not pile them up.
+                        transcribed["partial"] = chunk_transcribed["partial"]
+                    if chunk_transcribed.get("final", None) is not None:
+                        transcribed["final"].append(chunk_transcribed["final"])
 
                 counter += 1
             
+            # Process any remaining audio in Vosk
+            remaining_transcribed = stt.process_remaining_vosk()
+            if remaining_transcribed is not None and "final" in remaining_transcribed and remaining_transcribed["final"] is not None:
+                transcribed["final"].append(remaining_transcribed["final"])
+            
+            # Now merge all the transcribed chunks into a single transcription result.
+            transcribed_completed = {
+                "result": " ".join(transcribed["result"]) if len(transcribed["result"]) > 0 else None,
+                "partial": transcribed["partial"] if len(transcribed["partial"]) > 0 else None,
+                "final": " ".join(transcribed["final"]) if len(transcribed["final"]) > 0 else None
+            }
+
             # It's not normal to not receive anything.
-            if transcribed is None:
+            if transcribed_completed is None:
                 logger.warning("🟠 No transcription result returned.")
                 return {
                     "status": "ko",
-                    "received_bytes_length": len(audio_data),
+                    "received_bytes_length": audio_data_length,
                     "frames": counter,
                     "error": error,
                     "transcription": None
                 }
             
             # Build the transcription to be returned.
-            transcription = transcribed["result"]
-            if transcribed["final"] is not None and len(transcribed["final"]) > 0:
+            transcription = transcribed_completed["result"].strip() if transcribed_completed.get("result", None) is not None else None
+            if transcribed_completed["final"] is not None and len(transcribed_completed["final"]) > 0:
                 if transcription is None:
-                    transcription = transcribed["final"]
+                    transcription = transcribed_completed["final"]
                 else:
-                    transcription = transcription + " " + transcribed["final"]
+                    transcription = transcription + " " + transcribed_completed["final"]
 
             # We may not have a result, but we may have a partial. Just use it.
-            if transcription is None and transcribed["partial"] is not None:
-                logger.warning("🟠 No final transcription result returned, but we have a partial result. Returning the partial as the result.")
-                transcription = transcribed["partial"]
+            # if transcription is None and transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
+
+            # If we have anything in Partial, means that even Vosk does not consider it a result, it contains recognized text that
+            #   otherwise we'd loose. Append it to the current transcription.
+            if transcribed_completed["partial"] is not None and len(transcribed_completed["partial"]) > 0:
+                logger.warning("🟠 Remaining partial to be appended to the transcription!")
+                if transcription is None:
+                    transcription = transcribed_completed["partial"]
+                else:
+                    transcription = transcription + " " + transcribed_completed["partial"]
 
             # Log me baby
-            logger.debug(f"✏️ Transcription result: {transcribed.get('result', None)}")
-            logger.debug(f"✏️ Partial transcription: {transcribed.get('partial', None)}")
+            logger.debug(f"✏️ Transcription: {transcription}")
+            logger.debug(f"✏️   Transcribed Result: {transcribed_completed.get('result', None)}")
+            logger.debug(f"✏️   Transcribed Partial: {transcribed_completed.get('partial', None)}")
+            logger.debug(f"✏️   Transcribed Final: {transcribed_completed.get('final', None)}")
 
             # Vosk holds whatever is in the current Result object. We need to clean it at the end of the transcription
             #   to avoid having old transcriptions in the next calls.
@@ -210,7 +316,7 @@ class Server(PyXavi, MicroserviceBase):
             # Return the final response.
             return {
                 "status": "ok", 
-                "received_bytes_length": len(audio_data),
+                "received_bytes_length": audio_data_length,
                 "frames": counter,
                 "error": error,
                 "transcription": transcription
@@ -228,7 +334,7 @@ class Server(PyXavi, MicroserviceBase):
 
         return {
             "status": "ko", 
-            "received_bytes_length": len(audio_data),
+            "received_bytes_length": audio_data_length,
             "error": error,
             "transcription": None
         }
@@ -243,6 +349,7 @@ class Server(PyXavi, MicroserviceBase):
 
         # Framework initialization.
         logger = current_app.config['logger']
+        # asyncio_runner: asyncio.Runner = current_app.config["asyncio_runner"]
 
         question = request.json.get("question", None)
         logger.info(f"📥 Received /ask_chatbot request with question: {question}")
@@ -252,19 +359,17 @@ class Server(PyXavi, MicroserviceBase):
             # Feature initialization.
             chatbot: GeminiChatbot = current_app.config['chatbot']
 
-            # Set up of all the session context we need for the Chatbot and the MCP tools
-            async with chatbot.get_session_manager() as chatbot_session_manager:
+            chat_response: ChatbotResponse = await chatbot.ask_async(question)
+            answer = chat_response.text if chat_response else None
 
-                chat_response: ChatbotResponse = await chatbot.ask_async(question)
-                answer = chat_response.text
-                logger.debug(f"Returning response from chatbot: {answer}")
-                return {
-                    "status": "ok",
-                    "question": question,
-                    "answer": answer,
-                    "function_call_history": chat_response.function_call_history.to_dict() if chat_response.function_call_history else None,
-                    "error": error
-                }
+            logger.debug(f"Returning response from chatbot: {answer}")
+            return {
+                "status": "ok",
+                "question": question,
+                "answer": answer,
+                "function_call_history": chat_response.function_call_history.to_dict() if chat_response.function_call_history else None,
+                "error": error
+            }
         except Exception as e:
             error = str(e)
             logger.error(f"🛑 Error during chatbot response in the server [ask_chatbot] endpoint: {error}")

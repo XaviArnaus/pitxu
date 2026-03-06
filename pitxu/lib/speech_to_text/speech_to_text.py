@@ -76,14 +76,15 @@ class SpeechToText(PyXavi):
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
         except SpeechToTextException as stte:
-            self.is_active = False
             # It's handled in Main, don't even log it here
+            # Still, it's an exception under control, we captrure and bubble it up so it does not get 
+            # handled by the generic Exception block.
             raise stte
         except BrokenPipeError as bpe:
             self.is_active = False
             raise SpeechToTextException("SpeechToText BrokenPipeError: " + str(bpe))
         except Exception as e:
-            self._xlog.error("🛑 Error during SpeechToText recognition: " + str(e))
+            self._xlog.error("🛑 Error during server transcription: " + str(e))
             self._xlog.error(full_stack())
             self.close()
             return None
@@ -99,12 +100,18 @@ class SpeechToText(PyXavi):
         sample_rate = self._get_samplerate()
         self._log_debug(f"STT: Requesting transcription of [{len(data)}] bytes of audio data at sample rate: [{sample_rate}]")
         server_answer = self._client.transcribe(data_bytes=data, sample_rate=sample_rate)
-        if server_answer["error"] is not None:
-            error_message = server_answer.get("error")
-            raise SpeechToTextException(f"Error from STT server: {error_message}")
+
+        if server_answer is None or not isinstance(server_answer, dict):
+            self._xlog.error("STT: No response from server for transcription request")
+            raise SpeechToTextException("No response from server for transcription request")
+        
+        if server_answer.get("error", None) is not None:
+            error = "Unknown error" if "error" not in server_answer else server_answer["error"]
+            self._xlog.error("STT: Server returned error status for transcription request: " + str(error))
+            raise SpeechToTextException("Server returned error status for transcription request: " + str(error), server_answer)
         
         if server_answer["transcription"] is None:
-            self._log_debug("STT server returned no transcription")
+            self._xlog.error("STT server returned no transcription")
             return None
 
         result_text = str(server_answer["transcription"]).replace("\n", "").strip()
@@ -127,12 +134,20 @@ class SpeechToText(PyXavi):
         Audio blocks are sentences.
         """
         if status:
-            print(status, file=sys.stderr)
-            self._xlog.debug(f"*️⃣ Audio input status: {status}")
+            # print(status, file=sys.stderr)
+            self._xlog.debug(f"*️⃣  Audio input callback's status: {status}")
 
         if not self.should_skip_audio_input() and self._queue is not None:
-            # print(time.inputBufferAdcTime)
             self._queue.put(bytes(indata))
+    
+    def wipe_audio_queue(self):
+        """
+        Utility method to wipe the audio queue, in case we want to discard any previously recorded audio data.
+        It will keep getting data from the queue until it's empty.
+        """
+        if self._queue is not None:
+            while not self._queue.empty():
+                self._queue.get()
     
     def build_recorded_audio_bytes(self) -> bytes:
         """

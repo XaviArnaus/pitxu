@@ -4,7 +4,7 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
-                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY
+                        SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY, SHARED_NETWORK_BUSY
 
 class PainterBusyFlags(PyXavi):
 
@@ -26,12 +26,14 @@ class PainterBusyFlags(PyXavi):
         SHARED_MATRIX_BUSY,
         SHARED_LCD_BUSY,
         SHARED_DSI_LCD_BUSY,
-        SHARED_CHATBOT_BUSY
+        SHARED_CHATBOT_BUSY,
+        SHARED_NETWORK_BUSY
     ]
 
     MANDATORY_FULL_CYCLE_BUSY_FLAGS = [
         SHARED_SPEAKER_BUSY,
-        SHARED_CHATBOT_BUSY
+        SHARED_CHATBOT_BUSY,
+        SHARED_NETWORK_BUSY
     ]
 
     VERBOSE_DEBUG: bool = False
@@ -144,19 +146,27 @@ class PainterBusyFlags(PyXavi):
             self._xlog.error(f"🛑 Trying to set busy flag callback for unknown when [{when}].")
             raise ValueError(f"Trying to set busy flag callback for unknown when [{when}].")
         
-        callback_returns = []
-        for channel in self.AVAILABLE_CHANNELS:
-            if when in self.registered_callbacks and channel in self.registered_callbacks[when]:
-                for flag_name, callback in self.registered_callbacks[when][channel].items():
-                        flag_value = self.shared_memory.read_shared_memory_flag(int(flag_name))
-                        if callback[int(flag_value)] is not None:
-                            
-                            # We have a callback
-                            callback_result = self.call_busy_flag_callback(when, channel, int(flag_name), flag_value)
-                            if callback_result is not None:
-                                callback_returns.append(callback_result)
+        while True:
+            try:
+                callback_returns = []
+                for channel in self.AVAILABLE_CHANNELS:
+                    if when in self.registered_callbacks and channel in self.registered_callbacks[when]:
+                        for flag_name, callback in self.registered_callbacks[when][channel].items():
+                                flag_value = self.shared_memory.read_shared_memory_flag(int(flag_name))
+                                if callback[int(flag_value)] is not None:
+                                    
+                                    # We have a callback
+                                    callback_result = self.call_busy_flag_callback(when, channel, int(flag_name), flag_value)
+                                    if callback_result is not None:
+                                        callback_returns.append(callback_result)
 
-        return callback_returns
+                return callback_returns
+            except RuntimeError as e:
+                # I've found scenarios where the self.registered_callbacks loop can raise RuntimeError: dictionary changed size during iteration.
+                # This is likely due to a callback modifying the registered_callbacks, which is not ideal
+                #  but we can safely ignore it for now.
+                # Idea here is to catch the exception, then the iteration will continue, and the return will break the while True loop.
+                pass
 
     def trigger_busy_flags_callbacks_at_loop_start(self) -> list:
         return self.call_monitoring_busy_flags_callbacks(when=LOOP_START)

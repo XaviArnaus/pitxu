@@ -29,3 +29,9 @@ For example:
 ```
 gunzip -c centos-core-7.gz | dd of=/dev/da0
 ```
+
+# Notes
+
+```
+sudo dd if=/dev/disk4 conv=sync,noerror bs=4096K status=progress | gzip -c > /Users/xavier/Developer/backup_sd128gb_rpi5_pitxu_v0.3.1_2026_03_06_not_updated.img.dd
+```

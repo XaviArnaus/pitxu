@@ -12,10 +12,11 @@ from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, 
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import time, anyio, math
+import anyio, math
 import fastmcp
 from collections import Counter
 import logging
+import asyncio
 
 class GeminiChatbot(PyXavi):
     """
@@ -154,7 +155,15 @@ class GeminiChatbot(PyXavi):
                 config=types.GenerateContentConfig(
                     system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
                     tools=tools,
-                    temperature=0.1
+                    temperature=0.1,
+                    # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
+                    #   or from the Asyncio library, when sending a chatbot message from the Flask server,
+                    #   only in the second request (the first goes through).
+                    # One explanation would be in how Flask manages asyncio calls (own thread that gets closed after request):
+                    #   https://flask.palletsprojects.com/en/stable/async-await/
+                    # The hack comes from here:
+                    #   https://stackoverflow.com/questions/78117476/event-loop-is-closed-in-flask-langchain-asyncio-app
+                    http_options=types.HttpOptions(headers={"Connection": "close"})
                 )
             )
         self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
@@ -174,8 +183,8 @@ class GeminiChatbot(PyXavi):
                     try:
                         if retries > 0:
                             self._xlog.debug("Waiting " + str(delay_between_retries * retries) + " seconds (" + str(retries) + "/" + str(max_retries) + ") before retrying...")
-                            time.sleep(delay_between_retries * retries)
-                        
+                            await asyncio.sleep(delay_between_retries * retries)
+
                         response = await self._chat.send_message(question)
                         outcome = ChatbotResponse.from_response(response)
                         if outcome.error is not None:

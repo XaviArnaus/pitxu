@@ -121,24 +121,33 @@ class Macros(PyXavi):
 
     def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
         try:
-            width_text = canvas.textlength(text.replace("\n", ""), font)
+            lines = text.split("\n")
+            longest_line = max(lines, key=lambda line: canvas.textlength(line, font=font))
+            width_text = canvas.textlength(longest_line, font)
             if(width_text <= max_width):
+                # self._xlog.debug(f"No need to wrap text as its width [{width_text}] is less than max width [{max_width}]")
                 return text
             else:
-                # Remove all possible current line breaks and then split by words
-                words = text.replace("\n", " ").split(" ")
+                # self._xlog.debug(f"Wrapping text as its width [{width_text}] is greater than max width [{max_width}]")
                 new_text = ""
-                current_line = ""
-                
-                for word in words:
-                    test_line = current_line + (" " if current_line != "" else "") + word
-                    width_test_line = canvas.textlength(test_line, font)
-                    if(width_test_line <= max_width):
-                        current_line = test_line
+                for line in lines:
+                    if canvas.textlength(line, font) > max_width:
+                        # Remove all possible current line breaks and then split by words
+                        # words = text.replace("\n", " ").split(" ")
+                        words = text.split()
+                        current_line = ""
+                        
+                        for word in words:
+                            test_line = current_line + (" " if current_line != "" else "") + word
+                            width_test_line = canvas.textlength(test_line, font)
+                            if(width_test_line <= max_width):
+                                current_line = test_line
+                            else:
+                                new_text += current_line + "\n"
+                                current_line = word
+                        new_text += current_line
                     else:
-                        new_text += current_line + "\n"
-                        current_line = word
-                new_text += current_line
+                        new_text += line + "\n"
                 return new_text
         except ValueError as e:
             self._xlog.error(f"Error wrapping text [{text}]: {e}")
@@ -186,8 +195,8 @@ class Macros(PyXavi):
                     " | LCD: " + ("mocked" if self._xconfig.get("lcd.mock", True) else "real") + \
                     "\nSTT: " + ("mocked" if self._xconfig.get("speech-to-text.mock", True) else "real") + \
                     " | TTS: " + ("mocked" if self._xconfig.get("text-to-speech.mock", True) else "real") + \
-                    "\nUPS: " + ("mocked" if self._xconfig.get("ups.mocked", True) else "real") + \
-                    " | GPIO: " + ("real" if self._xconfig.get("gpio.enabled", False) else "mocked")
+                    "\nUPS: " + ("mocked" if self._xconfig.get("ups.mock", True) else "real") + \
+                    " | GPIO: " + ("mocked" if self._xconfig.get("gpio.mock", True) else "real")
                     
         draw.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
                     text = subtitle, 
@@ -288,16 +297,6 @@ class Macros(PyXavi):
         if heigh_text < max_lenght_height:
             extra_space = max_lenght_height - heigh_text
             text_anchor_point.y += extra_space / 2
-
-        # Now this is managed by the Foreground Frame
-        # draw.rectangle(
-        #     Rectangle(
-        #         Point(padding_rectangle, padding_rectangle), 
-        #         Point(self._display_size.x - padding_rectangle, self._display_size.y - padding_rectangle)
-        #     ).to_image_rectangle(),
-        #     outline = self.canvas.COLOR_BLACK,
-        #     fill = self.canvas.COLOR_WHITE,
-        #     width = 1)
         
         # Ensure that the text fits in the square.
         # text = self.wrap_text_if_needed(draw, text, (self._display_size.x - (2 * padding_rectangle) - (2 * padding_code_text)) - 2, code_text_font)
@@ -488,7 +487,7 @@ class Macros(PyXavi):
     
     # ------ Background effects adapted to LCD -------
 
-    def kitt_horizontal_effect(self, delay: float = 0.1, should_stop: bool = False):
+    def kitt_horizontal_effect(self, delay: float = 0.1, color: str = None):
         self._log_debug("Starting KITT effect")
 
         draw = self.canvas.get_canvas(reset_base_image = False)
@@ -497,26 +496,26 @@ class Macros(PyXavi):
 
         # Move right
         for i in range(8):
-            self.draw_kitt_horizontal_effect_left(draw=draw, frame=i)
+            self.draw_kitt_horizontal_effect_left(draw=draw, frame=i, color=color)
 
             self.device.display(image)
             time.sleep(delay)
 
         # Move left
         for i in range(8):
-            self.draw_kitt_horizontal_effect_right(draw=draw, frame=i)
+            self.draw_kitt_horizontal_effect_right(draw=draw, frame=i, color=color)
 
             self.device.display(image)
             time.sleep(delay)
     
-    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
             self._soft_clear_rectangle(draw=draw)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
             # We count which is the current frame for the drawing.
             # If we have reached the frame, we stop drawing more.
@@ -525,14 +524,14 @@ class Macros(PyXavi):
             else:
                 counter += 1
     
-    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
             self._soft_clear_rectangle(draw=draw)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset)
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
             # We count which is the current frame for the drawing.
             # If we have reached the frame, we stop drawing more.
@@ -652,7 +651,7 @@ class Macros(PyXavi):
             else:
                 counter += 1
 
-    def show_init_step(self, phase):
+    def show_init_phase(self, phase):
 
         draw = self.canvas.get_canvas(reset_base_image = False)
 
@@ -674,6 +673,68 @@ class Macros(PyXavi):
             cols = 8 if y < rows - 1 else phase % 8
             for x in range(0, cols):
                 self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
+
+    def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
+        # Configurations
+        padding = 15
+
+        # Main title
+        title = self._xconfig.get("app.name")
+        version = self._xparams.get("app_version")
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 1.5).to_image_point(),
+                    text = title + "  v" + version, 
+                    font = self.canvas.FONT_HUGE, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Mocked features line
+        mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 4).to_image_point(),
+                    text = mocked_line, 
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Draw a line between the title and the subtitle
+        draw.line(
+            Rectangle(
+                Point(padding, (self._display_size.y / 3) * 2), 
+                Point(self._display_size.x - padding, (self._display_size.y / 3) * 2)
+            ).to_image_rectangle(),
+            fill = self.canvas.COLOR_FOREGROUND,
+            width = 1)
+        
+        # Phases
+        phase = parameter.get("phase", 0)
+        text = parameter.get("text", None)
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 6.5).to_image_point(),
+                    # text = f"{phase} - {text}", 
+                    text = text,
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+    
+    def draw_arbitrary_icon(self, draw: ImageDraw.ImageDraw, icon: str, text: str = None, color: str = None):
+
+        if color is None:
+            color = self.canvas.COLOR_FOREGROUND
+
+        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) - (30 if text else 0)).to_image_point(),
+                    text = icon,
+                    font = self.canvas.FONT_ULTRA, 
+                    fill = color,
+                    anchor = "mm",
+                    align = "center")
+        if text:
+            draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) + 30).to_image_point(),
+                    text = f"{icon}\n{text}" if text else icon, 
+                    font = self.canvas.FONT_BIG, 
+                    fill = color,
+                    anchor = "mm",
+                    align = "center")
     
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)

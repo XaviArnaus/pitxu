@@ -92,18 +92,3 @@ class MatrixLed(XprocessDisplayBackground):
     
     def is_chatbot_busy(self):
         return self.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
-
-    # # Matrix busy control: is it already busy?
-    # REMOVEME: This is now handled in the parent Xprocess
-    # def is_matrix_busy(self):
-    #     return self.read_shared_memory_flag(SHARED_MATRIX_BUSY)
-    
-    # # Matrix busy control: set as busy
-    # REMOVEME: This is now handled in the parent Xprocess
-    # def set_matrix_busy(self):
-    #     self.write_shared_memory_flag(SHARED_MATRIX_BUSY, True)
-
-    # # Matrix busy control: unset as busy
-    # REMOVEME: This is now handled in the parent Xprocess
-    # def unset_matrix_busy(self):
-    #     self.write_shared_memory_flag(SHARED_MATRIX_BUSY, False)

@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 import importlib.metadata
-import sounddevice
 import asyncio
 import logging
 import argparse
@@ -11,7 +10,6 @@ from pyxavi.config import Config
 from pyxavi.logger import Logger
 from pyxavi.dictionary import Dictionary
 from pyxavi.debugger import full_stack
-from pitxu.lib.utils.xtime import Xtime
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 

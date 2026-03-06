@@ -17,6 +17,7 @@ storage/mocked/eink/*
 storage/mocked/matrix/*
 storage/mocked/lcd/*
 storage/mocked/dsi_lcd/*
+storage/audio/**
 !**/.keep
 storage/audio/input/*.wav
 
