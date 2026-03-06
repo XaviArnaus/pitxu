@@ -18,6 +18,7 @@ storage/mocked/matrix/*
 storage/mocked/lcd/*
 storage/mocked/dsi_lcd/*
 !**/.keep
+storage/audio/input/*.wav
 
 # No user config files
 config.yaml
