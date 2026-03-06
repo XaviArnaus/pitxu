@@ -12,36 +12,41 @@ class XprocAction:
     INITIALIZE: str = "INITIALIZE"
     
     # This is meant to be the common real work action,
-    # but it's not yet standarized
+    # but it's not yet standarized.
+    # It's not even used!
     DO: str = "DO"
 
     # Text To Speech.
     # Perhaps the displays show something too meanwhile.
     SAY: str = "SAY"
+    GATHER_TTS: str = "GATHER_TTS"
+    PLAY_TTS: str = "PLAY_TTS"
     SAY_OUTPUT_QUEUE: str = "SAY_OUTPUT_QUEUE"
 
-    # Display eInk
+    # Display Foreground
     SHOW: str = "SHOW"
     STARTUP: str = "STARTUP"
     READY: str = "READY"
     SOFT_CLEAR: str = "SOFT_CLEAR"
-    EINK_CLEAR: str = "EINK_CLEAR"
     SHOW_IMAGE_EINK: str = "SHOW_IMAGE_EINK"    # Do not use.
     SHOW_IDLE: str = "SHOW_IDLE"
     SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING: str = "SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING"
     SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING: str = "SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING"
+    SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING: str = "SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING"
     SHOW_ARBITRARY_TEXT_FOREGROUND: str = "SHOW_ARBITRARY_TEXT_FOREGROUND"
+    SHOW_ARBITRARY_ICON_FOREGROUND: str = "SHOW_ARBITRARY_ICON_FOREGROUND"
     SHOW_CODE_BLOCK: str = "SHOW_CODE_BLOCK"
+    SHOW_ERROR: str = "SHOW_ERROR"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"
 
-    # Matrix LED
-    LED: str = "LED"
-    LED_CLEAR: str = "LED_CLEAR"
+    # Background
+    LED: str = "LED"    # This should be removed, should not actually be used.
     INIT_STEP: str = "INIT_STEP"
     THINKING: str = "THINKING"
-    SHOW_IMAGE_LED: str = "SHOW_IMAGE_LED"
+    NETWORKING: str = "NETWORKING"
+    SHOW_IMAGE_LED: str = "SHOW_IMAGE_LED"  # This is not used.
     INTERACTION_HOLDING_PERCENTAGE: str = "INTERACTION_HOLDING_PERCENTAGE"
 
     # New Foreground actions

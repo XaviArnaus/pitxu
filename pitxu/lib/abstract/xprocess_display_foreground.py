@@ -38,9 +38,15 @@ class XprocessDisplayForeground(Xprocess):
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING and param:
             self.show_arbitrary_text_while_thinking(param)
+        
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING and param:
+            self.show_arbitrary_text_while_networking(param)
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
+        
+        if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+            self.show_arbitrary_icon_on_foreground(param)
         
         if action == XprocAction.SHOW_CODE_BLOCK and param:
             self.show_code_block(param)
@@ -60,17 +66,39 @@ class XprocessDisplayForeground(Xprocess):
             else:
                 self.splash_startup(for_seconds=float(param))
         
+        # Shows the Error screen
+        if action == XprocAction.SHOW_ERROR:
+            if param is None or param == "":
+                self.show_error(text="Unknown error")
+            elif isinstance(param, str):
+                self.show_error(text=param)
+            elif isinstance(param, dict):
+                text = param.get("text", "Unknown error")
+                for_seconds = param.get("for_seconds", 3.0)
+                self.show_error(text=text, for_seconds=for_seconds)
+        
         # Clears the screen
-        if action == XprocAction.CLEAR or action == XprocAction.EINK_CLEAR:
+        if action == XprocAction.CLEAR:
             self.clear()
         
         # Clears the foreground screen only
-        if action == XprocAction.EINK_CLEAR or action == XprocAction.FOREGROUND_CLEAR:
+        if action == XprocAction.FOREGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
+            self._log_debug("XprocessDisplayForeground: Clearing foreground screen only.")
             self.clear_foreground()
         
         # Clears the screen using a partial white
         if action == XprocAction.SOFT_CLEAR:
             self.soft_clear()
+        
+        # Now see if we need to do any extended action for the given action.
+        self.extended_foreground_run(config, logger, action, param)
+    
+    def extended_foreground_run(self, config: Config, logger: logging, action: XprocAction, param: any):
+        """
+        This is called from _run_foreground_interaction(), allowing for child classes
+        to easily extend the actions they manage without needing to override the whole method.
+        """
+        pass
     
     # ------- Common functions ---------
     
@@ -100,9 +128,15 @@ class XprocessDisplayForeground(Xprocess):
 
     def show_arbitrary_text_while_thinking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Foreground subclasses.")
+    
+    def show_arbitrary_text_while_networking(self, param: dict):
+        raise NotImplementedError("show_arbitrary_text_while_networking() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_on_foreground(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Foreground subclasses.")
+    
+    def show_arbitrary_icon_on_foreground(self, param: dict):
+        raise NotImplementedError("show_arbitrary_icon_on_foreground() must be implemented in Display Foreground subclasses.")
 
     def splash_ready(self):
         raise NotImplementedError("splash_ready() must be implemented in Display Foreground subclasses.")
@@ -115,6 +149,9 @@ class XprocessDisplayForeground(Xprocess):
 
     def splash_startup(self, for_seconds: float = 3.0):
         raise NotImplementedError("splash_startup() must be implemented in Display Foreground subclasses.")
+    
+    def show_error(self, text: str, for_seconds: float = 3.0):
+        raise NotImplementedError("show_error() must be implemented in Display Foreground subclasses.")
 
     # ------- Communication with Flags ---------
 

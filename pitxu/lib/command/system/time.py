@@ -51,7 +51,7 @@ class SystemTime(PyXavi, Command):
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🕒",
                 text=value,
-                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
+                font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_ULTRA)
         except Exception as e:
             log.error(f"🛑 Error showing time on Foreground Display: {e}")
             log.debug(full_stack())

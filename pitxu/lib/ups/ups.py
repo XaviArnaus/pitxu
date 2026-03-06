@@ -5,7 +5,7 @@ from pathlib import Path
 from subprocess import check_output, CalledProcessError, call
 import smbus2
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class UPS(PyXavi):
@@ -20,7 +20,7 @@ class UPS(PyXavi):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked: Not initialising it.")
         else:
             # Constants
@@ -29,7 +29,7 @@ class UPS(PyXavi):
             self.bus = smbus2.SMBus(1) # i2cdetect -y 1
 
     def read_voltage_and_capacity(self) -> tuple[float, float]:
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked: Battery data is fake.")
             return 50, 50
 
@@ -43,7 +43,7 @@ class UPS(PyXavi):
         return voltage, capacity
 
     def get_pld_state(self) -> int:
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked: Returning Power Cable always present.")
             return 1
 
@@ -57,7 +57,7 @@ class UPS(PyXavi):
         return pld_state == 1
 
     def read_hardware_metric(self, command_args, strip_chars): #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked, Hardware metric data is fake.")
             return 50.2
 
@@ -70,7 +70,7 @@ class UPS(PyXavi):
                         # further strips specific characters (strip_chars) from result
             return float(metric_str) # converts the cleaned-up string to float and returns it.
         except (CalledProcessError, ValueError) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
-            print(f"Error reading hardware metric: {e}")
+            self._xlog.error(f"Error reading hardware metric: {e}")
             return None
 
     def read_cpu_volts(self) -> float: 
@@ -86,7 +86,7 @@ class UPS(PyXavi):
         return self.read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V') # return input voltage
 
     def get_fan_rpm(self) -> str:
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked: Returning fake fan RPM.")
             return "0 RPM"
 
@@ -106,7 +106,7 @@ class UPS(PyXavi):
             return f"Unexpected error: {e}"
 
     def power_consumption_watts(self) -> float:
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked: Power consumption data is fake.")
             return 10.0
 
@@ -132,7 +132,7 @@ class UPS(PyXavi):
         '''
         Closes the UPS resources.
         '''
-        if self._xconfig.get("ups.mocked", True):
+        if self._xconfig.get("ups.mock", True):
             self._xlog.warning("UPS is mocked, Faking close().")
             return
         

@@ -1,6 +1,7 @@
 class BackgroundComm:
 
     THINKING: str = "THINKING"
+    NETWORKING: str = "NETWORKING"
     SPEAKING: str = "SPEAKING"
     INITIAL_PHASE: str = "INITIAL_PHASE"
     HOLDER_PERCENTAGE: str = "HOLDER_PERCENTAGE"
@@ -10,8 +11,10 @@ class BackgroundComm:
 class ForegroundComm:
 
     STARTUP: str = "STARTUP"
+    STARTUP_WITH_PHASE: str = "STARTUP_WITH_PHASE"
     ARBITRARY_TEXT: str = "ARBITRARY_TEXT"
     ARBITRARY_TEXT_ICON: str = "ARBITRARY_TEXT_ICON"
     CODE_BLOCK: str = "CODE_BLOCK"
+    ARBITRARY_ICON: str = "ARBITRARY_ICON"
 
     CLEAR: str = "CLEAR"

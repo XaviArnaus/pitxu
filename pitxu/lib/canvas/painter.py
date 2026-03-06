@@ -9,7 +9,7 @@ from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags
 
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR,\
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_NETWORK_BUSY, \
                         FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END
 
 from PIL import ImageDraw
@@ -61,11 +61,18 @@ class Painter(PyXavi, Thread):
 
     def set_foreground_interaction(self, interaction: ForegroundPaint):
         self._log_debug(f"Setting foreground interaction to [{interaction.name}] with parameter [{interaction.parameter}].")
-        # In case we have anything from the same type waiting to be shown, we discarded first.
-        #   If wwe didin't show it yet, there is no point to keep waiting, the flow already went somewhere else.
+        # In case we have anything from the same type waiting to be shown, we discard it first.
+        #   If we didn't show it yet, there is no point to keep waiting, the flow already went somewhere else.
         self._remove_duplicated_interaction_types_from_queue(interaction=interaction)
-        # Now add the new interaction to the queue
-        self.foreground_paint.append(interaction)
+
+        # If the interaction is actually a CLEAR, we want to remove all the previous interactions of the same type,
+        # to have the inmediate effect of clearing the Foreground.
+        if interaction.interaction == ForegroundComm.CLEAR:
+            self._log_debug(f"Foreground interaction [{interaction.name}] is a CLEAR. Removing all previous interactions from the queue.")
+            self.remove_all_foreground_interactions()
+        else:
+            # Now add the new interaction to the queue
+            self.foreground_paint.append(interaction)
 
         self._log_debug(f"Foreground interaction queue after setting last: {', '.join([item.name for item in self.foreground_paint])}.")
     
@@ -309,6 +316,70 @@ class Painter(PyXavi, Thread):
         # 3. Start the painting loop
         self.start_or_resume_paint()
     
+    def paint_into_background_while_networking(self, background_interaction: BackgroundPaint):
+        
+        # 1. First we definethe start callback, that waits for the speaker to be busy and then sets the interactions
+        # 2. Then we define the end callback to stop the painting when the speaker is not busy anymore
+        # 3. Then we start the loop. It should wait until the speaker is busy to start painting, and then stop when it is not busy anymore.
+
+        # Start callback definition: we want to paint when the speaker is busy
+        start_callback = self._generate_callback(
+            interaction=background_interaction,
+            when=LOOP_START,
+            channel=BACKGROUND_CHANNEL,
+            flag_name=SHARED_NETWORK_BUSY,
+            for_value=True,
+            extra_callback=lambda interaction=background_interaction: setattr(interaction, "is_expecting_end_callback", True)
+        )
+        # End callback definition: we want to stop painting when the speaker is not busy anymore
+        end_callback = self._generate_callback(
+            interaction=background_interaction,
+            when=LOOP_END,
+            channel=BACKGROUND_CHANNEL,
+            flag_name=SHARED_NETWORK_BUSY,
+            for_value=False,
+            extra_callback=lambda interaction=background_interaction: setattr(interaction, "is_expecting_end_callback", False)
+        )
+        
+        # 1. Register the start callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=SHARED_NETWORK_BUSY, for_value=True, callback=start_callback)
+        # 2. Register the end callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=SHARED_NETWORK_BUSY, for_value=False, callback=end_callback)
+        # 3. Start the painting loop
+        self.start_or_resume_paint()
+    
+    def paint_into_foreground_while_networking(self, foreground_interaction: ForegroundPaint):
+        
+        # 1. First we definethe start callback, that waits for the speaker to be busy and then sets the interactions
+        # 2. Then we define the end callback to stop the painting when the speaker is not busy anymore
+        # 3. Then we start the loop. It should wait until the speaker is busy to start painting, and then stop when it is not busy anymore.
+
+        # Start callback definition: we want to paint when the speaker is busy
+        start_callback = self._generate_callback(
+            interaction=foreground_interaction,
+            when=LOOP_START,
+            channel=FOREGROUND_CHANNEL,
+            flag_name=SHARED_NETWORK_BUSY,
+            for_value=True,
+            extra_callback=lambda interaction=foreground_interaction: setattr(interaction, "is_expecting_end_callback", True)
+        )
+        # End callback definition: we want to stop painting when the speaker is not busy anymore
+        end_callback = self._generate_callback(
+            interaction=foreground_interaction,
+            when=LOOP_END,
+            channel=FOREGROUND_CHANNEL,
+            flag_name=SHARED_NETWORK_BUSY,
+            for_value=False,
+            extra_callback=lambda interaction=foreground_interaction: setattr(interaction, "is_expecting_end_callback", False)
+        )
+        
+        # 1. Register the start callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=FOREGROUND_CHANNEL, flag_name=SHARED_NETWORK_BUSY, for_value=True, callback=start_callback)
+        # 2. Register the end callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=FOREGROUND_CHANNEL, flag_name=SHARED_NETWORK_BUSY, for_value=False, callback=end_callback)
+        # 3. Start the painting loop
+        self.start_or_resume_paint()
+    
     
     def _generate_callback(self,
                            interaction: ForegroundPaint | BackgroundPaint,
@@ -394,8 +465,10 @@ class Painter(PyXavi, Thread):
         for item in queue:
             # Over the interactions with the same type, 
             if item.interaction == interaction.interaction:
-                # We keep the current interaction being painted, to avoid fucking up the current painting loop iteration..
-                if current_interaction is not None and item.name == current_interaction.name:
+                # We keep the current interaction being painted, to avoid fucking up the current painting loop iteration.
+                # Unless it is explicitly defined.
+                if current_interaction is not None and item.name == current_interaction.name and \
+                    item.overwrite_current_interaction_with_same_type == False:
                     new_queue.append(item)
                 # We keep the given interaction as parameter. This function is called at the moment of setting a new interaction,
                 #   so we actually shouldn't end up here ever.
@@ -445,7 +518,7 @@ class Painter(PyXavi, Thread):
             time.sleep(min_delay)
 
     def run(self):
-        self._log_debug(f"Painter run(): 🟢 About to start the main thread loop.")
+        self._log_debug(f"Painter run(): 🟢 About to start the Painter's main thread loop.")
 
         # We need an overall loop that keeps the thread alive.
         # The close() method will set the should_finish flag to True, which will break this loop.
@@ -461,6 +534,10 @@ class Painter(PyXavi, Thread):
             # Should do an extra screen clearing at the end of the current interaction?
             # It is set via the end-callbacks when registering painting while busy flags.
             final_clearing_needed = False
+
+            # Keep track of what were the previous interactions, so we can try to avoid unnecessary drawings if the interactions didn't change.
+            previous_foreground_interaction: ForegroundPaint = None
+            previous_background_interaction: BackgroundPaint = None
 
             # We control the painting loop via the running flag.
             while self.is_running():
@@ -517,6 +594,14 @@ class Painter(PyXavi, Thread):
                         else:
                             self._log_debug(f"Painter Loop: Drawing Thinking Left screen on LCD display, frame [{frame}].")
                             self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame)
+                    elif current_background_interaction.interaction == BackgroundComm.NETWORKING:
+                        frame = current_iteration % (current_background_interaction.loop_iterations // 2)
+                        if current_iteration < (current_background_interaction.loop_iterations // 2):
+                            self._log_debug(f"Painter Loop: Drawing Communicating Right screen on LCD display, frame [{frame}].")
+                            self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
+                        else:
+                            self._log_debug(f"Painter Loop: Drawing Communicating Left screen on LCD display, frame [{frame}].")
+                            self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
                     elif current_background_interaction.interaction == BackgroundComm.SPEAKING:
                         frame = current_iteration % (current_background_interaction.loop_iterations // 2)
                         if current_iteration < (current_background_interaction.loop_iterations // 2):
@@ -563,7 +648,7 @@ class Painter(PyXavi, Thread):
                     if foreground_starting_time is None:
                         # It was, so we set the starting time and then we control how much it is getting shown.
                         self._log_debug(f"Painter: New foreground paint detected: [{current_foreground_interaction.name}], starting to show it now.")
-                        foreground_starting_time = Xtime.now_milliseconds()
+                        foreground_starting_time = Xtime.now_as_milliseconds()
 
                     # Because we may have painted anything related to the background first, we need to paint again the foreground over it.
                     # That's why, even a flushed image stays until changed, we need to keep on repainting it.
@@ -583,7 +668,10 @@ class Painter(PyXavi, Thread):
                     # Now the expected interactions.
                     if current_foreground_interaction.interaction == ForegroundComm.STARTUP:
                         self._log_debug("Painter Loop: Drawing startup splash screen on LCD display.")
-                        self.macros.draw_startup_splash(draw=self.draw) 
+                        self.macros.draw_startup_splash(draw=self.draw)
+                    elif current_foreground_interaction.interaction == ForegroundComm.STARTUP_WITH_PHASE:
+                        self._log_debug("Painter Loop: Drawing startup with phase screen on LCD display.")
+                        self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
                     elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT:
                         self._log_debug("Painter Loop: Drawing arbitrary text on LCD display.")
                         self.macros.draw_arbitrary_text_centered(draw=self.draw, text=current_foreground_interaction.parameter)
@@ -596,6 +684,12 @@ class Painter(PyXavi, Thread):
                                                             header=current_foreground_interaction.parameter.get("header"),
                                                             font_header_size=current_foreground_interaction.parameter.get("font_header_size", 32),
                                                             padding=current_foreground_interaction.parameter.get("padding", 5))
+                    elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_ICON:
+                        self._log_debug("Painter Loop: Drawing arbitrary icon on LCD display.")
+                        self.macros.draw_arbitrary_icon(draw=self.draw,
+                                                        icon=current_foreground_interaction.parameter.get("icon"),
+                                                        text=current_foreground_interaction.parameter.get("text", None),
+                                                        color=current_foreground_interaction.parameter.get("color", None)),
                     elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
                         self._log_debug("Painter Loop: Drawing code block on LCD display.")
                         self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
@@ -610,7 +704,7 @@ class Painter(PyXavi, Thread):
                     # We may have reached the end of the foreground paint showing time.
                     # We now allow new foregrounds to be painted. This is useful when the expected time for a foreground is shorter than
                     #   the background showing time. We can show the next foreground paint.
-                    if Xtime.now_minus_seconds_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
+                    if Xtime.now_minus_seconds_as_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
                         not current_foreground_interaction.ignore_maintain_time:
                         # If we remove the foreground we may loose the one that may have been set while showing the previous interaction, so no.
                         # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
@@ -619,8 +713,8 @@ class Painter(PyXavi, Thread):
                         self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
                                         f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
                         self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_foreground_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
-                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_milliseconds()}]," +
-                                        f" diff is [{(Xtime.now_milliseconds() - foreground_starting_time) / 1000}]sec.")
+                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_as_milliseconds()}]," +
+                                        f" diff is [{(Xtime.now_as_milliseconds() - foreground_starting_time) / 1000}]sec.")
 
                         # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
                         foreground_starting_time = None
@@ -677,7 +771,7 @@ class Painter(PyXavi, Thread):
                         if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False):
                             self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False)
                 
-                # If we had a request to clean the foreground after the painting, we do it now,
+                # If we had a request to remove the foreground after the painting, we do it now,
                 #   just in case we didn't remove it yet
                 #   (we know it's removed if foreground_starting_time is None, because it's reset
                 #   when the current_foreground_interaction.maintain_paint_for_seconds is exceeded).
@@ -686,6 +780,13 @@ class Painter(PyXavi, Thread):
                 if current_foreground_interaction is not None and \
                     current_foreground_interaction.remove_interaction_after_painting is True and \
                     foreground_starting_time is None:
+
+                    # Before removing it, check if it also included a final screen clearing.
+                    if current_foreground_interaction.final_screen_clearing:
+                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] included a final screen clearing, telling to painter loop.")
+                        final_clearing_needed = True
+
+                    # And now we can safely remove the foreground interaction.
                     self._log_debug(f"Painter: Removing foreground interaction [{current_foreground_interaction.name}] after painting as requested.")
                     self.remove_foreground_interaction(interaction=current_foreground_interaction)
                 
@@ -714,5 +815,14 @@ class Painter(PyXavi, Thread):
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
                     len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0 and \
                     not final_clearing_needed:
+
                     self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, stopping the painting loop.")
                     self.stop()
+                
+                # If we only have a foreground paint, reduce the speed of the loop to avoid burning the CPU for example.
+                # Please note that here we're not using the current_background_interaction variable directly,
+                #   but rather calling the getter method to ensure we're getting the latest state.
+                if self.get_current_foreground_interaction() is not None and self.get_current_background_interaction() is None:
+
+                    self._log_debug("Only foreground paint remaining, applying extra delay.")
+                    time.sleep(0.5)

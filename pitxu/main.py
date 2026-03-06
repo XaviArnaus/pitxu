@@ -1,6 +1,6 @@
 from subprocess import call
 
-from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Config, Dictionary, Storage, full_stack, dd
 
 import signal
 from functools import partial
@@ -22,6 +22,7 @@ from pitxu.lib.microservice.server import Server
 import sys
 import sounddevice
 import time
+import asyncio
 from copy import deepcopy
 from datetime import datetime
 
@@ -73,9 +74,6 @@ class Main(PyXavi):
 
         # Handle SIGTERM for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_sigterm)
-
-        # Logger in params for other classes to use
-        # self._xparams.set("logger", self._xlog)
 
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
@@ -750,6 +748,10 @@ class Main(PyXavi):
                 self._reminders.delete_reminder(date_str, time_str)
                 # Reset the last interaction time, as we just spoke
                 self._last_interaction_datetime = datetime.now()
+            
+            # Every minute, log a bunch of metrics defined internally.
+            # It also accepts a dict, that will be merged with the internal metrics.
+            self._maintenance.log_metrics()
     
     # ------- Stuff to do every second -------
 

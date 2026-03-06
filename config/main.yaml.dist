@@ -38,6 +38,20 @@ storage:
     dsi_lcd: "mocked/dsi_lcd/"
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.png", ".keep"]
+  # Audio dumped files paths
+  audio:
+    # [String] Path for audio files
+    path: "audio/"
+    # [String] Path for input audio files
+    input: "input/"
+    # [String] Path for output audio files
+    output: "output/"
+    # [list<String>] Exclude the following files from cleaning
+    exclude_from_cleaning: ["_latest.wav", ".keep"]
+
+maintenance:
+  # [Int] number of minutes of insactivity to consider the app idle and show some status information in the screen.
+  idle_minutes: 2
 
 # Fonts
 fonts:
@@ -48,6 +62,6 @@ fonts:
 
 ups:
   # Whether to enable UPS support
-  mocked: True
+  mock: True
   # I2C address of the UPS
   i2c_address: 0x36

@@ -2,7 +2,7 @@ from pyxavi import Config, Logger, Dictionary, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
-from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage,\
+from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage, SystemJsonMetrics, \
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
@@ -47,6 +47,7 @@ class ChatbotSessionManager(PyXavi):
             "system_time": SystemTime(config=self._xconfig, params=self._xparams),
             "system_date": SystemDate(config=self._xconfig, params=self._xparams),
             "system_language": SystemLanguage(config=self._xconfig, params=self._xparams),
+            "json_metrics": SystemJsonMetrics(config=self._xconfig, params=self._xparams),
             "power_management": SystemPowerManagement(config=self._xconfig, params=self._xparams),
             "volume": SystemVolume(config=self._xconfig, params=self._xparams),
             "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
@@ -60,6 +61,9 @@ class ChatbotSessionManager(PyXavi):
         if self.ENABLE_TRIVAGO_MCP:
             trivago_mcp_accommodation_search = TrivagoMCPAccommodationSearch(config=self._xconfig, params=self._xparams)
             self.mcp_clients["trivago"] = trivago_mcp_accommodation_search.get_client()
+    
+    def get_clients(self) -> dict[str, Command]:
+        return self.clients
     
     async def initialize_tooling(self):
 
@@ -84,6 +88,20 @@ class ChatbotSessionManager(PyXavi):
 
     async def __aenter__(self):
         try:
+            # Whatif we want to have the context without re-initializing everything?
+            # if self.clients is None:
+            #     self._xlog.debug("ChatbotSessionManager: Initializing.")
+            #     await self.initialize()
+
+            # if  self.mcp_clients is not None and self.session_handlers is None:
+            #     self._xlog.debug("ChatbotSessionManager: Connecting to all MCP servers.")
+            #     if self.ENABLE_TRIVAGO_MCP:
+            #         self.session_handlers["trivago"] = await self.mcp_clients["trivago"]._connect()
+
+            # if self.tools is None or len(self.tools) == 0:
+            #     self._xlog.debug("ChatbotSessionManager: Initializing all tooling.")
+            #     await self.initialize_tooling()
+
             self._xlog.debug("ChatbotSessionManager: Initializing.")
             await self.initialize()
 
