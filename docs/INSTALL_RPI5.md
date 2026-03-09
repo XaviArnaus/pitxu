@@ -23,12 +23,14 @@ This section is aimed to prepare the RPi from scratch. This is a bit out of scop
 Use Raspberry Pi Imager to burn the Raspberry Pi OS into the main storage support of your preference.
 - Micro SD card works good.
 - SSD USB3 disk works better.
-- Didn't try with other supports
+- NVME M.2 PCIe Gen3
 
 **Some suggestions:**
 Within the Raspberry Pi Imager, make sure that you activate and configure the following options, they will make the initial start easier and faster:
 - Activate the SSH access.
 - Define a Wifi connection.
+
+### Notes about using a SSD USB3 disk
 
 If you chose to rely on a SSD USB3 disk, make sure that after the RPi Imager finishes you re-connect the disk to the burner computer, edit the device's `/boot/config.txt` and add the following line (I did it at the top of the file):
 ```
@@ -37,6 +39,32 @@ usb_max_current_enable=1
 ```
 
 Get an extended article on how to install a RPi5 based on a SSD USB disk here: [Spawning a Raspberry Pi 5 with Raspberry Pi OS in a SSD SATA III disk](https://xavier.arnaus.net/blog/spawning-a-raspberry-pi-5-with-raspberry-pi-os-in-a-ssd-sata-iii-disk)
+
+### Notes about using a NVME PCIe Gen3
+
+https://www.waveshare.com/wiki/PCIe_TO_M.2_Board_(E)#Booting_from_NVMe_SSD
+
+TL;DR:
+
+1. Start from an installation over the SD (or any previous support)
+2. Edit the EEPROM so that it wants to boot from the NVME
+```
+sudo rpi-eeprom-config --edit 
+```
+
+3. Add the line
+```
+NVME_CONTROLLER=1
+```
+
+4. Change the value of the BOOT_ORDER from `BOOT_ORDER=0xf41` to:
+```
+BOOT_ORDER=0xf416
+```
+
+5. Shutdown
+6. Remove the SD card
+7. Boot the machine.
 
 ### First start
 
@@ -57,7 +85,7 @@ This is important as some of the hardware - software interconnections are quite 
 ```
 sudo apt update
 sudo apt full-upgrade
-sudo rpi-eeprom-update
+sudo rpi-eeprom-update -a
 sudo reboot
 ```
 
@@ -100,7 +128,6 @@ POWER_OFF_ON_HALT=1
 PSU_MAX_CURRENT=5000
 ```
 
-When 
 Be careful with the parameters there that are not related to this section. For example, the lines above reflect my previous installation over a SD card, but the following ones reflect my installation on a SSD USB3 drive (note the `BOOT_ORDER` value):
 
 ```
@@ -109,6 +136,17 @@ BOOT_UART=1
 POWER_OFF_ON_HALT=1
 BOOT_ORDER=0xf461
 PSU_MAX_CURRENT=5000
+```
+
+... and the following reflect my installation over NVME
+
+```
+[all]
+BOOT_UART=1
+BOOT_ORDER=0xf416
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+NVME_CONTROLLER=1
 ```
 
 ### Set up your soundcard
@@ -131,6 +169,13 @@ This page relate to this values later on.
 - Integrated Mic, jack and screw connectors for speakers.
 - Uses I2C, activated as explained above.
 - https://www.waveshare.com/wiki/WM8960_Audio_HAT
+
+#### RASPIAUDIO ULTRA+ V3
+https://forum.raspiaudio.com/t/ultra-installation-guide/21
+⚠️ I can't make it to work: Fully detected but no sound. Mic works, records a file and can hear in other computer. 
+✅ Used the Optional method 2 (same as automatic, but adding the overlay in the `/boot/firmware/config.txt`)
+❗️ Use `alsamixer` to rise up volumes and unmute channels!!! 
+
 
 #### PiSugar Whisplay HAT
 
