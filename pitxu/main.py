@@ -239,7 +239,8 @@ class Main(PyXavi):
             # with self._raw_input_stream() as input_stream:
             self._interaction.show_init_phases(4, text="Microphone")
             with sounddevice.RawInputStream(
-                            samplerate=self._dictate.samplerate,
+                            #samplerate=self._dictate.samplerate,
+                            samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
                             blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 
