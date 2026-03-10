@@ -198,7 +198,10 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone mute status is only supported on Linux with ALSA. Ignoring.")
                 return False
             self._log_debug("Getting local system microphone mute status using ALSA.")
-            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
+            #This works on Pitxu3 (mono mic)
+            #call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
+            #This works on Pitxu4 (stereo mic)
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
             #Mute: on
             is_muted_str = call_output.split(":")[1].strip()
             self._log_debug(f"The local system microphone mute status using ALSA is: {is_muted_str}")
