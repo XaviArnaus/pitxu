@@ -172,7 +172,10 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone volume level is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._log_debug("Getting local system microphone volume level using ALSA.")
-            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
+            #This works on Pitxu3 (mono mic)
+            #call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
+            #This works on Pitxu4 (stereo mic)
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
             #12%
             mic_volume = int(call_output.replace("%", "").strip())
             if mic_volume < 0:
