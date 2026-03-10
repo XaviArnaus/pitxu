@@ -54,7 +54,7 @@ class Vosk(PyXavi):
             self._log_debug("Setting Vosk client log level to: " + str(self.VOICE_LIB_LOG_LEVEL))
             SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", self.VOICE_LIB_LOG_LEVEL))
 
-            model = self._xconfig.get("speech-to-text.model." + language, None)
+            model = self._xconfig.get("speech-to-text.vosk.model." + language, None)
             if model is not None:
                 self._xlog.info("Vosk: Loading model from config: " + model)
                 self._model = Model(model_name=model)

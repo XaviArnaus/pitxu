@@ -15,7 +15,9 @@ from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+# from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.vosk import VoskException
+from pitxu.lib.speech_to_text.whisper import Whisper, WhisperException
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
 
@@ -41,7 +43,7 @@ class Main(PyXavi):
     _fan_control_trigger_every_seconds: int = 5
 
     _chatbot: GeminiChatbot = None
-    _dictate: Vosk = None
+    _dictate: Whisper = None
     _raw_input_stream: sounddevice.RawInputStream = None
 
     _is_pitxu_active: bool = True
@@ -116,7 +118,7 @@ class Main(PyXavi):
         
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
-        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        self._dictate = Whisper(config=self._xconfig, params=self._xparams)
 
         # # Initialise the Raw Input Stream for microphone
         # self._xlog.debug("Initialising the Raw Input Stream for microphone")
@@ -238,11 +240,13 @@ class Main(PyXavi):
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
             self._interaction.show_init_phases(4, text="Microphone")
+            samplerate = self._dictate.samplerate
+            device = self._dictate.device
+            self._xlog.debug(f"Opening Raw Input Stream with samplerate {samplerate} and device {device}")
             with sounddevice.RawInputStream(
-                            #samplerate=self._dictate.samplerate,
-                            samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
+                            samplerate=samplerate,
                             blocksize=0, 
-                            device=self._dictate.device,
+                            device=device,
                             dtype="int16", 
                             channels=1,
                             callback=self._dictate.callback) as input_stream:
@@ -428,8 +432,8 @@ class Main(PyXavi):
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
-            self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
+        except VoskException | WhisperException as stte:
+            self._xlog.error("🛑 Speech-to-Text Exception detected in Main run loop: " + str(stte))
         except Exception as e:
             self._xlog.error("🛑 Error in Main run loop: " + str(e))
             self._xlog.error(full_stack())  

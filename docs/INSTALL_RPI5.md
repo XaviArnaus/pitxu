@@ -303,6 +303,14 @@ This is not needed for the Python / Poetry application to work, but it's useful 
 sudo apt install i2c-tools
 ```
 
+### Related to `openai-whisper`
+
+This is needed when using the STT from `openai-whisper` to process the files. If using Whisper, we're then discarding Vosk.
+
+```
+sudo apt install ffmpeg
+```
+
 ### Packages to support some other operations
 
 The packages suggested to install here are optional, but they are referenced by some funcionality and are strongly encouraged
@@ -439,7 +447,7 @@ pitxu
 
 ## 9. Setup Pitxu as a service of the system
 
-Adding Pitxu as a service allows the RPi to automatically start Pixtu on start by itself.
+Adding Pitxu as a service allows the RPi to automatically start Pitxu on start by itself.
 Use the Pitxu binary to create the necessary links from the Pitxu service definition to the actual Systemd services location.
 It will also place links for the shutdown and reboot that clean properly the system when closing it.
 ```

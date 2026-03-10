@@ -39,6 +39,7 @@ ifcfg = "^0.24"
 soundfile = "^0.13.1"
 apscheduler = "^3.11.2"
 macwifi = [{version="^0.0.5", markers="sys_platform=='darwin'"}]
+openai-whisper = "^20250625"
 
 [tool.poetry.scripts]
 main = "runner:run"

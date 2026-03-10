@@ -5,18 +5,6 @@ speech-to-text:
   # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
-  # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
-  # See https://alphacephei.com/vosk/models  
-  model: 
-    # Catalan
-    ca: vosk-model-small-ca-0.4
-      # take a look at https://github.com/synesthesiam/ca-es_pocketsphinx-cmu?tab=readme-ov-file 
-    # Spanish
-    es: vosk-model-small-es-0.42
-    # English
-    en-us: vosk-model-small-en-us-0.15
-    # German
-    de: vosk-model-small-de-0.15
   # [Bool] Whether to use specific words to improve recognition.
   use_specific_words: False
   # Microphone channels activation flags
@@ -28,7 +16,19 @@ speech-to-text:
     #right: False
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   bytes_per_chunk: 4000
-  
+  # Specific configuration for Vosk, when applicable.
+  vosk:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://alphacephei.com/vosk/models
+    model:
+      # Catalan
+      ca: vosk-model-small-ca-0.4
+      # Spanish
+      es: vosk-model-small-es-0.42
+      # English
+      en-us: vosk-model-small-en-us-0.15
+      # German
+      de: vosk-model-small-de-0.15
 
 
 # Configurations for the Text-to-Speech
