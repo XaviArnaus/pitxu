@@ -5,6 +5,7 @@ import json
 
 from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.speech_to_text.preprocessor import Preprocessor
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
@@ -24,6 +25,7 @@ class Vosk(PyXavi):
     _model: Model = None
     _queue: queue.Queue = None
     _recognizer: KaldiRecognizer = None
+    _preprocessor: Preprocessor = None
 
     _shared_memory: SharedMemoryManager = None
 
@@ -43,8 +45,10 @@ class Vosk(PyXavi):
     def initialize(self):
 
         self._xlog.info("Initializing Vosk STT")
+        logging_parts = []
 
         language = self._xparams.get("language")
+        logging_parts.append(("Language", language))
 
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
@@ -52,41 +56,54 @@ class Vosk(PyXavi):
             # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
             self.VOICE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.vosk.loglevel", self.VOICE_LIB_LOG_LEVEL)
             self._log_debug("Setting Vosk client log level to: " + str(self.VOICE_LIB_LOG_LEVEL))
-            SetLogLevel(self._xconfig.get("speech-to-text.internal_logging", self.VOICE_LIB_LOG_LEVEL))
+            SetLogLevel(self.VOICE_LIB_LOG_LEVEL)
 
-            model = self._xconfig.get("speech-to-text.model." + language, None)
+            model = self._xconfig.get("speech-to-text.vosk.model." + language, None)
             if model is not None:
-                self._xlog.info("Vosk: Loading model from config: " + model)
+                logging_parts.append(("Model from config", model))
                 self._model = Model(model_name=model)
             else:
-                self._xlog.info("Vosk: Loading default model for language: " + language)
+                logging_parts.append(("Model default for language", language))
                 self._model = Model(lang=language)
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             # otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
             if self._xparams.get("samplerate", None) is not None:
                 self.samplerate = self._xparams.get("samplerate")
-                self._xlog.debug(f"Vosk: Samplerate set from params: {self.samplerate}")
+                logging_parts.append(("Sample rate from params", self.samplerate))
+
+            elif self._xconfig.get("speech-to-text.vosk.input_samplerate", None) is not None and \
+                    self._xconfig.get("speech-to-text.vosk.input_samplerate", None) > 0:
+                self.samplerate = self._xconfig.get("speech-to-text.vosk.input_samplerate")
+                logging_parts.append(("Sample rate from config", self.samplerate))
+
             else:
                 self.samplerate = self._get_samplerate()
+                logging_parts.append(("Sample rate from device", self.samplerate))
             
             self.device = self._xconfig.get("speech-to-text.input_device", None)
-            self._xlog.debug(f"Vosk: Samplerate {self.samplerate}, Device {self.device}")
+            logging_parts.append(("Input device", self.device))
 
-            self._xlog.debug("Vosk: initializing KaldiRecognizer")
-            # self._recognizer = KaldiRecognizer(self._model, self.samplerate)
-            self._recognizer = KaldiRecognizer(self._model, 16000) # Vosk works better with 16kHz, even if the mic supports higher rates.
+            self._log_debug("Vosk: initializing KaldiRecognizer")
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
 
-        self._xlog.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
         self._queue = queue.Queue()
-        self._xlog.info("Vosk: Loading flags from Shared Memory")
+
+        self._preprocessor = Preprocessor(config=self._xconfig, params=Dictionary({
+            # "samplerate": self._xparams.get("samplerate", self.samplerate)
+            "samplerate": self.samplerate
+        }))
+
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
 
         # Keeping track that Vosk is active
         self.is_active = True
 
-        self._xlog.info("Done Initializing Vosk STT")
+        self.log_summary("Vosk Initialization", logging_parts)
+    
+    def get_queue(self) -> queue.Queue:
+        return self._queue
     
     def recognize(self) -> str:
         try:
@@ -95,20 +112,69 @@ class Vosk(PyXavi):
             elif self.is_active == False:
                 raise VoskException("Vosk is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
-                data = self._queue.get()
-                recognize_outcome = self.process_audio_chunk(data)
-                # DO NOT USE FinalResult() UNLESS YOU KNOW FOR SURE THAT THE STREAM HAS ENDED.
-                # recognize_final_outcome = self.process_remaining_vosk()
-                # if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
-                #     recognize_outcome["final"] = recognize_final_outcome["final"]
 
-                # Since Vosk can return both partial and final results, for normal "local" Pitxu
-                #   we completely ignore the partial.
-                if recognize_outcome.get("result") is not None:
-                    result = recognize_outcome.get("result")
-                    # if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
-                    #     result = result + " " + recognize_outcome.get("final")
-                    return result
+                # self._log_debug("Vosk: Recognize called, processing audio chunk from the queue")
+                
+                # Get from the queue. Only happens if mic is on and allowed
+                # If we use block=True, it waits until it receives something.
+                if self._queue.empty():
+                    return None
+                else:
+                    data = self._queue.get(block=False)
+                    # `None` is the marker for end of speech,
+                    #   sent by the CaptureHandler when the VAD detects the end of speech.
+                    if data is None:
+                        # Reset the audio buffers used for plotting,
+                        #   and do do the actual plotting.
+                        self._preprocessor.on_speech_end()
+
+                        # Oh! side effect! Check if we can actually get the Vosk final result!
+                        #recognize_final_outcome = self.process_remaining_vosk()
+                        #self.reset_result()
+
+                # Remember: we use `None` as a marker, so protect against it!
+                if data is not None:
+
+                    # Process all chunks that we receive.
+                    # recognize_outcome = self.process_audio_chunk(data)
+
+                    # Preprocess. Is it a valid chunk?
+                    preprocessed_data = self._preprocessor.preprocess_chunk(data)
+                    if preprocessed_data is not None:
+                        recognize_outcome = self.process_audio_chunk(preprocessed_data)
+                        # If the chunk was identified as human voice in the preprocessor but no transcription was obtained,
+                        #   means that we failed in the preprocessing (most likely energy too high).
+                        #   Therefore, we add its energy to the average, hoping that this feedback loop
+                        #   improves the peak identification in further chunk analysis iteration.
+                        # if (recognize_outcome.get("partial") is None or recognize_outcome.get("partial") == "") and \
+                        #     recognize_outcome.get("result") is None and \
+                        #     recognize_outcome.get("final") is None:
+                        #         self._preprocessor.add_untranscripted_audio_energy_to_average(preprocessed_data)
+                        # else:
+                        #     dd(recognize_outcome)
+                    else:
+                        recognize_outcome = {
+                            "result": None,
+                            "partial": None,
+                            "final": None
+                        }
+
+                    # recognize_final_outcome = self.process_remaining_vosk()
+                    # if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
+                    #     recognize_outcome["final"] = recognize_final_outcome["final"]
+
+                    # dd(recognize_outcome)
+
+                    # Since Vosk can return both partial and final results, for normal "local" Pitxu
+                    #   we completely ignore the partial.
+                    if recognize_outcome.get("result") is not None:
+                        result = recognize_outcome.get("result")
+                        # if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
+                        #     result = result + " " + recognize_outcome.get("final")
+                        return result
+                    # elif recognize_outcome.get("partial") is not None and recognize_outcome.get("partial") != "":
+                    #     self._log_debug(f"Vosk: partial is {recognize_outcome.get("partial")}")
+
         except queue.ShutDown as e:
             self.is_active = False
             raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
@@ -116,6 +182,10 @@ class Vosk(PyXavi):
             self.is_active = False
             # It's handled in Main, don't even log it here
             raise ve
+        except KeyboardInterrupt:
+            self._xlog.debug("Pressed Control + C while running Vosk transcription.")
+            self.is_active = False
+            self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
             raise VoskException("Vosk BrokenPipeError: " + str(bpe))
@@ -125,7 +195,7 @@ class Vosk(PyXavi):
             self.close()
             return None
     
-    def process_audio_chunk(self, data: bytes) -> str | None:
+    def process_audio_chunk(self, data: bytes) -> dict | None:
         """
         Method to be called to process audio data received from the microphone input or the server endpoint.
 
@@ -154,6 +224,7 @@ class Vosk(PyXavi):
                 outcome["result"] = result_text
 
             # DO NOT USE FinalResult() UNLESS YOU KNOW FOR SURE THAT THE STREAM HAS ENDED.
+            #   It flushes the other detected chunks!
             # final_result = self._recognizer.FinalResult()
             # ...
             
@@ -195,6 +266,8 @@ class Vosk(PyXavi):
         """
         This is called (from a separate thread) for each audio block.
         Audio blocks are sentences.
+
+        NOT USED. See CaptureHandler.
         """
         if status:
             self._xlog.debug(f"Vosk callback: Audio input status: {status}")
@@ -206,13 +279,6 @@ class Vosk(PyXavi):
             self._queue.put(bytes(indata))
         # else:
         #     self._xlog.debug("Vosk callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
-
-    def _int_or_str(self, text):
-        """Helper function for argument parsing."""
-        try:
-            return int(text)
-        except ValueError:
-            return text
     
     def should_skip_audio_input(self):
         '''

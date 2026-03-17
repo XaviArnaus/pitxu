@@ -74,11 +74,13 @@ class ChatbotSessionManager(PyXavi):
 
         self._xlog.debug("ChatbotSessionManager: Setting up tools.")
         self.tools = []
+        logging_tools_summary = []
         for client_name, client in self.clients.items():
             if isinstance(client, Command):
                 tools_from_client = client.get_tool_definition()
-                self._xlog.debug(f"ChatbotSessionManager: Adding tools from client [{client_name}]: {len(tools_from_client)}")
+                logging_tools_summary.append((client_name, len(tools_from_client)))
                 self.tools.extend(tools_from_client)
+        self.log_summary("Tools Initialization", logging_tools_summary)
         if self.ENABLE_TRIVAGO_MCP:
             self.tools.append(
                 # To embed a MCP tool, we need to pass the session. As simple as that.
@@ -124,6 +126,8 @@ class ChatbotSessionManager(PyXavi):
         self._xlog.debug("ChatbotSessionManager: Clearing all session handlers.")
         for key in list(self.session_handlers.keys()):
             del self.session_handlers[key]
+        
+        self._xlog.debug("ChatbotSessionManager: Closed.")
     
     def get_client_callbacks_by_function_name(self) -> dict[str, callable]:
         clients_by_function_name = {}

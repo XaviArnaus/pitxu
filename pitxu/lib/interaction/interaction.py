@@ -15,7 +15,7 @@ from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
-                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY,\
+                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_USER_IS_SPEAKING, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
@@ -198,6 +198,8 @@ class Interaction(PyXavi):
         Close the Interaction, including the BusyFlagsManager.
         """
         self._xlog.debug("Closing Interaction.")
+
+        self.process_pool.get_memory_manager().force_all_flags_to_idle()
     
     # --------- (Proxy) Functions to trigger interactions ---------
     
@@ -639,6 +641,12 @@ class Interaction(PyXavi):
     
     def unset_speaker_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
+    
+    def set_user_is_speaking(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_USER_IS_SPEAKING, True)
+    
+    def unset_user_is_speaking(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_USER_IS_SPEAKING, False)
 
     # --------- Internal helper functions ---------
 

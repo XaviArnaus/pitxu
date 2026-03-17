@@ -75,11 +75,13 @@ class DsiLcd(XprocessDisplayCombined):
         # The Painter that will handle the actual drawing on the canvas and device
         self.painter = Painter(config=self._xconfig, params=self._xparams)
 
+        self.log_summary("DSI LCD Initialization", [
+            ("Display Size", f"{self._display_size.x}x{self._display_size.y}")
+        ])
+
         # Interaction delays
         self.interaction_delays = self._xparams.get("interaction_delays")
-        self._xlog.debug("DSI LCD Interaction delays loaded:")
-        for key, value in self.interaction_delays.items():
-            self._xlog.debug(f"  {key}: {value} seconds")
+        self.log_summary("DSI LCD Interaction Delays", [(key, f"{value} seconds") for key, value in self.interaction_delays.items()])
     
     def initialize_from_main_process(self):
         self._xlog.info("Initializing LCD Worker from Main Process")
@@ -97,6 +99,7 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info("Finalizing DSI LCD Worker")
         self._log_debug("Closing DSI LCD Painter")
         self.painter.close()
+        self.painter.join(0.5)
         self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
         self._log_debug("Closing DSI LCD Device")

@@ -16,13 +16,13 @@ from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
 
 import sys
 import sounddevice
 import time
-import asyncio
 from copy import deepcopy
 from datetime import datetime
 
@@ -43,6 +43,7 @@ class Main(PyXavi):
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _raw_input_stream: sounddevice.RawInputStream = None
+    _capture_handler: CaptureHandler = None
 
     _is_pitxu_active: bool = True
 
@@ -73,7 +74,8 @@ class Main(PyXavi):
         super(Main, self).init_pyxavi(config=config, params=params)
 
         # Handle SIGTERM for graceful shutdown
-        signal.signal(signal.SIGTERM, self._handle_sigterm)
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
 
         # Initialize State
         self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
@@ -102,21 +104,37 @@ class Main(PyXavi):
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
     
-    def _handle_sigterm(self, sig, frame):
+    def _handle_signal(self, sig, frame):
         """
-        Handle SIGTERM signal
+        Handle signals for graceful shutdown.
+        This is set to handle SIGTERM, that is the signal sent by systemctl stop and reboot commands.
 
         This allows the service to stop gracefully when receiving a termination signal,
         that happens with systemctl stop or reboot commands.
         """
-        self._xlog.warning('SIGTERM received in Main, closing nicely now...')
+
+        signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
+
+        self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
         self.close_nicely()
 
     def _load_models(self):
         
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+        # COMMENTED: This way Vosk chooses between config or device.
+        # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
         self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        input_audio_chunk_queue = self._dictate.get_queue()
+
+        # Initialise the Capture Handler, that captures the audio from the microphone.
+        samplerate = self._xconfig.get("speech-to-text.input_samplerate", self._dictate.samplerate)
+        if samplerate == -1:
+            samplerate = self._dictate.samplerate
+        self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
+            "capture_queue": input_audio_chunk_queue,
+            "samplerate": samplerate
+        }))
 
         # # Initialise the Raw Input Stream for microphone
         # self._xlog.debug("Initialising the Raw Input Stream for microphone")
@@ -203,6 +221,9 @@ class Main(PyXavi):
 
         # Execute the initial maintenance tasks
         self._maintenance.clean_previous_mocked_images()
+        self._maintenance.clean_previous_generated_audios()
+        self._maintenance.clean_previous_generated_audio_signal_plots()
+        self._maintenance.clean_previous_generated_audio_spectrogram_plots()
 
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
@@ -235,17 +256,34 @@ class Main(PyXavi):
         self._load_language_statics()
 
         try:
+            # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
+            # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
+            samplerate = self._xconfig.get("speech-to-text.input_samplerate", self._dictate.samplerate)
+            if samplerate == -1:
+                samplerate = self._dictate.samplerate
+
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
             self._interaction.show_init_phases(4, text="Microphone")
             with sounddevice.RawInputStream(
                             #samplerate=self._dictate.samplerate,
-                            samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
+                            # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
+                            samplerate=samplerate,
                             blocksize=0, 
                             device=self._dictate.device,
                             dtype="int16", 
                             channels=1,
-                            callback=self._dictate.callback) as input_stream:
+                            # callback=self._dictate.callback) as input_stream:
+                            callback=self._capture_handler.callback) as input_stream:
+                
+                self.log_summary("Raw Input Stream (Mic) initialized", [
+                    ("Device", self._dictate.device),
+                    ("Sample Rate", samplerate),
+                    ("Block Size", "0 (default)"),
+                    ("Channels", 1),
+                    ("Data Type", "int16"),
+                    ("Callback", "CaptureHandler.callback")
+                ])
                 
                 # Welcome greeting
                 sw_greeting = self._stopwatch.start(name="greeting")
@@ -429,8 +467,14 @@ class Main(PyXavi):
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
         except VoskException as ve:
+            if not self._is_pitxu_active:
+                self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
+                return
             self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
         except Exception as e:
+            if not self._is_pitxu_active:
+                self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
+                return
             self._xlog.error("🛑 Error in Main run loop: " + str(e))
             self._xlog.error(full_stack())  
         
@@ -660,6 +704,9 @@ class Main(PyXavi):
         # We never want it to be muted when starting.
         self._interaction.unmute_microphone()
 
+        # In case that the user was speaking, clear the flag to avoid waiting forever.
+        self._interaction.unset_user_is_speaking()
+
         # Persist state
         self.persist_state()
 
@@ -671,6 +718,7 @@ class Main(PyXavi):
         self.clear_displays()
 
         # Wait for all the queues and processes to get empty
+        self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
         self._interaction.wait_for_all_queues_to_empty()
         self._interaction.wait_for_all_busy_processes_to_idle()
 
@@ -685,14 +733,20 @@ class Main(PyXavi):
         # Finish all related multiprocess stuff
         self._interaction.get_process_pool().finish_leftover_processes()
 
+        # Finish interactions and related processes
+        self._interaction.close()
+
         # ------ Final logs ------
 
         self._xlog.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
 
         # Here comes anything that we want to do before leaving
-        self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
-        self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
+        try:
+            self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
+            self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
+            self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
+        except (Exception, RuntimeError) as e:
+            self._xlog.error("🛑 Error while logging final stats: " + str(e))
 
         # If requested, avoid the final sys.exit()
         if avoid_final_exit:
@@ -792,4 +846,9 @@ class Main(PyXavi):
                         self._interaction.clear_background_display()
             else:
                 self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+            
+            # vad_stats = self._capture_handler.get_vad_handler().get_stats()
+            # dd(vad_stats)
+
+            # self._dictate._preprocessor.on_speech_end()
                     

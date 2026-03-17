@@ -1,4 +1,4 @@
-from pyxavi import Logger, Config, Dictionary
+from pyxavi import Logger, Config, Dictionary, dd
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 
@@ -53,3 +53,46 @@ class PyXavi:
     def _log_debug(self, message: str):
         if self.VERBOSE_DEBUG:
             self._xlog.debug(message)
+    
+    def log_summary(self, title: str, lines: list[str | tuple], tuple_separator: str = ": ", log_level: int = None):
+        """
+        Logs a summary with a title and lines, formatted in a nice way with borders.
+
+        Parameters:
+        title (str): The title of the summary.
+        lines (list[str | tuple]): The lines to include in the summary.
+        tuple_separator (str, optional): The separator to use for tuple lines. Defaults to ": ".
+        log_level (int, optional): The logging level. Defaults to None (DEBUG).
+
+        Attention: Does not support emojis. It messes up with the length.
+        """
+        if log_level is None:
+            log_level = logging.DEBUG
+        
+        printing_lines = []
+
+        # Preprocess the body lines
+        body_column_0_length = max([len(line[0]) for line in lines if isinstance(line, tuple)], default=0)
+        body_lines = []
+        for line in lines:
+            if isinstance(line, tuple):
+                line_str = f"{str(line[0]).ljust(body_column_0_length)}{tuple_separator}{line[1]}"
+            else:
+                line_str = line
+            body_lines.append(line_str)
+
+        # Calculate length.
+        all_lines = [title] + body_lines
+        all_lines = [len(line) for line in all_lines] # 2 extra spaces and 2 chars for the lines.
+        max_length = max(all_lines)
+
+        # Build the printing lines with borders.
+        printing_lines.append("-" * (max_length + 4)) # 4 extra chars for the borders.
+        printing_lines.append("| " + title.center(max_length) + " |")
+        printing_lines.append("-" * (max_length + 4))
+        for line in body_lines:
+            printing_lines.append("| " + line.ljust(max_length) + " |")
+        printing_lines.append("-" * (max_length + 4))
+        
+        for line in printing_lines:
+            self._xlog.log(log_level, line)

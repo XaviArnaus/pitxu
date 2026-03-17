@@ -2,23 +2,9 @@
 speech-to-text:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: False
-  # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
+  # [Integer] Index of the car to use, from the list in `make sounddevices`. Set [None] for autodetect
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
-  # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
-  # See https://alphacephei.com/vosk/models  
-  model: 
-    # Catalan
-    ca: vosk-model-small-ca-0.4
-      # take a look at https://github.com/synesthesiam/ca-es_pocketsphinx-cmu?tab=readme-ov-file 
-    # Spanish
-    es: vosk-model-small-es-0.42
-    # English
-    en-us: vosk-model-small-en-us-0.15
-    # German
-    de: vosk-model-small-de-0.15
-  # [Bool] Whether to use specific words to improve recognition.
-  use_specific_words: False
   # Microphone channels activation flags
   # This functionality is gone.
   #microphone_channels:
@@ -28,6 +14,60 @@ speech-to-text:
     #right: False
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   bytes_per_chunk: 4000
+  # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
+  save_input_audio: True
+  # [Integer] The sample rate to use for the Audio Input STT.
+  input_samplerate: 16000
+  # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
+  generate_signal_plots: True
+  # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
+  generate_spectrogram_plots: True
+  # Configuration for the Preprocessor (filters noises, energy identification)
+  preprocessor:
+    # [Integer] Low cut frequency for the bandpass filter in Hz.
+    lowcut_freq: 300
+    # lowcut_freq: 100
+    # [Integer] High cut frequency for the bandpass filter in Hz.
+    highcut_freq: 3400
+    # highcut_freq: 1100
+    # [Integer] Order of the Butterworth filter used for preprocessing.
+    filter_order: 6
+    # [Integer] Sample rate to use for the preprocessor. This should match the input_samplerate.
+    # Tipically, this value will be ignored, as the Preprocessor should receive it as param from the main
+    # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.
+    samplerate: 16000
+    # [Float] How much (from 0 to 1) are new energy readings weighted when added to the average.
+    # Example: 0.1 means 10%.
+    new_energy_weight: 0.1
+    # [Float] Multiplier for the average energy to set the threshold for voice activity detection.
+    # Example: 1.5 means that the threshold will be 1.5 times above the average energy.
+    # peak_energy_threshold_multiplier: 1.5
+    peak_energy_threshold_multiplier: 100
+    # [Float] Multiplier for the average FILTERED energy to set the threshold for voice activity detection.
+    # Example: 1.5 means that the threshold will be 1.5 times above the average energy.
+    # peak_energy_threshold_multiplier: 1.5
+    peak_filtered_energy_threshold_multiplier: 10.0
+    # [Integer] How many seconds of silence (energy below the threshold) are needed to consider that the user has stopped speaking.
+    silence_timeout_seconds: 1
+    # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
+    save_preprocessed_audio: True
+  # Specific configuration for Vosk, when applicable.
+  vosk:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://alphacephei.com/vosk/models
+    model:
+      # Catalan
+      ca: vosk-model-small-ca-0.4
+      # Spanish
+      es: vosk-model-small-es-0.42
+      # English
+      en-us: vosk-model-small-en-us-0.15
+      # German
+      de: vosk-model-small-de-0.15
+    # [Integer] The sample rate to use for the transcription model (Kaldi).
+    # -1 means that it will use the same sample rate as the input audio (Mic).
+    # input_samplerate: 16000
+    input_samplerate: -1
   
 
 
