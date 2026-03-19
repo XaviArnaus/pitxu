@@ -3,18 +3,14 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, SHARED_USER_IS_SPEAKING
 from pitxu.lib.utils.signal_tools import SignalTools
-from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.utils.audio_graph import AudioGraph
+from pitxu.lib.speech_to_text.preprocess.dumper import Dumper
+from pitxu.lib.speech_to_text.preprocess.filters import Filters
+from pitxu.lib.speech_to_text.preprocess.conversors import Conversors
 
-from scipy import signal, io
 import numpy as np
-import numpy.fft as fft
 from datetime import datetime
 from rms_vad import RmsVAD, VADConfig, compute_energy_db
-import os
 import logging
-from audiomath import Sound
-import soundfile as sf
 
 
 class Preprocessor(PyXavi):
@@ -30,8 +26,9 @@ class Preprocessor(PyXavi):
     RATE = 16000  # Sampling rate
 
     shared_memory: SharedMemoryManager = None
+    dumper: Dumper = None
+    filters: Filters = None
     vad: RmsVAD = None
-    audio_graph: AudioGraph = None
 
     # energy_average: float = 0.0
     last_human_speaking_datetime: datetime = None
@@ -65,23 +62,6 @@ class Preprocessor(PyXavi):
 
     accummulated_signal: list = []
     accummulated_filtered_signal: list = []
-    # acc_signal: list = []
-
-    signal_plots_path = os.path.join("audio", "signals")
-    signal_plots_path_name = "audio_signals_%s.png"
-    signal_plots_path_name_latest = "_latest.png"
-    spectrograms_plots_path = os.path.join("audio", "spectrograms")
-    spectrograms_plots_path_name = "audio_spectrograms_%s.png"
-    spectrograms_plots_path_name_latest = "_latest.png"
-    audio_files_location: str = None
-    preprocessed_audio_files_location: str = None
-
-    DEFAULT_STORAGE_PATH = "storage/"
-    DEFAULT_AUDIO_PATH = "audio/"
-    DEFAULT_AUDIO_INPUT_PATH = "input/"
-    DEFAULT_PREPROCESSED_AUDIO_INPUT_PATH = "preprocessed_input/"
-    FILENAME_PREFIX = "audio_"
-    FILENAME_EXTENSION = ".wav"
 
     VERBOSE_DEBUG: bool = True
     DEBUG_ENERGY_FACTOR = 1
@@ -98,8 +78,6 @@ class Preprocessor(PyXavi):
             self.RATE = self._xconfig.get("speech-to-text.preprocessor.input_samplerate")
         else:
             self._xlog.warning(f"No samplerate provided in params to Preprocess, using default of {self.RATE} Hz")
-
-        self._prepare_dump_audio_files()
         
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
@@ -115,20 +93,6 @@ class Preprocessor(PyXavi):
         # self.PEAK_FILTERED_THRESHOLD = self._xconfig.get("speech-to-text.preprocessor.peak_filtered_energy_threshold_multiplier", self.PEAK_FILTERED_THRESHOLD)
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
-        self.log_summary("Preprocessor Initialization", [
-            ("LOWCUT_FREQ", f"{self.LOWCUT_FREQ} Hz"),
-            ("HIGHCUT_FREQ", f"{self.HIGHCUT_FREQ} Hz"),
-            ("FILTER_ORDER", f"{self.FILTER_ORDER}"),
-            ("RATE", f"{self.RATE} Hz"),
-            # ("NEW_ENERGY_WEIGHT", f"{self.NEW_ENERGY_WEIGHT}"),
-            # ("PEAK_THRESHOLD", f"{self.PEAK_THRESHOLD}x average energy"),
-            # ("PEAK_FILTERED_THRESHOLD", f"{self.PEAK_FILTERED_THRESHOLD}x average filtered energy"),
-            ("SPEAKING_SILENCE_TIMEOUT_SECONDS", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
-            ("VAD Threshold", threshold),
-            ("VAD Attack", f"{attack} seconds"),
-            ("VAD Release", f"{release} seconds")
-        ])
-
         # Pre-calculate settings
         # window_size_seconds = self.CHUNK / self.RATE
         # step_size_seconds = self.CHUNK / self.RATE
@@ -138,56 +102,61 @@ class Preprocessor(PyXavi):
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_existing_shared_memory_flags()
 
-        self.audio_graph = AudioGraph(config=config, params=params)
+        params.set("samplerate", self.RATE)
+        params.set("lowcut_freq", self.LOWCUT_FREQ)
+        params.set("highcut_freq", self.HIGHCUT_FREQ)
+        params.set("order", self.FILTER_ORDER)
+
+        self.filters = Filters(config=config, params=params)
+        self.dumper = Dumper(config=config, params=params)
 
         logging.getLogger("matplotlib").setLevel(self._xconfig.get("libs_logger.matplotlib.loglevel", logging.WARNING))
 
+        self.log_summary("Preprocessor Initialization", [
+            ("Low cut freq", f"{self.LOWCUT_FREQ} Hz"),
+            ("High cut freq", f"{self.HIGHCUT_FREQ} Hz"),
+            ("Filter order", f"{self.FILTER_ORDER}"),
+            ("Samplerate", f"{self.RATE} Hz"),
+            # ("NEW_ENERGY_WEIGHT", f"{self.NEW_ENERGY_WEIGHT}"),
+            # ("PEAK_THRESHOLD", f"{self.PEAK_THRESHOLD}x average energy"),
+            # ("PEAK_FILTERED_THRESHOLD", f"{self.PEAK_FILTERED_THRESHOLD}x average filtered energy"),
+            ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
+            ("VAD Threshold", threshold),
+            ("VAD Attack", f"{attack} seconds"),
+            ("VAD Release", f"{release} seconds")
+        ])
+
         self._log_debug("🎤 Done Initializing Preprocess for Speech-to-Text")
-    
-    def _prepare_dump_audio_files(self):
-
-        self.signal_plots_path = os.path.join(self._xconfig.get("storage.path"), self.signal_plots_path)
-        self.spectrograms_plots_path = os.path.join(self._xconfig.get("storage.path"), self.spectrograms_plots_path)
-
-        self.preprocessed_audio_files_location = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + \
-                                    self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + \
-                                    self._xconfig.get("storage.audio.preprocessed_input", self.DEFAULT_PREPROCESSED_AUDIO_INPUT_PATH)
-        self.audio_files_location = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + \
-                                    self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + \
-                                    self._xconfig.get("storage.audio.input", self.DEFAULT_AUDIO_INPUT_PATH)
-        if os.path.exists(self.audio_files_location) == False:
-            os.makedirs(self.audio_files_location)
-        if os.path.exists(self.preprocessed_audio_files_location) == False:
-            os.makedirs(self.preprocessed_audio_files_location)
     
     def preprocess_chunk(self, indata: bytes) -> bytes | None:
         # What we receive from the STT queue are raw (non-numpy) bytes in int16 dtype format.
         # What is needed for preprocessing and so on are numpy arrays
         # Ensure that what we return here are bytes in int16!
-        self._xlog.debug(f"🎤 Preprocess: Received audio chunk of {len(indata)} bytes for preprocessing.")
+        # self._xlog.debug(f"🎤 Preprocess: Received audio chunk of {len(indata)} bytes for preprocessing.")
 
         # All calculations are done with numpy arrays for performance reasons, so convert it first.
         # We work here internally with INT16 (PCM_16) format.
-        audio_data_np = self.byte_chunk_to_numpy_array(indata)
+        audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
         # audio_data_np = SignalTools.float32(self.byte_chunk_to_numpy_array(indata))
 
         # Apply bandpass filter to isolate human voice frequencies
-        filtered_audio_np = self.bandpass_filter(audio_data_np, normalize_filtered_outcome=True)
-        # The following works, but I feel that it is a FFT-based filter is more expensive and less effective than the Butterworth one, which is designed for this purpose.
-        # filtered_audio_np = self.fftBandpass(audio_data_np, self.LOWCUT_FREQ, self.HIGHCUT_FREQ, fs=self.RATE)
+        # filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
+        # The following works, but it doesn't sound good, it seems to distort the audio a lot.
+        # filtered_audio_np = self.filters.fftBandpass(audio_data_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.RATE)
+        filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
+        filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.RATE)
 
         # Maintain the accummulators
         self.add_to_accumulated_signal_np(audio_data_np, filtered_audio_np)
-        # self.acc_signal.append(indata)
 
-        return indata
+        return filtered_audio_np.tobytes()
 
         # All calculations are done with numpy arrays for performance reasons, so convert it first.
-        audio_data_np = self.byte_chunk_to_numpy_array(indata)
+        audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
 
         # Apply bandpass filter to isolate human voice frequencies
         filtered_audio_np = self.bandpass_filter(audio_data_np)
-        filtered_audio_in_bytes = self.numpy_array_to_byte_chunk(filtered_audio_np)
+        filtered_audio_in_bytes = Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
 
         # Get the energy ratio in human frequencies over the energy in all frequencies.
         audio_energy_ratio = self.get_energy_ratio(audio_data_np)
@@ -273,17 +242,15 @@ class Preprocessor(PyXavi):
         # for chunk in self.acc_signal:
         #     clean_input += chunk
 
-        self.plot_signals(input_signal, filtered_signal)
-        self.plot_spectograms(input_signal, filtered_signal)
-        # self._save_audio_bytes(
-        #     clean_input,
-        #     os.path.join(self.audio_files_location, f"__{self.FILENAME_PREFIX}{Xtime.now_key()}{self.FILENAME_EXTENSION}"), 
-        #     os.path.join(self.audio_files_location, f"__latest{self.FILENAME_EXTENSION}"))
-        self.save_input_audio(input_signal)
-        self.save_preprocessed_audio(filtered_signal)
+        self.dumper.plot_signals(input_signal, filtered_signal)
+        self.dumper.plot_spectograms(input_signal, filtered_signal)
+        self.dumper.plot_fourier_transforms(input_signal, filtered_signal)
+
+        self.dumper.save_input_audio(input_signal)
+        self.dumper.save_preprocessed_audio(filtered_signal)
         self.accummulated_signal = []
         self.accummulated_filtered_signal = []
-        # self.acc_signal = []
+
         self._log_debug(f"🗣️ 🔴 End speaking.")
 
     def is_vad_speech(self, chunk: bytes) -> bool:
@@ -307,204 +274,28 @@ class Preprocessor(PyXavi):
         self.accummulated_signal.append(signal_chunk)
         self.accummulated_filtered_signal.append(filtered_signal_chunk)
     
-    def plot_signals(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
-
-        if self._xconfig.get("speech-to-text.generate_signal_plots", False):
-            audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
-            audio_graph.plot_waveform_comparison(
-                input_signal,
-                filtered_signal, 
-                self.RATE, 
-                filepath=self.signal_plots_path,
-                filename=self.signal_plots_path_name % Xtime.now_key(),
-                also_latest=True,
-                main_title="Original vs Filtered Audio Signal",
-                signal_name_1=f"Original signal {self.RATE} Hz",
-                signal_name_2=f"Butterworth bandpass {self.LOWCUT_FREQ}-{self.HIGHCUT_FREQ} Hz")
-
-            self._log_debug(f"🗣️ 📈 Plotted audio segment at: {os.path.join(self.signal_plots_path, self.signal_plots_path_name_latest)}")
-    
-    def plot_spectograms(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
-
-        if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
-            audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
-            audio_graph.plot_spectrogram_comparison(
-                input_signal,
-                filtered_signal, 
-                self.RATE, 
-                filepath=self.spectrograms_plots_path,
-                filename=self.spectrograms_plots_path_name % Xtime.now_key(),
-                also_latest=True,
-                main_title="Input Audio Spectrogram",
-                signal_name_1=f"Original signal {self.RATE} Hz",
-                signal_name_2=f"Butterworth bandpass {self.LOWCUT_FREQ}-{self.HIGHCUT_FREQ} Hz")
-
-            self._log_debug(f"🗣️ 📈 Plotted audio spectrogram segment at: {os.path.join(self.spectrograms_plots_path, self.spectrograms_plots_path_name_latest)}")
-    
-    def save_preprocessed_audio(self, audio_data_np: np.ndarray):
-        # Save the preprocessed audio data to a file for debugging purposes
-        if self._xconfig.get("speech-to-text.preprocessor.save_preprocessed_audio", False):
-            filename = os.path.join(self.preprocessed_audio_files_location, f"{self.FILENAME_PREFIX}{Xtime.now_key()}{self.FILENAME_EXTENSION}")
-            filename_latest = os.path.join(self.preprocessed_audio_files_location, f"_latest{self.FILENAME_EXTENSION}")
-            self._save_audio(audio_data_np, filename, filename_latest)
-    
-    def save_input_audio(self, audio_data_np: np.ndarray):
-        # Save the input audio data to a file for debugging purposes
-        if self._xconfig.get("speech-to-text.save_input_audio", False):
-            filename = os.path.join(self.audio_files_location, f"{self.FILENAME_PREFIX}{Xtime.now_key()}{self.FILENAME_EXTENSION}")
-            filename_latest = os.path.join(self.audio_files_location, f"_latest{self.FILENAME_EXTENSION}")
-            self._save_audio(audio_data_np, filename, filename_latest)
-    
-    def _save_audio(self, audio_data_np: np.ndarray, filename: str, filename_latest: str):
-        # sf.write(file=filename, samplerate=self.RATE, data=audio_data_np, format="WAV", subtype="PCM_16")
-        io.wavfile.write(filename, self.RATE, audio_data_np)
-        if os.path.exists(filename_latest):
-            os.remove(filename_latest)
-        # sf.write(file=filename_latest, samplerate=self.RATE, data=audio_data_np, format="WAV", subtype="PCM_16")
-        audio_data_np.nbytes
-        io.wavfile.write(filename_latest, self.RATE, audio_data_np)
-        self._xlog.debug(f"💾 Dumped audio [{audio_data_np.nbytes} bytes] of [{audio_data_np.dtype}] to file: {filename}")
-    
-    # def _save_audio_bytes(self, audio_data: bytes, filename: str, filename_latest: str):
-    #     # sf.write(file=filename, samplerate=self.RATE, data=np.frombuffer(audio_data, dtype=np.int16), format="WAV", subtype="PCM_16")
-    #     io.wavfile.write(filename, self.RATE, np.frombuffer(audio_data, dtype=np.int16))
-    #     if os.path.exists(filename_latest):
-    #         os.remove(filename_latest)
-    #     # sf.write(file=filename_latest, samplerate=self.RATE, data=np.frombuffer(audio_data, dtype=np.int16), format="WAV", subtype="PCM_16")
-    #     io.wavfile.write(filename_latest, self.RATE, np.frombuffer(audio_data, dtype=np.int16))
-    #     self._xlog.debug(f"💾 Dumped audio [{len(audio_data)} bytes] to file: {filename}")
-
-    
-    
-    # --- Helpers ---
-    
-    def byte_chunk_to_numpy_array(self, byte_chunk: bytes) -> np.ndarray:
-        """
-        Convert a byte chunk of audio data to a NumPy array.
-
-        Parameters:
-        byte_chunk (bytes): The input byte chunk of audio data.
-
-        Returns:
-        np.ndarray: The converted NumPy array of audio samples.
-        """
-        # Convert the byte chunk to a NumPy array of int16
-        audio_array = np.frombuffer(byte_chunk, dtype=np.int16)
-        return audio_array
-    
-    def numpy_array_to_byte_chunk(self, audio_array: np.ndarray) -> bytes:
-        """
-        Convert a NumPy array of audio samples back to a byte chunk.
-
-        Parameters:
-        audio_array (np.ndarray): The input NumPy array of audio samples.
-
-        Returns:
-        bytes: The converted byte chunk of audio data.
-        """
-        # Ensure the audio array is in int16 format before converting to bytes
-        if audio_array.dtype != np.int16:
-            audio_array = audio_array.astype(np.int16)
-        byte_chunk = audio_array.tobytes()
-        return byte_chunk
-    
     # --- Signal calculations ---
-    
-    def bandpass_filter(self, audio_data_np: np.ndarray, normalize_filtered_outcome: bool = True) -> np.ndarray:
-        """
-        Apply a Butterworth bandpass filter to the input audio data.
 
-        Parameters:
-        audio_data_np (np.ndarray): The input audio data.
+    # def scope_to_frequency_domain(self, audio_data_np: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    #     """
+    #     Convert the audio data from the time domain to the frequency domain.
 
-        Returns:
-        np.ndarray: The filtered audio data.
-        """
+    #     Parameters
+    #     ----------
+    #     audio_data_np : np.ndarray
+    #         Input audio data in the time domain.
 
-        # Human speech primarily occupies a specific range of frequencies. While the full audible spectrum is 20 Hz to 20,000 Hz,
-        #   most of the critical information for speech intelligibility lies within a narrower band,
-        #   often considered to be around 300 Hz to 3400 Hz (the "telephone band"). Background noise, hums, 
-        #   or other unwanted sounds often exist outside this range (e.g., low-frequency rumble, high-frequency hiss).
+    #     Returns
+    #     -------
+    #     freqs : np.ndarray
+    #         Array of frequency bins.
+    #     spectrum : np.ndarray
+    #         Magnitude spectrum of the audio data.
+    #     """
+    #     spectrum = np.abs(fft.rfft(audio_data_np))
+    #     freqs = fft.rfftfreq(len(audio_data_np), d=1 / self.RATE)
+    #     return freqs, spectrum
 
-        # By applying a **band-pass filter**, we can effectively "filter" an audio recording to retain only
-        #   the frequencies within the human voice range and attenuate (reduce the amplitude of) frequencies outside this range. 
-        #   This helps to clean up recording by removing extraneous noise, making the voice clearer.
-
-        # If the data comes in stereo, transform it to mono
-        if audio_data_np.ndim > 1:
-            audio_data_np = np.mean(audio_data_np, axis=1)
-
-        # Convert to float for filtering (important for signal processing)
-        audio_data_np = SignalTools.float32(audio_data_np)
-        # audio_data_np = audio_data_np.astype(np.float32)
-
-        # Design the Butterworth bandpass filter
-        nyquist = 0.5 * self.RATE
-        low = self.LOWCUT_FREQ / nyquist
-        high = self.HIGHCUT_FREQ / nyquist
-        wp = np.array([self.LOWCUT_FREQ, self.HIGHCUT_FREQ])*2/self.RATE  # normalized pass band frequnecies
-        ws = np.array([0.8*self.LOWCUT_FREQ, 1.2*self.HIGHCUT_FREQ])*2/self.RATE  # normalized stop band frequencies
-        # b, a = signal.butter(self.FILTER_ORDER, [low, high], btype='band')
-        # sos = signal.butter(self.FILTER_ORDER, [low, high], btype='band', output='sos', fs=self.RATE)
-        # sos = signal.butter(self.FILTER_ORDER, [low, high], btype='band', analog=True, output='sos')
-        # sos = signal.butter(self.FILTER_ORDER, [low, high], btype='band', analog=False, output='sos', fs=self.RATE)
-        sos = signal.iirdesign(wp, ws, gpass=60, gstop=80, ftype="butter", analog=False, output="sos")
-
-        # Apply the filter to the audio data.
-        # Attention, it returns float64
-        # filtered_audio_np = signal.lfilter(b, a, audio_data_np)
-        # filtered_audio_np = signal.sosfiltfilt(sos, audio_data_np, padlen=len(audio_data_np) - 1)
-        zi = signal.sosfilt_zi(sos)
-        filtered_audio_np, zf = signal.sosfilt(sos, audio_data_np, zi=zi*audio_data_np[0])
-        # filtered_audio_np = signal.sosfilt(sos, audio_data_np)
-
-        # Normalize the filtered audio to prevent clipping and ensure it stays within the int16 range
-        if normalize_filtered_outcome:
-            max_val = np.max(np.abs(filtered_audio_np))
-            if max_val > 0:
-                filtered_audio_np = filtered_audio_np / max_val
-
-        # Convert back this audio so the further operations find the common ground
-        # filtered_audio_np = (filtered_audio_np * (2**15 - 1)).clip(-32768, 32767)
-        filtered_audio_np = SignalTools.int16(filtered_audio_np)
-        # filtered_audio_np = filtered_audio_np.astype(np.int16)
-
-        return filtered_audio_np
-    
-    def fftBandpass(self, x, low, high, fs=1.0):
-        """
-        Apply a bandpass signal via FFTs.
-
-        Parameters
-        ----------
-        x : array_like
-            Input signal vector. Assumed to be real-only.
-        low : float
-            Lower bound of the passband in Hertz. (If less than or equal
-            to zero, a high-pass filter is applied.)
-        high : float
-            Upper bound of the passband, Hertz.
-        fs : float
-            Sample rate in units of samples per second. If `high > fs / 2`,
-            the output is low-pass filtered.
-
-        Returns
-        -------
-        y : ndarray
-            Output signal vector with all frequencies outside the `[low, high]`
-            passband zeroed.
-
-        Caveat
-        ------
-        Note that the energe in `y` will be lower than the energy in `x`, i.e.,
-        `sum(abs(y)) < sum(abs(x))`. 
-        """
-        xf = fft.rfft(x)
-        f = fft.rfftfreq(len(x), d=1 / fs)
-        xf[f < low] = 0
-        xf[f > high] = 0
-        return fft.irfft(xf, len(x))
-    
     def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
         """
         Calculate the ratio of energy in the human voice frequency range to the total energy of the audio signal.

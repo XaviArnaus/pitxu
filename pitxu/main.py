@@ -224,6 +224,7 @@ class Main(PyXavi):
         self._maintenance.clean_previous_generated_audios()
         self._maintenance.clean_previous_generated_audio_signal_plots()
         self._maintenance.clean_previous_generated_audio_spectrogram_plots()
+        self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
 
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()

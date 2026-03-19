@@ -75,6 +75,23 @@ class SignalTools:
         abs_max = 2 ** (i.bits - 1)
         offset = i.min + abs_max
         return (audio.astype(np.float32) - offset) / abs_max
+    
+    @staticmethod
+    def float64(audio: np.ndarray) -> np.ndarray:
+        """
+        Converts an input NumPy array with 16-bit ints to 64-bit floats.
+
+        Args:
+            audio: input audio array as 16-bit ints
+
+        Returns:
+            audio array as 64-bit floats
+        """
+
+        i = np.iinfo(audio.dtype)
+        abs_max = 2 ** (i.bits - 1)
+        offset = i.min + abs_max
+        return (audio.astype(np.float64) - offset) / abs_max
 
     @staticmethod
     def int16(audio: np.ndarray) -> np.ndarray:

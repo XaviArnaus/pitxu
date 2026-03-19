@@ -82,8 +82,8 @@ class CaptureHandler(PyXavi):
     def vad_on_speech_start(self, pre_buffer: list[bytes]):
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_user_is_speaking()
-        for frame in pre_buffer:
-            self.queue.put(bytes(frame))
+        # for frame in pre_buffer:
+        #     self.queue.put(bytes(frame))
     
     def vad_on_speech_chunk(self, chunk: bytes):
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")

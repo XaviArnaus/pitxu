@@ -44,6 +44,7 @@ class Maintenance(PyXavi):
     DEFAULT_AUDIO_OUTPUT_PATH = "output/"
     DEFAULT_AUDIO_SIGNAL_PLOTS_PATH = "signals/"
     DEFAULT_AUDIO_SPECTROGRAM_PLOTS_PATH = "spectrograms/"
+    DEFAULT_AUDIO_FOURIER_TRANSFORM_PLOTS_PATH = "fourier_transforms/"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Maintenance, self).init_pyxavi(config=config, params=params)
@@ -80,6 +81,13 @@ class Maintenance(PyXavi):
             self._xconfig.get("storage.spectrogram_plots.path", self.DEFAULT_AUDIO_PATH + self.DEFAULT_AUDIO_SPECTROGRAM_PLOTS_PATH)
         ]
         self._excluded_audio_spectrogram_plot_filenames = self._xconfig.get("storage.spectrogram_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
+
+        # Audio fourier_transform paths and exclusions definition.
+        # TODO: This should be automatic.
+        self._generated_audio_fourier_transform_plots_folders = [
+            self._xconfig.get("storage.fourier_transform_plots.path", self.DEFAULT_AUDIO_PATH + self.DEFAULT_AUDIO_FOURIER_TRANSFORM_PLOTS_PATH)
+        ]
+        self._excluded_audio_fourier_transform_plot_filenames = self._xconfig.get("storage.fourier_transform_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
         self._client = Client(config=config, params=params)
 
@@ -253,6 +261,15 @@ class Maintenance(PyXavi):
         self.clean_previous_generated_files(
             directories_after_storage=self._generated_audio_spectrogram_plots_folders,
             excluded_filenames=self._excluded_audio_spectrogram_plot_filenames,
+            file_extension="*.png")
+    
+    def clean_previous_generated_audio_fourier_transform_plots(self) -> None:
+        '''
+        Cleans the previous generated audio fourier transform plots from the storage folder.
+        '''
+        self.clean_previous_generated_files(
+            directories_after_storage=self._generated_audio_fourier_transform_plots_folders,
+            excluded_filenames=self._excluded_audio_fourier_transform_plot_filenames,
             file_extension="*.png")
 
     def _is_linux(self) -> bool:
