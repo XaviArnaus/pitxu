@@ -16,8 +16,15 @@ speech-to-text:
   bytes_per_chunk: 4000
   # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
   save_input_audio: True
-  # [Integer] The sample rate to use for the Audio Input STT.
+  # [Integer] The sample rate to use for the Audio Input STT. This is the one used by the Mic itself.
+  # -1 means that it will use the samplerate of the input device (Mic), inferred by the sounddevice library.
+  # Note: this is not necessarily the same sample rate that the STT engine will use,
+  #   as the audio will be resampled to match the one expected by the STT engine.
   input_samplerate: 16000
+  # [Integer] The sample rate to resample to before adding it into the processing queue of the STT engine.
+  # This should match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
+  #   as well as the one set in the Preprocessor.
+  target_samplerate: 16000
   # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
   generate_signal_plots: True
   # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
@@ -65,7 +72,8 @@ speech-to-text:
       # German
       de: vosk-model-small-de-0.15
     # [Integer] The sample rate to use for the transcription model (Kaldi).
-    # -1 means that it will use the same sample rate as the input audio (Mic).
+    # The value should be passed from the Main class, otherwise takes this value.
+    # -1 means that it will infer the sample rate from the input device (Mic) using the sounddevice library.
     # input_samplerate: 16000
     input_samplerate: -1
   

@@ -117,7 +117,7 @@ class Main(PyXavi):
 
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
         self.close_nicely()
-
+    
     def _load_models(self):
         
         # Initialise Speech-to-Text. This runs in the main process
@@ -128,12 +128,12 @@ class Main(PyXavi):
         input_audio_chunk_queue = self._dictate.get_queue()
 
         # Initialise the Capture Handler, that captures the audio from the microphone.
-        samplerate = self._xconfig.get("speech-to-text.input_samplerate", self._dictate.samplerate)
-        if samplerate == -1:
-            samplerate = self._dictate.samplerate
+        # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
+        samplerate = self.get_samplerate()
         self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
             "capture_queue": input_audio_chunk_queue,
-            "samplerate": samplerate
+            "microphone_samplerate": samplerate,
+            "target_samplerate": self._xconfig.get("speech-to-text.target_samplerate", 16000)
         }))
 
         # # Initialise the Raw Input Stream for microphone
@@ -257,11 +257,14 @@ class Main(PyXavi):
         self._load_language_statics()
 
         try:
+            # This is the samplerate that generates the chunks received in CaptureHandler.callback().
+            #   In MacOS the microphone can't be set to an arbitrary samplerate that fits on us, so
+            #   the config value for it must be -1 so that it gets inferred by de library.
+            # Then the CaptureHeader will resample it to 16 kHz, and that's why the rest of components work
+            #   under 16 kHz.
             # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
             # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
-            samplerate = self._xconfig.get("speech-to-text.input_samplerate", self._dictate.samplerate)
-            if samplerate == -1:
-                samplerate = self._dictate.samplerate
+            samplerate = self.get_samplerate()
 
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
@@ -270,7 +273,8 @@ class Main(PyXavi):
                             #samplerate=self._dictate.samplerate,
                             # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
                             samplerate=samplerate,
-                            blocksize=0, 
+                            # blocksize=0, 
+                            blocksize=1024,
                             device=self._dictate.device,
                             dtype="int16", 
                             channels=1,
@@ -763,6 +767,21 @@ class Main(PyXavi):
         self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
         self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
+    
+    def get_samplerate(self) -> int:
+        device_samplerate = self.get_samplerate_from_device()
+        samplerate = self._xconfig.get("speech-to-text.input_samplerate", device_samplerate)
+        if samplerate == -1:
+            samplerate = device_samplerate
+        return samplerate
+    
+    def get_samplerate_from_device(self) -> int:
+        device = self._xconfig.get("speech-to-text.input_device", None)
+        if device is not None:
+            device_info = sounddevice.query_devices(device, "input")
+            # soundfile expects an int, sounddevice provides a float:
+            return int(device_info["default_samplerate"])
+        return 16000  # Default samplerate if no device is specified
 
     def clear_displays(self):
         if self._interaction.displays_are_combined():

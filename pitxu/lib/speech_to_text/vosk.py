@@ -67,7 +67,9 @@ class Vosk(PyXavi):
                 self._model = Model(lang=language)
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
-            # otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
+            #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
+            # For normal local Pitxu, the chunk is downsampled in the CaptureHandler to 16kHz,
+            #   so we pick it up from the config.
             if self._xparams.get("samplerate", None) is not None:
                 self.samplerate = self._xparams.get("samplerate")
                 logging_parts.append(("Sample rate from params", self.samplerate))
@@ -90,7 +92,7 @@ class Vosk(PyXavi):
         self._queue = queue.Queue()
 
         self._preprocessor = Preprocessor(config=self._xconfig, params=Dictionary({
-            # "samplerate": self._xparams.get("samplerate", self.samplerate)
+            # Use the same samplerate from Vosk, as the chunk is already resampled.
             "samplerate": self.samplerate
         }))
 

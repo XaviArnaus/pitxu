@@ -278,13 +278,9 @@ class Filters(PyXavi):
         #   the frequencies within the human voice range and attenuate (reduce the amplitude of) frequencies outside this range. 
         #   This helps to clean up recording by removing extraneous noise, making the voice clearer.
 
-        # If the data comes in stereo, transform it to mono
-        if audio_data_np.ndim > 1:
-            audio_data_np = np.mean(audio_data_np, axis=1)
-
         # Convert to float for filtering (important for signal processing)
-        audio_data_np = SignalTools.float64(audio_data_np)
-        # audio_data_np = audio_data_np.astype(np.float32)
+        # audio_data_np = SignalTools.float32(audio_data_np)
+        audio_data_np = audio_data_np.astype(np.float32)
 
         # Apply the filter to the audio data.
         # Attention, it returns float64
@@ -296,6 +292,11 @@ class Filters(PyXavi):
         # zi = signal.sosfilt_zi(sos)
         # filtered_audio_np, zf = signal.sosfilt(sos, audio_data_np, zi=zi*audio_data_np[0])
 
+        # self._log_debug("5. filter pre sosfiltfilt:")
+        # dd(audio_data_np.shape)
+        # dd(audio_data_np.dtype)
+        # dd(audio_data_np.ndim)
+
         filtered_audio_np = signal.sosfiltfilt(self.signal_filter, audio_data_np, padlen=len(audio_data_np) - 1)
 
         # Normalize the filtered audio to prevent clipping and ensure it stays within the int16 range
@@ -303,11 +304,21 @@ class Filters(PyXavi):
             max_val = np.max(np.abs(filtered_audio_np))
             if max_val > 0:
                 filtered_audio_np = filtered_audio_np / max_val
+        
+        # These 2 are supposed to keep the quality in the conversion to int16,
+        # but the signal appears saturated in the graphs.
+        # -->
+        
+        # I've read to always clip the values before converting to int16, to avoid wrap-around issues.
+        # Clipping is the process of limiting the amplitude of a signal to a specified range.
+        # filtered_audio_np = np.clip((filtered_audio_np * 32768.0).round(), -32768, 32767)
 
         # Convert back this audio so the further operations find the common ground
         # filtered_audio_np = (filtered_audio_np * (2**15 - 1)).clip(-32768, 32767)
-        filtered_audio_np = SignalTools.int16(filtered_audio_np)
-        # filtered_audio_np = filtered_audio_np.astype(np.int16)
+        # filtered_audio_np = SignalTools.int16(filtered_audio_np)
+        # <--
+
+        filtered_audio_np = filtered_audio_np.astype(np.int16)
 
         return filtered_audio_np
     
@@ -345,6 +356,11 @@ class Filters(PyXavi):
         xf[f > high] = 0
         filtered = fft.irfft(xf, len(x))
         return filtered.astype(np.int16)
+
+        # These 2 are supposed to keep the quality in the conversion to int16,
+        # but the signal appears saturated in the graphs.
+        # filtered = np.clip((filtered * 32768.0).round(), -32768, 32767)
+        # return SignalTools.int16(filtered)
 
     def scope_to_frequency_domain(self, audio_data_np: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """

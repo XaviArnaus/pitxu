@@ -12,7 +12,6 @@ from datetime import datetime
 from rms_vad import RmsVAD, VADConfig, compute_energy_db
 import logging
 
-
 class Preprocessor(PyXavi):
 
     # Desired frequency range for human voice (e.g., telephone band)
@@ -23,7 +22,7 @@ class Preprocessor(PyXavi):
     # FILTER_ORDER = 3   # Order of the filter (higher order means steeper rolloff)
     FILTER_ORDER = 5   # Order of the filter (higher order means steeper rolloff)
 
-    RATE = 16000  # Sampling rate
+    samplerate = 16000  # Sampling rate
 
     shared_memory: SharedMemoryManager = None
     dumper: Dumper = None
@@ -72,18 +71,18 @@ class Preprocessor(PyXavi):
         self._xlog.info("🎤 Initializing Preprocess for Speech-to-Text")
 
         if params.key_exists("samplerate"):
-            self.RATE = params.get("samplerate")
+            self.samplerate = params.get("samplerate")
         elif self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) is not None and \
              self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) > 0:
-            self.RATE = self._xconfig.get("speech-to-text.preprocessor.input_samplerate")
+            self.samplerate = self._xconfig.get("speech-to-text.preprocessor.input_samplerate")
         else:
-            self._xlog.warning(f"No samplerate provided in params to Preprocess, using default of {self.RATE} Hz")
+            self._xlog.warning(f"No samplerate provided in params to Preprocess, using default of {self.samplerate} Hz")
         
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
         attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
         release = self._xconfig.get("speech-to-text.vad.release", 1.5)
-        self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.RATE))
+        self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
         
         self.LOWCUT_FREQ = self._xconfig.get("speech-to-text.preprocessor.lowcut_freq", self.LOWCUT_FREQ)
         self.HIGHCUT_FREQ = self._xconfig.get("speech-to-text.preprocessor.highcut_freq", self.HIGHCUT_FREQ)
@@ -94,15 +93,15 @@ class Preprocessor(PyXavi):
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
         # Pre-calculate settings
-        # window_size_seconds = self.CHUNK / self.RATE
-        # step_size_seconds = self.CHUNK / self.RATE
-        # self.window_size_samples = int(window_size_seconds * self.RATE)
-        # self.step_size_samples = int(step_size_seconds * self.RATE)
+        # window_size_seconds = self.CHUNK / self.samplerate
+        # step_size_seconds = self.CHUNK / self.samplerate
+        # self.window_size_samples = int(window_size_seconds * self.samplerate)
+        # self.step_size_samples = int(step_size_seconds * self.samplerate)
 
-        self.shared_memory = SharedMemoryManager(config=config, params=params)
-        self.shared_memory.initialize_existing_shared_memory_flags()
+        # self.shared_memory = SharedMemoryManager(config=config, params=params)
+        # self.shared_memory.initialize_existing_shared_memory_flags()
 
-        params.set("samplerate", self.RATE)
+        params.set("samplerate", self.samplerate)
         params.set("lowcut_freq", self.LOWCUT_FREQ)
         params.set("highcut_freq", self.HIGHCUT_FREQ)
         params.set("order", self.FILTER_ORDER)
@@ -116,7 +115,7 @@ class Preprocessor(PyXavi):
             ("Low cut freq", f"{self.LOWCUT_FREQ} Hz"),
             ("High cut freq", f"{self.HIGHCUT_FREQ} Hz"),
             ("Filter order", f"{self.FILTER_ORDER}"),
-            ("Samplerate", f"{self.RATE} Hz"),
+            ("Samplerate", f"{self.samplerate} Hz"),
             # ("NEW_ENERGY_WEIGHT", f"{self.NEW_ENERGY_WEIGHT}"),
             # ("PEAK_THRESHOLD", f"{self.PEAK_THRESHOLD}x average energy"),
             # ("PEAK_FILTERED_THRESHOLD", f"{self.PEAK_FILTERED_THRESHOLD}x average filtered energy"),
@@ -129,27 +128,30 @@ class Preprocessor(PyXavi):
         self._log_debug("🎤 Done Initializing Preprocess for Speech-to-Text")
     
     def preprocess_chunk(self, indata: bytes) -> bytes | None:
+        # Stop a second and ready this:
+        # https://github.com/pipecat-ai/pipecat/issues/1653#issuecomment-3021647937
+
         # What we receive from the STT queue are raw (non-numpy) bytes in int16 dtype format.
         # What is needed for preprocessing and so on are numpy arrays
         # Ensure that what we return here are bytes in int16!
         # self._xlog.debug(f"🎤 Preprocess: Received audio chunk of {len(indata)} bytes for preprocessing.")
 
-        # All calculations are done with numpy arrays for performance reasons, so convert it first.
+        # All operations are done with numpy arrays for performance reasons, so convert it first.
         # We work here internally with INT16 (PCM_16) format.
         audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
         # audio_data_np = SignalTools.float32(self.byte_chunk_to_numpy_array(indata))
 
+        # We want to work with mono audio. If comes as stereo, convert it to mono.
+        audio_data_np = Conversors.stereo_to_mono(audio_data_np)
+
         # Apply bandpass filter to isolate human voice frequencies
-        # filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        # The following works, but it doesn't sound good, it seems to distort the audio a lot.
-        # filtered_audio_np = self.filters.fftBandpass(audio_data_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.RATE)
         filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.RATE)
+        filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
 
         # Maintain the accummulators
         self.add_to_accumulated_signal_np(audio_data_np, filtered_audio_np)
 
-        return filtered_audio_np.tobytes()
+        return Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
 
         # All calculations are done with numpy arrays for performance reasons, so convert it first.
         audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
@@ -264,13 +266,11 @@ class Preprocessor(PyXavi):
         return is_speech
     
     def add_to_accumulated_signal(self, signal_chunk: bytes, filtered_signal_chunk: bytes):
-        signal_chunk_np = self.byte_chunk_to_numpy_array(signal_chunk)
-        filtered_signal_chunk_np = self.byte_chunk_to_numpy_array(filtered_signal_chunk)
+        signal_chunk_np = Conversors.byte_chunk_to_numpy_array(signal_chunk)
+        filtered_signal_chunk_np = Conversors.byte_chunk_to_numpy_array(filtered_signal_chunk)
         self.add_to_accumulated_signal_np(signal_chunk_np, filtered_signal_chunk_np)
     
     def add_to_accumulated_signal_np(self, signal_chunk: np.ndarray, filtered_signal_chunk: np.ndarray):
-        # self.accummulated_signal = np.concatenate((self.accummulated_signal, signal_chunk), dtype=np.int16)
-        # self.accummulated_filtered_signal = np.concatenate((self.accummulated_filtered_signal, filtered_signal_chunk), dtype=np.int16)
         self.accummulated_signal.append(signal_chunk)
         self.accummulated_filtered_signal.append(filtered_signal_chunk)
     
@@ -293,7 +293,7 @@ class Preprocessor(PyXavi):
     #         Magnitude spectrum of the audio data.
     #     """
     #     spectrum = np.abs(fft.rfft(audio_data_np))
-    #     freqs = fft.rfftfreq(len(audio_data_np), d=1 / self.RATE)
+    #     freqs = fft.rfftfreq(len(audio_data_np), d=1 / self.samplerate)
     #     return freqs, spectrum
 
     def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
@@ -308,7 +308,7 @@ class Preprocessor(PyXavi):
         """
         # This approach uses Discrete Fourier Transform to calculate the energy of the signal across different frequencies.
         # This means that we have energy per frequency.
-        energy_per_frequencies = SignalTools.energy(audio_buffer, self.RATE)
+        energy_per_frequencies = SignalTools.energy(audio_buffer, self.samplerate)
 
         # Sum speech energy
         speechenergy = 0
@@ -509,7 +509,7 @@ class Preprocessor(PyXavi):
     #     """
     #     # audio_buffer = audio_buffer.astype(float) / 32768.0 # Normalize to -1 to 1
 
-    #     # # features, feature_names = ShortTermFeatures.feature_extraction(audio_buffer, self.RATE,
+    #     # # features, feature_names = ShortTermFeatures.feature_extraction(audio_buffer, self.samplerate,
     #     # #                                                                    self.window_size_samples,
     #     # #                                                                    self.step_size_samples,
     #     # #                                                                    deltas=True)
@@ -519,7 +519,7 @@ class Preprocessor(PyXavi):
 
     #     # This approach uses Discrete Fourier Transform to calculate the energy of the signal across different frequencies.
     #     # This means that we have energy per frequency.
-    #     energy_per_frequencies = SignalTools.energy(audio_buffer, self.RATE)
+    #     energy_per_frequencies = SignalTools.energy(audio_buffer, self.samplerate)
 
     #     # # Sum speech energy
     #     # speechenergy = 0

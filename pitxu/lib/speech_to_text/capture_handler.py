@@ -1,20 +1,28 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+from pitxu.lib.speech_to_text.preprocess.conversors import Conversors
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_USER_IS_SPEAKING
 
 import sys
 import queue as Queue
 from rms_vad import RmsVAD, VADConfig
+import soxr
+import numpy as np
+import logging
 
 class CaptureHandler(PyXavi):
 
-    samplerate: int = 16000
+    microphone_samplerate: int = 16000
+    target_samplerate: int = 16000
 
     shared_memory: SharedMemoryManager = None
     queue: Queue.Queue = None
     vad: RmsVAD = None
+    resampler: soxr.ResampleStream = None
+
+    local_user_is_speaking: bool = False
 
     VERBOSE_DEBUG: bool = True
 
@@ -23,17 +31,25 @@ class CaptureHandler(PyXavi):
     
         self._xlog.info("🗣️ Initializing Capture Handler for Speech-to-Text")
 
+        # Get the capture queue from params, fail otherwise.
         if params.key_exists("capture_queue"):
             self.queue = params.get("capture_queue")
-        
         else:
             raise ValueError("No capture queue provided in params to CaptureHandler")
         
-        if params.key_exists("samplerate"):
-            self.samplerate = params.get("samplerate")
+        # Get the microphone samplerate from params, or use defaults.
+        if params.key_exists("microphone_samplerate"):
+            self.microphone_samplerate = params.get("microphone_samplerate")
         else:
-            self._xlog.warning(f"No samplerate provided in params to CaptureHandler, using default of {self.samplerate} Hz")
+            self._xlog.warning(f"No samplerate provided in params to CaptureHandler, using default of {self.microphone_samplerate} Hz")
 
+        # Get the target samplerate from params, or use defaults.
+        if params.key_exists("target_samplerate"):
+            self.target_samplerate = params.get("target_samplerate")
+        else:
+            self._xlog.warning(f"No target samplerate provided in params to CaptureHandler, using default of {self.target_samplerate} Hz")
+
+        # Control for `is_user_speaking` flag.
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_existing_shared_memory_flags()
 
@@ -45,17 +61,23 @@ class CaptureHandler(PyXavi):
             threshold=threshold, 
             attack=attack, # Last tests show that 0.0 attack (immediate detection) is the only that worked.
             release=release,
-            sample_rate=self.samplerate
+            sample_rate=self.target_samplerate,
+            chunk_size=1024
         ))
         self.vad.on_speech_start = lambda pre_buffer: self.vad_on_speech_start(pre_buffer)
         self.vad.on_audio = lambda chunk: self.vad_on_speech_chunk(chunk)
         self.vad.on_speech_end = lambda: self.vad_on_speech_end()
-        # self.vad.
+
         self.log_summary("RMS VAD initialized", [
             ("Threshold", threshold),
             ("Attack", f"{attack} seconds"),
             ("Release", f"{release} seconds"),
-            ("Sample Rate", f"{self.samplerate} Hz")
+            ("Sample Rate", f"{self.target_samplerate} Hz")
+        ])
+        
+        self.log_summary(f"Resampler will {'not be used' if self.microphone_samplerate == self.target_samplerate else 'resample audio'}", [
+            ("In Sample Rate", f"{self.microphone_samplerate} Hz"),
+            ("Out Sample Rate", f"{self.target_samplerate} Hz")
         ])
 
         self._log_debug("🗣️ Done Initializing Capture Handler for Speech-to-Text")
@@ -71,9 +93,15 @@ class CaptureHandler(PyXavi):
 
         if not self.should_skip_audio_input() and self.queue is not None:
             # self._xlog.debug(f"Input audio callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
-            # print(time.inputBufferAdcTime)
 
-            # self.queue.put(bytes(indata))
+            # Whatever comes as input, resample it to the working samplerate.
+            if self.microphone_samplerate != self.target_samplerate:
+                indata = Conversors.resample_audio(indata, 
+                                                    in_rate=self.microphone_samplerate, 
+                                                    out_rate=self.target_samplerate)
+
+            # Feed the VAD, it will decide if has a speech,
+            # and put the chunk into the queue via callbacks.
             self.vad.feed(indata)
     
         # else:
@@ -82,8 +110,8 @@ class CaptureHandler(PyXavi):
     def vad_on_speech_start(self, pre_buffer: list[bytes]):
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_user_is_speaking()
-        # for frame in pre_buffer:
-        #     self.queue.put(bytes(frame))
+        for frame in pre_buffer:
+            self.queue.put(bytes(frame))
     
     def vad_on_speech_chunk(self, chunk: bytes):
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
@@ -92,8 +120,9 @@ class CaptureHandler(PyXavi):
     def vad_on_speech_end(self):
         self._xlog.debug("🗣️ VAD detected speech end")
         self.unset_user_is_speaking()
+
         # Sending None as a marker for end of speech, so the recognizer can trigger an END step.
-        self.queue.put(None)  # Using None as a marker for end of speech
+        self.queue.put(None)
 
         # TODO: ⚠️ This should actually trigger the whole Pitxu interaction pipeline.
     
