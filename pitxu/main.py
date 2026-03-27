@@ -265,6 +265,7 @@ class Main(PyXavi):
             # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
             # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
             samplerate = self.get_samplerate()
+            blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
 
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
@@ -274,7 +275,7 @@ class Main(PyXavi):
                             # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
                             samplerate=samplerate,
                             # blocksize=0, 
-                            blocksize=1024,
+                            blocksize=blocksize,
                             device=self._dictate.device,
                             dtype="int16", 
                             channels=1,
@@ -284,7 +285,7 @@ class Main(PyXavi):
                 self.log_summary("Raw Input Stream (Mic) initialized", [
                     ("Device", self._dictate.device),
                     ("Sample Rate", samplerate),
-                    ("Block Size", "0 (default)"),
+                    ("Block Size", blocksize if blocksize > 0 else "0 (automatic by pyAudio)"),
                     ("Channels", 1),
                     ("Data Type", "int16"),
                     ("Callback", "CaptureHandler.callback")

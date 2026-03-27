@@ -8,9 +8,9 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
 import sys
 import queue as Queue
 from rms_vad import RmsVAD, VADConfig
-import soxr
 import numpy as np
 import logging
+import samplerate
 
 class CaptureHandler(PyXavi):
 
@@ -20,7 +20,7 @@ class CaptureHandler(PyXavi):
     shared_memory: SharedMemoryManager = None
     queue: Queue.Queue = None
     vad: RmsVAD = None
-    resampler: soxr.ResampleStream = None
+    resampler: samplerate.Resampler = None
 
     local_user_is_speaking: bool = False
 
@@ -57,12 +57,13 @@ class CaptureHandler(PyXavi):
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
         attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
         release = self._xconfig.get("speech-to-text.vad.release", 1.5)
+        chunksize = self._xconfig.get("speech-to-text.blocksize", 1024)
         self.vad = RmsVAD(VADConfig(
             threshold=threshold, 
             attack=attack, # Last tests show that 0.0 attack (immediate detection) is the only that worked.
             release=release,
             sample_rate=self.target_samplerate,
-            chunk_size=1024
+            chunk_size=chunksize
         ))
         self.vad.on_speech_start = lambda pre_buffer: self.vad_on_speech_start(pre_buffer)
         self.vad.on_audio = lambda chunk: self.vad_on_speech_chunk(chunk)
@@ -72,8 +73,11 @@ class CaptureHandler(PyXavi):
             ("Threshold", threshold),
             ("Attack", f"{attack} seconds"),
             ("Release", f"{release} seconds"),
-            ("Sample Rate", f"{self.target_samplerate} Hz")
+            ("Sample Rate", f"{self.target_samplerate} Hz"),
+            ("Chunk Size", f"{chunksize} samples")
         ])
+
+        self.resampler = samplerate.Resampler(converter_type='sinc_best')
         
         self.log_summary(f"Resampler will {'not be used' if self.microphone_samplerate == self.target_samplerate else 'resample audio'}", [
             ("In Sample Rate", f"{self.microphone_samplerate} Hz"),
@@ -96,9 +100,14 @@ class CaptureHandler(PyXavi):
 
             # Whatever comes as input, resample it to the working samplerate.
             if self.microphone_samplerate != self.target_samplerate:
-                indata = Conversors.resample_audio(indata, 
-                                                    in_rate=self.microphone_samplerate, 
-                                                    out_rate=self.target_samplerate)
+                # indata = Conversors.resample_audio_interpolation(indata, 
+                #                                     in_rate=self.microphone_samplerate, 
+                #                                     out_rate=self.target_samplerate)
+                indata = Conversors.resample_audio_scikit(self.resampler,
+                                            indata,
+                                            in_rate=self.microphone_samplerate,
+                                            out_rate=self.target_samplerate)
+
 
             # Feed the VAD, it will decide if has a speech,
             # and put the chunk into the queue via callbacks.

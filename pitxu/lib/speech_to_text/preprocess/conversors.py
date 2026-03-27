@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import resample_poly
 import math
+import samplerate
 
 class Conversors:
 
@@ -58,7 +59,56 @@ class Conversors:
             raise ValueError("Input audio array must be stereo with shape (n_samples, 2) or mono with shape (n_samples,).")
     
     @staticmethod
-    def resample_audio(audio: bytes, in_rate: int, out_rate: int) -> bytes:
+    def resample_audio_scikit(resampler: samplerate.Resampler, audio: bytes, in_rate: int, out_rate: int) -> bytes:
+        if in_rate == out_rate:
+            return audio
+        
+        audio_data = np.frombuffer(audio, dtype=np.int16).astype(np.float32)
+        
+        resampled_audio = resampler.process(audio_data, out_rate / in_rate)
+        
+        # Clip and convert
+        resampled_audio = np.clip(resampled_audio, -32768, 32767)
+        result = resampled_audio.astype(np.int16).tobytes()
+        
+        return result
+    
+    @staticmethod
+    def resample_audio_interpolation(audio: bytes, in_rate: int, out_rate: int) -> bytes:
+        # https://github.com/nwhitehead/swmixer/blob/master/swmixer.py
+        # https://stackoverflow.com/questions/51420923/resampling-a-signal-with-scipy-signal-resample
+        if in_rate == out_rate:
+            return audio
+        
+        audio_data = np.frombuffer(audio, dtype=np.int16).astype(np.float32)
+        
+        scale = out_rate / in_rate
+        # calculate new length of sample
+        n = round(len(audio_data) * scale)
+
+        # use linear interpolation
+        # endpoint keyword means than linspace doesn't go all the way to 1.0
+        # If it did, there are some off-by-one errors
+        # e.g. scale=2.0, [1,2,3] should go to [1,1.5,2,2.5,3,3]
+        # but with endpoint=True, we get [1,1.4,1.8,2.2,2.6,3]
+        # Both are OK, but since resampling will often involve
+        # exact ratios (i.e. for 44100 to 22050 or vice versa)
+        # using endpoint=False gets less noise in the resampled sound
+        resampled_signal = np.interp(
+            np.linspace(0.0, 1.0, n, endpoint=False),  # where to interpret
+            np.linspace(0.0, 1.0, len(audio_data), endpoint=False),  # known positions
+            audio_data,  # known data points
+        )
+        
+        # Clip and convert
+        resampled_audio = np.clip(resampled_signal, -32768, 32767)
+        # resampled_audio = np.clip((resampled_audio * 32768.0).round(), -32768, 32767)
+        result = resampled_audio.astype(np.int16).tobytes()
+        
+        return result
+    
+    @staticmethod
+    def resample_audio_polyphase(audio: bytes, in_rate: int, out_rate: int) -> bytes:
         if in_rate == out_rate:
             return audio
         

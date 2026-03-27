@@ -146,7 +146,7 @@ class Preprocessor(PyXavi):
 
         # Apply bandpass filter to isolate human voice frequencies
         filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
+        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
 
         # Maintain the accummulators
         self.add_to_accumulated_signal_np(audio_data_np, filtered_audio_np)
