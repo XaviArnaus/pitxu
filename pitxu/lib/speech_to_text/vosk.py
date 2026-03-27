@@ -34,6 +34,8 @@ class Vosk(PyXavi):
 
     is_active: bool = False
 
+    transcription_result: str = None
+
     VERBOSE_DEBUG: bool = True
     VOICE_LIB_LOG_LEVEL: int = 0
 
@@ -117,15 +119,12 @@ class Vosk(PyXavi):
 
                 # self._log_debug("Vosk: Recognize called, processing audio chunk from the queue")
                 
-                # Get from the queue. Only happens if mic is on and allowed
+                # Get from the queue. Only happens if mic is on and allowed, and VAD detected speech.
                 # If we use block=True, it waits until it receives something.
                 if self._queue.empty():
                     return None
                 else:
                     data = self._queue.get(block=False)
-
-                    # What about resampling whatever we receive to 16kHz?
-                    # Take a look at librosa.resample()
 
                     # `None` is the marker for end of speech,
                     #   sent by the CaptureHandler when the VAD detects the end of speech.
@@ -141,23 +140,10 @@ class Vosk(PyXavi):
                 # Remember: we use `None` as a marker, so protect against it!
                 if data is not None:
 
-                    # Process all chunks that we receive.
-                    # recognize_outcome = self.process_audio_chunk(data)
-
                     # Preprocess. Is it a valid chunk?
                     preprocessed_data = self._preprocessor.preprocess_chunk(data)
                     if preprocessed_data is not None:
                         recognize_outcome = self.process_audio_chunk(preprocessed_data)
-                        # If the chunk was identified as human voice in the preprocessor but no transcription was obtained,
-                        #   means that we failed in the preprocessing (most likely energy too high).
-                        #   Therefore, we add its energy to the average, hoping that this feedback loop
-                        #   improves the peak identification in further chunk analysis iteration.
-                        # if (recognize_outcome.get("partial") is None or recognize_outcome.get("partial") == "") and \
-                        #     recognize_outcome.get("result") is None and \
-                        #     recognize_outcome.get("final") is None:
-                        #         self._preprocessor.add_untranscripted_audio_energy_to_average(preprocessed_data)
-                        # else:
-                        #     dd(recognize_outcome)
                     else:
                         recognize_outcome = {
                             "result": None,
@@ -165,24 +151,11 @@ class Vosk(PyXavi):
                             "final": None
                         }
 
-                    # recognize_final_outcome = self.process_remaining_vosk()
-                    # if recognize_final_outcome is not None and "final" in recognize_final_outcome and recognize_final_outcome["final"] is not None:
-                    #     recognize_outcome["final"] = recognize_final_outcome["final"]
-
-                    # dd(recognize_outcome)
-
                     # Since Vosk can return both partial and final results, for normal "local" Pitxu
                     #   we completely ignore the partial.
                     if recognize_outcome.get("result") is not None:
-                        result = recognize_outcome.get("result")
-                        # if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
-                        #     result = result + " " + recognize_outcome.get("final")
+                        self.add_to_transcription_result(recognize_outcome.get("result"))
 
-                        # Because we have already a result, regardless of being at the end of the processing queue,
-                        #   we perform the reset / cleanup operations before returning.
-                        # self._preprocessor.on_speech_end()
-                        # self.reset_result()
-                        return result
                     # elif recognize_outcome.get("partial") is not None and recognize_outcome.get("partial") != "":
                     #     self._log_debug(f"Vosk: partial is {recognize_outcome.get("partial")}")
 
@@ -191,21 +164,21 @@ class Vosk(PyXavi):
                 # Even we didn't recognise anything, take it as a signal that the speech has ended,
                 #   so we can reset the preprocessor and the Vosk buffers for the next transcription.
                 else:
-                    # Reset the audio buffers used for plotting,
-                    #   and do do the actual plotting.
+                    # Reset the audio buffers used for plotting, and do do the actual plotting.
                     self._preprocessor.on_speech_end()
 
-                    # Oh! side effect! Check if we can actually get the Vosk final result!
+                    # Check if we can actually get the Vosk final result
                     recognize_outcome = self.process_remaining_vosk()
-                    result = recognize_outcome.get("result")
+                    self.add_to_transcription_result(recognize_outcome.get("result"))
+
                     if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
-                        if result is not None:
-                            result = result + " " + recognize_outcome.get("final")
-                        else:
-                            result = recognize_outcome.get("final")
-                    if result is not None and result != "":
+                        self.add_to_transcription_result(recognize_outcome.get("final"))
+                
+                    # Now, we may have a result or we may be at the end of the speech without result.
+                    if self.transcription_result is not None and self.transcription_result != "":
+                        result = self.transcription_result
+                        self.reset_result()
                         return result
-                    self.reset_result()
 
         except queue.ShutDown as e:
             self.is_active = False
@@ -226,6 +199,15 @@ class Vosk(PyXavi):
             self._xlog.error(full_stack())
             self.close()
             return None
+    
+    def add_to_transcription_result(self, text: str):
+        if text is None or text.strip() == "":
+            return
+
+        if self.transcription_result is None:
+            self.transcription_result = text
+        else:
+            self.transcription_result = self.transcription_result + " " + text
     
     def process_audio_chunk(self, data: bytes) -> dict | None:
         """
@@ -288,6 +270,7 @@ class Vosk(PyXavi):
         Method to reset the Vosk recognizer result. This is needed to avoid having old transcriptions in the next calls.
         It is used in the server endpoint after processing a transcription, to clean the Vosk state for the next transcription.
         """
+        self.transcription_result = None
         self._recognizer.Reset()
 
     def _get_samplerate(self) -> int:
