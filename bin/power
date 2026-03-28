@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Power usage monitoring executable
+
+# Get the directory of the current script
+# Allows to reference other files relative to this script's location
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+# Commandline to get current input volts
+print_input_volts() {
+    echo "Input Volts: $(vcgencmd pmic_read_adc EXT5V_V | awk '{ n=split($2, a, "="); { print a[2]; } }')"
+}
+
+# Commandline to get current CPU ampers
+print_cpu_ampers() {
+    echo "CPU ampers: $(vcgencmd pmic_read_adc VDD_CORE_A | awk '{ n=split($2, a, "="); { print a[2]; } }')"
+}
+
+# Commandline to get current CPU volts
+print_cpu_volts() {
+    echo "CPU ampers: $(vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, "="); { print a[2]; } }')"
+}
+
+# Commandline to get the power consumption in watts
+print_power_consumption()
+    # TODO
+    # echo "no"
+    # echo "vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, \"=\"); { print \"CPU ampers: \" a[2]; } }'"
+
+
+if [[ $# -eq 0 ]] ; then
+    # No arguments provided, we give all info
+    print_input_volts
+    print_cpu_ampers
+    print_cpu_volts
+    exit 0
+fi
+
+case "$1" in
+    "input_volts") print_input_volts ;;
+    "cpu_ampers") print_cpu_ampers ;;
+    "cpu_volts") print_cpu_volts ;;
+    "help") echo "Usage: power [input_volts|cpu_volts|cpu_ampers]" ;;
+    *) echo "Command unknown" ;;
+esac
+
+FINAL_EXIT_CODE=$?
+exit $FINAL_EXIT_CODE
