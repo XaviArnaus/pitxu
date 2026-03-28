@@ -27,6 +27,8 @@ gpio:
         pin: 13
         is_pwm: True
         pwm_frequency: 25000
+        chip: 0
+        channel: 0
 
   # CPU temperature definition
   cpu_temperature:
