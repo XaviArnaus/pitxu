@@ -18,17 +18,25 @@ class SystemVolume(PyXavi, Command):
     # Whatever the volume we want, we add this to avoid being too low
     SINK_VOLUME_ADDITION = 50
 
+    #Soundcards output to be parsed for speaker volume and mute status. It can be "Speaker" or "Master" depending on the soundcard configuration.
     ALSA_SPEAKER_CONTROL_NAME: str = "Speaker"
+
+    #Soundcards output to be parsed for microphone volume and mute status. It can be "Mic" or "Capture" depending on the soundcard configuration.
     ALSA_MIC_CONTROL_NAME: str = "Mic"
+
+    # Soundcards output to be parsed for microphone volume and mute status. It can be "Mono" or "Left" depending on the soundcard configuration.
+    ALSA_IS_MIC_MONO: bool = True
 
     VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-        self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 50))
+        self.SINK_VOLUME_ADDITION = int(self._xconfig.get("text-to-speech.add_to_output_volume", 0))
         self.ALSA_SPEAKER_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_speaker_control_name", self.ALSA_SPEAKER_CONTROL_NAME)
         self.ALSA_MIC_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_mic_control_name", self.ALSA_MIC_CONTROL_NAME)
+        self.ALSA_IS_MIC_MONO = self._xconfig.get("text-to-speech.alsa_is_mic_mono", self.ALSA_IS_MIC_MONO)
+
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
@@ -172,10 +180,8 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone volume level is only supported on Linux with ALSA. Ignoring.")
                 return -1
             self._log_debug("Getting local system microphone volume level using ALSA.")
-            #This works on Pitxu3 (mono mic)
-            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $2 }'", shell=True).decode()
-            #This works on Pitxu4 (stereo mic)
-            # call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $2 }'", shell=True).decode()
+            string_to_parse = "Mono:" if self.ALSA_IS_MIC_MONO else "Left:"
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/" + string_to_parse + "/ { print $2 }'", shell=True).decode()
             #12%
             mic_volume = int(call_output.replace("%", "").strip())
             if mic_volume < 0:
@@ -198,10 +204,8 @@ class SystemVolume(PyXavi, Command):
                 self._xlog.warning("Getting microphone mute status is only supported on Linux with ALSA. Ignoring.")
                 return False
             self._log_debug("Getting local system microphone mute status using ALSA.")
-            #This works on Pitxu3 (mono mic)
-            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Mono:/ { print $6 }'", shell=True).decode()
-            #This works on Pitxu4 (stereo mic)
-            # call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/Left:/ { print $6 }'", shell=True).decode()
+            string_to_parse = "Mono:" if self.ALSA_IS_MIC_MONO else "Left:"
+            call_output = check_output("amixer sget " + self.ALSA_MIC_CONTROL_NAME + " | awk -F'[][]' '/" + string_to_parse + "/ { print $6 }'", shell=True).decode()
             #Mute: on
             is_muted_str = call_output.split(":")[1].strip()
             self._log_debug(f"The local system microphone mute status using ALSA is: {is_muted_str}")

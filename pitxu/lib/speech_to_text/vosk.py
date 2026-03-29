@@ -74,8 +74,8 @@ class Vosk(PyXavi):
             self._xlog.debug(f"Vosk: Samplerate {self.samplerate}, Device {self.device}")
 
             self._xlog.debug("Vosk: initializing KaldiRecognizer")
-            # self._recognizer = KaldiRecognizer(self._model, self.samplerate)
-            self._recognizer = KaldiRecognizer(self._model, 16000) # Vosk works better with 16kHz, even if the mic supports higher rates.
+            self._recognizer = KaldiRecognizer(self._model, self.samplerate)
+            # self._recognizer = KaldiRecognizer(self._model, 16000) # Vosk works better with 16kHz, even if the mic supports higher rates.
 
         self._xlog.info("Vosk: Creating queue to pass audio data to Vosk child process worker")
         self._queue = queue.Queue()

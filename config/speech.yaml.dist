@@ -44,6 +44,9 @@ text-to-speech:
   # [String] ALSA control name for the microphone. Only used on Linux with ALSA.
   # alsa_mic_control_name: "Mic"
   alsa_mic_control_name: "Capture"
+  # [String] Is the microphone understood by ALSA as Mono? Otherwise will be stereo.
+  # This is important because the reading of the values won't work otherwise.
+  alsa_is_mic_mono: True
   # [Integer] Volume addition to the volume level read from the system.
   add_to_output_volume: 0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
