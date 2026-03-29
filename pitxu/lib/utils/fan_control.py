@@ -132,3 +132,8 @@ class FanControl(PyXavi):
             elif self.fans.is_on(fan_name=fan_name) and current_temperature <= self.cpu_temperature.get_threshold() - self.HYSTERESIS:
                 self._log_debug(f"CPU temperature {current_temperature}°C is below or equal to threshold (minus margin of {self.HYSTERESIS}°C), turning off fan '{fan_name}'")
                 self.fans.turn_off(fan_name=fan_name)
+
+    def get_fan_status(self, fan_name: str = None):
+        if fan_name:
+            return {fan_name: self.current_fan_speeds.get(fan_name, 0.0)}
+        return self.current_fan_speeds
