@@ -202,14 +202,15 @@ class SystemPowerManagement(PyXavi, Command):
             temperature = value.get("cpu_temperature", -1)
             fan_speed = value.get("cpu_fan_speed", -1)
             case_fans = value.get("case_fans", {})
-            text = f"{temperature} °C\n{fan_speed} RPM\n" + "\n".join([f"{fan_name}: {speed * 100:.0f}%" for fan_name, speed in case_fans.items()])
+            case_fans_text = "\n".join([f"{fan_name}: {speed * 100:.0f}%" for fan_name, speed in case_fans.items()])
+            text = f"{temperature} °C\n{fan_speed} RPM\n" + (f"Case fans: \n{case_fans_text}" if case_fans_text else "")
             font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE
 
             if temperature == -1 or fan_speed == -1:
                 text = "❌ Error reading values"
                 font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG
 
-            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM")
+            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM, {case_fans_text.replace('\n', ', ')}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🌡️",
                 text=text,

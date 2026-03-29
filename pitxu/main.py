@@ -805,6 +805,7 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds += 1
             
             self._state.set("fan_case_status", self._fan_control.get_fan_status())
+            self._state.write_file()
 
             
             # If the background display is idle, show interaction holding percentage if applicable
