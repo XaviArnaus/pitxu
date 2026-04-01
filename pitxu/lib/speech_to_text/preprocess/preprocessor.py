@@ -96,8 +96,6 @@ class Preprocessor(PyXavi):
     def preprocess_chunk(self, indata: bytes) -> bytes | None:
 
         if self._xconfig.get("speech-to-text.preprocessor.enabled", True) == False:
-            self._xlog.debug("🎤 Preprocessor is disabled, passing through the audio chunk without preprocessing.")
-
             audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
             audio_data_np = Conversors.stereo_to_mono(audio_data_np)
             self.add_to_accumulated_signal_np(audio_data_np, audio_data_np)
