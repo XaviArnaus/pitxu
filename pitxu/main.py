@@ -19,6 +19,7 @@ from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
+from pitxu.lib.utils.xtime import Xtime
 
 import sys
 import sounddevice
@@ -35,6 +36,7 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _seconds_to_hold_interaction_answer: int = 15
+    _idle_minutes_to_show_status: int = 2
 
     _server: Server = None
     _fan_control_iterated_seconds: int = -1
@@ -183,6 +185,9 @@ class Main(PyXavi):
                     all_possible_exit_words.append(word)
         self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
         self._exit_words = all_possible_exit_words
+
+        # Idle mode after some minutes of inactivity
+        self._idle_minutes_to_show_status = self._xconfig.get("maintenance.idle_minutes", self._idle_minutes_to_show_status)
     
     def _initialize_interactions(self):
         """
@@ -828,6 +833,32 @@ class Main(PyXavi):
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
+
+            # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
+            # Also, if we never interacted, asume we're idle.
+            if self._last_interaction_datetime is None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+                
+                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), showing status information.")
+
+                try:
+                    wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "SSID: Not connected")
+                    network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "IP: Not connected")
+                    server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
+                    text = wifi.replace("N/A", "SSID: Not connected") + "\n" + \
+                        network.replace("N/A", "IP: Not connected") + "\n" + \
+                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
+                    
+                    self._interaction.show_arbitrary_text_on_foreground(
+                        icon="💤",
+                        text=text,
+                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_SMALL,
+                        header="Idle",
+                        font_header_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
+                        show_for_seconds=15)
+
+                except (Exception, RuntimeError) as e:
+                    self._xlog.error("🛑 Error while showing idle status information: " + str(e))
     
     # ------- Stuff to do every second -------
 
@@ -847,6 +878,9 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds = -1
             else:
                 self._fan_control_iterated_seconds += 1
+            
+            self._state.set("fan_case_status", self._fan_control.get_fan_status())
+            self._state.write_file()
 
             
             # If the background display is idle, show interaction holding percentage if applicable

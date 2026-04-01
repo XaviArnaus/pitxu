@@ -1,5 +1,5 @@
 from pitxu.lib.ups.ups import UPS
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, full_stack, Storage
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -15,11 +15,13 @@ import math
 class SystemPowerManagement(PyXavi, Command):
 
     ups: UPS = None
+    state: Storage = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
         self.ups = UPS(config=config, params=params)
+        self.state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
 
     def get_battery_level(self) -> int:
         '''
@@ -171,17 +173,20 @@ class SystemPowerManagement(PyXavi, Command):
         try:
             temperature = System.get_cpu_temperature()
             fan_speed = System.get_cpu_fan_speed()
+            case_fans = self.state.get("fan_case_status", {})
             self._log_debug(f"🌡️ Current system temperature: {temperature} °C, 💨 Fan speed: {fan_speed} RPM")
             return {
-                "temperature": temperature,
-                "fan_speed": fan_speed
+                "cpu_temperature": temperature,
+                "cpu_fan_speed": fan_speed,
+                "case_fans": case_fans
             }
         except Exception as e:
             self._xlog.error(f"🛑 Error getting system temperature and fan speed: {e}")
             self._xlog.debug(full_stack())
             return {
-                "temperature": -1,
-                "fan_speed": -1
+                "cpu_temperature": -1,
+                "cpu_fan_speed": -1,
+                "case_fans": {}
             }
     
     def callback_system_temperature_and_fan_speed(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -194,16 +199,18 @@ class SystemPowerManagement(PyXavi, Command):
 
         """
         try:
-            temperature = value.get("temperature", -1)
-            fan_speed = value.get("fan_speed", -1)
-            text = f"{temperature} °C\n{fan_speed} RPM"
+            temperature = value.get("cpu_temperature", -1)
+            fan_speed = value.get("cpu_fan_speed", -1)
+            case_fans = value.get("case_fans", {})
+            case_fans_text = "\n".join([f"{fan_name}: {speed * 100:.0f}%" for fan_name, speed in case_fans.items()])
+            text = f"{temperature} °C\n{fan_speed} RPM\n" + (f"Case fans: \n{case_fans_text}" if case_fans_text else "")
             font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE
 
             if temperature == -1 or fan_speed == -1:
                 text = "❌ Error reading values"
                 font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG
 
-            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM")
+            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM, {case_fans_text.replace('\n', ', ')}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🌡️",
                 text=text,

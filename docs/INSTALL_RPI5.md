@@ -68,7 +68,7 @@ BOOT_ORDER=0xf416
 
 ### First start
 
-Most of these steps are optional, and depend on what are the features that you want **Pitxu** to support. Soundcards, Displays, UPSs and so on usually need to have activated the SPI, I2C and xxx interfaces, and moszt likely to add some overlays or extra config in `/boot/firmware/config.txt`. I mention all here, and you simply jump whatever does not fit in your setup.
+Most of these steps are optional, and depend on what are the features that you want **Pitxu** to support. Soundcards, Displays, UPSs and so on usually need to have activated the SPI, I2C and xxx interfaces, and maybe to add some overlays or extra config in `/boot/firmware/config.txt`. I mention all here, and you simply jump whatever does not fit in your setup.
 
 #### Ensure Network connectivity and access (optional)
 
@@ -138,7 +138,7 @@ BOOT_ORDER=0xf461
 PSU_MAX_CURRENT=5000
 ```
 
-... and the following reflect my installation over NVME
+... and the following reflect my installation over NVME. Note the last line `NVME_CONTROLLER=1` and the different value on `BOOT_ORDER`
 
 ```
 [all]
@@ -221,6 +221,73 @@ Pitxu is designed as a 2-channel display interaction: One for foreground notific
 - Clear and fast. Touchscreen not yet used. Behaves as a main Linux display, and Pitxu interacts via it's framebuffer.
 - Uses DSI interface, the RPi5 has 2. The provider recommends the one most far from the USB connections. The DSI interface Frees up GPIO connections. The Touchscreen is ignored ATM, maybe future features for Pitxu.
 - https://www.waveshare.com/wiki/5inch_DSI_LCD_(C)
+
+### Setup PWM case fans
+
+Every PWM fan needs a 5v (red), ground (black) and TX/PWM (blue) cable. If your fan has 4 pins (RX/RPM yellow cable), just keep this unused.
+
+1. Connect the red and black into free GPIO pins for power and ground, or to any power source (I have it connected to power connectors on the UPS).
+2. Connect the blue cable into a PWM GPIO pin (GPIO 12 or 13)
+
+Every fan needs a dedicated GPIO pin. 2 fans need 2 GPIO pins.
+Every fan needs then a dedicated combination _device_ & _channel_. By default the RPi comes with one single device, and the normal CPU fan is connected to device 0 & channel 4.
+
+See your available device and channel with:
+```
+sudo cat /sys/kernel/debug/pwm
+```
+
+You'll see an output like:
+```
+0: platform/1f0009c000.pwm, 4 PWM devices
+ pwm-0   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-1   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-2   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-3   (cooling_fan         ): requested enabled period: 41566 ns duty: 20375 ns polarity: inverse usage_power
+```
+
+Also, keep in mind that if you use a GPIO soundcard, it needs a PWM channel for itself. On my tests, just by doing this above it wouldn't work. I've added the PWM overlay and defined which pin I want to use. For that:
+
+3. Edit the RPi config file
+```
+sudo /boot/firmware/config.txt
+```
+
+4. Add the following line AT THE TOP OF THE FILE:
+```
+dtoverlay=pwm,pin=13,func=4
+```
+
+5. Reboot.
+
+After that, the command above gave the following output:
+```
+sudo cat /sys/kernel/debug/pwm
+
+0: platform/1f00098000.pwm, 4 PWM devices
+ pwm-0   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-1   (sysfs               ): requested enabled period: 40000 ns duty: 10000 ns polarity: normal
+ pwm-2   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-3   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+
+1: platform/1f0009c000.pwm, 4 PWM devices
+ pwm-0   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-1   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-2   ((null)              ): period: 0 ns duty: 0 ns polarity: normal
+ pwm-3   (cooling_fan         ): requested enabled period: 41566 ns duty: 12225 ns polarity: inverse usage_power
+```
+
+ℹ️ Note that this output comes AFTER having Pitxu up and running, so the app requests the fan speed and that is then managed by the system as shown.
+
+#### Issues with a USB soundcard and 2 fans
+
+On my tests with a USB card and 2 case fans I encountered that I could not use the 2 channels PWM overlay as it should:
+```
+dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
+```
+
+With some research, I found a side solution that I explain here: [RPi5 PWM overlay](../overlays/pwm/README.md)
+Keep in mind that this solution does not work well with a GPIO soundcard (for example a _WM8960_): the soundcard is not detected.
 
 
 ## 1. Install system depencencies
@@ -331,7 +398,7 @@ groups
 
 This will tell you in which groups the your user is registered.
 
-⚠️ Tracing the execution as shipped by the repo, the systemd service (ran by `user`) executes `bin/pitxu`, which at its time runs `poetry run main`. This means that the actual execution of Pitxu is done by `user`. Therefore, we need `user` to be part of `video`.  
+⚠️ Tracing the execution as shipped by the Pitxu repo, the `systemd` service (ran by `user`) executes `bin/pitxu`, which at its time runs `poetry run main`. This means that the actual execution of Pitxu is done by `user`. Therefore, we need `user` to be part of `video`.  
 
 References:
 - https://gist.github.com/Quasimondo/e47a5be0c2fa9a3ef80c433e3ee2aead
