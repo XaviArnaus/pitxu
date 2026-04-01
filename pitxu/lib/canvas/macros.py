@@ -49,6 +49,12 @@ class Macros(PyXavi):
         if params.key_exists("apply_led_to_lcd_offset_to_all", False):
             self._xlog.debug("Using apply_led_to_lcd_offset_to_all from params: " + str(params.get("apply_led_to_lcd_offset_to_all")))
             self.APPLY_LED_TO_LCD_OFFSET_TO_ALL = params.get("apply_led_to_lcd_offset_to_all")
+        
+        self.log_summary("Macros Initialization", [
+            ("Display Size", f"{self._display_size.x}x{self._display_size.y}"),
+            ("LED_TO_LCD_OFFSET_X", f"{self.LED_TO_LCD_OFFSET_X} pixels"),
+            ("APPLY_LED_TO_LCD_OFFSET_TO_ALL", self.APPLY_LED_TO_LCD_OFFSET_TO_ALL)
+        ])
 
     def get_canvas(self) -> Canvas:
         return self.canvas

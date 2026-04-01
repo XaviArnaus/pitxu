@@ -649,3 +649,19 @@ finally:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+    
+    def test_plot_wavefile(self):
+        try:
+            from pitxu.lib.utils.audio_graph import AudioGraph
+            from pitxu.lib.utils.xtime import Xtime
+
+            input_wavefile_path = os.path.join("bin", "piano2.wav")
+            signal_plots_path = os.path.join(self._xconfig.get("storage.path"), "audio", "signals", f"test_%s.png")
+            audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
+
+            audio_graph.plot_wavefile(input_wavefile_path, signal_plots_path % Xtime.now_key())
+
+        except FileNotFoundError:
+            print(TerminalColor.RED_BRIGHT + f"The file '{input_wavefile_path}' was not found." + TerminalColor.END)
+        except Exception:
+            print(full_stack())

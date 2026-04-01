@@ -161,7 +161,7 @@ def run():
         # There is an IF in the Main to check if the server should be initialized or not.
         if exec_mode in ["local", "public"]:
             from pitxu.main import Main
-            logger.info("🚀 Starting in LOCAL execution mode")
+            logger.info(f"🚀 Starting in {exec_mode.upper()} execution mode")
             main = Main(config=config, params=parameters)
             asyncio.run(main.run())
             logger.info("End of the Main run")

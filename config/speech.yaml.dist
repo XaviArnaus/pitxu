@@ -2,23 +2,9 @@
 speech-to-text:
   # [Bool] Avoids using the Speech-to-Text and uses the keyboard input instead.
   mock: False
-  # [Integer] Index of the car to use, from the list in `make sounddevice`. Set [None] for autodetect
+  # [Integer] Index of the car to use, from the list in `make sounddevices`. Set [None] for autodetect
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
-  # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
-  # See https://alphacephei.com/vosk/models  
-  model: 
-    # Catalan
-    ca: vosk-model-small-ca-0.4
-      # take a look at https://github.com/synesthesiam/ca-es_pocketsphinx-cmu?tab=readme-ov-file 
-    # Spanish
-    es: vosk-model-small-es-0.42
-    # English
-    en-us: vosk-model-small-en-us-0.15
-    # German
-    de: vosk-model-small-de-0.15
-  # [Bool] Whether to use specific words to improve recognition.
-  use_specific_words: False
   # Microphone channels activation flags
   # This functionality is gone.
   #microphone_channels:
@@ -27,7 +13,74 @@ speech-to-text:
     # [Bool] Activates the right channel
     #right: False
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
+  # It is applied only in the server module to split the received audio for processing.
   bytes_per_chunk: 4000
+  # [Integer] Number of samples to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
+  # It is applied in the main Input Stream setup (sounddevice.InputStream) and in the Capture Handler callback for VAD identification.
+  # Defaults to 1024.
+  blocksize: 1024
+  # [Integer] The sample rate to use for the Audio Input used by the Mic itself.
+  # -1 means that it will use the samplerate of the input device (Mic), inferred by the sounddevice library.
+  # Note: this is not necessarily the same sample rate that the STT engine will use,
+  #   as the audio will be resampled to match the one expected by the STT engine.
+  # input_samplerate: 16000
+  input_samplerate: -1
+  # [Integer] The sample rate to resample to, before adding it into the processing queue of the STT engine.
+  # This should match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
+  #   as well as the one set in the Preprocessor.
+  target_samplerate: 16000
+  # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
+  save_input_audio: True
+  # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
+  generate_signal_plots: True
+  # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
+  generate_spectrogram_plots: True
+  # [Bool] Generates plots for the audio Fourier transforms (original and filtered) for debugging purposes.
+  generate_fourier_transform_plots: True
+  # Configurtion for the Voice Activity Detection (VAD) module
+  vad:
+    # [Float] Threshold for the VAD to consider that there is voice activity.
+    # This is a value between 0 and 1, where 0 means that any sound is considered voice and 1 means that only very loud sounds are considered voice.
+    threshold: 0.8
+    # [Float] Seconds before speech onset confirmed
+    attack: 0.0
+    # [Float] Seconds of silence before speech end
+    release: 1.0
+  # Configuration for the Preprocessor (filters noises, energy identification)
+  preprocessor:
+    # [Bool] Preprocessor is activated or not.
+    enabled: True
+    # [Integer] Low cut frequency for the bandpass filter in Hz.
+    lowcut_freq: 300
+    # lowcut_freq: 100
+    # [Integer] High cut frequency for the bandpass filter in Hz.
+    highcut_freq: 3400
+    # highcut_freq: 1100
+    # [Integer] Order of the Butterworth filter used for preprocessing.
+    filter_order: 6
+    # [Integer] Sample rate to use for the preprocessor. This should match the input_samplerate.
+    # Tipically, this value will be ignored, as the Preprocessor should receive it as param from the main
+    # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.
+    samplerate: 16000
+    # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
+    save_preprocessed_audio: True
+  # Specific configuration for Vosk, when applicable.
+  vosk:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://alphacephei.com/vosk/models
+    model:
+      # Catalan
+      ca: vosk-model-small-ca-0.4
+      # Spanish
+      es: vosk-model-small-es-0.42
+      # English
+      en-us: vosk-model-small-en-us-0.15
+      # German
+      de: vosk-model-small-de-0.15
+    # [Integer] The sample rate to use for the transcription model (Kaldi).
+    # The value should be passed from the Main class, otherwise takes this value.
+    # -1 means that it will infer the sample rate from the input device (Mic) using the sounddevice library.
+    input_samplerate: 16000
   
 
 
