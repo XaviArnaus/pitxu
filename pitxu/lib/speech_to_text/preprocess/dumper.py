@@ -7,7 +7,6 @@ from pitxu.lib.utils.audio_graph import AudioGraph
 from scipy import io
 import numpy as np
 import os
-import soundfile as sf
 
 
 class Dumper(PyXavi):
@@ -49,14 +48,11 @@ class Dumper(PyXavi):
         self.highcut_freq = params.get("highcut_freq", self.highcut_freq)
 
         self._prepare_dump_audio_files()
+        self._prepare_dump_plot_files()
         
         self._log_debug("🎤 Done Initializing Audio Dumper for Speech-to-Text")
     
     def _prepare_dump_audio_files(self):
-
-        self.signal_plots_path = os.path.join(self._xconfig.get("storage.path"), self.signal_plots_path)
-        self.spectrograms_plots_path = os.path.join(self._xconfig.get("storage.path"), self.spectrograms_plots_path)
-        self.fourier_transform_plots_path = os.path.join(self._xconfig.get("storage.path"), self.fourier_transform_plots_path)
 
         self.preprocessed_audio_files_location = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + \
                                     self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + \
@@ -68,6 +64,27 @@ class Dumper(PyXavi):
             os.makedirs(self.audio_files_location)
         if os.path.exists(self.preprocessed_audio_files_location) == False:
             os.makedirs(self.preprocessed_audio_files_location)
+    
+    def _prepare_dump_plot_files(self):
+
+        self.signal_plots_path = os.path.join(self._xconfig.get("storage.path"), 
+                                              self._xconfig.get("storage.signal_plots.path", self.signal_plots_path))
+        self.spectrograms_plots_path = os.path.join(self._xconfig.get("storage.path"), 
+                                                    self._xconfig.get("storage.spectrogram_plots.path", self.spectrograms_plots_path))
+        self.fourier_transform_plots_path = os.path.join(self._xconfig.get("storage.path"), 
+                                                         self._xconfig.get("storage.fourier_transform_plots.path", self.fourier_transform_plots_path))
+
+        if self._xconfig.get("speech-to-text.generate_signal_plots", False):
+            if os.path.exists(self.signal_plots_path) == False:
+                os.makedirs(self.signal_plots_path)
+        
+        if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
+            if os.path.exists(self.spectrograms_plots_path) == False:
+                os.makedirs(self.spectrograms_plots_path)
+        
+        if self._xconfig.get("speech-to-text.generate_fourier_transform_plots", False):
+            if os.path.exists(self.fourier_transform_plots_path) == False:
+                os.makedirs(self.fourier_transform_plots_path)
     
     def plot_signals(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
 
