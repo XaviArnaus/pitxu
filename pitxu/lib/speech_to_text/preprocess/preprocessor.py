@@ -267,3 +267,30 @@ class Preprocessor(PyXavi):
             if time_since_last_speaking > silence_timeout_seconds:
                 return True
         return False
+    
+    # Bandpass is filtering too much the sibilance ("s" sounds)? Here's how to fix it:
+    # -------------------------------------------------------------------------------
+    
+    # If a bandpass filter is attenuating sibilance (the harsh "s," "sh," and "t" sounds, typically between 4 kHz and 10 kHz) too much, the filter is likely too narrow or improperly centered. To fix this, you need to adjust the filter to be less invasive. 
+
+    # Here are specific ways to address this issue:
+    # 1. Widen the Bandwidth (Q Factor) 
+    # Problem: If the "Q" (bandwidth) of the bandpass filter is too narrow, it acts like a notch filter, killing the sound.
+    # Solution: Decrease the Q factor (widen the bandwidth). A wider band will allow more of the surrounding frequencies to pass through, making the attenuation less noticeable and more natural. 
+
+    # 2. Shift the Center Frequency
+    # Problem: The filter center frequency might be directly on top of the loudest part of the sibilance, or perhaps too low, affecting the mid-range frequencies of the voice.
+    # Solution: Adjust the center frequency to be more precise to the specific "s" sound. Sibilance often lives between 4-7 kHz; sweep this range to find the exact spot that needs attenuation without affecting the overall vocal tone. 
+
+    # 3. Reduce the Gain Reduction/Attenuate Less 
+    # Problem: You are reducing the volume of that frequency range too aggressively.
+    # Solution: Reduce the gain reduction amount. In a parametric EQ or dynamic EQ, turn down the amount of attenuation (e.g., from -10dB to -3dB). 
+
+    # 4. Switch to a De-Esser (Dynamic Approach) 
+    # Why: A bandpass filter is static, meaning it cuts the frequency all the time. A De-Esser is a dynamic processor, meaning it only acts when the "s" sound crosses a certain volume threshold.
+    # Action: Insert a De-Esser and set the frequency range to 5–8 kHz. This will only tame the sharp sounds while leaving the rest of the audio untouched. 
+
+    # 5. Use Parallel Processing (Sidechaining) 
+    # Action: Send your vocal to a bus, apply the bandpass filter to that bus (making it very harsh/hollow), and then mix that filtered signal underneath your original vocal. This allows you to blend the filtered, de-sibilanced sound with the original, controlled sound. 
+
+    # Also: https://www.reddit.com/r/WeAreTheMusicMakers/comments/1094otc/sibilance_is_killing_me/
