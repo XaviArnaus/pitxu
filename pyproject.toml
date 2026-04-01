@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pitxu"
-version = "0.3.1"
+version = "0.3.2"
 description = "Chatbot for the Raspberry Pi Zero 2w"
 authors = ["Xavi <xavi@arnaus.net>"]
 readme = "README.md"
@@ -42,6 +42,7 @@ macwifi = [{version="^0.0.5", markers="sys_platform=='darwin'"}]
 scipy = "^1.17.1"
 rms-vad = {extras = ["numpy"], version="^0.2.0"}
 samplerate = "^0.2.4"
+matplotlib = "^3.10.8"
 
 [tool.poetry.scripts]
 main = "runner:run"
