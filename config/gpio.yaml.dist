@@ -19,14 +19,22 @@ gpio:
     mock: True
     # Defined fans
     devices:
+      # No-PWM approach
       - name: side
-        # No-PWM approach
         pin: 23
+      # PWM approach
       - name: rear
-        # PWM approach
+        # gpiozero configuration, by GPIO ping (not physical number)
         pin: 13
+        # [Bool] Indicates if the fan is a PWM fan.
+        #   If True, it will use the pwm_frequency parameter to control the speed of the fan. 
+        #   If False, it will be a simple on/off fan.
         is_pwm: True
+        # [Int] Frequency in Hz for the PWM signal. This is used to control the speed of the fan.
+        #   The higher the frequency, the smoother the speed control, but it may also cause more noise. 
+        #   A common value for PC fans is around 25 kHz, but it may vary depending on the fan model.
         pwm_frequency: 25000
+        # rpi_hawrdare_pwm configuration, by chip and channel
         chip: 0
         channel: 0
 
