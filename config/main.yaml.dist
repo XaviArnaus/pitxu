@@ -62,6 +62,12 @@ storage:
     path: "audio/spectrograms/"
     # [list<String>] Exclude the following files from cleaning
     exclude_from_cleaning: ["_latest.png", ".keep"]
+  # Audio fourier transform plots dumped files paths
+  fourier_transform_plots:
+    # [String] Path for audio fourier transform plot files
+    path: "audio/fourier_transforms/"
+    # [list<String>] Exclude the following files from cleaning
+    exclude_from_cleaning: ["_latest.png", ".keep"]
 
 maintenance:
   # [Int] number of minutes of insactivity to consider the app idle and show some status information in the screen.

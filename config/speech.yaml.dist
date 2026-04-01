@@ -13,22 +13,39 @@ speech-to-text:
     # [Bool] Activates the right channel
     #right: False
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
+  # It is applied only in the server module to split the received audio for processing.
   bytes_per_chunk: 4000
-  # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
-  save_input_audio: True
-  # [Integer] The sample rate to use for the Audio Input STT. This is the one used by the Mic itself.
+  # [Integer] Number of samples to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
+  # It is applied in the main Input Stream setup (sounddevice.InputStream) and in the Capture Handler callback for VAD identification.
+  # Defaults to 1024.
+  blocksize: 1024
+  # [Integer] The sample rate to use for the Audio Input used by the Mic itself.
   # -1 means that it will use the samplerate of the input device (Mic), inferred by the sounddevice library.
   # Note: this is not necessarily the same sample rate that the STT engine will use,
   #   as the audio will be resampled to match the one expected by the STT engine.
-  input_samplerate: 16000
-  # [Integer] The sample rate to resample to before adding it into the processing queue of the STT engine.
+  # input_samplerate: 16000
+  input_samplerate: -1
+  # [Integer] The sample rate to resample to, before adding it into the processing queue of the STT engine.
   # This should match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
   #   as well as the one set in the Preprocessor.
   target_samplerate: 16000
+  # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
+  save_input_audio: True
   # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
   generate_signal_plots: True
   # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
   generate_spectrogram_plots: True
+  # [Bool] Generates plots for the audio Fourier transforms (original and filtered) for debugging purposes.
+  generate_fourier_transform_plots: True
+  # Configurtion for the Voice Activity Detection (VAD) module
+  vad:
+    # [Float] Threshold for the VAD to consider that there is voice activity.
+    # This is a value between 0 and 1, where 0 means that any sound is considered voice and 1 means that only very loud sounds are considered voice.
+    threshold: 0.8
+    # [Float] Seconds before speech onset confirmed
+    attack: 0.0
+    # [Float] Seconds of silence before speech end
+    release: 1.0
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
     # [Integer] Low cut frequency for the bandpass filter in Hz.
@@ -43,19 +60,6 @@ speech-to-text:
     # Tipically, this value will be ignored, as the Preprocessor should receive it as param from the main
     # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.
     samplerate: 16000
-    # [Float] How much (from 0 to 1) are new energy readings weighted when added to the average.
-    # Example: 0.1 means 10%.
-    new_energy_weight: 0.1
-    # [Float] Multiplier for the average energy to set the threshold for voice activity detection.
-    # Example: 1.5 means that the threshold will be 1.5 times above the average energy.
-    # peak_energy_threshold_multiplier: 1.5
-    peak_energy_threshold_multiplier: 100
-    # [Float] Multiplier for the average FILTERED energy to set the threshold for voice activity detection.
-    # Example: 1.5 means that the threshold will be 1.5 times above the average energy.
-    # peak_energy_threshold_multiplier: 1.5
-    peak_filtered_energy_threshold_multiplier: 10.0
-    # [Integer] How many seconds of silence (energy below the threshold) are needed to consider that the user has stopped speaking.
-    silence_timeout_seconds: 1
     # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
     save_preprocessed_audio: True
   # Specific configuration for Vosk, when applicable.
@@ -74,8 +78,7 @@ speech-to-text:
     # [Integer] The sample rate to use for the transcription model (Kaldi).
     # The value should be passed from the Main class, otherwise takes this value.
     # -1 means that it will infer the sample rate from the input device (Mic) using the sounddevice library.
-    # input_samplerate: 16000
-    input_samplerate: -1
+    input_samplerate: 16000
   
 
 
