@@ -48,6 +48,8 @@ speech-to-text:
     release: 1.0
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
+    # [Bool] Preprocessor is activated or not.
+    enabled: True
     # [Integer] Low cut frequency for the bandpass filter in Hz.
     lowcut_freq: 300
     # lowcut_freq: 100

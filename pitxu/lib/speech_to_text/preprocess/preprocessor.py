@@ -80,6 +80,7 @@ class Preprocessor(PyXavi):
         logging.getLogger("matplotlib").setLevel(self._xconfig.get("libs_logger.matplotlib.loglevel", logging.WARNING))
 
         self.log_summary("Preprocessor Initialization", [
+            ("Preprocessor Enabled", str(self._xconfig.get("speech-to-text.preprocessor.enabled", False))),
             ("Low cut freq", f"{self.LOWCUT_FREQ} Hz"),
             ("High cut freq", f"{self.HIGHCUT_FREQ} Hz"),
             ("Filter order", f"{self.FILTER_ORDER}"),
@@ -93,6 +94,16 @@ class Preprocessor(PyXavi):
         self._log_debug("🎤 Done Initializing Preprocess for Speech-to-Text")
     
     def preprocess_chunk(self, indata: bytes) -> bytes | None:
+
+        if self._xconfig.get("speech-to-text.preprocessor.enabled", True) == False:
+            self._xlog.debug("🎤 Preprocessor is disabled, passing through the audio chunk without preprocessing.")
+
+            audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
+            audio_data_np = Conversors.stereo_to_mono(audio_data_np)
+            self.add_to_accumulated_signal_np(audio_data_np, audio_data_np)
+
+            return indata
+
         # Stop a second and ready this:
         # https://github.com/pipecat-ai/pipecat/issues/1653#issuecomment-3021647937
 
