@@ -859,6 +859,10 @@ class Main(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+            
+            # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
+            vad_stats = self._capture_handler.get_vad_handler().get_stats()
+            self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
     
     # ------- Stuff to do every second -------
 
@@ -901,9 +905,4 @@ class Main(PyXavi):
                         self._interaction.clear_background_display()
             else:
                 self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
-            
-            # vad_stats = self._capture_handler.get_vad_handler().get_stats()
-            # dd(vad_stats)
-
-            # self._dictate._preprocessor.on_speech_end()
                     

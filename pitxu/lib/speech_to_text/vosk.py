@@ -202,12 +202,15 @@ class Vosk(PyXavi):
     
     def add_to_transcription_result(self, text: str):
         if text is None or text.strip() == "":
+            self._log_debug("No text to add to transcription result, skipping.")
             return
 
+        self._log_debug(f"Adding text to transcription result: [{text}]")
         if self.transcription_result is None:
             self.transcription_result = text
         else:
             self.transcription_result = self.transcription_result + " " + text
+        self._log_debug(f"Current transcription result: [{self.transcription_result}]")
     
     def process_audio_chunk(self, data: bytes) -> dict | None:
         """
