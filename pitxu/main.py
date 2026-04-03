@@ -181,6 +181,10 @@ class Main(PyXavi):
                     self._interaction.show_init_phases(8, text="🖥️ Server")
                     self._initialize_server()
 
+                    # Initialize the Reactions class
+                    self._interaction.show_init_phases(9, text="⚡️ Reactions")
+                    self._initialize_reactions(input_stream=input_stream)
+
                     # Clean background after initialisation.
                     # NOTE: I suspect double clear due to background & combined inheritance method execution.
                     #   Please check.
@@ -279,7 +283,7 @@ class Main(PyXavi):
                                 #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
                                 #       So the second time we may not be able to show the time on the screen, for example.
                                 self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
-                                self.react_on_answer(chat_response=chat_response, input_stream=input_stream)
+                                self._reactions.react_on_answer(chat_response=chat_response)
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             
@@ -726,8 +730,9 @@ class Main(PyXavi):
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
             
             # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
-            vad_stats = self._capture_handler.get_vad_handler().get_stats()
-            self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
+            if self._xconfig.get("speech-to-text.vad.enabled", False):
+                vad_stats = self._capture_handler.get_vad_handler().get_stats()
+                self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
     
     # ------- Stuff to do every second -------
 

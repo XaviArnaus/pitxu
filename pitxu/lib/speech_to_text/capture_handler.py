@@ -70,6 +70,7 @@ class CaptureHandler(PyXavi):
         self.vad.on_speech_end = lambda: self.vad_on_speech_end()
 
         self.log_summary("RMS VAD initialized", [
+            ("Enabled", str(self._xconfig.get("speech-to-text.vad.enabled", False))),
             ("Threshold", threshold),
             ("Attack", f"{attack} seconds"),
             ("Release", f"{release} seconds"),
@@ -109,9 +110,12 @@ class CaptureHandler(PyXavi):
                                             out_rate=self.target_samplerate)
 
 
-            # Feed the VAD, it will decide if has a speech,
-            # and put the chunk into the queue via callbacks.
-            self.vad.feed(indata)
+            if self._xconfig.get("speech-to-text.vad.enabled", False):
+                # Feed the VAD, it will decide if has a speech,
+                # and put the chunk into the queue via callbacks.
+                self.vad.feed(indata)
+            else:
+                self.queue.put(bytes(indata))
     
         # else:
         #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")

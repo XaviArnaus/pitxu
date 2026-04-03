@@ -136,49 +136,13 @@ class Vosk(PyXavi):
                     #     # Oh! side effect! Check if we can actually get the Vosk final result!
                     #     #recognize_final_outcome = self.process_remaining_vosk()
                     #     #self.reset_result()
-
-                # Remember: we use `None` as a marker, so protect against it!
-                if data is not None:
-
-                    # Preprocess. Is it a valid chunk?
-                    preprocessed_data = self._preprocessor.preprocess_chunk(data)
-                    if preprocessed_data is not None:
-                        recognize_outcome = self.process_audio_chunk(preprocessed_data)
-                    else:
-                        recognize_outcome = {
-                            "result": None,
-                            "partial": None,
-                            "final": None
-                        }
-
-                    # Since Vosk can return both partial and final results, for normal "local" Pitxu
-                    #   we completely ignore the partial.
-                    if recognize_outcome.get("result") is not None:
-                        self.add_to_transcription_result(recognize_outcome.get("result"))
-
-                    # elif recognize_outcome.get("partial") is not None and recognize_outcome.get("partial") != "":
-                    #     self._log_debug(f"Vosk: partial is {recognize_outcome.get("partial")}")
-
-                # `None` is the marker for end of speech,
-                #   sent by the CaptureHandler when the VAD detects the end of speech.
-                # Even we didn't recognise anything, take it as a signal that the speech has ended,
-                #   so we can reset the preprocessor and the Vosk buffers for the next transcription.
-                else:
-                    # Reset the audio buffers used for plotting, and do do the actual plotting.
-                    self._preprocessor.on_speech_end()
-
-                    # Check if we can actually get the Vosk final result
-                    recognize_outcome = self.process_remaining_vosk()
-                    self.add_to_transcription_result(recognize_outcome.get("result"))
-
-                    if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
-                        self.add_to_transcription_result(recognize_outcome.get("final"))
                 
-                    # Now, we may have a result or we may be at the end of the speech without result.
-                    if self.transcription_result is not None and self.transcription_result != "":
-                        result = self.transcription_result
-                        self.reset_result()
-                        return result
+                if self._xconfig.get("speech-to-text.vad.enabled", False):
+                    # Process the audio chunck using VAD to identify the end of the speech.
+                    return self.process_audio_input_vad(data)
+                else:
+                    # Process the audio chunk without VAD, so we rely on the CaptureHandler to send us the chunks and the `None` marker at the end of the speech.
+                    return self.process_audio_input_without_vad(data)
 
         except queue.ShutDown as e:
             self.is_active = False
@@ -199,6 +163,89 @@ class Vosk(PyXavi):
             self._xlog.error(full_stack())
             self.close()
             return None
+    
+    def process_audio_input_without_vad(self, data: bytes):
+        # We have a VAD identifying the end of the speech,
+        #   but if apparently gets stuck at the end of the speech, not sending the end of speech marker (`None`) to the queue.
+
+        # Remember: we use `None` as a marker, so protect against it!
+        if data is not None:
+
+            # Preprocess. Is it a valid chunk?
+            preprocessed_data = self._preprocessor.preprocess_chunk(data)
+            if preprocessed_data is not None:
+                recognize_outcome = self.process_audio_chunk(preprocessed_data)
+            else:
+                recognize_outcome = {
+                    "result": None,
+                    "partial": None,
+                    "final": None
+                }
+
+            # Since Vosk can return both partial and final results, for normal "local" Pitxu
+            #   we completely ignore the partial.
+            if recognize_outcome.get("result") is not None:
+                self.add_to_transcription_result(recognize_outcome.get("result"))
+            
+            # If anything gets recognised, stop here and take it as the end of transcription.
+            if self.transcription_result is not None and self.transcription_result != "":
+                # Check if we can actually get the Vosk final result
+                recognize_outcome = self.process_remaining_vosk()
+                self.add_to_transcription_result(recognize_outcome.get("result"))
+                # Extract all we have from Vosk. It also resets the Vosk buffers, so we are ready for the next transcription.
+                if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
+                    self.add_to_transcription_result(recognize_outcome.get("final"))
+                # Reset the audio buffers used for plotting, and do do the actual plotting.
+                self._preprocessor.on_speech_end()
+                # Grab the result, reset the transcription result for the next transcription, and return it.
+                result = self.transcription_result
+                self.reset_result()
+                return result
+        
+    def process_audio_input_vad(self, data: bytes):
+
+        # Remember: we use `None` as a marker, so protect against it!
+        if data is not None:
+
+            # Preprocess. Is it a valid chunk?
+            preprocessed_data = self._preprocessor.preprocess_chunk(data)
+            if preprocessed_data is not None:
+                recognize_outcome = self.process_audio_chunk(preprocessed_data)
+            else:
+                recognize_outcome = {
+                    "result": None,
+                    "partial": None,
+                    "final": None
+                }
+
+            # Since Vosk can return both partial and final results, for normal "local" Pitxu
+            #   we completely ignore the partial.
+            if recognize_outcome.get("result") is not None:
+                self.add_to_transcription_result(recognize_outcome.get("result"))
+
+            # elif recognize_outcome.get("partial") is not None and recognize_outcome.get("partial") != "":
+            #     self._log_debug(f"Vosk: partial is {recognize_outcome.get("partial")}")
+
+        # `None` is the marker for end of speech,
+        #   sent by the CaptureHandler when the VAD detects the end of speech.
+        # Even we didn't recognise anything, take it as a signal that the speech has ended,
+        #   so we can reset the preprocessor and the Vosk buffers for the next transcription.
+        else:
+            # Reset the audio buffers used for plotting, and do do the actual plotting.
+            self._preprocessor.on_speech_end()
+
+            # Check if we can actually get the Vosk final result
+            recognize_outcome = self.process_remaining_vosk()
+            self.add_to_transcription_result(recognize_outcome.get("result"))
+
+            if recognize_outcome.get("final") is not None and len(recognize_outcome.get("final")) > 0:
+                self.add_to_transcription_result(recognize_outcome.get("final"))
+        
+            # Now, we may have a result or we may be at the end of the speech without result.
+            if self.transcription_result is not None and self.transcription_result != "":
+                result = self.transcription_result
+                self.reset_result()
+                return result
     
     def add_to_transcription_result(self, text: str):
         if text is None or text.strip() == "":
