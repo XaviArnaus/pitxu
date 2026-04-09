@@ -3,12 +3,11 @@ from subprocess import call
 from pyxavi import Config, Dictionary, Storage, full_stack, dd
 
 import signal
-from functools import partial
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
-from pitxu.lib.utils.memory import Memory
+from pitxu.lib.utils.system import System
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
@@ -461,7 +460,7 @@ class Main(PyXavi):
         # Here comes anything that we want to do before leaving
         try:
             self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-            self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
+            self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
             self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
         except (Exception, RuntimeError) as e:
             self._xlog.error("🛑 Error while logging final stats: " + str(e))

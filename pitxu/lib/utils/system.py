@@ -1,6 +1,11 @@
 import psutil, os, platform
 
 class System:
+
+    BYTES: int = 1
+    KILOBYTES: int = 1024
+    MEGABYTES: int = 1024 * 1024
+    GIGABYTES: int = 1024 * 1024 * 1024
     
     @staticmethod
     def get_dsi_backlight_status() -> bool:
@@ -207,6 +212,16 @@ class System:
             "use_percent": parts[4],
             "mounted_on": parts[5]
         }
+    
+    @staticmethod
+    def memory_use(scale: int = None) -> float:
+        if scale is None:
+            scale = System.MEGABYTES
+        
+        process = psutil.Process()
+        usage = process.memory_info().rss 
+        # Using memory_info() to check consumption. Returns bytes.
+        return float(usage / scale)
 
     @staticmethod
     def _run_command(command: str) -> str:
