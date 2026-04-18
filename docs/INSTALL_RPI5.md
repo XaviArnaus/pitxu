@@ -462,7 +462,7 @@ make init
 If it complains about the `python.lock`, use `make update` instead.
 
 
-## 5. Generate all the config files out of the `dist` example ones
+## 6. Generate all the config files out of the `dist` example ones
 
 ```
 for file in config/*.yaml.dist; do cp "$file" "${file%.dist}"; done
