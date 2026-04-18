@@ -16,7 +16,11 @@ class Maintenance(PyXavi):
     '''
 
     _mocked_files_folders: list[str] = None
+    _generated_audios_folders: list[str] = None
+    _generated_audio_signal_plots_folders: list[str] = None
     _excluded_filenames: list[str] = None
+    _excluded_audio_filenames: list[str] = None
+    _excluded_audio_signal_plot_filenames: list[str] = None
 
     # Parallel logger
     _maintenance_logger: JsonLogger = None
@@ -35,8 +39,12 @@ class Maintenance(PyXavi):
     DEFAULT_MOCKED_DSI_LCD_PATH = "mocked/dsi_lcd/"
     DEFAULT_EXCLUDED_FILENAMES = [".keep"]
     DEFAULT_AUDIO_PATH = "audio/"
+    DEFAULT_AUDIO_PREPROCESSED_INPUT_PATH = "preprocessed_input/"
     DEFAULT_AUDIO_INPUT_PATH = "input/"
     DEFAULT_AUDIO_OUTPUT_PATH = "output/"
+    DEFAULT_AUDIO_SIGNAL_PLOTS_PATH = "signals/"
+    DEFAULT_AUDIO_SPECTROGRAM_PLOTS_PATH = "spectrograms/"
+    DEFAULT_AUDIO_FOURIER_TRANSFORM_PLOTS_PATH = "fourier_transforms/"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Maintenance, self).init_pyxavi(config=config, params=params)
@@ -55,9 +63,31 @@ class Maintenance(PyXavi):
         # TODO: This should be automatic.
         self._generated_audios_folders = [
             self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + self._xconfig.get("storage.audio.input", self.DEFAULT_AUDIO_INPUT_PATH),
-            self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + self._xconfig.get("storage.audio.output", self.DEFAULT_AUDIO_OUTPUT_PATH)
+            self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + self._xconfig.get("storage.audio.output", self.DEFAULT_AUDIO_OUTPUT_PATH),
+            self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + self._xconfig.get("storage.audio.preprocessed_input", self.DEFAULT_AUDIO_PREPROCESSED_INPUT_PATH)
         ]
         self._excluded_audio_filenames = self._xconfig.get("storage.audio.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
+
+        # Audio signals paths and exclusions definition.
+        # TODO: This should be automatic.
+        self._generated_audio_signal_plots_folders = [
+            self._xconfig.get("storage.signal_plots.path", self.DEFAULT_AUDIO_PATH + self.DEFAULT_AUDIO_SIGNAL_PLOTS_PATH)
+        ]
+        self._excluded_audio_signal_plot_filenames = self._xconfig.get("storage.signal_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
+
+        # Audio spectrogram paths and exclusions definition.
+        # TODO: This should be automatic.
+        self._generated_audio_spectrogram_plots_folders = [
+            self._xconfig.get("storage.spectrogram_plots.path", self.DEFAULT_AUDIO_PATH + self.DEFAULT_AUDIO_SPECTROGRAM_PLOTS_PATH)
+        ]
+        self._excluded_audio_spectrogram_plot_filenames = self._xconfig.get("storage.spectrogram_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
+
+        # Audio fourier_transform paths and exclusions definition.
+        # TODO: This should be automatic.
+        self._generated_audio_fourier_transform_plots_folders = [
+            self._xconfig.get("storage.fourier_transform_plots.path", self.DEFAULT_AUDIO_PATH + self.DEFAULT_AUDIO_FOURIER_TRANSFORM_PLOTS_PATH)
+        ]
+        self._excluded_audio_fourier_transform_plot_filenames = self._xconfig.get("storage.fourier_transform_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
         self._client = Client(config=config, params=params)
 
@@ -214,6 +244,33 @@ class Maintenance(PyXavi):
             directories_after_storage=self._generated_audios_folders,
             excluded_filenames=self._excluded_audio_filenames,
             file_extension="*.wav")
+    
+    def clean_previous_generated_audio_signal_plots(self) -> None:
+        '''
+        Cleans the previous generated audio signal plots from the storage folder.
+        '''
+        self.clean_previous_generated_files(
+            directories_after_storage=self._generated_audio_signal_plots_folders,
+            excluded_filenames=self._excluded_audio_signal_plot_filenames,
+            file_extension="*.png")
+    
+    def clean_previous_generated_audio_spectrogram_plots(self) -> None:
+        '''
+        Cleans the previous generated audio spectrogram plots from the storage folder.
+        '''
+        self.clean_previous_generated_files(
+            directories_after_storage=self._generated_audio_spectrogram_plots_folders,
+            excluded_filenames=self._excluded_audio_spectrogram_plot_filenames,
+            file_extension="*.png")
+    
+    def clean_previous_generated_audio_fourier_transform_plots(self) -> None:
+        '''
+        Cleans the previous generated audio fourier transform plots from the storage folder.
+        '''
+        self.clean_previous_generated_files(
+            directories_after_storage=self._generated_audio_fourier_transform_plots_folders,
+            excluded_filenames=self._excluded_audio_fourier_transform_plot_filenames,
+            file_extension="*.png")
 
     def _is_linux(self) -> bool:
         return platform.system() == "Linux"

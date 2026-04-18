@@ -48,7 +48,7 @@ class BusyFlagsManager(PyXavi, Thread):
 
         self.state = self._read_flags()
 
-        Thread.__init__(self)
+        Thread.__init__(self, name="BusyFlags", daemon=True)
     
     def start_listening_flag_changes(self):
         self._xlog.debug("Starting to listen for busy flag changes.")

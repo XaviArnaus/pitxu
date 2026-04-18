@@ -14,6 +14,7 @@ from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT
 
 from PIL import ImageDraw
 import time
+import os, signal
 
 class Painter(PyXavi, Thread):
 
@@ -54,7 +55,7 @@ class Painter(PyXavi, Thread):
         self.painter_busy_flags = PainterBusyFlags(config=config, params=params)
 
         # Initialize the Thread and start it. It won't paint anything until we set the running flag to True.
-        Thread.__init__(self)
+        Thread.__init__(self, name="Painter", daemon=True)
         self.start()
 
     # -------- Methods for instructing what to paint --------
@@ -166,7 +167,9 @@ class Painter(PyXavi, Thread):
         
         # This finishes the thread
         self.should_finish = True
-        self.join()
+
+        # We should not call join() from within the thread.
+        # self.join()
     
     def flush_drawing(self):
         self.macros.get_device().display(self.macros.get_canvas().get_image())
@@ -520,309 +523,315 @@ class Painter(PyXavi, Thread):
     def run(self):
         self._log_debug(f"Painter run(): 🟢 About to start the Painter's main thread loop.")
 
-        # We need an overall loop that keeps the thread alive.
-        # The close() method will set the should_finish flag to True, which will break this loop.
-        while not self.should_thread_finish():
+        try:
 
-            # Each time we enter this loop, we reset the iteration counter.
-            current_iteration = None
+            # We need an overall loop that keeps the thread alive.
+            # The close() method will set the should_finish flag to True, which will break this loop.
+            while not self.should_thread_finish():
 
-            # We calculate the showing time for the foreground paint from the first showing instant,
-            #   so we depend on paint changes. Start with None.
-            foreground_starting_time = None
+                # Each time we enter this loop, we reset the iteration counter.
+                current_iteration = None
 
-            # Should do an extra screen clearing at the end of the current interaction?
-            # It is set via the end-callbacks when registering painting while busy flags.
-            final_clearing_needed = False
+                # We calculate the showing time for the foreground paint from the first showing instant,
+                #   so we depend on paint changes. Start with None.
+                foreground_starting_time = None
 
-            # Keep track of what were the previous interactions, so we can try to avoid unnecessary drawings if the interactions didn't change.
-            previous_foreground_interaction: ForegroundPaint = None
-            previous_background_interaction: BackgroundPaint = None
+                # Should do an extra screen clearing at the end of the current interaction?
+                # It is set via the end-callbacks when registering painting while busy flags.
+                final_clearing_needed = False
 
-            # We control the painting loop via the running flag.
-            while self.is_running():
+                # Keep track of what were the previous interactions, so we can try to avoid unnecessary drawings if the interactions didn't change.
+                previous_foreground_interaction: ForegroundPaint = None
+                previous_background_interaction: BackgroundPaint = None
 
-                self._log_debug(f"Painter Loop: 🔄 Starting new painting loop iteration.")
+                # We control the painting loop via the running flag.
+                while self.is_running():
 
-                self._log_debug(f"Painter Loop: Current interactions and busy flags status BEFORE triggering callbacks at START.")
-                self._log_debug(f"  - Current Foreground Interaction: [{self.get_current_foreground_interaction().name if self.get_current_foreground_interaction() is not None else 'None'}].")
-                self._log_debug(f"  - Current Background Interaction: [{self.get_current_background_interaction().name if self.get_current_background_interaction() is not None else 'None'}].")
-                self._log_debug(f"  - Callbacks at START pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
-                self._log_debug(f"  - Callbacks at END pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
-                self._log_debug(f"  - Busy Flags: ")
-                for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
-                    self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
+                    self._log_debug(f"Painter Loop: 🔄 Starting new painting loop iteration.")
 
-                # Trigger any busy flag callbacks at the start of the loop
-                self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_start()
+                    self._log_debug(f"Painter Loop: Current interactions and busy flags status BEFORE triggering callbacks at START.")
+                    self._log_debug(f"  - Current Foreground Interaction: [{self.get_current_foreground_interaction().name if self.get_current_foreground_interaction() is not None else 'None'}].")
+                    self._log_debug(f"  - Current Background Interaction: [{self.get_current_background_interaction().name if self.get_current_background_interaction() is not None else 'None'}].")
+                    self._log_debug(f"  - Callbacks at START pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
+                    self._log_debug(f"  - Callbacks at END pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
+                    self._log_debug(f"  - Busy Flags: ")
+                    for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
+                        self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
 
-                # Getting the current interactions one last time, to avoid gathering over and over again
-                current_foreground_interaction = self.get_current_foreground_interaction()
-                current_background_interaction = self.get_current_background_interaction()
+                    # Trigger any busy flag callbacks at the start of the loop
+                    self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_start()
 
-                self._log_debug(f"Painter Loop: Current interactions and busy flags status AFTER triggering callbacks at START.")
-                self._log_debug(f"  - Current Foreground Interaction: [{current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}].")
-                self._log_debug(f"  - Current Background Interaction: [{current_background_interaction.name if current_background_interaction is not None else 'None'}].")
-                self._log_debug(f"  - Callbacks at START post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
-                self._log_debug(f"  - Callbacks at END post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
-                self._log_debug(f"  - Busy Flags: ")
-                for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
-                    self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
+                    # Getting the current interactions one last time, to avoid gathering over and over again
+                    current_foreground_interaction = self.get_current_foreground_interaction()
+                    current_background_interaction = self.get_current_background_interaction()
 
-                # What if we try the whole drawing, starting by a clear screen?
-                if current_background_interaction is not None or current_foreground_interaction is not None:
-                    self._log_debug(f"Painter Loop: Clearing screen on LCD display at the beginning of the loop.")
-                    self.macros._soft_clear_rectangle(draw=self.draw)
-                
-                # We need to draw from background to foreground.
-                # At this point, LED effects are the most background, so we draw them first.
-                # Some of the LED effects are loops, so we need to handle the drawing via a frame iterations.
-                # And then flush to the display after drawing each frame fully.
-                self._log_debug(f"Painter Loop: 🔙 Drawing Background interactions")
-                if current_background_interaction is not None:
+                    self._log_debug(f"Painter Loop: Current interactions and busy flags status AFTER triggering callbacks at START.")
+                    self._log_debug(f"  - Current Foreground Interaction: [{current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}].")
+                    self._log_debug(f"  - Current Background Interaction: [{current_background_interaction.name if current_background_interaction is not None else 'None'}].")
+                    self._log_debug(f"  - Callbacks at START post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
+                    self._log_debug(f"  - Callbacks at END post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
+                    self._log_debug(f"  - Busy Flags: ")
+                    for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
+                        self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
 
-                    # Do we need to initialize the current iteration counter?
-                    if current_iteration is None:
-                        self._log_debug(f"Initializing iteration counter for background interaction [{current_background_interaction.name}]. Counter was None")
-                        current_iteration = 0
-
-                    if current_background_interaction.interaction == BackgroundComm.THINKING:
-                        frame = current_iteration % (current_background_interaction.loop_iterations // 2)
-                        if current_iteration < (current_background_interaction.loop_iterations // 2):
-                            self._log_debug(f"Painter Loop: Drawing Thinking Right screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame)
-                        else:
-                            self._log_debug(f"Painter Loop: Drawing Thinking Left screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame)
-                    elif current_background_interaction.interaction == BackgroundComm.NETWORKING:
-                        frame = current_iteration % (current_background_interaction.loop_iterations // 2)
-                        if current_iteration < (current_background_interaction.loop_iterations // 2):
-                            self._log_debug(f"Painter Loop: Drawing Communicating Right screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
-                        else:
-                            self._log_debug(f"Painter Loop: Drawing Communicating Left screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
-                    elif current_background_interaction.interaction == BackgroundComm.SPEAKING:
-                        frame = current_iteration % (current_background_interaction.loop_iterations // 2)
-                        if current_iteration < (current_background_interaction.loop_iterations // 2):
-                            self._log_debug(f"Painter Loop: Drawing Speaking Increase screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_speaking_effect_increase(draw=self.draw, frame=frame)
-                        else:
-                            self._log_debug(f"Painter Loop: Drawing Speaking Decrease screen on LCD display, frame [{frame}].")
-                            self.macros.draw_kitt_speaking_effect_decrease(draw=self.draw, frame=frame)
-                    elif current_background_interaction.interaction == BackgroundComm.INITIAL_PHASE:
-                        self._log_debug(f"Painter Loop: Drawing Init Steps screen on LCD display")
-                        # self.macros._soft_clear_rectangle(draw=self.draw)
-                        self.macros.draw_init_phase(draw=self.draw, parameter=current_background_interaction.parameter)
-                    elif current_background_interaction.interaction == BackgroundComm.HOLDER_PERCENTAGE:
-                        self._log_debug(f"Painter Loop: Drawing Holder Percentage screen on LCD display")
-                        self.macros.draw_interaction_holding_percentage(draw=self.draw, percentage=current_background_interaction.parameter)
-                    elif current_background_interaction.interaction == BackgroundComm.ERROR:
-                        self._log_debug(f"Painter Loop: Drawing Error screen on LCD display")
-                        self.macros.draw_cross(draw=self.draw)
-                    elif current_background_interaction.interaction == BackgroundComm.CLEAR:
-                        # As opposite to foreground, we do clear the background because we may have to remove the previous paint.
-                        self._log_debug(f"Painter Loop: Clearing background interaction on LCD display")
-                        # self.macros._soft_clear_rectangle(draw=self.draw)
-                    else:
-                        self._xlog.warning(f"Painter: Unknown interaction [{current_background_interaction.interaction}] for drawing on LCD display, discarding.")
+                    # What if we try the whole drawing, starting by a clear screen?
+                    if current_background_interaction is not None or current_foreground_interaction is not None:
+                        self._log_debug(f"Painter Loop: Clearing screen on LCD display at the beginning of the loop.")
+                        self.macros._soft_clear_rectangle(draw=self.draw)
                     
-                    # Increment the iteration counter
-                    current_iteration += 1
+                    # We need to draw from background to foreground.
+                    # At this point, LED effects are the most background, so we draw them first.
+                    # Some of the LED effects are loops, so we need to handle the drawing via a frame iterations.
+                    # And then flush to the display after drawing each frame fully.
+                    self._log_debug(f"Painter Loop: 🔙 Drawing Background interactions")
+                    if current_background_interaction is not None:
 
-                    # If we have reached the max iterations for background, we set the iterations counter to None.
-                    #   Then, the next loop iteration will re-initialize it to 0 again.
-                    # This means that this loop will go forever until we stop the thread or change/remove the background interaction.
-                    if current_iteration >= current_background_interaction.loop_iterations:
-                        self._log_debug(f"Reached max iterations for background interaction [{current_background_interaction.name if current_background_interaction is not None else 'None'}], Cleaning the counter.")
-                        current_iteration = None
+                        # Do we need to initialize the current iteration counter?
+                        if current_iteration is None:
+                            self._log_debug(f"Initializing iteration counter for background interaction [{current_background_interaction.name}]. Counter was None")
+                            current_iteration = 0
 
-                # There are no loops for foreground interactions yet, so we just draw them once.
-                # - We may not receive any foreground interaction.
-                # - We may want to hold this paint for X time. Therefore, we avoid repainting during that time.
-                #       Keep in mind that this ignores new possible foregrounds to show meanwhile.
-                self._log_debug(f"Painter Loop: 🔝 Drawing Foreground interactions")
-                if current_foreground_interaction is not None:
+                        if current_background_interaction.interaction == BackgroundComm.THINKING:
+                            frame = current_iteration % (current_background_interaction.loop_iterations // 2)
+                            if current_iteration < (current_background_interaction.loop_iterations // 2):
+                                self._log_debug(f"Painter Loop: Drawing Thinking Right screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame)
+                            else:
+                                self._log_debug(f"Painter Loop: Drawing Thinking Left screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame)
+                        elif current_background_interaction.interaction == BackgroundComm.NETWORKING:
+                            frame = current_iteration % (current_background_interaction.loop_iterations // 2)
+                            if current_iteration < (current_background_interaction.loop_iterations // 2):
+                                self._log_debug(f"Painter Loop: Drawing Communicating Right screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_horizontal_effect_right(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
+                            else:
+                                self._log_debug(f"Painter Loop: Drawing Communicating Left screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_horizontal_effect_left(draw=self.draw, frame=frame, color=self.macros.get_canvas().COLOR_BLUE)
+                        elif current_background_interaction.interaction == BackgroundComm.SPEAKING:
+                            frame = current_iteration % (current_background_interaction.loop_iterations // 2)
+                            if current_iteration < (current_background_interaction.loop_iterations // 2):
+                                self._log_debug(f"Painter Loop: Drawing Speaking Increase screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_speaking_effect_increase(draw=self.draw, frame=frame)
+                            else:
+                                self._log_debug(f"Painter Loop: Drawing Speaking Decrease screen on LCD display, frame [{frame}].")
+                                self.macros.draw_kitt_speaking_effect_decrease(draw=self.draw, frame=frame)
+                        elif current_background_interaction.interaction == BackgroundComm.INITIAL_PHASE:
+                            self._log_debug(f"Painter Loop: Drawing Init Steps screen on LCD display")
+                            # self.macros._soft_clear_rectangle(draw=self.draw)
+                            self.macros.draw_init_phase(draw=self.draw, parameter=current_background_interaction.parameter)
+                        elif current_background_interaction.interaction == BackgroundComm.HOLDER_PERCENTAGE:
+                            self._log_debug(f"Painter Loop: Drawing Holder Percentage screen on LCD display")
+                            self.macros.draw_interaction_holding_percentage(draw=self.draw, percentage=current_background_interaction.parameter)
+                        elif current_background_interaction.interaction == BackgroundComm.ERROR:
+                            self._log_debug(f"Painter Loop: Drawing Error screen on LCD display")
+                            self.macros.draw_cross(draw=self.draw)
+                        elif current_background_interaction.interaction == BackgroundComm.CLEAR:
+                            # As opposite to foreground, we do clear the background because we may have to remove the previous paint.
+                            self._log_debug(f"Painter Loop: Clearing background interaction on LCD display")
+                            # self.macros._soft_clear_rectangle(draw=self.draw)
+                        else:
+                            self._xlog.warning(f"Painter: Unknown interaction [{current_background_interaction.interaction}] for drawing on LCD display, discarding.")
+                        
+                        # Increment the iteration counter
+                        current_iteration += 1
 
-                    # We have a foreground paint. Is it the first loop iteration to see it?
-                    if foreground_starting_time is None:
-                        # It was, so we set the starting time and then we control how much it is getting shown.
-                        self._log_debug(f"Painter: New foreground paint detected: [{current_foreground_interaction.name}], starting to show it now.")
-                        foreground_starting_time = Xtime.now_as_milliseconds()
+                        # If we have reached the max iterations for background, we set the iterations counter to None.
+                        #   Then, the next loop iteration will re-initialize it to 0 again.
+                        # This means that this loop will go forever until we stop the thread or change/remove the background interaction.
+                        if current_iteration >= current_background_interaction.loop_iterations:
+                            self._log_debug(f"Reached max iterations for background interaction [{current_background_interaction.name if current_background_interaction is not None else 'None'}], Cleaning the counter.")
+                            current_iteration = None
 
-                    # Because we may have painted anything related to the background first, we need to paint again the foreground over it.
-                    # That's why, even a flushed image stays until changed, we need to keep on repainting it.
-                
-                    # Whatever we print here, make it over a semi-transparent frame
-                    # For code blocks we want a specific setup to make it more readable.
-                    foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
-                    foreground_frame_opacity = 0.25
-                    if current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
-                        foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
-                        foreground_frame_opacity = 0.75
-                    self.macros.draw_foreground_frame(
-                        draw=self.draw, 
-                        frame_color=foreground_frame_color, 
-                        opacity=foreground_frame_opacity)
+                    # There are no loops for foreground interactions yet, so we just draw them once.
+                    # - We may not receive any foreground interaction.
+                    # - We may want to hold this paint for X time. Therefore, we avoid repainting during that time.
+                    #       Keep in mind that this ignores new possible foregrounds to show meanwhile.
+                    self._log_debug(f"Painter Loop: 🔝 Drawing Foreground interactions")
+                    if current_foreground_interaction is not None:
 
-                    # Now the expected interactions.
-                    if current_foreground_interaction.interaction == ForegroundComm.STARTUP:
-                        self._log_debug("Painter Loop: Drawing startup splash screen on LCD display.")
-                        self.macros.draw_startup_splash(draw=self.draw)
-                    elif current_foreground_interaction.interaction == ForegroundComm.STARTUP_WITH_PHASE:
-                        self._log_debug("Painter Loop: Drawing startup with phase screen on LCD display.")
-                        self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
-                    elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT:
-                        self._log_debug("Painter Loop: Drawing arbitrary text on LCD display.")
-                        self.macros.draw_arbitrary_text_centered(draw=self.draw, text=current_foreground_interaction.parameter)
-                    elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT_ICON:
-                        self._log_debug("Painter Loop: Drawing arbitrary text with icon on LCD display.")
-                        self.macros.draw_arbitrary_text_with_icon(draw=self.draw, 
-                                                            text=current_foreground_interaction.parameter.get("text"),
-                                                            icon=current_foreground_interaction.parameter.get("icon"),
-                                                            font_size=current_foreground_interaction.parameter.get("font_size", 24),
-                                                            header=current_foreground_interaction.parameter.get("header"),
-                                                            font_header_size=current_foreground_interaction.parameter.get("font_header_size", 32),
-                                                            padding=current_foreground_interaction.parameter.get("padding", 5))
-                    elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_ICON:
-                        self._log_debug("Painter Loop: Drawing arbitrary icon on LCD display.")
-                        self.macros.draw_arbitrary_icon(draw=self.draw,
-                                                        icon=current_foreground_interaction.parameter.get("icon"),
-                                                        text=current_foreground_interaction.parameter.get("text", None),
-                                                        color=current_foreground_interaction.parameter.get("color", None)),
-                    elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
-                        self._log_debug("Painter Loop: Drawing code block on LCD display.")
-                        self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
-                    elif current_foreground_interaction.interaction == ForegroundComm.CLEAR:
-                        # If we need to clear the foreground, actualy we use the iteration to draw nothing.
-                        # this is because if we clean the foreground, we may loose the background that was painted before.
-                        self._log_debug("Painter Loop: Clearing foreground interaction on LCD display: Drawing nothing.")
-                        # self.macros._soft_clear_rectangle(draw=self.draw)
-                    else:
-                        self._xlog.warning(f"Painter: Unknown interaction [{current_foreground_interaction.interaction}] for drawing on LCD display, discarding.")
-                    
-                    # We may have reached the end of the foreground paint showing time.
-                    # We now allow new foregrounds to be painted. This is useful when the expected time for a foreground is shorter than
-                    #   the background showing time. We can show the next foreground paint.
-                    if Xtime.now_minus_seconds_as_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
-                        not current_foreground_interaction.ignore_maintain_time:
-                        # If we remove the foreground we may loose the one that may have been set while showing the previous interaction, so no.
-                        # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
-                        #   so we start with a new paint.
-
-                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
-                                        f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
-                        self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_foreground_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
-                        self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_as_milliseconds()}]," +
-                                        f" diff is [{(Xtime.now_as_milliseconds() - foreground_starting_time) / 1000}]sec.")
-
-                        # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
-                        foreground_starting_time = None
-
-                        # And remove the current foreground paint, so we can pick the next.
-                        self.remove_foreground_interaction(interaction=current_foreground_interaction)
-
-                
-                self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
-
-                # A final clearing was requested by a callback at the end of the previous loop iteration?
-                if final_clearing_needed:
-                    self._log_debug(f"Painter Loop: Final clearing requested by an END callback, will clear the screen.")
-                    self.macros._soft_clear_rectangle(draw=self.draw)
-                    final_clearing_needed = False
-
-                # Show the image on the device
-                self._log_debug(f"Painter: Flushing drawing to LCD display: ")
-                self._log_debug(f"  - Foreground is {current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}.")
-                self._log_debug(f"  - Background is {current_background_interaction.name if current_background_interaction is not None else 'None'}.")
-                self.flush_drawing()
-
-                # Wait for the specified delay between iterations
-                self.apply_delay_between_frames(
-                    foreground_interaction=current_foreground_interaction,
-                    background_interaction=current_background_interaction)
-
-                # If we had a request to clean the background after the full painting is done, we do it now.
-                # ATTENTION: Overriding this rule if we have a foreground paint ongoing, as it continues to redraw
-                #   and then we would loose the background while foreground is still being shown.
-                if current_background_interaction is not None and \
-                    current_background_interaction.remove_interaction_after_painting is True and \
-                    current_foreground_interaction is None:
-
-                    self._log_debug(f"Painter: Removing background interaction [{current_background_interaction.name}] after full painting is done.")
-                    self.remove_background_interaction(interaction=current_background_interaction)
-                
-                # If the list of background interactions contains more than the current item, we remove the current one to move to the next.
-                # This should override the request to avoid removing at the end of the painting.
-                # The only exception is the speaking, that should be kept ALWAYS while speaking.
-                # It's an else-if because we may have just removed it in the previous IF.
-                elif current_background_interaction is not None and \
-                    len(self.background_paint) > 1 and current_background_interaction.interaction != BackgroundComm.SPEAKING:
-                    previous_background_interaction_name = current_background_interaction.name
-                    self.remove_background_interaction(interaction=current_background_interaction)
-                    # We do not want to replace the current_background_interaction variable, as we may need it later until the end of the loop.
-                    # It is just for the logging.
-                    new_current_background_interaction = self.get_current_background_interaction()
-                    self._log_debug(f"Painter: More than one background interaction in the queue, removing current background interaction [{previous_background_interaction_name}] to move to next: [{new_current_background_interaction.name}].")
-                    # We may have other things to delete too.
-                    if current_background_interaction.interaction in self.BACKGROUND_TO_BUSY_FLAG.keys():
-                        if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=True):
-                            self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=True)
-                        if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False):
-                            self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False)
-                
-                # If we had a request to remove the foreground after the painting, we do it now,
-                #   just in case we didn't remove it yet
-                #   (we know it's removed if foreground_starting_time is None, because it's reset
-                #   when the current_foreground_interaction.maintain_paint_for_seconds is exceeded).
-                # Attention: needs to be BEFORE the end callbacks, because when the end callbacks are triggered,
-                #   they may request to restart the foreground_starting_time, so this IF would not fit.
-                if current_foreground_interaction is not None and \
-                    current_foreground_interaction.remove_interaction_after_painting is True and \
-                    foreground_starting_time is None:
-
-                    # Before removing it, check if it also included a final screen clearing.
-                    if current_foreground_interaction.final_screen_clearing:
-                        self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] included a final screen clearing, telling to painter loop.")
-                        final_clearing_needed = True
-
-                    # And now we can safely remove the foreground interaction.
-                    self._log_debug(f"Painter: Removing foreground interaction [{current_foreground_interaction.name}] after painting as requested.")
-                    self.remove_foreground_interaction(interaction=current_foreground_interaction)
-                
-                # Check the busy flags and call their callbacks if needed
-                callback_results = self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_end()
-
-                # Check if any of the callbacks requested a final clearing of the screen
-                for callback_result in callback_results:
-                    if callback_result.get("final_clearing", False):
-                        final_clearing_needed = True
-                    if callback_result.get("request_foreground_starting_time_reset", False):
+                        # We have a foreground paint. Is it the first loop iteration to see it?
                         if foreground_starting_time is None:
-                            self._xlog.warning(f"🟠 Painter: A callback requested a reset of the foreground starting time, but was already 'None'")
-                        self._log_debug(f"Painter: A callback requested a reset of the foreground starting time, resetting it to current time.")
-                        foreground_starting_time = None
-                
-                # Finally, if there is no foreground nor background paint, we can stop the loop.
-                # Please note that here we're not using the current_background_interaction variable directly,
-                #   but rather calling the getter method to ensure we're getting the latest state.
-                # Also, we should not stop the loop if there are callbacks still registered, as apparently
-                #   they were set but never triggered, and by stopping the loop these callbacks would never be called
-                #   (for example, due to a busy flag change)
-                # Also, we let one iteration more to happen if the end callbacks wanted to do a final clearing of the screen,
-                #   that needs to happen before we flush the canvas.
-                if self.get_current_foreground_interaction() is None and self.get_current_background_interaction() is None and \
-                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
-                    len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0 and \
-                    not final_clearing_needed:
+                            # It was, so we set the starting time and then we control how much it is getting shown.
+                            self._log_debug(f"Painter: New foreground paint detected: [{current_foreground_interaction.name}], starting to show it now.")
+                            foreground_starting_time = Xtime.now_as_milliseconds()
 
-                    self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, stopping the painting loop.")
-                    self.stop()
-                
-                # If we only have a foreground paint, reduce the speed of the loop to avoid burning the CPU for example.
-                # Please note that here we're not using the current_background_interaction variable directly,
-                #   but rather calling the getter method to ensure we're getting the latest state.
-                if self.get_current_foreground_interaction() is not None and self.get_current_background_interaction() is None:
+                        # Because we may have painted anything related to the background first, we need to paint again the foreground over it.
+                        # That's why, even a flushed image stays until changed, we need to keep on repainting it.
+                    
+                        # Whatever we print here, make it over a semi-transparent frame
+                        # For code blocks we want a specific setup to make it more readable.
+                        foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
+                        foreground_frame_opacity = 0.25
+                        if current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                            foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
+                            foreground_frame_opacity = 0.75
+                        self.macros.draw_foreground_frame(
+                            draw=self.draw, 
+                            frame_color=foreground_frame_color, 
+                            opacity=foreground_frame_opacity)
 
-                    self._log_debug("Only foreground paint remaining, applying extra delay.")
-                    time.sleep(0.5)
+                        # Now the expected interactions.
+                        if current_foreground_interaction.interaction == ForegroundComm.STARTUP:
+                            self._log_debug("Painter Loop: Drawing startup splash screen on LCD display.")
+                            self.macros.draw_startup_splash(draw=self.draw)
+                        elif current_foreground_interaction.interaction == ForegroundComm.STARTUP_WITH_PHASE:
+                            self._log_debug("Painter Loop: Drawing startup with phase screen on LCD display.")
+                            self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
+                        elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT:
+                            self._log_debug("Painter Loop: Drawing arbitrary text on LCD display.")
+                            self.macros.draw_arbitrary_text_centered(draw=self.draw, text=current_foreground_interaction.parameter)
+                        elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT_ICON:
+                            self._log_debug("Painter Loop: Drawing arbitrary text with icon on LCD display.")
+                            self.macros.draw_arbitrary_text_with_icon(draw=self.draw, 
+                                                                text=current_foreground_interaction.parameter.get("text"),
+                                                                icon=current_foreground_interaction.parameter.get("icon"),
+                                                                font_size=current_foreground_interaction.parameter.get("font_size", 24),
+                                                                header=current_foreground_interaction.parameter.get("header"),
+                                                                font_header_size=current_foreground_interaction.parameter.get("font_header_size", 32),
+                                                                padding=current_foreground_interaction.parameter.get("padding", 5))
+                        elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_ICON:
+                            self._log_debug("Painter Loop: Drawing arbitrary icon on LCD display.")
+                            self.macros.draw_arbitrary_icon(draw=self.draw,
+                                                            icon=current_foreground_interaction.parameter.get("icon"),
+                                                            text=current_foreground_interaction.parameter.get("text", None),
+                                                            color=current_foreground_interaction.parameter.get("color", None)),
+                        elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                            self._log_debug("Painter Loop: Drawing code block on LCD display.")
+                            self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
+                        elif current_foreground_interaction.interaction == ForegroundComm.CLEAR:
+                            # If we need to clear the foreground, actualy we use the iteration to draw nothing.
+                            # this is because if we clean the foreground, we may loose the background that was painted before.
+                            self._log_debug("Painter Loop: Clearing foreground interaction on LCD display: Drawing nothing.")
+                            # self.macros._soft_clear_rectangle(draw=self.draw)
+                        else:
+                            self._xlog.warning(f"Painter: Unknown interaction [{current_foreground_interaction.interaction}] for drawing on LCD display, discarding.")
+                        
+                        # We may have reached the end of the foreground paint showing time.
+                        # We now allow new foregrounds to be painted. This is useful when the expected time for a foreground is shorter than
+                        #   the background showing time. We can show the next foreground paint.
+                        if Xtime.now_minus_seconds_as_milliseconds(current_foreground_interaction.maintain_paint_for_seconds) > foreground_starting_time and\
+                            not current_foreground_interaction.ignore_maintain_time:
+                            # If we remove the foreground we may loose the one that may have been set while showing the previous interaction, so no.
+                            # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
+                            #   so we start with a new paint.
+
+                            self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] showing time of " +
+                                            f"[{current_foreground_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
+                            self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_foreground_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
+                            self._log_debug(f"Painter: Initial time was [{foreground_starting_time}], current time is [{Xtime.now_as_milliseconds()}]," +
+                                            f" diff is [{(Xtime.now_as_milliseconds() - foreground_starting_time) / 1000}]sec.")
+
+                            # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
+                            foreground_starting_time = None
+
+                            # And remove the current foreground paint, so we can pick the next.
+                            self.remove_foreground_interaction(interaction=current_foreground_interaction)
+
+                    
+                    self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
+
+                    # A final clearing was requested by a callback at the end of the previous loop iteration?
+                    if final_clearing_needed:
+                        self._log_debug(f"Painter Loop: Final clearing requested by an END callback, will clear the screen.")
+                        self.macros._soft_clear_rectangle(draw=self.draw)
+                        final_clearing_needed = False
+
+                    # Show the image on the device
+                    self._log_debug(f"Painter: Flushing drawing to LCD display: ")
+                    self._log_debug(f"  - Foreground is {current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}.")
+                    self._log_debug(f"  - Background is {current_background_interaction.name if current_background_interaction is not None else 'None'}.")
+                    self.flush_drawing()
+
+                    # Wait for the specified delay between iterations
+                    self.apply_delay_between_frames(
+                        foreground_interaction=current_foreground_interaction,
+                        background_interaction=current_background_interaction)
+
+                    # If we had a request to clean the background after the full painting is done, we do it now.
+                    # ATTENTION: Overriding this rule if we have a foreground paint ongoing, as it continues to redraw
+                    #   and then we would loose the background while foreground is still being shown.
+                    if current_background_interaction is not None and \
+                        current_background_interaction.remove_interaction_after_painting is True and \
+                        current_foreground_interaction is None:
+
+                        self._log_debug(f"Painter: Removing background interaction [{current_background_interaction.name}] after full painting is done.")
+                        self.remove_background_interaction(interaction=current_background_interaction)
+                    
+                    # If the list of background interactions contains more than the current item, we remove the current one to move to the next.
+                    # This should override the request to avoid removing at the end of the painting.
+                    # The only exception is the speaking, that should be kept ALWAYS while speaking.
+                    # It's an else-if because we may have just removed it in the previous IF.
+                    elif current_background_interaction is not None and \
+                        len(self.background_paint) > 1 and current_background_interaction.interaction != BackgroundComm.SPEAKING:
+                        previous_background_interaction_name = current_background_interaction.name
+                        self.remove_background_interaction(interaction=current_background_interaction)
+                        # We do not want to replace the current_background_interaction variable, as we may need it later until the end of the loop.
+                        # It is just for the logging.
+                        new_current_background_interaction = self.get_current_background_interaction()
+                        self._log_debug(f"Painter: More than one background interaction in the queue, removing current background interaction [{previous_background_interaction_name}] to move to next: [{new_current_background_interaction.name}].")
+                        # We may have other things to delete too.
+                        if current_background_interaction.interaction in self.BACKGROUND_TO_BUSY_FLAG.keys():
+                            if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=True):
+                                self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_START, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=True)
+                            if self.painter_busy_flags.callback_exists_for_busy_flag(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False):
+                                self.painter_busy_flags.remove_busy_flag_callback(when=LOOP_END, channel=BACKGROUND_CHANNEL, flag_name=self.BACKGROUND_TO_BUSY_FLAG[current_background_interaction.interaction], for_value=False)
+                    
+                    # If we had a request to remove the foreground after the painting, we do it now,
+                    #   just in case we didn't remove it yet
+                    #   (we know it's removed if foreground_starting_time is None, because it's reset
+                    #   when the current_foreground_interaction.maintain_paint_for_seconds is exceeded).
+                    # Attention: needs to be BEFORE the end callbacks, because when the end callbacks are triggered,
+                    #   they may request to restart the foreground_starting_time, so this IF would not fit.
+                    if current_foreground_interaction is not None and \
+                        current_foreground_interaction.remove_interaction_after_painting is True and \
+                        foreground_starting_time is None:
+
+                        # Before removing it, check if it also included a final screen clearing.
+                        if current_foreground_interaction.final_screen_clearing:
+                            self._log_debug(f"Painter: Foreground interaction [{current_foreground_interaction.name}] included a final screen clearing, telling to painter loop.")
+                            final_clearing_needed = True
+
+                        # And now we can safely remove the foreground interaction.
+                        self._log_debug(f"Painter: Removing foreground interaction [{current_foreground_interaction.name}] after painting as requested.")
+                        self.remove_foreground_interaction(interaction=current_foreground_interaction)
+                    
+                    # Check the busy flags and call their callbacks if needed
+                    callback_results = self.painter_busy_flags.trigger_busy_flags_callbacks_at_loop_end()
+
+                    # Check if any of the callbacks requested a final clearing of the screen
+                    for callback_result in callback_results:
+                        if callback_result.get("final_clearing", False):
+                            final_clearing_needed = True
+                        if callback_result.get("request_foreground_starting_time_reset", False):
+                            if foreground_starting_time is None:
+                                self._xlog.warning(f"🟠 Painter: A callback requested a reset of the foreground starting time, but was already 'None'")
+                            self._log_debug(f"Painter: A callback requested a reset of the foreground starting time, resetting it to current time.")
+                            foreground_starting_time = None
+                    
+                    # Finally, if there is no foreground nor background paint, we can stop the loop.
+                    # Please note that here we're not using the current_background_interaction variable directly,
+                    #   but rather calling the getter method to ensure we're getting the latest state.
+                    # Also, we should not stop the loop if there are callbacks still registered, as apparently
+                    #   they were set but never triggered, and by stopping the loop these callbacks would never be called
+                    #   (for example, due to a busy flag change)
+                    # Also, we let one iteration more to happen if the end callbacks wanted to do a final clearing of the screen,
+                    #   that needs to happen before we flush the canvas.
+                    if self.get_current_foreground_interaction() is None and self.get_current_background_interaction() is None and \
+                        len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START)) == 0 and \
+                        len(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END)) == 0 and \
+                        not final_clearing_needed:
+
+                        self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, stopping the painting loop.")
+                        self.stop()
+                    
+                    # If we only have a foreground paint, reduce the speed of the loop to avoid burning the CPU for example.
+                    # Please note that here we're not using the current_background_interaction variable directly,
+                    #   but rather calling the getter method to ensure we're getting the latest state.
+                    if self.get_current_foreground_interaction() is not None and self.get_current_background_interaction() is None:
+
+                        self._log_debug("Only foreground paint remaining, applying extra delay.")
+                        time.sleep(0.5)
+
+        except KeyboardInterrupt:
+            self._xlog.debug("Pressed Control + C while running Painter loop.")
+            os.kill(os.getpid(), signal.SIGTERM)

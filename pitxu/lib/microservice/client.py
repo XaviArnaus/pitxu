@@ -24,7 +24,6 @@ class Client(PyXavi, MicroserviceBase):
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_AUDIO_PATH = "audio/"
     DEFAULT_AUDIO_INPUT_PATH = "input/"
-    AUDIO_FILE_DATETIME_FORMAT = "%Y%m%d_%H%M%S.%f"
     FILENAME_PREFIX = "audio_"
     FILENAME_EXTENSION = ".wav"
 
@@ -38,7 +37,7 @@ class Client(PyXavi, MicroserviceBase):
         self._log_debug("Setting Server log level to: " + str(self.URLLIB3_LIB_LOG_LEVEL))
         logging.getLogger("urllib3").setLevel(self.URLLIB3_LIB_LOG_LEVEL)
 
-        self._prepare_dup_audio_files()
+        self._prepare_dump_audio_files()
     
     def initialize(self):
         pass
@@ -46,7 +45,7 @@ class Client(PyXavi, MicroserviceBase):
     def status(self):
         return self._do_get_request(endpoint=self.ENDPOINT_STATUS)
     
-    def _prepare_dup_audio_files(self):
+    def _prepare_dump_audio_files(self):
         self.audio_files_location = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + \
                                     self._xconfig.get("storage.audio.path", self.DEFAULT_AUDIO_PATH) + \
                                     self._xconfig.get("storage.audio.input", self.DEFAULT_AUDIO_INPUT_PATH)

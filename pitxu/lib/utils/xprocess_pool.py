@@ -175,16 +175,19 @@ class XprocessPool(PyXavi):
     def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy
         self._xlog.debug("Waiting for all queues to get empty")
-        queue_sizes = "Current queues size: \n"
+        logging_queue_sizes = []
         queues_to_wait_for = []
         for name, queue in self._queue.items():
             try:
-                queue_sizes += "- " + name + ": " + str(queue.qsize()) + "\n"
+                logging_queue_sizes.append((name,str(queue.qsize()) + " elements"))
                 queues_to_wait_for.append(queue)
             except BrokenPipeError:
-                queue_sizes += "- " + name + ": BrokenPipeError\n"
+                logging_queue_sizes.append((name, "BrokenPipeError"))
                 self.reset_busy_flag_from_related_queue(name)
-        self._xlog.debug(queue_sizes)
+        self.log_summary(
+            "Current queues sizes",
+            logging_queue_sizes
+        )
         sleep_seconds = 0.5
         total_sleeping = 0
         while any(queue.qsize() > 0 for queue in queues_to_wait_for):

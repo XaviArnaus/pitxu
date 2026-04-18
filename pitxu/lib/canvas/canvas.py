@@ -182,18 +182,19 @@ class Canvas(PyXavi):
         self._initialise_fonts()
 
         # Summary of the loaded configuration
-        self._xlog.debug("Canvas loaded with the following configuration:")
-        self._xlog.debug(f"  Device config prefix: {self.DEVICE_CONFIG_PREFIX}")
-        self._xlog.debug(f"  Screen size: {self._screen_size.x}x{self._screen_size.y}")
-        self._xlog.debug(f"  Font file: {self.FONT_FILE}")
-        self._xlog.debug(f"  Color mode: {self.COLOR_MODE}")
-        self._xlog.debug(f"  Font Tiny size: {self.FONT_SIZE_TINY}")
-        self._xlog.debug(f"  Font Small size: {self.FONT_SIZE_SMALL}")
-        self._xlog.debug(f"  Font Small Emoji size: {self.FONT_SIZE_SMALL_EMOJI}")
-        self._xlog.debug(f"  Font Medium size: {self.FONT_SIZE_MEDIUM}")
-        self._xlog.debug(f"  Font Big size: {self.FONT_SIZE_BIG}")
-        self._xlog.debug(f"  Font Huge size: {self.FONT_SIZE_HUGE}")
-        self._xlog.debug(f"  Font Ultra size: {self.FONT_SIZE_ULTRA}")
+        self.log_summary("Canvas Initialization", [
+            ("Device config prefix", self.DEVICE_CONFIG_PREFIX),
+            ("Screen size", f"{self._screen_size.x}x{self._screen_size.y}"),
+            ("Font file", self.FONT_FILE),
+            ("Color mode", self.COLOR_MODE),
+            ("Font Tiny size", self.FONT_SIZE_TINY),
+            ("Font Small size", self.FONT_SIZE_SMALL),
+            ("Font Small Emoji size", self.FONT_SIZE_SMALL_EMOJI),
+            ("Font Medium size", self.FONT_SIZE_MEDIUM),
+            ("Font Big size", self.FONT_SIZE_BIG),
+            ("Font Huge size", self.FONT_SIZE_HUGE),
+            ("Font Ultra size", self.FONT_SIZE_ULTRA)
+        ])
 
     def get_canvas(self, reset_base_image = True):
         if reset_base_image:

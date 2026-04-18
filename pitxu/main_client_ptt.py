@@ -87,9 +87,6 @@ class MainClientPTT(PyXavi):
         super(MainClientPTT, self).init_pyxavi(config=config, params=params)
 
         # Handle SIGTERM for graceful shutdown
-        # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
-        #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
-        #   that we catch in the run() method and call close_nicely().
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
 
@@ -595,9 +592,6 @@ class MainClientPTT(PyXavi):
         self._client = Client(config=self._xconfig, params=self._xparams)
 
 
-    # COMMENTED: We are using signal.pause() at the end of the run() method to wait for signals,
-    #   so we don't need to set a handler for SIGTERM here, because it will be handled by the default handler that raises a KeyboardInterrupt,
-    #   that we catch in the run() method and call close_nicely().
     def _handle_signal(self, sig, frame):
         """
         Handle signals for graceful shutdown.
