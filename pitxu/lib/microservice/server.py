@@ -184,8 +184,9 @@ class Server(PyXavi, MicroserviceBase):
                 "power_cable_connected": power_cable_connected,
                 "consumption_watts": consumption_watts,
                 "charging_eta": charging_eta,
-                "cpu_temperature": cpu_temperature["temperature"] if isinstance(cpu_temperature, dict) else "N/A",
-                "cpu_fan_speed": cpu_temperature["fan_speed"] if isinstance(cpu_temperature, dict) else "N/A"
+                "cpu_temperature": cpu_temperature["cpu_temperature"] if isinstance(cpu_temperature, dict) else "N/A",
+                "cpu_fan_speed": cpu_temperature["cpu_fan_speed"] if isinstance(cpu_temperature, dict) else "N/A",
+                "case_fans": cpu_temperature["case_fans"] if isinstance(cpu_temperature, dict) else "N/A"
             },
             "reports": {
                 "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"

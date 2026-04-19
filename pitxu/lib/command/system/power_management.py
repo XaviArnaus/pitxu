@@ -6,8 +6,6 @@ from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.utils.system import System
 
-from subprocess import check_output
-
 import logging
 
 import math
