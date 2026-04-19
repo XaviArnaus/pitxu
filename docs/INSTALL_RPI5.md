@@ -220,8 +220,8 @@ sudo nano /etc/udev/rules.d/10-usb-audio.rules
 4. Add the following 3 lines. Edit with your *Vendor ID*, *Product ID* and *Product* name:
 ```
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/control", ATTR{power/control}:="on"
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend", ATTR{power/autosuspend}:="0"
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}:="0"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend", ATTR{power/autosuspend}:="-1"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}:="-1"
 ```
 
 4. Reboot
