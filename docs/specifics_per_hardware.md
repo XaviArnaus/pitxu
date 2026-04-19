@@ -59,13 +59,35 @@ The setup is pretty power hungry. It eventually had 2 batteries, but it did not 
 - UPS: Geekworm X1203
 - 2 PWM case fans
 
-## Peque (Pitxu client)
-
 Particularities in configs:
+
 - ALSA Microphone needs to be set as Mono
 - ALSA Microphone control is "Mic"
 - ALSA Speaker control is "Speaker"
 - Microphone sample rate is "Whatever the Mic Soundcard gives", rather than 16 kHz.
+- PWM Case fans setup:
+    - fans:
+        - name: rear
+            - pin: 13
+            - is_pwm: True
+            - pwm_frequency: 25000
+            - chip: 0
+            - channel: 1
+        - name: side
+            - pin: 12
+            - is_pwm: True
+            - pwm_frequency: 25000
+            - chip: 0
+            - channel: 0
+    - pwm_thresholds:
+        - threshold_25: 55
+        - threshold_50: 65
+        - threshold_75: 80
+    
+
+## Peque (Pitxu client)
+
+TBD
 
 ## Pitxu 4
 
