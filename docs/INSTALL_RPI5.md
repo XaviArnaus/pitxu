@@ -176,6 +176,8 @@ https://forum.raspiaudio.com/t/ultra-installation-guide/21
 ✅ Used the Optional method 2 (same as automatic, but adding the overlay in the `/boot/firmware/config.txt`)
 ❗️ Use `alsamixer` to rise up volumes and unmute channels!!! 
 
+⚠️ External microphone does not work.
+
 
 #### PiSugar Whisplay HAT
 
@@ -189,6 +191,40 @@ https://forum.raspiaudio.com/t/ultra-installation-guide/21
 - Tried successfully:
   - https://eu.ugreen.com/products/ugreen-usb-to-3-5mm-headphone-audio-adapter
   - https://sabrent.com/products/AU-MMSA
+
+⚠️ Faced the issue that after several hours the microphone stops working, and therefore Pitxu does not wake up.
+❓ Tried to disable the USB auto power saving:
+
+1. Get the *Vendor ID*, the *Product ID* and the *Product* name of the USB sounbcard (for example, see line 4 here):
+```
+$ lsusb
+
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 003 Device 002: ID 0d8c:0014 C-Media Electronics, Inc. Audio Adapter (Unitek Y-247A)
+Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+```
+
+2. Confirm it with looking at the udev devices. First command shows the devices, second shows info about one (Bus-Device):
+```
+udevadm info -a --path /sys/bus/usb/devices/
+udevadm info -a --path /sys/bus/usb/devices/3-2
+```
+
+3. Create an `udev` rule
+```
+sudo nano /etc/udev/rules.d/10-usb-audio.rules
+```
+
+4. Add the following 3 lines. Edit with your *Vendor ID*, *Product ID* and *Product* name:
+```
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/control", ATTR{power/control}:="on"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend", ATTR{power/autosuspend}:="-1"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}:="-1"
+```
+
+4. Reboot
 
 ### Setup your display
 
@@ -462,7 +498,7 @@ make init
 If it complains about the `python.lock`, use `make update` instead.
 
 
-## 5. Generate all the config files out of the `dist` example ones
+## 6. Generate all the config files out of the `dist` example ones
 
 ```
 for file in config/*.yaml.dist; do cp "$file" "${file%.dist}"; done
