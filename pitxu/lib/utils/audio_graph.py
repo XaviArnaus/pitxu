@@ -4,6 +4,8 @@ from pyxavi import Storage, Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xtime import Xtime
 
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend for matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy.fftpack import fft

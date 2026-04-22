@@ -15,11 +15,13 @@ from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
+from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 
 import sys
 import sounddevice
@@ -42,6 +44,8 @@ class Main(PyXavi):
     _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
 
+    _audio_parameters: dict = None
+
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _raw_input_stream: sounddevice.RawInputStream = None
@@ -53,6 +57,8 @@ class Main(PyXavi):
 
     _interaction: Interaction = None
     _reactions: Reactions = None
+
+    _support: Support = None
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
@@ -103,13 +109,10 @@ class Main(PyXavi):
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
-        self._interaction.show_init_phases(2)
 
-
-        # Initialize the case fan control and apply it.
-        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
-        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
-        self._fan_control.toggle_all_fans_by_temperature()
+        # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._interaction.show_init_phases(2, text="⚙️  Statics, Params and Support")
+        self._load_statics_params_and_support()
 
         # At this point, we better wait for all queues to be empty.
         # COMMENTED: Do we really need to wait for queues?
@@ -118,12 +121,8 @@ class Main(PyXavi):
         # self._interaction.show_init_phases(3, text="Foreground Display Queue Empty")
 
         # Initialise all classes that require a model. They go per language.
-        self._interaction.show_init_phases(2, text="🧠 Models")
+        self._interaction.show_init_phases(3, text="🧠 Models")
         self._load_models()
-
-        # Load all language statics, like the exit words and the greeting / goodbye sentences
-        self._interaction.show_init_phases(3, text="🔤 Language Statics")
-        self._load_language_statics()
 
         try:
             # This is the samplerate that generates the chunks received in CaptureHandler.callback().
@@ -133,7 +132,7 @@ class Main(PyXavi):
             #   under 16 kHz.
             # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
             # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
-            samplerate = self.get_samplerate()
+            samplerate = self._audio_parameters.get("input_samplerate")
             blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
 
             # Read from microphone.
@@ -177,7 +176,7 @@ class Main(PyXavi):
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
 
                     # Initialise the Server that accepts requests to the defined endpoints.
-                    self._interaction.show_init_phases(8, text="🖥️ Server")
+                    self._interaction.show_init_phases(8, text="🖥️  Server")
                     self._initialize_server()
 
                     # Initialize the Reactions class
@@ -434,6 +433,10 @@ class Main(PyXavi):
         # Clear the displays
         self.clear_displays()
 
+        # Close the Support class, which empties the queue discarding all actions there
+        if self._support is not None:
+            self._support.close()
+
         # Wait for all the queues and processes to get empty
         self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
         self._interaction.wait_for_all_queues_to_empty()
@@ -480,20 +483,20 @@ class Main(PyXavi):
         self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
     
-    def get_samplerate(self) -> int:
-        device_samplerate = self.get_samplerate_from_device()
-        samplerate = self._xconfig.get("speech-to-text.input_samplerate", device_samplerate)
-        if samplerate == -1:
-            samplerate = device_samplerate
-        return samplerate
+    # def get_samplerate(self) -> int:
+    #     device_samplerate = self.get_samplerate_from_device()
+    #     samplerate = self._xconfig.get("speech-to-text.input_samplerate", device_samplerate)
+    #     if samplerate == -1:
+    #         samplerate = device_samplerate
+    #     return samplerate
     
-    def get_samplerate_from_device(self) -> int:
-        device = self._xconfig.get("speech-to-text.input_device", None)
-        if device is not None:
-            device_info = sounddevice.query_devices(device, "input")
-            # soundfile expects an int, sounddevice provides a float:
-            return int(device_info["default_samplerate"])
-        return 16000  # Default samplerate if no device is specified
+    # def get_samplerate_from_device(self) -> int:
+    #     device = self._xconfig.get("speech-to-text.input_device", None)
+    #     if device is not None:
+    #         device_info = sounddevice.query_devices(device, "input")
+    #         # soundfile expects an int, sounddevice provides a float:
+    #         return int(device_info["default_samplerate"])
+    #     return 16000  # Default samplerate if no device is specified
 
     def clear_displays(self):
         if self._interaction.displays_are_combined():
@@ -552,22 +555,58 @@ class Main(PyXavi):
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
         self.close_nicely()
     
+    def _load_statics_params_and_support(self):
+        """
+        Load all the static values and params that we are going to use in the app, that may depend on the language.
+        This includes the greeting and goodbye sentences, the trigger words and answers, and the exit words.
+        """
+
+        # Initialize the case fan control and apply it.
+        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
+        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
+        self._fan_control.toggle_all_fans_by_temperature()
+
+        # Get all audio parameters in one place, to be used by the different components that need it
+        #   (SST, TTS, preprocessing, dumper, ...).
+        self._audio_parameters = AudioParametersLoader(config=self._xconfig, params=self._xparams).get_audio_parameters()
+        self._xparams.set("audio_parameters", self._audio_parameters)
+
+        # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._load_language_statics()
+
+        # Initialise the Support worker.
+        support_params = Dictionary({
+            "audio_parameters": self._audio_parameters,
+            "process_pool": self._interaction.get_process_pool(),
+        })
+        self._support = Support(config=self._xconfig, params=support_params)
+        self._support.initialize()
+    
     def _load_models(self):
         
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
         # COMMENTED: This way Vosk chooses between config or device.
         # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
-        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+
+        if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+            self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
+            self._xparams.set("support", self._support)
+            self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        else:
+            self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
+            self._xlog.error("🛑 Supported engines are: vosk")
+            self._xlog.error("🛑 Exiting now.")
+            sys.exit(1)
+
         input_audio_chunk_queue = self._dictate.get_queue()
 
         # Initialise the Capture Handler, that captures the audio from the microphone.
         # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
-        samplerate = self.get_samplerate()
         self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
             "capture_queue": input_audio_chunk_queue,
-            "microphone_samplerate": samplerate,
-            "target_samplerate": self._xconfig.get("speech-to-text.target_samplerate", 16000)
+            "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
+            "target_samplerate": self._audio_parameters.get("resample_target_samplerate")
         }))
 
         # # Initialise the Raw Input Stream for microphone
@@ -656,9 +695,11 @@ class Main(PyXavi):
         if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
             self._xlog.info("Initializing Server as it is enabled by configuration.")
             params = deepcopy(self._xparams)
+            params.set("samplerate", self._audio_parameters.get("server_samplerate"))
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
+            params.set("support", self._support)
             self._server = Server(config=self._xconfig, params=params)
             self._server.initialize()
         else:

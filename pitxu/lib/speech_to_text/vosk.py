@@ -6,6 +6,7 @@ import json
 from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
+from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
@@ -26,6 +27,7 @@ class Vosk(PyXavi):
     _queue: queue.Queue = None
     _recognizer: KaldiRecognizer = None
     _preprocessor: Preprocessor = None
+    _support: Support = None
 
     _shared_memory: SharedMemoryManager = None
 
@@ -70,34 +72,30 @@ class Vosk(PyXavi):
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
-            # For normal local Pitxu, the chunk is downsampled in the CaptureHandler to 16kHz,
-            #   so we pick it up from the config.
-            if self._xparams.get("samplerate", None) is not None:
-                self.samplerate = self._xparams.get("samplerate")
-                logging_parts.append(("Sample rate from params", self.samplerate))
-
-            elif self._xconfig.get("speech-to-text.vosk.input_samplerate", None) is not None and \
-                    self._xconfig.get("speech-to-text.vosk.input_samplerate", None) > 0:
-                self.samplerate = self._xconfig.get("speech-to-text.vosk.input_samplerate")
-                logging_parts.append(("Sample rate from config", self.samplerate))
-
-            else:
-                self.samplerate = self._get_samplerate()
-                logging_parts.append(("Sample rate from device", self.samplerate))
+            # For normal local Pitxu, the chunk is downsampled in the CaptureHandler to 16kHz.
+            # The choice is done in the calling:
+            #   - For the Server, it is inside the Server initialisation from Main.
+            #   - For the local Pitxu, it is inside the Params and Support initialisation from Main.
+            #   > Both set a "samplerate" param, which value depends on one or another gathered in AudioParametersLoader.
+            self.samplerate = self._xparams.get("samplerate", None)
+            logging_parts.append(("Sample rate", self.samplerate))
             
-            self.device = self._xconfig.get("speech-to-text.input_device", None)
+            self.device = self._xparams.get("audio_parameters.input_device", None)
             logging_parts.append(("Input device", self.device))
+
+            # Forwarding the Support process to the Preprocessor via xparams,
+            #   here just checking that it's there, for the log summary.
+            logging_parts.append(("Support Class is present", "Yes" \
+                                  if self._xparams.key_exists("support") \
+                                    and self._xparams.get("support") is not None \
+                                    and isinstance(self._xparams.get("support"), Support) \
+                                  else "No"))
 
             self._log_debug("Vosk: initializing KaldiRecognizer")
             self._recognizer = KaldiRecognizer(self._model, self.samplerate)
 
         self._queue = queue.Queue()
-
-        self._preprocessor = Preprocessor(config=self._xconfig, params=Dictionary({
-            # Use the same samplerate from Vosk, as the chunk is already resampled.
-            "samplerate": self.samplerate
-        }))
-
+        self._preprocessor = Preprocessor(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
 
@@ -231,6 +229,7 @@ class Vosk(PyXavi):
         # Even we didn't recognise anything, take it as a signal that the speech has ended,
         #   so we can reset the preprocessor and the Vosk buffers for the next transcription.
         else:
+            self._xlog.debug("Vosk: End of speech detected by VAD, processing final results and resetting buffers")
             # Reset the audio buffers used for plotting, and do do the actual plotting.
             self._preprocessor.on_speech_end()
 
@@ -323,50 +322,50 @@ class Vosk(PyXavi):
         self.transcription_result = None
         self._recognizer.Reset()
 
-    def _get_samplerate(self) -> int:
-        device_info = sd.query_devices(self.device, "input")
-        # soundfile expects an int, sounddevice provides a float:
-        return int(device_info["default_samplerate"])
+    # def _get_samplerate(self) -> int:
+    #     device_info = sd.query_devices(self.device, "input")
+    #     # soundfile expects an int, sounddevice provides a float:
+    #     return int(device_info["default_samplerate"])
 
-    def callback(self, indata, frames, time, status):
-        """
-        This is called (from a separate thread) for each audio block.
-        Audio blocks are sentences.
+    # def callback(self, indata, frames, time, status):
+    #     """
+    #     This is called (from a separate thread) for each audio block.
+    #     Audio blocks are sentences.
 
-        NOT USED. See CaptureHandler.
-        """
-        if status:
-            self._xlog.debug(f"Vosk callback: Audio input status: {status}")
-            print(status, file=sys.stderr)
+    #     NOT USED. See CaptureHandler.
+    #     """
+    #     if status:
+    #         self._xlog.debug(f"Vosk callback: Audio input status: {status}")
+    #         print(status, file=sys.stderr)
 
-        if not self.should_skip_audio_input() and self._queue is not None:
-            # self._xlog.debug(f"Vosk callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
-            # print(time.inputBufferAdcTime)
-            self._queue.put(bytes(indata))
-        # else:
-        #     self._xlog.debug("Vosk callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
+    #     if not self.should_skip_audio_input() and self._queue is not None:
+    #         # self._xlog.debug(f"Vosk callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
+    #         # print(time.inputBufferAdcTime)
+    #         self._queue.put(bytes(indata))
+    #     # else:
+    #     #     self._xlog.debug("Vosk callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
     
-    def should_skip_audio_input(self):
-        '''
-        Checks if the microphone is muted by reading AND if the speaker is talking via the shared memory flags
-        '''
+    # def should_skip_audio_input(self):
+    #     '''
+    #     Checks if the microphone is muted by reading AND if the speaker is talking via the shared memory flags
+    #     '''
 
-        speaker_is_busy = False
-        mic_is_muted = False
+    #     speaker_is_busy = False
+    #     mic_is_muted = False
 
-        if self._shared_memory is None:
-            self._xlog.error("Shared Memory is None, cannot read 'SHARED_MICROPHONE_MUTED' flag")
-            return False
-        if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED), bool)):
-            self._xlog.error("Shared Memory flag 3 should be 'SHARED_MICROPHONE_MUTED' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)))
-            return False
-        if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
-            self._xlog.error("Shared Memory flag 4 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
-            return False
-        mic_is_muted = self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
-        speaker_is_busy = self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
+    #     if self._shared_memory is None:
+    #         self._xlog.error("Shared Memory is None, cannot read 'SHARED_MICROPHONE_MUTED' flag")
+    #         return False
+    #     if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED), bool)):
+    #         self._xlog.error("Shared Memory flag 3 should be 'SHARED_MICROPHONE_MUTED' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)))
+    #         return False
+    #     if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
+    #         self._xlog.error("Shared Memory flag 4 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
+    #         return False
+    #     mic_is_muted = self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+    #     speaker_is_busy = self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
 
-        return mic_is_muted or speaker_is_busy
+    #     return mic_is_muted or speaker_is_busy
 
     def close(self):
         self._xlog.info("Closing Vosk STT")
@@ -382,6 +381,10 @@ class Vosk(PyXavi):
         if self._queue is not None:
             self._xlog.debug("Deleting Vosk queue")
             del self._queue
+        
+        if self._support is not None:
+            self._xlog.debug("Closing Support process from Vosk")
+            del self._support
         
         # Remember that Vosk is not active anymore
         self.is_active = False

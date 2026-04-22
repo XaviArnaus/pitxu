@@ -10,6 +10,7 @@ QUEUE_EINK = "eink_queue"
 QUEUE_MATRIX = "matrix_queue"
 QUEUE_LCD = "lcd_queue"
 QUEUE_DSI_LCD = "dsi_lcd_queue"
+QUEUE_SUPPORT = "support_queue"
 
 # Shared memory flag positions
 SHARED_MEMORY_FLAGS = "pitxu_shared_memory_flags"
@@ -26,6 +27,7 @@ SHARED_LCD_IDLE_MODE = 9
 SHARED_DSI_LCD_IDLE_MODE = 10
 SHARED_NETWORK_BUSY = 11
 SHARED_USER_IS_SPEAKING = 12
+SHARED_SUPPORT_BUSY = 13
 
 # Painter
 LOOP_START: str = "start"

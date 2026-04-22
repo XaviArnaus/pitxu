@@ -12,6 +12,8 @@ speech-to-text:
     #left: True
     # [Bool] Activates the right channel
     #right: False
+  # [String] Engine to use for the Speech-to-Text. Options: "vosk", "whisper", as the string used for the key in the configuration.
+  engine: "vosk"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.
   bytes_per_chunk: 4000
@@ -26,7 +28,7 @@ speech-to-text:
   # input_samplerate: 16000
   input_samplerate: -1
   # [Integer] The sample rate to resample to, before adding it into the processing queue of the STT engine.
-  # This should match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
+  # This must match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
   #   as well as the one set in the Preprocessor.
   target_samplerate: 16000
   # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.

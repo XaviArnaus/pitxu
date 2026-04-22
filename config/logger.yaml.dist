@@ -45,7 +45,7 @@ logger:
   # [String] Name of the logger
   name: "pitxu"
   # [String] Format of the log
-  format: "%(asctime)s [%(processName)-14s] %(levelname)-8s %(name)-12s %(message)s"
+  format: "%(asctime)s [%(processName)-16s %(threadName)-16s] %(levelname)-8s %(name)-12s %(message)s"
   # File related parameters
   file:
     # [Bool] Dump the log into a file
@@ -81,6 +81,7 @@ logger:
             WARNING: ORANGE
             ERROR: RED
             CRITICAL: RED_BRIGHT
+        # The Process Names here are the actual class names.
         by_process:
             MainProcess: GREEN_BRIGHT
             Display: CYAN_BRIGHT
@@ -89,6 +90,7 @@ logger:
             TextToSpeech: YELLOW_BRIGHT
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
+            SupportProcess: BLUE_BRIGHT
         by_thread:
             MainThread: GREEN_BRIGHT
             Thread-1: CYAN_BRIGHT

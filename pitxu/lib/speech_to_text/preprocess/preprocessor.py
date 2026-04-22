@@ -3,11 +3,12 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, SHARED_USER_IS_SPEAKING
 from pitxu.lib.utils.signal_tools import SignalTools
-from pitxu.lib.speech_to_text.preprocess.dumper import Dumper
 from pitxu.lib.speech_to_text.preprocess.filters import Filters
-from pitxu.lib.speech_to_text.preprocess.conversors import Conversors
+from pitxu.lib.utils.conversors import Conversors
+from pitxu.lib.support_process.support import Support
 
 import numpy as np
+from multiprocessing import JoinableQueue
 from datetime import datetime
 from rms_vad import RmsVAD, VADConfig, compute_energy_db
 import logging
@@ -22,9 +23,11 @@ class Preprocessor(PyXavi):
     samplerate = 16000  # Sampling rate
 
     shared_memory: SharedMemoryManager = None
-    dumper: Dumper = None
+    support: Support = None
     filters: Filters = None
     vad: RmsVAD = None
+
+    support_queue: JoinableQueue = None
 
     last_human_speaking_datetime: datetime = None
     
@@ -47,13 +50,13 @@ class Preprocessor(PyXavi):
 
         self._xlog.info("🎤 Initializing Preprocess for Speech-to-Text")
 
-        if params.key_exists("samplerate"):
-            self.samplerate = params.get("samplerate")
-        elif self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) is not None and \
-             self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) > 0:
-            self.samplerate = self._xconfig.get("speech-to-text.preprocessor.input_samplerate")
+        # The samplerate is prepared in the AudioParametersLoader.
+        self.samplerate = params.get("audio_parameters.preprocessing_samplerate")
+
+        if params.key_exists("support"):
+            self.support = params.get("support")
         else:
-            self._xlog.warning(f"No samplerate provided in params to Preprocess, using default of {self.samplerate} Hz")
+            raise ValueError("Support Class must be provided in params with key 'support' to Preprocessor")
         
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
@@ -61,8 +64,8 @@ class Preprocessor(PyXavi):
         release = self._xconfig.get("speech-to-text.vad.release", 1.5)
         self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
         
-        self.LOWCUT_FREQ = self._xconfig.get("speech-to-text.preprocessor.lowcut_freq", self.LOWCUT_FREQ)
-        self.HIGHCUT_FREQ = self._xconfig.get("speech-to-text.preprocessor.highcut_freq", self.HIGHCUT_FREQ)
+        self.LOWCUT_FREQ = params.get("audio_parameters.filter_lowcut_freq")
+        self.HIGHCUT_FREQ = params.get("audio_parameters.filter_highcut_freq")
         self.FILTER_ORDER = self._xconfig.get("speech-to-text.preprocessor.filter_order", self.FILTER_ORDER)
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
@@ -75,9 +78,6 @@ class Preprocessor(PyXavi):
         params.set("order", self.FILTER_ORDER)
 
         self.filters = Filters(config=config, params=params)
-        self.dumper = Dumper(config=config, params=params)
-
-        logging.getLogger("matplotlib").setLevel(self._xconfig.get("libs_logger.matplotlib.loglevel", logging.WARNING))
 
         self.log_summary("Preprocessor Initialization", [
             ("Preprocessor Enabled", str(self._xconfig.get("speech-to-text.preprocessor.enabled", False))),
@@ -98,7 +98,7 @@ class Preprocessor(PyXavi):
         if self._xconfig.get("speech-to-text.preprocessor.enabled", True) == False:
             audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
             audio_data_np = Conversors.stereo_to_mono(audio_data_np)
-            self.add_to_accumulated_signal_np(audio_data_np, audio_data_np)
+            self.support.accumulate_audio(audio_data_np)
 
             return indata
 
@@ -122,7 +122,8 @@ class Preprocessor(PyXavi):
         # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
 
         # Maintain the accummulators
-        self.add_to_accumulated_signal_np(audio_data_np, filtered_audio_np)
+        self.support.accumulate_audio(audio_data_np)
+        self.support.accumulate_audio(filtered_audio_np, preprocessed=True)
 
         return Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
 
@@ -191,20 +192,22 @@ class Preprocessor(PyXavi):
     def on_speech_end(self):
         # This is meant to be called from the VAD callback when it detects the end of speech, to reset the state and allow new detections.
 
-        if len(self.accummulated_signal) == 0:
-            return
+        # if len(self.accummulated_signal) == 0:
+        #     return
 
-        input_signal = np.concatenate(self.accummulated_signal)
-        filtered_signal = np.concatenate(self.accummulated_filtered_signal)
+        self.support.plot_accumulated_audio()
+        # self.dumper.plot_signals(input_signal, filtered_signal)
+        # self.dumper.plot_spectograms(input_signal, filtered_signal)
+        # self.dumper.plot_fourier_transforms(input_signal, filtered_signal)
 
-        self.dumper.plot_signals(input_signal, filtered_signal)
-        self.dumper.plot_spectograms(input_signal, filtered_signal)
-        self.dumper.plot_fourier_transforms(input_signal, filtered_signal)
+        self.support.dump_accumulated_audio(preprocessed=False)
+        self.support.dump_accumulated_audio(preprocessed=True)
+        # self.dumper.save_input_audio(input_signal)
+        # self.dumper.save_preprocessed_audio(filtered_signal)
 
-        self.dumper.save_input_audio(input_signal)
-        self.dumper.save_preprocessed_audio(filtered_signal)
-        self.accummulated_signal = []
-        self.accummulated_filtered_signal = []
+        self.support.clear_accumulated_audio()
+        # self.accummulated_signal = []
+        # self.accummulated_filtered_signal = []
 
         self._log_debug(f"🗣️ End speaking 🏁")
 
@@ -220,14 +223,14 @@ class Preprocessor(PyXavi):
         self.vad.reset()
         return is_speech
     
-    def add_to_accumulated_signal(self, signal_chunk: bytes, filtered_signal_chunk: bytes):
-        signal_chunk_np = Conversors.byte_chunk_to_numpy_array(signal_chunk)
-        filtered_signal_chunk_np = Conversors.byte_chunk_to_numpy_array(filtered_signal_chunk)
-        self.add_to_accumulated_signal_np(signal_chunk_np, filtered_signal_chunk_np)
+    # def add_to_accumulated_signal(self, signal_chunk: bytes, filtered_signal_chunk: bytes):
+    #     signal_chunk_np = Conversors.byte_chunk_to_numpy_array(signal_chunk)
+    #     filtered_signal_chunk_np = Conversors.byte_chunk_to_numpy_array(filtered_signal_chunk)
+    #     self.add_to_accumulated_signal_np(signal_chunk_np, filtered_signal_chunk_np)
     
-    def add_to_accumulated_signal_np(self, signal_chunk: np.ndarray, filtered_signal_chunk: np.ndarray):
-        self.accummulated_signal.append(signal_chunk)
-        self.accummulated_filtered_signal.append(filtered_signal_chunk)
+    # def add_to_accumulated_signal_np(self, signal_chunk: np.ndarray, filtered_signal_chunk: np.ndarray):
+    #     self.accummulated_signal.append(signal_chunk)
+    #     self.accummulated_filtered_signal.append(filtered_signal_chunk)
 
     def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
         """

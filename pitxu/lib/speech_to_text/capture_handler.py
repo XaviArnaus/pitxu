@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.speech_to_text.preprocess.conversors import Conversors
+from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_USER_IS_SPEAKING
 
