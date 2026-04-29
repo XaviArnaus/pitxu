@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Shows the plots and plays the audios for the given timestamps, or for the latest ones if no timestamp is provided.
+
+# Get the directory of the current script
+# Allows to reference other files relative to this script's location
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
+# Display the plots for the given timestamp, or the latest ones if no timestamp is provided
+display_plots() {
+	# use feh to display the plots
+    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/storage/audio/signals/_latest.png" & \
+    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/storage/audio/spectrograms/_latest.png" & \
+    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/storage/audio/fourier_transforms/_latest.png"
+}
+# Play the audios for the given timestamp, or the latest ones if no timestamp is provided
+play_audios() {
+	# use aplay to play the audios
+    aplay "$DIR/storage/audio/input/_latest.wav" & \
+    aplay "$DIR/storage/audio/preprocessed_input/_latest.wav"
+}
+
+if [[ $# -eq 0 ]] ; then
+    # No arguments provided, we give all CPU info
+    display_plots & \
+    play_audios
+    exit 0
+fi
+
+case "$1" in
+    "plots") display_plots ;;
+    "audios") play_audios ;;
+    "help") echo "Usage: pitxu [plots|audios]" ;;
+    *) echo "Command unknown" ;;
+esac
+
+FINAL_EXIT_CODE=$?
+exit $FINAL_EXIT_CODE
