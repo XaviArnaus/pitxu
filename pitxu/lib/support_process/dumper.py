@@ -150,12 +150,24 @@ class Dumper(PyXavi):
         # The `preprocessed` flag is meant to differentiate between raw audio data and preprocessed audio data, which can be useful for debugging purposes.
 
         self._log_debug(f"Plotting accumulated audio data")
-        self.plot_signals(input_signal=np.concatenate(self.accumulated_signal),
-                          filtered_signal=np.concatenate(self.accumulated_filtered_signal))
-        self.plot_spectograms(input_signal=np.concatenate(self.accumulated_signal),
+
+        if self._xconfig.get("speech-to-text.generate_signal_plots", False):
+            self.plot_signals(input_signal=np.concatenate(self.accumulated_signal),
                               filtered_signal=np.concatenate(self.accumulated_filtered_signal))
-        self.plot_fourier_transforms(input_signal=np.concatenate(self.accumulated_signal),
-                                     filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+        else:
+            self._log_debug("Signal plots are disabled by configuration, skipping plotting of accumulated audio data")
+
+        if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
+            self.plot_spectograms(input_signal=np.concatenate(self.accumulated_signal),
+                                  filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+        else:
+            self._log_debug("Spectrogram plots are disabled by configuration, skipping plotting of accumulated audio data")
+
+        if self._xconfig.get("speech-to-text.generate_fourier_transform_plots", False):
+            self.plot_fourier_transforms(input_signal=np.concatenate(self.accumulated_signal),
+                                         filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+        else:
+            self._log_debug("Fourier transform plots are disabled by configuration, skipping plotting of accumulated audio data")
     
     # ------ Actual work --------
     
