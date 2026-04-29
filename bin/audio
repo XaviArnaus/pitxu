@@ -8,9 +8,9 @@ DIR="$( cd "$( dirname "$0" )" && pwd )"
 # Display the plots for the given timestamp, or the latest ones if no timestamp is provided
 display_plots() {
 	# use feh to display the plots
-    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/../storage/audio/signals/_latest.png" & \
-    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/../storage/audio/spectrograms/_latest.png" & \
-    feh --auto-zoom --scale-down --borderless --geometry 800x600 "$DIR/../storage/audio/fourier_transforms/_latest.png"
+    imgcat "$DIR/../storage/audio/signals/_latest.png" & \
+    imgcat "$DIR/../storage/audio/spectrograms/_latest.png" & \
+    imgcat "$DIR/../storage/audio/fourier_transforms/_latest.png"
 }
 # Play the audios for the given timestamp, or the latest ones if no timestamp is provided
 play_audios() {
