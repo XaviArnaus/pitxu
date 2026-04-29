@@ -697,6 +697,7 @@ class Main(PyXavi):
             # params = deepcopy(self._xparams)
             params = Dictionary()
             # Needed for the Server.
+            params.set("app_version", self._xparams.get("app_version"))
             params.set("samplerate", self._audio_parameters.get("server_samplerate")) # Also needed in Vosk.
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
