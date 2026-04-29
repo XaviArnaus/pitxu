@@ -192,22 +192,9 @@ class Preprocessor(PyXavi):
     def on_speech_end(self):
         # This is meant to be called from the VAD callback when it detects the end of speech, to reset the state and allow new detections.
 
-        # if len(self.accummulated_signal) == 0:
-        #     return
-
-        self.support.plot_accumulated_audio()
-        # self.dumper.plot_signals(input_signal, filtered_signal)
-        # self.dumper.plot_spectograms(input_signal, filtered_signal)
-        # self.dumper.plot_fourier_transforms(input_signal, filtered_signal)
-
-        self.support.dump_accumulated_audio(preprocessed=False)
-        self.support.dump_accumulated_audio(preprocessed=True)
-        # self.dumper.save_input_audio(input_signal)
-        # self.dumper.save_preprocessed_audio(filtered_signal)
+        self.support.dump_and_plot_all()
 
         self.support.clear_accumulated_audio()
-        # self.accummulated_signal = []
-        # self.accummulated_filtered_signal = []
 
         self._log_debug(f"🗣️ End speaking 🏁")
 

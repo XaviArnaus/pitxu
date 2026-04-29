@@ -60,9 +60,17 @@ class SupportProcess(Xprocess):
         
         if action == XprocAction.PLOT_AUDIO:
             self.plot_accumulated_audio()
+        
+        if action == XprocAction.DUMP_ALL:
+            # With the context manager, the timestamp for all dumps will be unified,
+            # so they can be easily correlated in the filesystem layer.
+            with self.dumper.unified_timestamp():
+                self.dump_accumulated_audio(preprocessed=False)
+                self.dump_accumulated_audio(preprocessed=True)
+                self.plot_accumulated_audio()
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
-        self._log_debug(f"Recording {'preprocessed' if preprocessed else 'raw'} audio data in Support Worker")
+        self._log_debug(f"Accummulating {'preprocessed' if preprocessed else 'raw'} audio data in Support Worker")
         self.dumper.accumulate_audio(audio_data_np, preprocessed)
     
     def clear_accumulated_audio(self):

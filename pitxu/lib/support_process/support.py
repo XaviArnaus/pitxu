@@ -73,4 +73,9 @@ class Support(PyXavi):
     def plot_accumulated_audio(self):
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.PLOT_AUDIO)
     
-    
+    def dump_and_plot_all(self):
+        """
+        Dumps all accumulated audio (raw and preprocessed) and plots them.
+        Sends 1 action to the process queue, and there it uses the context manager to fit the same timestamp for all.
+        """
+        self.process_pool.send(QUEUE_SUPPORT, XprocAction.DUMP_ALL)

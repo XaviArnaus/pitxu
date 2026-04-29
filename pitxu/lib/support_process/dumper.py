@@ -8,6 +8,7 @@ from pitxu.lib.utils.conversors import Conversors
 from scipy import io
 import numpy as np
 import os
+from contextlib import contextmanager
 
 
 class Dumper(PyXavi):
@@ -20,6 +21,9 @@ class Dumper(PyXavi):
 
     accumulated_signal: list = []
     accumulated_filtered_signal: list = []
+
+    unified_timestamp_str: str = None
+    unified_timestamp_key: str = None
 
     signal_plots_path = os.path.join("audio", "signals")
     signal_plots_path_name = "audio_signal_%s.png"
@@ -74,6 +78,34 @@ class Dumper(PyXavi):
         ])
         
         self._log_debug("🎤 Done Initializing Audio Dumper for Speech-to-Text")
+    
+    # ----- Context managers for unified timestamps --------
+    @contextmanager
+    def unified_timestamp(self, timestamp_str: str = None, timestamp_key: str = None):
+        """
+        Context manager to use a unified timestamp for all dumped files within the context.
+        This can be useful to correlate different dumped files (audio, plots, etc.) with the same timestamp in their filename, for easier correlation and debugging.
+        The `timestamp_str` argument can be used to provide a custom timestamp string, otherwise the current time will be used.
+        The `timestamp_key` argument can be used to provide a custom key for the timestamp, otherwise a default key will be used.
+        """
+        if timestamp_str is not None:
+            self.unified_timestamp_str = timestamp_str
+        else:
+            self.unified_timestamp_str = Xtime.current_time_str()
+        
+        if timestamp_key is not None:
+            self.unified_timestamp_key = timestamp_key
+        else:
+            self.unified_timestamp_key = Xtime.now_key()
+        
+        self._log_debug(f"Using unified timestamp: {self.unified_timestamp_str} with key: {self.unified_timestamp_key}")
+        
+        try:
+            yield
+        finally:
+            self.unified_timestamp_str = None
+            self.unified_timestamp_key = None
+            self._log_debug("Cleared unified timestamp")
     
     # ------ Initialisation of the dumpers and folders for dumping the files --------
     
@@ -149,23 +181,24 @@ class Dumper(PyXavi):
         # This is meant to be used when we want to plot the accumulated audio data in memory, for example for debugging purposes.
         # The `preprocessed` flag is meant to differentiate between raw audio data and preprocessed audio data, which can be useful for debugging purposes.
 
+        preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
         self._log_debug(f"Plotting accumulated audio data")
 
         if self._xconfig.get("speech-to-text.generate_signal_plots", False):
             self.plot_signals(input_signal=np.concatenate(self.accumulated_signal),
-                              filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+                              filtered_signal=np.concatenate(self.accumulated_filtered_signal if preprocessor_enabled else self.accumulated_signal))
         else:
             self._log_debug("Signal plots are disabled by configuration, skipping plotting of accumulated audio data")
 
         if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
             self.plot_spectograms(input_signal=np.concatenate(self.accumulated_signal),
-                                  filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+                                  filtered_signal=np.concatenate(self.accumulated_filtered_signal if preprocessor_enabled else self.accumulated_signal))
         else:
             self._log_debug("Spectrogram plots are disabled by configuration, skipping plotting of accumulated audio data")
 
         if self._xconfig.get("speech-to-text.generate_fourier_transform_plots", False):
             self.plot_fourier_transforms(input_signal=np.concatenate(self.accumulated_signal),
-                                         filtered_signal=np.concatenate(self.accumulated_filtered_signal))
+                                         filtered_signal=np.concatenate(self.accumulated_filtered_signal if preprocessor_enabled else self.accumulated_signal))
         else:
             self._log_debug("Fourier transform plots are disabled by configuration, skipping plotting of accumulated audio data")
     
@@ -174,65 +207,88 @@ class Dumper(PyXavi):
     def plot_signals(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
 
         if self._xconfig.get("speech-to-text.generate_signal_plots", False):
+            preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
+
             audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
             audio_graph.plot_waveform_comparison(
                 input_signal,
                 filtered_signal, 
                 self.samplerate, 
                 filepath=self.signal_plots_path,
-                filename=self.signal_plots_path_name % Xtime.now_key(),
+                # filename=self.signal_plots_path_name % Xtime.now_key(),
+                filename=self.signal_plots_path_name % Xtime.now_key() \
+                    if self.unified_timestamp_key is None \
+                        else self.signal_plots_path_name % self.unified_timestamp_key,
                 also_latest=True,
-                main_title=f"Original vs Filtered Audio Signal - {Xtime.current_time_str()}",
+                main_title=f"Original vs {'(Disabled) ' if not preprocessor_enabled else ''}Filtered Audio Signal - {Xtime.current_time_str() \
+                    if self.unified_timestamp_str is None \
+                    else self.unified_timestamp_str}",
                 signal_name_1=f"Original at {self.input_samplerate} Hz",
-                signal_name_2=f"Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
+                signal_name_2=f"{'(Disabled) ' if not preprocessor_enabled else ''}Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
 
             self._log_debug(f"🗣️ 📈 Plotted audio segment at: {os.path.join(self.signal_plots_path, self.signal_plots_path_name_latest)}")
     
     def plot_spectograms(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
 
         if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
+            preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
+
             audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
             audio_graph.plot_spectrogram_comparison(
                 input_signal,
                 filtered_signal, 
                 self.samplerate, 
                 filepath=self.spectrograms_plots_path,
-                filename=self.spectrograms_plots_path_name % Xtime.now_key(),
+                filename=self.spectrograms_plots_path_name % Xtime.now_key() \
+                    if self.unified_timestamp_key is None \
+                        else self.spectrograms_plots_path_name % self.unified_timestamp_key,
                 also_latest=True,
                 main_title="Input Audio Spectrogram",
-                signal_name_1=f"Original at {self.input_samplerate} Hz  - {Xtime.current_time_str()}",
-                signal_name_2=f"Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
+                signal_name_1=f"Original at {self.input_samplerate} Hz  - {Xtime.current_time_str()}" \
+                    if self.unified_timestamp_str is None \
+                        else f"Original at {self.input_samplerate} Hz  - {self.unified_timestamp_str}",
+                signal_name_2=f"{'(Disabled) ' if not preprocessor_enabled else ''}Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
 
             self._log_debug(f"🗣️ 📈 Plotted audio spectrogram segment at: {os.path.join(self.spectrograms_plots_path, self.spectrograms_plots_path_name_latest)}")
     
     def plot_fourier_transforms(self, input_signal: np.ndarray = None, filtered_signal: np.ndarray = None):
 
         if self._xconfig.get("speech-to-text.generate_fourier_transform_plots", False):
+            preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
+
             audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
             audio_graph.plot_fourier_transform_comparison(
                 input_signal,
                 filtered_signal, 
                 self.samplerate, 
                 filepath=self.fourier_transform_plots_path,
-                filename=self.fourier_transform_plots_path_name % Xtime.now_key(),
+                filename=self.fourier_transform_plots_path_name % Xtime.now_key() \
+                    if self.unified_timestamp_key is None \
+                        else self.fourier_transform_plots_path_name % self.unified_timestamp_key,
                 also_latest=True,
-                main_title=f"Input Audio Fourier Transform - {Xtime.current_time_str()}",
+                main_title=f"Input Audio Fourier Transform - {Xtime.current_time_str()}" \
+                    if self.unified_timestamp_str is None \
+                        else f"Input Audio Fourier Transform - {self.unified_timestamp_str}",
                 signal_name_1=f"Original at {self.input_samplerate} Hz",
-                signal_name_2=f"Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
+                signal_name_2=f"{'(Disabled) ' if not preprocessor_enabled else ''}Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
 
             self._log_debug(f"🗣️ 📈 Plotted audio fourier transform segment at: {os.path.join(self.fourier_transform_plots_path, self.fourier_transform_plots_path_name_latest)}")
 
     def save_preprocessed_audio(self, audio_data_np: np.ndarray):
         # Save the preprocessed audio data to a file for debugging purposes
         if self._xconfig.get("speech-to-text.preprocessor.save_preprocessed_audio", False):
-            filename = os.path.join(self.preprocessed_audio_files_location, f"{self.FILENAME_PREFIX}{Xtime.now_key()}{self.FILENAME_EXTENSION}")
+            filename = os.path.join(
+                self.preprocessed_audio_files_location, 
+                f"{self.FILENAME_PREFIX}{Xtime.now_key() if self.unified_timestamp_key is None else self.unified_timestamp_key}{self.FILENAME_EXTENSION}")
             filename_latest = os.path.join(self.preprocessed_audio_files_location, f"_latest{self.FILENAME_EXTENSION}")
             self._save_audio(audio_data_np, self.preprocessing_samplerate, filename, filename_latest)
     
     def save_input_audio(self, audio_data_np: np.ndarray):
         # Save the input audio data to a file for debugging purposes
         if self._xconfig.get("speech-to-text.save_input_audio", False):
-            filename = os.path.join(self.audio_files_location, f"{self.FILENAME_PREFIX}{Xtime.now_key()}{self.FILENAME_EXTENSION}")
+            filename = os.path.join(
+                self.audio_files_location, 
+                f"{self.FILENAME_PREFIX}{Xtime.now_key() if self.unified_timestamp_key is None else self.unified_timestamp_key}{self.FILENAME_EXTENSION}")
             filename_latest = os.path.join(self.audio_files_location, f"_latest{self.FILENAME_EXTENSION}")
             self._save_audio(audio_data_np, self.input_samplerate, filename, filename_latest)
     

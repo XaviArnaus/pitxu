@@ -61,4 +61,5 @@ class XprocAction:
     DUMP_PREPROCESSED_AUDIO: str = "DUMP_PREPROCESSED_AUDIO"
     PLOT_AUDIO: str = "PLOT_AUDIO"
     CLEAR_AUDIOS: str = "CLEAR_AUDIOS"
+    DUMP_ALL: str = "DUMP_ALL"
 
