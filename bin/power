@@ -21,17 +21,19 @@ print_cpu_volts() {
 }
 
 # Commandline to get the power consumption in watts
-print_power_consumption()
+print_power_consumption() {
     # TODO
-    # echo "no"
+    echo "no"
     # echo "vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, \"=\"); { print \"CPU ampers: \" a[2]; } }'"
-
+}
 
 if [[ $# -eq 0 ]] ; then
     # No arguments provided, we give all info
     print_input_volts
     print_cpu_ampers
     print_cpu_volts
+    echo ""
+    echo "Usage: power [input_volts|cpu_volts|cpu_ampers]"
     exit 0
 fi
 
