@@ -694,12 +694,18 @@ class Main(PyXavi):
 
         if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
             self._xlog.info("Initializing Server as it is enabled by configuration.")
-            params = deepcopy(self._xparams)
-            params.set("samplerate", self._audio_parameters.get("server_samplerate"))
+            # params = deepcopy(self._xparams)
+            params = Dictionary()
+            # Needed for the Server.
+            params.set("samplerate", self._audio_parameters.get("server_samplerate")) # Also needed in Vosk.
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
-            params.set("support", self._support)
+            params.set("support", self._support) # Also needed in Vosk & Preprocessor
+            # Needed for the Vosk class initialised inside the Server.
+            params.set("language", self._xparams.get("language"))
+            params.set("audio_parameters", self._audio_parameters) # Also needed by the Preprocessor
+
             self._server = Server(config=self._xconfig, params=params)
             self._server.initialize()
         else:
