@@ -267,7 +267,7 @@ class MainClient(PyXavi):
                     self.do_every_second_tasks()
 
                     # Show idle screen in eInk if not already showing it
-                    if not self._interaction.is_eink_in_idle_mode():
+                    if not self._interaction.is_idle_mode_on():
                         self._interaction.show_idle()
 
                     # Check if the push to talk button is pressed to record the audio
@@ -395,7 +395,7 @@ class MainClient(PyXavi):
                 # We arrived here because the user wanted to exit the main loop
                 # Make sure we leave the state properly
                 self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -440,7 +440,7 @@ class MainClient(PyXavi):
                 if function_call_pair.function_name == "error":
                     self._xlog.debug("🚨  Showing the ERROR in the eInk")
 
-                    self._interaction.unset_eink_idle_mode()
+                    self._interaction.set_idle_mode_off()
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -483,7 +483,7 @@ class MainClient(PyXavi):
                         # Most likely is an error string. Simply let it say it.
                         self._xlog.debug("🚨 Showing the ERROR in the eInk")
 
-                        self._interaction.unset_eink_idle_mode()
+                        self._interaction.set_idle_mode_off()
                         self._interaction.wait_for_foreground_display_queue_to_empty()
                         self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -524,7 +524,7 @@ class MainClient(PyXavi):
                     value = function_call_pair.function_response.response.get("result", "unknown")
                     args = function_call_pair.function_call.arguments
                     self._xlog.debug("📺 Executing callback with value: " + str(value))
-                    self._interaction.unset_eink_idle_mode()
+                    self._interaction.set_idle_mode_off()
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -605,8 +605,8 @@ class MainClient(PyXavi):
         self.persist_state()
 
         # Stop Idle Mode if active
-        if self._interaction.is_eink_in_idle_mode():
-            self._interaction.unset_eink_idle_mode()
+        if self._interaction.is_idle_mode_on():
+            self._interaction.set_idle_mode_off()
 
         # Clear the displays
         self.clear_displays()
@@ -671,7 +671,7 @@ class MainClient(PyXavi):
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(

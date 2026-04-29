@@ -528,7 +528,7 @@ class MainClientPTT(PyXavi):
                 # Now that the pause has resumed, means that we are meant to close.
                 # Make sure we leave the state properly
                 self._xlog.debug("🏁 Exit signal detected.")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -791,8 +791,8 @@ class MainClientPTT(PyXavi):
         self.persist_state()
 
         # Stop Idle Mode if active
-        if self._interaction.is_eink_in_idle_mode():
-            self._interaction.unset_eink_idle_mode()
+        if self._interaction.is_idle_mode_on():
+            self._interaction.set_idle_mode_off()
 
         # Clear the displays
         self.clear_displays()
@@ -857,7 +857,7 @@ class MainClientPTT(PyXavi):
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(

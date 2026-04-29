@@ -9,7 +9,8 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
+                                            ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
                                             StartupForegroundPaint, CodeBlockForegroundPaint, ErrorForegroundPaint,\
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
@@ -151,9 +152,16 @@ class DsiLcd(XprocessDisplayCombined):
         self.painter.paint_into_foreground_while_thinking(
             foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
     
+    def show_arbitrary_text_while_idle(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while idle.")
+        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("idle_status_foreground_notification", 15.0))
+
+        self.painter.paint_into_foreground_while_idle(
+            foreground_interaction=ArbitraryContentWhileIdleForegroundPaint(parameter=param, for_seconds=for_seconds))
+    
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD.")
-        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notifications", 3.0))
+        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notification", 3.0))
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 

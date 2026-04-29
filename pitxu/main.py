@@ -162,7 +162,7 @@ class Main(PyXavi):
                 # Welcome greeting
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self._interaction.show_init_phases(5, text="👋 Greeting")
-                self._interaction.show_idle()
+                # self._interaction.show_idle()
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
@@ -209,8 +209,8 @@ class Main(PyXavi):
                         self.do_every_second_tasks()
 
                         # Show idle screen in eInk if not already showing it
-                        if not self._interaction.is_eink_in_idle_mode():
-                            self._interaction.show_idle()
+                        # if not self._interaction.is_idle_mode_on():
+                        #     self._interaction.show_idle()
 
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
@@ -238,10 +238,16 @@ class Main(PyXavi):
 
                         # Avoid calling the Chatbot when we can exit directly.
                         if text_has_exit_intention and text_continues_ongoing_interaction:
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
+
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
                         # Avoid calling the Chatbot when the text is only meant for waking up the system.
                         elif text_is_only_trigger_words:
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
+
                             # Randomly choose one of the trigger answers
                             import random
                             answer = random.choice(self._trigger_answers)
@@ -251,6 +257,9 @@ class Main(PyXavi):
 
                             # Here we start with the Chatbot.
                             # -------------------------------
+
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
 
                             # We set it as busy in shared memory, so the Background Display can show the thinking effect
                             # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
@@ -338,7 +347,7 @@ class Main(PyXavi):
                     # We arrived here because the user wanted to exit the main loop
                     # Make sure we leave the state properly
                     self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                    self._interaction.unset_eink_idle_mode()
+                    self._interaction.set_idle_mode_off()
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -427,8 +436,8 @@ class Main(PyXavi):
         self.persist_state()
 
         # Stop Idle Mode if active
-        if self._interaction.is_eink_in_idle_mode():
-            self._interaction.unset_eink_idle_mode()
+        if self._interaction.is_idle_mode_on():
+            self._interaction.set_idle_mode_off()
 
         # Clear the displays
         self.clear_displays()
@@ -730,7 +739,7 @@ class Main(PyXavi):
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
@@ -750,22 +759,30 @@ class Main(PyXavi):
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
 
+            # If we've been inactive for more than 2 minutes, start the idle mode.
+            if self._last_interaction_datetime == None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+
+                if not self._interaction.is_idle_mode_on():
+                    self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
+                    self._interaction.set_idle_mode_on()
+
             # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
             # Also, if we never interacted, asume we're idle.
-            if self._last_interaction_datetime is None or \
-                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+            if self._interaction.is_idle_mode_on():
                 
-                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), showing status information.")
+                self._log_debug(f"User is in idle mode, showing status information.")
 
                 try:
                     wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "SSID: Not connected")
                     network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "IP: Not connected")
-                    server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
                     text = wifi.replace("N/A", "SSID: Not connected") + "\n" + \
-                        network.replace("N/A", "IP: Not connected") + "\n" + \
-                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
+                        network.replace("N/A", "IP: Not connected")
+                    if self._xconfig.get("app.execution_mode", "") in ["client"]:
+                        server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
+                        text = text + "\n" + ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
                     
-                    self._interaction.show_arbitrary_text_on_foreground(
+                    self._interaction.show_arbitrary_text_on_foreground_while_idle(
                         icon="💤",
                         text=text,
                         font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_SMALL,
@@ -804,10 +821,10 @@ class Main(PyXavi):
             self._state.write_file()
 
             
-            # If the background display is idle, show interaction holding percentage if applicable
-            if not self._interaction.is_background_display_busy():
-                # Show the interaction holding percentage if we're expecting an interaction
-                if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
+            # Show the interaction holding percentage if we're expecting an interaction
+            if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
+                # If the background display is idle, show interaction holding percentage if applicable
+                if not self._interaction.is_background_display_busy():
                     # Calculate how much left in percentages the time to hold the interaction
                     seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
                     if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
@@ -820,6 +837,6 @@ class Main(PyXavi):
                         self._last_processed_interaction_percentage = -1
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         self._interaction.clear_background_display()
-            else:
-                self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                else:
+                    self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     

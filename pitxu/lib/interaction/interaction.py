@@ -17,7 +17,7 @@ from multiprocessing import JoinableQueue
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_USER_IS_SPEAKING, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_EINK_IDLE_MODE # <-- This needs to be converted to a more overarching one.
+                        SHARED_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
 class Interaction(PyXavi):
     """
@@ -371,7 +371,7 @@ class Interaction(PyXavi):
         Show the idle mode on the Foreground display.
         """
         self._xlog.debug("👀 Starting idle mode from Interaction class")
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, True)
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_IDLE)
     
     def show_arbitrary_text_on_foreground(
@@ -388,6 +388,29 @@ class Interaction(PyXavi):
         Shows arbitrary text on the foreground display.
         """
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding,
+            "show_for_seconds": show_for_seconds
+        })
+    
+    def show_arbitrary_text_on_foreground_while_idle(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5,
+            show_for_seconds = None
+        ):
+        """
+        Shows arbitrary text on the foreground display.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_IDLE, {
             "icon": icon,
             "text": text,
             "font_size": font_size,
@@ -621,14 +644,16 @@ class Interaction(PyXavi):
     def unset_chatbot_error(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
     
-    def is_eink_in_idle_mode(self) -> bool:
-        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_EINK_IDLE_MODE)
+    def is_idle_mode_on(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_IDLE_MODE)
 
-    def set_eink_idle_mode(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, True)
+    def set_idle_mode_on(self):
+        self._log_debug("💤  Setting idle mode on.")
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, True)
 
-    def unset_eink_idle_mode(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_EINK_IDLE_MODE, False)
+    def set_idle_mode_off(self):
+        self._log_debug("💤  Setting idle mode off.")
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, False)
 
     def is_matrix_busy(self):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MATRIX_BUSY)

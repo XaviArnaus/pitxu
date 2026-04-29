@@ -41,6 +41,9 @@ class XprocessDisplayForeground(Xprocess):
         
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_NETWORKING and param:
             self.show_arbitrary_text_while_networking(param)
+        
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_IDLE and param:
+            self.show_arbitrary_text_while_idle(param)
 
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
@@ -131,6 +134,9 @@ class XprocessDisplayForeground(Xprocess):
     
     def show_arbitrary_text_while_networking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_networking() must be implemented in Display Foreground subclasses.")
+
+    def show_arbitrary_text_while_idle(self, param: dict):
+        raise NotImplementedError("show_arbitrary_text_while_idle() must be implemented in Display Foreground subclasses.")
 
     def show_arbitrary_text_on_foreground(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_on_foreground() must be implemented in Display Foreground subclasses.")
