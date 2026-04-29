@@ -286,7 +286,7 @@ Also, keep in mind that if you use a GPIO soundcard, it needs a PWM channel for 
 
 3. Edit the RPi config file
 ```
-sudo /boot/firmware/config.txt
+sudo nano /boot/firmware/config.txt
 ```
 
 4. Add the following line AT THE TOP OF THE FILE:
