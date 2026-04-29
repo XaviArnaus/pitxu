@@ -7,21 +7,24 @@ DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 # Display the plots for the given timestamp, or the latest ones if no timestamp is provided
 display_plots() {
-	# use feh to display the plots
-    imgcat -f "$DIR/../storage/audio/signals/_latest.png" & \
-    imgcat -f "$DIR/../storage/audio/spectrograms/_latest.png" & \
+    echo "Signals:"
+    imgcat -f "$DIR/../storage/audio/signals/_latest.png"
+    echo "Spectograms:"
+    imgcat -f "$DIR/../storage/audio/spectrograms/_latest.png"
+    echo "Fournier Transform:"
     imgcat -f "$DIR/../storage/audio/fourier_transforms/_latest.png"
 }
 # Play the audios for the given timestamp, or the latest ones if no timestamp is provided
 play_audios() {
-	# use aplay to play the audios
-    aplay "$DIR/../storage/audio/input/_latest.wav" & \
+    echo "Raw Input audio:"
+    aplay "$DIR/../storage/audio/input/_latest.wav"
+    echo "Preprocessed Input audio:"
     aplay "$DIR/../storage/audio/preprocessed_input/_latest.wav"
 }
 
 if [[ $# -eq 0 ]] ; then
     # No arguments provided, we give all CPU info
-    display_plots & \
+    display_plots
     play_audios
     exit 0
 fi
