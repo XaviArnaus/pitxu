@@ -1,3 +1,5 @@
+from functools import partial
+
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -11,6 +13,7 @@ from rms_vad import RmsVAD, VADConfig
 import numpy as np
 import logging
 import samplerate
+import asyncio
 
 class CaptureHandler(PyXavi):
 
@@ -21,6 +24,8 @@ class CaptureHandler(PyXavi):
     queue: Queue.Queue = None
     vad: RmsVAD = None
     resampler: samplerate.Resampler = None
+    on_user_finished_speaking_callback: callable = None
+    main_event_loop: asyncio.AbstractEventLoop = None
 
     local_user_is_speaking: bool = False
 
@@ -48,6 +53,18 @@ class CaptureHandler(PyXavi):
             self.target_samplerate = params.get("target_samplerate")
         else:
             self._xlog.warning(f"No target samplerate provided in params to CaptureHandler, using default of {self.target_samplerate} Hz")
+
+        # Get the callback for when the user finishes speaking, or use defaults.
+        if params.key_exists("on_user_finished_speaking_callback"):
+            self.on_user_finished_speaking_callback = params.get("on_user_finished_speaking_callback")
+        else:
+            raise ValueError("No callback provided for when the user finishes speaking in params to CaptureHandler")
+        
+        # Get the callback's context for when the user finishes speaking, or use defaults.
+        if params.key_exists("main_event_loop"):
+            self.main_event_loop = params.get("main_event_loop")
+        else:
+            raise ValueError("No main event loop provided for when the user finishes speaking in params to CaptureHandler")
 
         # Control for `is_user_speaking` flag.
         self.shared_memory = SharedMemoryManager(config=config, params=params)
@@ -137,7 +154,11 @@ class CaptureHandler(PyXavi):
         # Sending None as a marker for end of speech, so the recognizer can trigger an END step.
         self.queue.put(None)
 
-        # TODO: ⚠️ This should actually trigger the whole Pitxu interaction pipeline.
+        # Now we can trigger the main execution, as the user has finished speaking.
+        if self.on_user_finished_speaking_callback is not None:
+            # There is no current loop in this thread (Dummy-5).
+            #asyncio.run_coroutine_threadsafe(self.on_user_finished_speaking_callback(), asyncio.get_event_loop())
+            asyncio.run_coroutine_threadsafe(self.on_user_finished_speaking_callback(), self.main_event_loop)
     
     def get_vad_handler(self):
         return self.vad

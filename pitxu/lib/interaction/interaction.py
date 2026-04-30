@@ -601,14 +601,14 @@ class Interaction(PyXavi):
 
     def mute_microphone(self, input_stream: RawInputStream = None):
         if input_stream:
-            self._log_debug("🔇 Stopping the input stream as microphone is muted.")
+            self._log_debug("🔇 Stopping the input stream as microphone is muting.")
             input_stream.stop()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
     def unmute_microphone(self, input_stream: RawInputStream = None):
         if input_stream:
-            self._log_debug("🔊 Starting the input stream as microphone is unmuted.")
+            self._log_debug("🔊 Starting the input stream as microphone is unmuting.")
             input_stream.start()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
