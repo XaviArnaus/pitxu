@@ -26,7 +26,7 @@ print_ups_volts() {
 }
 
 print_ups_battery() {
-    echo "Battery level: $(i2cget -y 1 0x36 0x04 | awk '{ printf "%d%", $1 }')"
+    echo "Battery level: $(i2cget -y 1 0x36 0x04 | awk '{ printf "%d%%", $1 }')"
 }
 
 # Commandline to get the power consumption in watts
