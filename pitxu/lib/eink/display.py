@@ -5,7 +5,7 @@ from pitxu.lib.eink.eink import EinkDisplay
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_EINK_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_IDLE_MODE
 
 from PIL import Image
 import time
@@ -93,10 +93,17 @@ class Display(XprocessDisplayForeground):
         self.show_arbitrary_text_on_foreground(param=param)
         while self.is_speaker_busy():
             time.sleep(1)
-        time.sleep(1)  # small delay to ensure the user sees the image
+        time.sleep(1)  # small delay to ensure the user sees the text
+    
+    def show_arbitrary_text_while_idle(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary text on eInk while idle.")
+        self.show_arbitrary_text_on_foreground(param=param)
+        while self.is_idle_mode_on():
+            time.sleep(1)
+        time.sleep(1)  # small delay to ensure the user sees the text
     
     def show_arbitrary_text_on_foreground(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on eInk while speaking.")
+        self._xlog.info(f"👀 Showing arbitrary text on eInk on foreground.")
         self._macros.arbitrary_text_with_icon(
             text=param.get("text", None),
             icon=param.get("icon", None),
@@ -118,7 +125,7 @@ class Display(XprocessDisplayForeground):
 
         # It repeats until the speaker is busy
         should_stop_idle = False
-        while not should_stop_idle and self.is_eink_idle_mode():
+        while not should_stop_idle and self.is_idle_mode_on():
             # reset the counters and flags
             seconds_waited = 0
             are_eyes_open = False
@@ -132,8 +139,8 @@ class Display(XprocessDisplayForeground):
 
                 # quit if the idle mode is unset from outside
                 #   (because we also use the flag in the other direction)
-                if not self.is_eink_idle_mode():
-                    self._log_debug(f"Received a idle mode cancel (idle is now [{self.is_eink_idle_mode()}]).")
+                if not self.is_idle_mode_on():
+                    self._log_debug(f"Received a idle mode cancel (idle is now [{self.is_idle_mode_on()}]).")
                     should_stop_idle = True
                     break
                 # show eyes open if not already shown
@@ -166,5 +173,5 @@ class Display(XprocessDisplayForeground):
     def is_speaker_busy(self):
         return self.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
 
-    def is_eink_idle_mode(self):
-        return self.read_shared_memory_flag(SHARED_EINK_IDLE_MODE)
+    def is_idle_mode_on(self):
+        return self.read_shared_memory_flag(SHARED_IDLE_MODE)

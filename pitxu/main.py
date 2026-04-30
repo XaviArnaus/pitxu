@@ -3,23 +3,25 @@ from subprocess import call
 from pyxavi import Config, Dictionary, Storage, full_stack, dd
 
 import signal
-from functools import partial
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
-from pitxu.lib.utils.memory import Memory
+from pitxu.lib.utils.system import System
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
+from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 
 import sys
 import sounddevice
@@ -42,6 +44,8 @@ class Main(PyXavi):
     _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
 
+    _audio_parameters: dict = None
+
     _chatbot: GeminiChatbot = None
     _dictate: Vosk = None
     _raw_input_stream: sounddevice.RawInputStream = None
@@ -50,6 +54,11 @@ class Main(PyXavi):
     _is_pitxu_active: bool = True
 
     _chatbot_client_callbacks: dict[str, callable] = None
+
+    _interaction: Interaction = None
+    _reactions: Reactions = None
+
+    _support: Support = None
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
@@ -79,147 +88,8 @@ class Main(PyXavi):
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
 
-        # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
-
-        # Initial Language. 1st from the state, then from the config, and last default to Catalan.
-        language = self._state.get("language", config.get("app.default_language", self.CATALAN))
-        self._xparams.set("language", language)
-
-        # Initialize Maintenance utility
-        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
-
-        # Supported Languages
-        self._supported_languages = config.get("app.supported_languages")
-
-        # Check and complain if the initial language is not supported
-        if self._xparams.get("language") not in self._supported_languages:
-            self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")
-            self._xlog.error("🛑 Please change the initial language in the state file or the default language in the config file to one of the supported languages.")
-            self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
-            self._xlog.error("🛑 Exiting now.")
-            sys.exit(1)
-
-        # The Reminders functionality
-        self._reminders = Reminders(config=self._xconfig, params=self._xparams)
-
-        # Stopwatch to measure times
-        self._stopwatch = Stopwatch()
+        self._instantiate()
     
-    def _handle_signal(self, sig, frame):
-        """
-        Handle signals for graceful shutdown.
-        This is set to handle SIGTERM, that is the signal sent by systemctl stop and reboot commands.
-
-        This allows the service to stop gracefully when receiving a termination signal,
-        that happens with systemctl stop or reboot commands.
-        """
-
-        signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
-
-        self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
-        self.close_nicely()
-    
-    def _load_models(self):
-        
-        # Initialise Speech-to-Text. This runs in the main process
-        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
-        # COMMENTED: This way Vosk chooses between config or device.
-        # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
-        self._dictate = Vosk(config=self._xconfig, params=self._xparams)
-        input_audio_chunk_queue = self._dictate.get_queue()
-
-        # Initialise the Capture Handler, that captures the audio from the microphone.
-        # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
-        samplerate = self.get_samplerate()
-        self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
-            "capture_queue": input_audio_chunk_queue,
-            "microphone_samplerate": samplerate,
-            "target_samplerate": self._xconfig.get("speech-to-text.target_samplerate", 16000)
-        }))
-
-        # # Initialise the Raw Input Stream for microphone
-        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
-        # if self._xconfig.get("speech_to_text.mock", True) is False:
-        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
-        #     # Correct format for Vosk is PCM 16khz 16bit mono
-        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
-        #                     blocksize = 0, 
-        #                     device=self._dictate.device,
-        #                     dtype="int16", 
-        #                     channels=1,
-        #                     callback=self._dictate.callback)
-        # else:
-        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
-
-        # Initialise Chatbot
-        self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
-
-    def _load_language_statics(self):
-
-        # Load the greeting sentence
-        self._xlog.debug("Load Greeting with language [" + self._xparams.get("language") + "]")
-        self._greeting_sentence = self._xconfig.get("language.greeting." + self._xparams.get("language"))
-
-        # Load the goodbye sentence
-        self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
-        self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
-
-        # Load trigger words
-        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
-        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
-
-        # Load trigger answers
-        self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
-        self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
-
-        # Compile exit words
-        all_possible_exit_words = []
-        for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
-            for word in exit_words:
-                if word not in all_possible_exit_words:
-                    all_possible_exit_words.append(word)
-        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
-        self._exit_words = all_possible_exit_words
-
-        # Idle mode after some minutes of inactivity
-        self._idle_minutes_to_show_status = self._xconfig.get("maintenance.idle_minutes", self._idle_minutes_to_show_status)
-    
-    def _initialize_interactions(self):
-        """
-        Initialisation of the Interaction class, that manages output (TTS and displays)
-        """
-
-        self._xlog.info("Initialising Interaction class")
-        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
-
-        # We start with the microphone muted.
-        # At this point we don't have the Input Stream yet, just making sure that we start muted.
-        self._interaction.mute_microphone()
-    
-    def _initialize_server(self):
-        """
-        Initializes the Server that accepts requests to the defined endpoints
-        """
-
-        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
-            self._xlog.info("Initializing Server as it is enabled by configuration.")
-            params = deepcopy(self._xparams)
-            params.set("output_interaction", self._interaction)
-            params.set("chatbot", self._chatbot)
-            params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
-            self._server = Server(config=self._xconfig, params=params)
-            self._server.initialize()
-        else:
-            self._xlog.info(f"Server is disabled by configuration (" +
-                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
-                            f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
-                            ") > not initializing it.")
-
     async def run(self):
 
         sw_init = self._stopwatch.start(name="init")
@@ -234,18 +104,15 @@ class Main(PyXavi):
         # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
         self._initialize_interactions()
         # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
-        self._interaction.show_init_phases(1, text="Interactions")
+        self._interaction.show_init_phases(1, text="💬 Interactions")
 
         # Startup splash. It should be understood as a "Loading..." screen.
         # We set it for 4s, but it may be overridden by the display config block for the related display.
         self._interaction.startup_splash(for_seconds=4.0)
-        self._interaction.show_init_phases(2)
 
-
-        # Initialize the case fan control and apply it.
-        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
-        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
-        self._fan_control.toggle_all_fans_by_temperature()
+        # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._interaction.show_init_phases(2, text="⚙️  Statics, Params and Support")
+        self._load_statics_params_and_support()
 
         # At this point, we better wait for all queues to be empty.
         # COMMENTED: Do we really need to wait for queues?
@@ -254,12 +121,8 @@ class Main(PyXavi):
         # self._interaction.show_init_phases(3, text="Foreground Display Queue Empty")
 
         # Initialise all classes that require a model. They go per language.
-        self._interaction.show_init_phases(2, text="Models")
+        self._interaction.show_init_phases(3, text="🧠 Models")
         self._load_models()
-
-        # Load all language statics, like the exit words and the greeting / goodbye sentences
-        self._interaction.show_init_phases(3, text="Language Statics")
-        self._load_language_statics()
 
         try:
             # This is the samplerate that generates the chunks received in CaptureHandler.callback().
@@ -269,12 +132,12 @@ class Main(PyXavi):
             #   under 16 kHz.
             # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
             # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
-            samplerate = self.get_samplerate()
+            samplerate = self._audio_parameters.get("input_samplerate")
             blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
 
             # Read from microphone.
             # with self._raw_input_stream() as input_stream:
-            self._interaction.show_init_phases(4, text="Microphone")
+            self._interaction.show_init_phases(4, text="🎙️  Microphone")
             with sounddevice.RawInputStream(
                             #samplerate=self._dictate.samplerate,
                             # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
@@ -298,23 +161,27 @@ class Main(PyXavi):
                 
                 # Welcome greeting
                 sw_greeting = self._stopwatch.start(name="greeting")
-                self._interaction.show_init_phases(5, text="Greeting")
-                self._interaction.show_idle()
+                self._interaction.show_init_phases(5, text="👋 Greeting")
+                # self._interaction.show_idle()
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
                 # Set up of all the session context we need for the Chatbot and the MCP tools
-                self._interaction.show_init_phases(6, text="Chatbot Session Manager")
+                self._interaction.show_init_phases(6, text="🤖 Chatbot Session Manager")
                 async with self._chatbot.get_session_manager() as chatbot_session_manager:
 
                     # Initialise the Chatbot async context with all the tools from the session manager
-                    self._interaction.show_init_phases(7, text="Chatbot")
+                    self._interaction.show_init_phases(7, text="🤖 Chatbot")
                     await self._chatbot.initialize_async(tools=chatbot_session_manager.tools)
                     self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
 
                     # Initialise the Server that accepts requests to the defined endpoints.
-                    self._interaction.show_init_phases(8, text="Server")
+                    self._interaction.show_init_phases(8, text="🖥️  Server")
                     self._initialize_server()
+
+                    # Initialize the Reactions class
+                    self._interaction.show_init_phases(9, text="⚡️ Reactions")
+                    self._initialize_reactions(input_stream=input_stream)
 
                     # Clean background after initialisation.
                     # NOTE: I suspect double clear due to background & combined inheritance method execution.
@@ -342,8 +209,8 @@ class Main(PyXavi):
                         self.do_every_second_tasks()
 
                         # Show idle screen in eInk if not already showing it
-                        if not self._interaction.is_eink_in_idle_mode():
-                            self._interaction.show_idle()
+                        # if not self._interaction.is_idle_mode_on():
+                        #     self._interaction.show_idle()
 
                         # Recognize what comes from the microphone
                         sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(dictate_count))
@@ -371,10 +238,16 @@ class Main(PyXavi):
 
                         # Avoid calling the Chatbot when we can exit directly.
                         if text_has_exit_intention and text_continues_ongoing_interaction:
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
+
                             # Just assume a goodbye
                             answer = self._goodbye_sentence
                         # Avoid calling the Chatbot when the text is only meant for waking up the system.
                         elif text_is_only_trigger_words:
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
+
                             # Randomly choose one of the trigger answers
                             import random
                             answer = random.choice(self._trigger_answers)
@@ -384,6 +257,9 @@ class Main(PyXavi):
 
                             # Here we start with the Chatbot.
                             # -------------------------------
+
+                            # An interaction comes, stop the idle mode.
+                            self._interaction.set_idle_mode_off()
 
                             # We set it as busy in shared memory, so the Background Display can show the thinking effect
                             # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
@@ -414,7 +290,7 @@ class Main(PyXavi):
                                 #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
                                 #       So the second time we may not be able to show the time on the screen, for example.
                                 self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
-                                self.react_on_answer(chat_response=chat_response, input_stream=input_stream)
+                                self._reactions.react_on_answer(chat_response=chat_response)
                             except Exception as e:
                                 self._xlog.error("🛑 Error reacting to function call: " + str(e))
                             
@@ -471,7 +347,7 @@ class Main(PyXavi):
                     # We arrived here because the user wanted to exit the main loop
                     # Make sure we leave the state properly
                     self._xlog.debug("💬 Exit intention detected in dictate. Exiting main loop.")
-                    self._interaction.unset_eink_idle_mode()
+                    self._interaction.set_idle_mode_off()
                     self._interaction.wait_for_foreground_display_queue_to_empty()
                     self._interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -493,168 +369,6 @@ class Main(PyXavi):
         self.close_nicely()
 
     # ------------- End of the main method run() -------------
-    
-    def react_on_answer(self, chat_response: ChatbotResponse, input_stream: sounddevice.RawInputStream = None) -> None:
-        """
-        Reacts to the received answer beyond simply answering, like expressions, emotions, or actions.
-
-        Args:
-            chat_response (ChatbotResponse): The last response from the chatbot.
-        
-        Returns:
-            None
-        """
-
-        if chat_response is None or \
-                chat_response.function_call_history is None or \
-                chat_response.function_call_history.get_last() is None or \
-                not chat_response.function_call_history.get_last().has_response():
-            return None
-        
-
-        # --- Code to react on function call ---
-
-        # The idea here is to be able to use the hardware as part of the response, like moving eyes,
-        #   or showing the hour in the Display if asked for the time...
-        #
-        # More importantly, this is the way to perform a proper close_nicely(), besides just
-        #   shutting down or rebooting the system without caring.
-        # For this last point to happen, we need to control the answer of the tool, give something
-        #   specific to search for here.
-
-        try:
-            function_call_pair: FunctionCallPair = chat_response.function_call_history.get_last()
-            if function_call_pair.has_response():
-                self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
-                
-                # We must start by the specifics. If none of them match, we go to the generic error handling.
-                if function_call_pair.function_name == "error":
-                    self._xlog.debug("🚨  Showing the ERROR in the eInk")
-
-                    self._interaction.unset_eink_idle_mode()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                        icon="🚨",
-                        text=function_call_pair.function_response.response.get("result", "unknown"),
-                        font_size=Canvas.FONT_SIZE_BIG)
-
-                elif function_call_pair.function_name == "shutdown_local_machine":
-                    self._xlog.debug("💤 Preparing for shutdown...")
-                    self.close_nicely(avoid_final_exit=True)
-                    try:
-                        self._log_debug("Calling system shutdown now...")
-                        call("sudo nohup shutdown -h now", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during shutdown: {e}")
-                elif function_call_pair.function_name == "reboot_local_machine":
-                    self._xlog.debug("♻️  Preparing for reboot...")
-                    self.close_nicely(avoid_final_exit=True)
-                    try:
-                        self._log_debug("Calling system shutdown now...")
-                        call("sudo nohup reboot", shell=True)
-                    except Exception as e:
-                        self._xlog.error(f"Error during reboot: {e}")
-                elif function_call_pair.function_name == "restart_system":
-                    self._xlog.debug("🔄 Preparing to restart system...")
-                    self.close_nicely()
-                elif function_call_pair.function_name == "change_system_language":
-                    self._xlog.debug("🌐 Preparing to change system language...")
-                    result = function_call_pair.function_response.response.get("result", False)
-                    intended_language = function_call_pair.function_call.arguments.get("new_language", "unknown")
-
-                    if isinstance(result, bool) and result is False:
-                        # This means that the language change failed internally. Most likely because we could not understand
-                        # the requested language or it is not supported.
-                        result = self._xconfig.get(f"language.language_not_supported.{self._xparams.get('language')}") % intended_language
-
-                    if isinstance(result, str) and result not in self._supported_languages:
-                        # This means that the result of the function returned anything but a supported language.
-                        # Most likely is an error string. Simply let it say it.
-                        self._xlog.debug("🚨 Showing the ERROR in the eInk")
-
-                        self._interaction.unset_eink_idle_mode()
-                        self._interaction.wait_for_foreground_display_queue_to_empty()
-                        self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                        self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                            icon="🚨",
-                            text=result,
-                            font_size=Canvas.FONT_SIZE_BIG)
-
-                    else:
-                        # We have here the new desired language code.
-                        try:
-                            # The very first thing is to set the language in the app's state.
-                            self._state.set("language", result)
-                            self._state.write_file()
-                            self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
-
-                            # If we close the app now, the micrphone is still muted, and gets conserved.
-                            self._interaction.unmute_microphone(input_stream=input_stream)
-
-                            # Now we close the app and give an exit code that indicates to the launcher that it just needs to restart the app.
-                            self.close_nicely()
-                            self._xlog.info("🌐 Exiting with code 42 to indicate language change")
-                            # Feels like does not really exit, as logs show that afterwards it tries to unmute the microphone.
-                            # Trying now to change from exit(42) to sys.exit(42)
-                            sys.exit(42)
-                        except Exception as e:
-                            self._xlog.error(f"🛑 Failed to change system language to '{result}': {e}")
-
-                    # Whatever we did, reactivate the microphone
-                    # Note that for changing the language, we unmuted first and then exit, so in this case it should not hit here.
-                    self._interaction.unmute_microphone(input_stream=input_stream)
-                
-                # Here we can parse the function response and act accordingly
-                # For example, if the function call is to get the current time, we can display it on an eInk screen
-                elif function_call_pair.function_name in self._chatbot_client_callbacks.keys():
-                    # Generic callback execution for other functions that have a defined callback
-
-                    value = function_call_pair.function_response.response.get("result", "unknown")
-                    args = function_call_pair.function_call.arguments
-                    self._xlog.debug("📺 Executing callback with value: " + str(value))
-                    self._interaction.unset_eink_idle_mode()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
-
-                    # Here we call the callback from within the command, passing the context of `main._interaction` and the value
-                    # Whatever happens, it's done there inside.
-                    partial(
-                        self._chatbot_client_callbacks[function_call_pair.function_name],
-                        self._xlog,
-                        self._interaction,
-                        value,
-                        args
-                    )()
-            
-                # We should finish here. I didn't study yet cases when we have function calls AND anything else below.
-                return
-
-        except Exception as e:
-            self._xlog.error("🛑 Error reacting to function call: " + str(e))
-            self._xlog.debug(full_stack())
-        
-        # --- Code to react on chat_response more globally ---
-
-        # The idea here is to cover answers that do not trigger a function call.
-        # Lot of times is due to the chatbot repeating an answer, like "can you show me that code block again?"
-        #   It simply picks it back from his history, but we still want to react on the answer.
-
-        try:
-            if chat_response.code is not None:
-                self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
-                self._interaction.show_code_block_on_foreground(
-                    code=chat_response.code[0],
-                    for_seconds=10.0)
-                # Sometimes it answers with code but no text, so we make it more human:
-                if chat_response.text.strip() == "":
-                    chat_response.text = self._xconfig.get("language.code.empty_answer_with_code." + self._xparams.get("language"))
-
-        except Exception as e:
-            self._xlog.error("🛑 Error reacting to code block in answer: " + str(e))
-            self._xlog.debug(full_stack())
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -722,11 +436,15 @@ class Main(PyXavi):
         self.persist_state()
 
         # Stop Idle Mode if active
-        if self._interaction.is_eink_in_idle_mode():
-            self._interaction.unset_eink_idle_mode()
+        if self._interaction.is_idle_mode_on():
+            self._interaction.set_idle_mode_off()
 
         # Clear the displays
         self.clear_displays()
+
+        # Close the Support class, which empties the queue discarding all actions there
+        if self._support is not None:
+            self._support.close()
 
         # Wait for all the queues and processes to get empty
         self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
@@ -754,7 +472,7 @@ class Main(PyXavi):
         # Here comes anything that we want to do before leaving
         try:
             self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-            self._xlog.info("💡  Memory used: " + str(Memory.use(Memory.MEGABYTES)) + " MB")
+            self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
             self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
         except (Exception, RuntimeError) as e:
             self._xlog.error("🛑 Error while logging final stats: " + str(e))
@@ -774,20 +492,20 @@ class Main(PyXavi):
         self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
     
-    def get_samplerate(self) -> int:
-        device_samplerate = self.get_samplerate_from_device()
-        samplerate = self._xconfig.get("speech-to-text.input_samplerate", device_samplerate)
-        if samplerate == -1:
-            samplerate = device_samplerate
-        return samplerate
+    # def get_samplerate(self) -> int:
+    #     device_samplerate = self.get_samplerate_from_device()
+    #     samplerate = self._xconfig.get("speech-to-text.input_samplerate", device_samplerate)
+    #     if samplerate == -1:
+    #         samplerate = device_samplerate
+    #     return samplerate
     
-    def get_samplerate_from_device(self) -> int:
-        device = self._xconfig.get("speech-to-text.input_device", None)
-        if device is not None:
-            device_info = sounddevice.query_devices(device, "input")
-            # soundfile expects an int, sounddevice provides a float:
-            return int(device_info["default_samplerate"])
-        return 16000  # Default samplerate if no device is specified
+    # def get_samplerate_from_device(self) -> int:
+    #     device = self._xconfig.get("speech-to-text.input_device", None)
+    #     if device is not None:
+    #         device_info = sounddevice.query_devices(device, "input")
+    #         # soundfile expects an int, sounddevice provides a float:
+    #         return int(device_info["default_samplerate"])
+    #     return 16000  # Default samplerate if no device is specified
 
     def clear_displays(self):
         if self._interaction.displays_are_combined():
@@ -798,6 +516,213 @@ class Main(PyXavi):
         self._interaction.clear_foreground_display()
         self._log_debug("Clearing the Background Display.")
         self._interaction.clear_background_display()
+    
+    # ------------ Initializations and closings -------------
+
+    def _instantiate(self):
+        """
+        The initialization of the Main itself, what you would include in __init__()
+        """
+        # Initialize State
+        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+
+        # Initial Language. 1st from the state, then from the config, and last default to Catalan.
+        language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
+        self._xparams.set("language", language)
+
+        # Initialize Maintenance utility
+        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
+
+        # Supported Languages
+        self._supported_languages = self._xconfig.get("app.supported_languages")
+
+        # Check and complain if the initial language is not supported
+        if self._xparams.get("language") not in self._supported_languages:
+            self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")
+            self._xlog.error("🛑 Please change the initial language in the state file or the default language in the config file to one of the supported languages.")
+            self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
+            self._xlog.error("🛑 Exiting now.")
+            sys.exit(1)
+
+        # The Reminders functionality
+        self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+
+        # Stopwatch to measure times
+        self._stopwatch = Stopwatch()
+    
+    def _handle_signal(self, sig, frame):
+        """
+        Handle signals for graceful shutdown.
+        This is set to handle SIGTERM, that is the signal sent by systemctl stop and reboot commands.
+
+        This allows the service to stop gracefully when receiving a termination signal,
+        that happens with systemctl stop or reboot commands.
+        """
+
+        signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
+
+        self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
+        self.close_nicely()
+    
+    def _load_statics_params_and_support(self):
+        """
+        Load all the static values and params that we are going to use in the app, that may depend on the language.
+        This includes the greeting and goodbye sentences, the trigger words and answers, and the exit words.
+        """
+
+        # Initialize the case fan control and apply it.
+        self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
+        self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
+        self._fan_control.toggle_all_fans_by_temperature()
+
+        # Get all audio parameters in one place, to be used by the different components that need it
+        #   (SST, TTS, preprocessing, dumper, ...).
+        self._audio_parameters = AudioParametersLoader(config=self._xconfig, params=self._xparams).get_audio_parameters()
+        self._xparams.set("audio_parameters", self._audio_parameters)
+
+        # Load all language statics, like the exit words and the greeting / goodbye sentences
+        self._load_language_statics()
+
+        # Initialise the Support worker.
+        support_params = Dictionary({
+            "audio_parameters": self._audio_parameters,
+            "process_pool": self._interaction.get_process_pool(),
+        })
+        self._support = Support(config=self._xconfig, params=support_params)
+        self._support.initialize()
+    
+    def _load_models(self):
+        
+        # Initialise Speech-to-Text. This runs in the main process
+        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+        # COMMENTED: This way Vosk chooses between config or device.
+        # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
+
+        if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+            self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
+            self._xparams.set("support", self._support)
+            self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        else:
+            self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
+            self._xlog.error("🛑 Supported engines are: vosk")
+            self._xlog.error("🛑 Exiting now.")
+            sys.exit(1)
+
+        input_audio_chunk_queue = self._dictate.get_queue()
+
+        # Initialise the Capture Handler, that captures the audio from the microphone.
+        # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
+        self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
+            "capture_queue": input_audio_chunk_queue,
+            "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
+            "target_samplerate": self._audio_parameters.get("resample_target_samplerate")
+        }))
+
+        # # Initialise the Raw Input Stream for microphone
+        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
+        # if self._xconfig.get("speech_to_text.mock", True) is False:
+        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
+        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
+        #     # Correct format for Vosk is PCM 16khz 16bit mono
+        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
+        #                     blocksize = 0, 
+        #                     device=self._dictate.device,
+        #                     dtype="int16", 
+        #                     channels=1,
+        #                     callback=self._dictate.callback)
+        # else:
+        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
+        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
+        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
+
+        # Initialise Chatbot
+        self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
+        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+
+    def _load_language_statics(self):
+
+        # Load the greeting sentence
+        self._xlog.debug("Load Greeting with language [" + self._xparams.get("language") + "]")
+        self._greeting_sentence = self._xconfig.get("language.greeting." + self._xparams.get("language"))
+
+        # Load the goodbye sentence
+        self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
+        self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
+
+        # Load trigger words
+        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
+        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
+
+        # Load trigger answers
+        self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
+        self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
+
+        # Compile exit words
+        all_possible_exit_words = []
+        for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
+            for word in exit_words:
+                if word not in all_possible_exit_words:
+                    all_possible_exit_words.append(word)
+        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._exit_words = all_possible_exit_words
+
+        # Idle mode after some minutes of inactivity
+        self._idle_minutes_to_show_status = self._xconfig.get("maintenance.idle_minutes", self._idle_minutes_to_show_status)
+    
+    def _initialize_interactions(self):
+        """
+        Initialisation of the Interaction class, that manages output (TTS and displays)
+        """
+
+        self._xlog.info("Initialising Interaction class")
+        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
+
+        # We start with the microphone muted.
+        # At this point we don't have the Input Stream yet, just making sure that we start muted.
+        self._interaction.mute_microphone()
+    
+    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+        """
+        Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
+        """
+
+        self._xlog.info("Initialising Reactions class")
+
+        params: Dictionary = Dictionary({
+            "interaction": self._interaction,
+            "client_callbacks": self._chatbot_client_callbacks,
+            "close_nicely_callback": self.close_nicely,
+            "input_stream": input_stream
+        })
+        self._reactions = Reactions(config=self._xconfig, params=params)
+    
+    def _initialize_server(self):
+        """
+        Initializes the Server that accepts requests to the defined endpoints
+        """
+
+        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
+            self._xlog.info("Initializing Server as it is enabled by configuration.")
+            # params = deepcopy(self._xparams)
+            params = Dictionary()
+            # Needed for the Server.
+            params.set("app_version", self._xparams.get("app_version"))
+            params.set("samplerate", self._audio_parameters.get("server_samplerate")) # Also needed in Vosk.
+            params.set("output_interaction", self._interaction)
+            params.set("chatbot", self._chatbot)
+            params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
+            params.set("support", self._support) # Also needed in Vosk & Preprocessor
+            # Needed for the Vosk class initialised inside the Server.
+            params.set("language", self._xparams.get("language"))
+            params.set("audio_parameters", self._audio_parameters) # Also needed by the Preprocessor
+
+            self._server = Server(config=self._xconfig, params=params)
+            self._server.initialize()
+        else:
+            self._xlog.info(f"Server is disabled by configuration (" +
+                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
+                            f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
+                            ") > not initializing it.")
 
     # ------- Stuff to do every minute -------
 
@@ -814,7 +739,7 @@ class Main(PyXavi):
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
                 # Show reminder in eInk and say it
                 reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.unset_eink_idle_mode()
+                self._interaction.set_idle_mode_off()
                 self._interaction.wait_for_foreground_display_queue_to_empty()
                 self._interaction.wait_for_busy_foreground_display_to_idle()
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
@@ -834,22 +759,30 @@ class Main(PyXavi):
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
 
+            # If we've been inactive for more than 2 minutes, start the idle mode.
+            if self._last_interaction_datetime == None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+
+                if not self._interaction.is_idle_mode_on():
+                    self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
+                    self._interaction.set_idle_mode_on()
+
             # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
             # Also, if we never interacted, asume we're idle.
-            if self._last_interaction_datetime is None or \
-                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+            if self._interaction.is_idle_mode_on():
                 
-                self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), showing status information.")
+                self._log_debug(f"User is in idle mode, showing status information.")
 
                 try:
                     wifi = self._maintenance.get_last_gathered_metrics().get("network", {}).get("wifi_ssid", "SSID: Not connected")
                     network = self._maintenance.get_last_gathered_metrics().get("network", {}).get("ip", "IP: Not connected")
-                    server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
                     text = wifi.replace("N/A", "SSID: Not connected") + "\n" + \
-                        network.replace("N/A", "IP: Not connected") + "\n" + \
-                        ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
+                        network.replace("N/A", "IP: Not connected")
+                    if self._xconfig.get("app.execution_mode", "") in ["client"]:
+                        server_status = self._maintenance.get_last_gathered_metrics().get("pitxu_server_alive", "unreachable")
+                        text = text + "\n" + ("✅ Connected" if server_status == "alive" else f"❌ Not Connected:\n{server_status}")
                     
-                    self._interaction.show_arbitrary_text_on_foreground(
+                    self._interaction.show_arbitrary_text_on_foreground_while_idle(
                         icon="💤",
                         text=text,
                         font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_SMALL,
@@ -859,6 +792,11 @@ class Main(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+            
+            # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
+            if self._xconfig.get("speech-to-text.vad.enabled", False):
+                vad_stats = self._capture_handler.get_vad_handler().get_stats()
+                self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
     
     # ------- Stuff to do every second -------
 
@@ -883,10 +821,10 @@ class Main(PyXavi):
             self._state.write_file()
 
             
-            # If the background display is idle, show interaction holding percentage if applicable
-            if not self._interaction.is_background_display_busy():
-                # Show the interaction holding percentage if we're expecting an interaction
-                if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
+            # Show the interaction holding percentage if we're expecting an interaction
+            if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
+                # If the background display is idle, show interaction holding percentage if applicable
+                if not self._interaction.is_background_display_busy():
                     # Calculate how much left in percentages the time to hold the interaction
                     seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
                     if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
@@ -899,11 +837,6 @@ class Main(PyXavi):
                         self._last_processed_interaction_percentage = -1
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         self._interaction.clear_background_display()
-            else:
-                self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
-            
-            # vad_stats = self._capture_handler.get_vad_handler().get_stats()
-            # dd(vad_stats)
-
-            # self._dictate._preprocessor.on_speech_end()
+                else:
+                    self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     

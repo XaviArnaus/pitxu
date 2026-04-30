@@ -10,8 +10,8 @@ from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackgr
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY,\
-                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, \
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT
 
 
 class XprocessPool(PyXavi):
@@ -28,6 +28,7 @@ class XprocessPool(PyXavi):
         "speaker_busy": SHARED_SPEAKER_BUSY,
         "lcd_busy": SHARED_LCD_BUSY,
         "dsi_lcd_busy": SHARED_DSI_LCD_BUSY,
+        "support_busy": SHARED_SUPPORT_BUSY,
     }
     _shared_flags_per_queue: dict[str, str] = {
         QUEUE_EINK: SHARED_EINK_BUSY,
@@ -35,6 +36,7 @@ class XprocessPool(PyXavi):
         QUEUE_SPEAKER: SHARED_SPEAKER_BUSY,
         QUEUE_LCD: SHARED_LCD_BUSY,
         QUEUE_DSI_LCD: SHARED_DSI_LCD_BUSY,
+        QUEUE_SUPPORT: SHARED_SUPPORT_BUSY,
     }
 
     def __init__(self, config: Config, params: Dictionary):
@@ -240,7 +242,7 @@ class XprocessPool(PyXavi):
         self._xlog.debug("Empty and close queues")
         for name, queue in self._queue.items():
             if queue is not None:
-                self._clearAndDiscardQueue(queue)
+                self.force_queue_to_empty(queue)
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
@@ -263,10 +265,12 @@ class XprocessPool(PyXavi):
         self._xlog.debug("Closing Shared Memory Manager")
         self._shared_memory.close()
     
-    def _clearAndDiscardQueue(self, queue: JoinableQueue):
+    def force_queue_to_empty(self, queue: JoinableQueue):
         '''
         Queue cleanup, preferably in the process that is adding to the queue
         https://stackoverflow.com/a/69781217/1973860
+        ---
+        This method will attempt to empty the queue by removing all items and marking them as done.
         '''
 
         try:

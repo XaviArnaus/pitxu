@@ -251,6 +251,23 @@ class ArbitraryContentWhileNetworkingForegroundPaint(ForegroundPaint):
             ignore_maintain_time=True
         )
 
+class ArbitraryContentWhileIdleForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None, for_seconds: float = 5.0):
+        if name is None:
+            name = "ArbitraryContentWhileIdleForegroundPaint"
+        super(ArbitraryContentWhileIdleForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            parameter=parameter,
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            maintain_paint_for_seconds=for_seconds,
+            ignore_maintain_time=False
+        )
+
 class StartupForegroundPaint(ForegroundPaint):
 
     def __init__(self, name = None, for_seconds: float = 5.0):

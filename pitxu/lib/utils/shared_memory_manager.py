@@ -4,7 +4,7 @@ import time
 from pyxavi import Config, Dictionary
 
 from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
-    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_EINK_IDLE_MODE, SHARED_LCD_IDLE_MODE, SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_USER_IS_SPEAKING
+    SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_IDLE_MODE, SHARED_LCD_IDLE_MODE, SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_USER_IS_SPEAKING, SHARED_SUPPORT_BUSY
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -20,7 +20,8 @@ class SharedMemoryManager(PyXavi):
         # "microphone_muted": SHARED_MICROPHONE_MUTED,
         "chatbot_busy": SHARED_CHATBOT_BUSY,
         "network_busy": SHARED_NETWORK_BUSY,
-        "user_is_speaking": SHARED_USER_IS_SPEAKING
+        "user_is_speaking": SHARED_USER_IS_SPEAKING,
+        "support_busy": SHARED_SUPPORT_BUSY
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_flag: dict[int, str] = {
@@ -32,11 +33,13 @@ class SharedMemoryManager(PyXavi):
         SHARED_MICROPHONE_MUTED: "microphone_muted",
         SHARED_CHATBOT_BUSY: "chatbot_busy",
         SHARED_CHATBOT_ANSWER_IS_ERROR: "chatbot_answer_is_error",
-        SHARED_EINK_IDLE_MODE: "eink_idle_mode",
+        SHARED_IDLE_MODE: "eink_idle_mode",
         SHARED_LCD_IDLE_MODE: "lcd_idle_mode",
         SHARED_DSI_LCD_IDLE_MODE: "dsi_lcd_idle_mode",
         SHARED_NETWORK_BUSY: "network_busy",
-        SHARED_USER_IS_SPEAKING: "user_is_speaking"
+        SHARED_USER_IS_SPEAKING: "user_is_speaking",
+        SHARED_SUPPORT_BUSY: "support_busy"
+
     }
 
     WAITING_SLEEP_SECONDS = 0.01
@@ -91,7 +94,8 @@ class SharedMemoryManager(PyXavi):
                 False,  # lcd idle mode
                 False,  # dsi lcd idle mode
                 False,  # communication busy
-                False   # user is speaking
+                False,  # user is speaking
+                False   # support is busy
             ], name=SHARED_MEMORY_FLAGS)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

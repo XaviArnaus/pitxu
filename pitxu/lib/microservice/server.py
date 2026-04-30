@@ -20,6 +20,7 @@ class Server(PyXavi, MicroserviceBase):
     chatbot = None
     chatbot_client_callbacks = None
     output_interaction = None
+    support = None
 
     stt_samplerate: int = None
 
@@ -45,6 +46,11 @@ class Server(PyXavi, MicroserviceBase):
             self.output_interaction = params.get("output_interaction")
         else:
             raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
+        
+        if params.key_exists("support"):
+            self.support = params.get("support")
+        else:
+            raise ValueError("Support Class must be provided in params with key 'support'")
         
         if params.key_exists("samplerate"):
             self.stt_samplerate = params.get("samplerate")
@@ -85,7 +91,7 @@ class Server(PyXavi, MicroserviceBase):
             self.server.config['chatbot'] = self.chatbot
             self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
             self.server.config['output_interaction'] = self.output_interaction
-
+            self.server.config['support'] = self.support
         # Start the server
         self.start_server()
 
@@ -184,8 +190,9 @@ class Server(PyXavi, MicroserviceBase):
                 "power_cable_connected": power_cable_connected,
                 "consumption_watts": consumption_watts,
                 "charging_eta": charging_eta,
-                "cpu_temperature": cpu_temperature["temperature"] if isinstance(cpu_temperature, dict) else "N/A",
-                "cpu_fan_speed": cpu_temperature["fan_speed"] if isinstance(cpu_temperature, dict) else "N/A"
+                "cpu_temperature": cpu_temperature["cpu_temperature"] if isinstance(cpu_temperature, dict) else "N/A",
+                "cpu_fan_speed": cpu_temperature["cpu_fan_speed"] if isinstance(cpu_temperature, dict) else "N/A",
+                "case_fans": cpu_temperature["case_fans"] if isinstance(cpu_temperature, dict) else "N/A"
             },
             "reports": {
                 "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"

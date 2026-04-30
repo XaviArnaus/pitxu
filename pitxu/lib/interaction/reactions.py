@@ -166,7 +166,7 @@ class Reactions(PyXavi):
     def handle_error(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🚨  Showing an ERROR in the Foreground Display")
 
-        self.interaction.unset_eink_idle_mode()
+        self.interaction.set_idle_mode_off()
         self.interaction.wait_for_foreground_display_queue_to_empty()
         self.interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -181,7 +181,7 @@ class Reactions(PyXavi):
         value = function_call_pair.function_response.response.get("result", "unknown")
         args = function_call_pair.function_call.arguments
         self._xlog.debug("📺 Executing callback with value: " + str(value))
-        self.interaction.unset_eink_idle_mode()
+        self.interaction.set_idle_mode_off()
         self.interaction.wait_for_foreground_display_queue_to_empty()
         self.interaction.wait_for_busy_foreground_display_to_idle()
 
@@ -245,7 +245,7 @@ class Reactions(PyXavi):
             # Most likely is an error string. Simply let it say it.
             self._xlog.debug("🚨 Showing the ERROR in the eInk")
 
-            self.interaction.unset_eink_idle_mode()
+            self.interaction.set_idle_mode_off()
             self.interaction.wait_for_foreground_display_queue_to_empty()
             self.interaction.wait_for_busy_foreground_display_to_idle()
 
