@@ -22,11 +22,12 @@ print_cpu_volts() {
 
 # The UPS volts are available via i2c.
 print_ups_volts() {
-    echo "UPS volts: $(($(sudo i2cget -f -y 1 0x36 0x02 w) * 78125 / 1000000))V"
+    # It takes only the integer part. We need the full decimal value.
+    echo "UPS volts: $(($(i2cget -y 1 0x36 0x04 <<< 4) * 78125 / 1000000))V"
 }
 
 print_ups_battery() {
-    echo "Battery level: $(($(i2cget -f -y 1 0x36 0x04 w) / 256))%"
+    echo "Battery level: $(($(i2cget -y 1 0x36 0x04)))%"
 }
 
 # Commandline to get the power consumption in watts
