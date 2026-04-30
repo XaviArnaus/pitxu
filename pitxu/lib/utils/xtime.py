@@ -77,3 +77,42 @@ class Xtime:
         if format is None:
             format = Xtime.FORMAT
         return datetime.strptime(date_str, format)
+    
+    @staticmethod
+    def get_seconds_since(date_str: str, format: str = None) -> float:
+        """
+        Returns the number of seconds that have passed since the given date string.
+        The date string is parsed based on the given format, or defaults to FORMAT.
+        """
+        if format is None:
+            format = Xtime.FORMAT
+        try:
+            past_time = Xtime.str_to_datetime(date_str, format)
+            now = Xtime.now()
+            elapsed_time = now - past_time
+            return elapsed_time.total_seconds()
+        except Exception as e:
+            print(f"⚙️  Error calculating seconds since {date_str}: {e}")
+            return None
+    
+    @staticmethod
+    def get_human_format_from_seconds(seconds: float) -> str:
+        """
+        Converts a number of seconds into a human-readable format (e.g., "2 minutes, 30 seconds").
+        """
+        if seconds is None:
+            return "N/A"
+        try:
+            minutes, sec = divmod(int(seconds), 60)
+            hours, minutes = divmod(minutes, 60)
+            parts = []
+            if hours > 0:
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+            if minutes > 0:
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+            if sec > 0 or not parts:
+                parts.append(f"{sec} second{'s' if sec != 1 else ''}")
+            return ", ".join(parts)
+        except Exception as e:
+            print(f"⚙️  Error converting seconds to human format: {e}")
+            return "N/A" 

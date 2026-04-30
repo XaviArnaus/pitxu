@@ -9,6 +9,8 @@ from flask import Flask, request, current_app
 import base64
 import sys, logging
 
+from pitxu.lib.utils.xtime import Xtime
+
 class Server(PyXavi, MicroserviceBase):
 
     server: Flask = Flask(__name__)
@@ -167,6 +169,12 @@ class Server(PyXavi, MicroserviceBase):
                 "version": params.get("app_version", "?"),
                 "execution_mode": config.get("app.execution_mode", "?"),
                 "chatbot_name": config.get("chatbot.name", "?"),
+                "running_since": params.get("current_start_timestamp", "?"),
+                "uptime": Xtime.get_human_format_from_seconds(
+                    Xtime.get_seconds_since(
+                        params.get("current_start_timestamp", Xtime.current_time_str()))) \
+                            if params.key_exists("current_start_timestamp") \
+                                else "N/A"
             },
             "modules_enabled": {
                 "foreground_display": not config.get(f"{foreground_display_id}.mock", False),

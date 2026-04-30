@@ -116,7 +116,7 @@ class System:
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
     
     @staticmethod
-    def get_power_throttle(test_bin_value = None) -> list:
+    def get_power_throttle(test_bin_value = None) -> list[dict]:
         """
         Returns a dictionary describing the current power throttle state of the system.
         
@@ -126,6 +126,11 @@ class System:
         https://github.com/HarlemSquirrel/scripts/blob/master/rpi-check-throttling.py
         """
         try:
+
+            if not System.is_linux():
+                # Faking it for others.
+                return []
+
             map = {
                 0: "Currently under-voltage",
                 1: "ARM frequency currently capped",
@@ -262,3 +267,15 @@ class System:
             return metric_str # converts the cleaned-up string to float and returns it.
         except (Exception) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
             raise Exception(f"Error reading hardware metric: {e}")
+    
+    @staticmethod
+    def is_linux() -> bool:
+        return platform.system() == "Linux"
+    
+    @staticmethod
+    def is_macos() -> bool:
+        return platform.system() == "Darwin"
+    
+    @staticmethod
+    def is_windows() -> bool:
+        return platform.system() == "Windows"

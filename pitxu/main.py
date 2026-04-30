@@ -58,6 +58,7 @@ class Main(PyXavi):
     _capture_handler: CaptureHandler = None
 
     _is_pitxu_active: bool = True
+    _current_start_timestamp: str = None
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
@@ -115,6 +116,9 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_signal_plots()
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
+
+            # Register that we just did a new start
+            self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
 
             # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
             self._initialize_interactions()
@@ -847,6 +851,7 @@ class Main(PyXavi):
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
             params.set("support", self._support) # Also needed in Vosk & Preprocessor
+            params.set("current_start_timestamp", self._current_start_timestamp)
             # Needed for the Vosk class initialised inside the Server.
             params.set("language", self._xparams.get("language"))
             params.set("audio_parameters", self._audio_parameters) # Also needed by the Preprocessor

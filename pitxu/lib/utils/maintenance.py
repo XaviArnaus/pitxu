@@ -45,6 +45,7 @@ class Maintenance(PyXavi):
     DEFAULT_AUDIO_SIGNAL_PLOTS_PATH = "signals/"
     DEFAULT_AUDIO_SPECTROGRAM_PLOTS_PATH = "spectrograms/"
     DEFAULT_AUDIO_FOURIER_TRANSFORM_PLOTS_PATH = "fourier_transforms/"
+    DEFAULT_NEW_START_TIMESTAMP_FILE = "new_start_timestamp.yaml"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Maintenance, self).init_pyxavi(config=config, params=params)
@@ -89,6 +90,8 @@ class Maintenance(PyXavi):
         ]
         self._excluded_audio_fourier_transform_plot_filenames = self._xconfig.get("storage.fourier_transform_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
+        self._new_start_timestamp_file = self._xconfig.get("storage.new_start_timestamp_file", self.DEFAULT_NEW_START_TIMESTAMP_FILE)
+
         self._client = Client(config=config, params=params)
 
         # Initialize the maintenance logger.
@@ -122,7 +125,7 @@ class Maintenance(PyXavi):
         try:
 
             # This data is only available under linux.
-            if self._is_linux():
+            if System.is_linux():
 
                 local_metrics["cpu"] = {
                     "temperature": System.get_cpu_temperature(),
@@ -157,7 +160,7 @@ class Maintenance(PyXavi):
                 }
             
             # This data is only available under linux and macos.
-            if self._is_linux() or self._is_macos():
+            if System.is_linux() or System.is_macos():
 
                 local_metrics["disk"] = System.get_disk_usage()
                 
@@ -271,12 +274,27 @@ class Maintenance(PyXavi):
             directories_after_storage=self._generated_audio_fourier_transform_plots_folders,
             excluded_filenames=self._excluded_audio_fourier_transform_plot_filenames,
             file_extension="*.png")
-
-    def _is_linux(self) -> bool:
-        return platform.system() == "Linux"
     
-    def _is_macos(self) -> bool:
-        return platform.system() == "Darwin"
+    def write_new_start_timestamp_to_file(self) -> str | None:
+        try:
+            timestamp = Xtime.current_time_str()
+            with open(self._new_start_timestamp_file, "w") as f:
+                f.write(timestamp)
+            print(f"⚙️  Written new start timestamp [{timestamp}] to file: {self._new_start_timestamp_file}")
+            return timestamp
+        except Exception as e:
+            print(f"⚙️  Error writing new start timestamp to file: {e}")
+            return None
     
-    def _is_windows(self) -> bool:
-        return platform.system() == "Windows"
+    def load_current_start_timestamp_from_file(self) -> str | None:
+        try:
+            if not os.path.exists(self._new_start_timestamp_file):
+                self._xlog.warning(f"⚙️  New start timestamp file does not exist: {self._new_start_timestamp_file}")
+                return None
+            with open(self._new_start_timestamp_file, "r") as f:
+                timestamp = f.read().strip()
+            self._xlog.debug(f"⚙️  Loaded current start timestamp from file: {timestamp}")
+            return timestamp
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error loading current start timestamp from file: {e}")
+            return None
