@@ -22,7 +22,7 @@ print_cpu_volts() {
 
 # The UPS volts are available via i2c.
 print_ups_volts() {
-    echo "UPS volts: $(i2cget -y 1 0x36 0x02 | awk '{ printf "%dV", $1 }')"
+    echo "UPS volts: $(($(i2cget -f -y 1 0x36 0x02 w) / 256))V"
 }
 
 print_ups_battery() {
