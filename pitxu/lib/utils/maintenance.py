@@ -90,7 +90,9 @@ class Maintenance(PyXavi):
         ]
         self._excluded_audio_fourier_transform_plot_filenames = self._xconfig.get("storage.fourier_transform_plots.exclude_from_cleaning", self.DEFAULT_EXCLUDED_FILENAMES)
 
-        self._new_start_timestamp_file = self._xconfig.get("storage.new_start_timestamp_file", self.DEFAULT_NEW_START_TIMESTAMP_FILE)
+        self._new_start_timestamp_file = os.path.join(
+            self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH),
+            self._xconfig.get("storage.new_start_timestamp_file", self.DEFAULT_NEW_START_TIMESTAMP_FILE))
 
         self._client = Client(config=config, params=params)
 
@@ -203,7 +205,7 @@ class Maintenance(PyXavi):
         Cleans the previous mocked images from the storage folder.
         '''
         try:
-            storage_path = self._xparams.get("storage_path", self.DEFAULT_STORAGE_PATH)
+            storage_path = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH)
             paths_to_cleanup = []
 
             # Ensure that the mocked paths exist
