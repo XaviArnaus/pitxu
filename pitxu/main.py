@@ -42,6 +42,7 @@ class Main(PyXavi):
     _last_processed_second: int = -1
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
+    _last_interaction_paused_seconds: int = 0
     _seconds_to_hold_interaction_answer: int = 15
     _idle_minutes_to_show_status: int = 2
 
@@ -435,15 +436,29 @@ class Main(PyXavi):
 
     # ------------- End of the main method run() -------------
 
+    def get_seconds_since_last_interaction(self) -> int:
+        if self._last_interaction_datetime is None:
+            return None
+        
+        # This is:
+        #   Current time
+        #       minus last interaction time
+        #       minus the amount of seconds that VAD detection paused the counter.
+        #
+        # The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
+        #   in the block of the holding interaction time.
+        return (datetime.now() \
+                - self._last_interaction_datetime).total_seconds() \
+                - self._last_interaction_paused_seconds
+
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
         # We must take in account the time spent talking
-        if self._last_interaction_datetime is not None:
-            seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-            if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+        if self._last_interaction_datetime is not None and \
+                self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
                 return True
         
         # No ongoing interaction
@@ -992,43 +1007,43 @@ class Main(PyXavi):
             # Show the interaction holding percentage if we're expecting an interaction
             if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
                 
-                should_show_time_remaining = False
-                should_clear_background_display = False
+                # Calculate how much left in percentages the time to hold the interaction
+                seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+            
+                if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+                    # We are meant to show the holding percentage.
 
-                if not self._interaction.is_vad_detected():
-                    # Calculate how much left in percentages the time to hold the interaction
-                    seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
-                
-                    if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-                        percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                        self._last_processed_interaction_percentage = percent_left
-                        should_show_time_remaining = True
-
-                    elif self._last_processed_interaction_percentage >= 0:
-                        # Interaction time is over, and we were showing the percentage
-                        self._last_processed_interaction_percentage = -1
-                        should_clear_background_display = True
+                    if not self._interaction.is_vad_detected():
+                        # Vad did not detect anything, and we're in the time window to show the holding percentage
+                        # Calculate it.
+                        self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+                    else:
+                        self._xlog.debug("🎤 User may be speaking, pausing interaction holding time counter.")
+                        self._last_interaction_paused_seconds += 1
                     
-                else:
-                    # If the user is speaking, we want to reset the interaction holding time, so we update the last interaction datetime to now.
-                    self._last_interaction_datetime = datetime.now()
-                    self._xlog.debug("🎤 User is speaking, resetting interaction holding time.")
+                    # Display it.
+                    if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
+                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(self._last_processed_interaction_percentage) + "% time left.")
+                        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                    else:
+                        self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
 
-                    if self._last_processed_interaction_percentage >= 0:
-                        # Interaction time is over, and we were showing the percentage
+                elif self._last_processed_interaction_percentage >= 0:
+                    # We are meant to clean the display.
+
+                    if not self._interaction.is_vad_detected():
+                        # Vad did not detect anything, and the time to hold the interaction is over.
+                        # We clear the background display and reset the percentage.
                         self._last_processed_interaction_percentage = -1
-                        should_clear_background_display = True
-                    
-                # If the background display is idle, show interaction holding percentage if applicable
-                if not self._interaction.is_background_display_busy():
-                    if should_show_time_remaining:
-                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
-                        self._interaction.show_interaction_holding_percentage(percent_left)
-                    elif should_clear_background_display:
-                        self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        self._interaction.clear_background_display()
-                else:
-                    self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                        self._last_interaction_paused_seconds = 0
+                        # Clean the display.
+                        if not self._interaction.is_background_display_busy():
+                            self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
+                            self._interaction.clear_background_display()
+                        else:
+                            self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
+                    else:
+                        self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
     
     # ------------- Stuff to do daily -------------
 
