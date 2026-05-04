@@ -179,7 +179,7 @@ class Main(PyXavi):
             # Before we start with the loop, let's set the last interaction time to now
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
-            self._last_interaction_datetime = datetime.now()
+            self.reset_last_interaction_event_mark()
             self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # At this point, all initialisations are done.
@@ -408,7 +408,7 @@ class Main(PyXavi):
                 
                 # Last thing to do is to remember this as the last interaction.
                 # Has to happen at the very last otherwise the time is consumed by the possible answering process.
-                self._last_interaction_datetime = datetime.now()
+                self.reset_last_interaction_event_mark()
 
             # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
             # This second here makes the human-computer interaction worse.
@@ -450,6 +450,10 @@ class Main(PyXavi):
         return (datetime.now() \
                 - self._last_interaction_datetime).total_seconds() \
                 - self._last_interaction_paused_seconds
+    
+    def reset_last_interaction_event_mark(self):
+        self._last_interaction_datetime = datetime.now()
+        self._last_interaction_paused_seconds = 0
 
     def _text_has_exit_intention(self, text):
         return text in self._exit_words
@@ -1023,7 +1027,7 @@ class Main(PyXavi):
                     
                     # Display it.
                     if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
-                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(self._last_processed_interaction_percentage) + "% time left.")
+                        self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
                         self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
                     else:
                         self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
@@ -1031,7 +1035,7 @@ class Main(PyXavi):
                 elif self._last_processed_interaction_percentage >= 0:
                     # We are meant to clean the display.
 
-                    if not self._interaction.is_vad_detected():
+                    # if not self._interaction.is_vad_detected():
                         # Vad did not detect anything, and the time to hold the interaction is over.
                         # We clear the background display and reset the percentage.
                         self._last_processed_interaction_percentage = -1
@@ -1042,8 +1046,8 @@ class Main(PyXavi):
                             self._interaction.clear_background_display()
                         else:
                             self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
-                    else:
-                        self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
+                    # else:
+                    #     self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
     
     # ------------- Stuff to do daily -------------
 
