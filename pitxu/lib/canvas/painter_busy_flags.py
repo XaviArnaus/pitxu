@@ -5,7 +5,8 @@ from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
                         SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, \
-                        SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY, SHARED_NETWORK_BUSY, SHARED_IDLE_MODE
+                        SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY, SHARED_NETWORK_BUSY, SHARED_IDLE_MODE, \
+                        SHARED_VAD_DETECTED
 
 class PainterBusyFlags(PyXavi):
 
@@ -29,7 +30,8 @@ class PainterBusyFlags(PyXavi):
         SHARED_DSI_LCD_BUSY,
         SHARED_CHATBOT_BUSY,
         SHARED_NETWORK_BUSY,
-        SHARED_IDLE_MODE
+        SHARED_IDLE_MODE,
+        SHARED_VAD_DETECTED
     ]
 
     MANDATORY_FULL_CYCLE_BUSY_FLAGS = [

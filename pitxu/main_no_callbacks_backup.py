@@ -430,7 +430,7 @@ class Main(PyXavi):
         self._interaction.unmute_microphone()
 
         # In case that the user was speaking, clear the flag to avoid waiting forever.
-        self._interaction.unset_user_is_speaking()
+        self._interaction.unset_vad_detected()
 
         # Persist state
         self.persist_state()

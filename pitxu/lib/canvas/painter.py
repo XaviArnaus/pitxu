@@ -9,7 +9,8 @@ from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags
 
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_NETWORK_BUSY, SHARED_IDLE_MODE, \
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, \
+                        SHARED_NETWORK_BUSY, SHARED_IDLE_MODE, SHARED_VAD_DETECTED, \
                         FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END
 
 from PIL import ImageDraw
@@ -412,6 +413,38 @@ class Painter(PyXavi, Thread):
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=FOREGROUND_CHANNEL, flag_name=SHARED_IDLE_MODE, for_value=True, callback=start_callback)
         # 2. Register the end callback
         self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=FOREGROUND_CHANNEL, flag_name=SHARED_IDLE_MODE, for_value=False, callback=end_callback)
+        # 3. Start the painting loop
+        self.start_or_resume_paint()
+    
+    def paint_into_foreground_while_user_speaking(self, foreground_interaction: ForegroundPaint):
+        
+        # 1. First we definethe start callback, that waits for the speaker to be busy and then sets the interactions
+        # 2. Then we define the end callback to stop the painting when the speaker is not busy anymore
+        # 3. Then we start the loop. It should wait until the speaker is busy to start painting, and then stop when it is not busy anymore.
+
+        # Start callback definition: we want to paint when the speaker is busy
+        start_callback = self._generate_callback(
+            interaction=foreground_interaction,
+            when=LOOP_START,
+            channel=FOREGROUND_CHANNEL,
+            flag_name=SHARED_VAD_DETECTED,
+            for_value=True,
+            extra_callback=lambda interaction=foreground_interaction: setattr(interaction, "is_expecting_end_callback", True)
+        )
+        # End callback definition: we want to stop painting when the speaker is not busy anymore
+        end_callback = self._generate_callback(
+            interaction=foreground_interaction,
+            when=LOOP_END,
+            channel=FOREGROUND_CHANNEL,
+            flag_name=SHARED_VAD_DETECTED,
+            for_value=False,
+            extra_callback=lambda interaction=foreground_interaction: setattr(interaction, "is_expecting_end_callback", False)
+        )
+        
+        # 1. Register the start callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_START, channel=FOREGROUND_CHANNEL, flag_name=SHARED_VAD_DETECTED, for_value=True, callback=start_callback)
+        # 2. Register the end callback
+        self.painter_busy_flags.set_busy_flag_callback(when=LOOP_END, channel=FOREGROUND_CHANNEL, flag_name=SHARED_VAD_DETECTED, for_value=False, callback=end_callback)
         # 3. Start the painting loop
         self.start_or_resume_paint()
     

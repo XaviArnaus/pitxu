@@ -187,7 +187,7 @@ class Main(PyXavi):
             self._xlog.info("✅ All initialisations done, entering idle state, waiting for interactions...")
 
             # HERE WAS THE MAIN LOOP.
-            #   It has been moved to main_execution_on_user_finished_speaking() method,
+            #   It has been moved to main_execution_on_vad_detected_finished() method,
             #   that is called by the VAD callback when the user finishes speaking.
 
             # Wait indefinitely until a signal is received (like SIGTERM for graceful shutdown)
@@ -225,7 +225,33 @@ class Main(PyXavi):
         # However it happened, just close nicely.
         self.close_nicely()
     
-    async def main_execution_on_user_finished_speaking(self):
+    async def main_execution_on_vad_detected_started(self):
+        """
+        This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
+        It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_start() method there.
+
+        THE WHOLE CHAIN IS WRONG. USER DIDN'T START SPEAKING, INSTEAD, VAD DETECTED SOMETHING.
+        WE NEED TO CHANGE THE SHARED MEMORY FLAG THAT IT USES, AND ALL THE METHOD NAMES FROM user_speaking TO vad_detected_speech.
+        THE ACTION ON THE user_speaking MUST BE ONCE THE TRANSCRIPTION IS POSITIVE, BUT THE DISPLAY FLOW CAN STAY.
+        """
+
+        self._xlog.info("User started speaking, via VAD callback.")
+
+        try:
+
+            # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
+            #     icon="🎙️", 
+            #     text="SPEAKING", 
+            #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
+            # self._interaction.wait_for_foreground_display_queue_to_empty()
+            pass
+        
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
+            self._xlog.error(full_stack())
+
+    
+    async def main_execution_on_vad_detected_finished(self):
         """
         This method is called when the user finishes speaking, detected by the VAD in CaptureHandler.
         It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
@@ -471,7 +497,7 @@ class Main(PyXavi):
         self._interaction.unmute_microphone()
 
         # In case that the user was speaking, clear the flag to avoid waiting forever.
-        self._interaction.unset_user_is_speaking()
+        self._interaction.unset_vad_detected()
 
         # The scheduler contains a thread, so close it properly.
         self._scheduler.shutdown()
@@ -656,8 +682,10 @@ class Main(PyXavi):
             "capture_queue": input_audio_chunk_queue,
             "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
             "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
+            # The callback that triggers when the user starts speaking, detected by the VAD.
+            "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
-            "on_user_finished_speaking_callback": self.main_execution_on_user_finished_speaking,
+            "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
             "main_event_loop": asyncio.get_event_loop()
         }))
@@ -963,18 +991,40 @@ class Main(PyXavi):
             
             # Show the interaction holding percentage if we're expecting an interaction
             if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
-                # If the background display is idle, show interaction holding percentage if applicable
-                if not self._interaction.is_background_display_busy():
+                
+                should_show_time_remaining = False
+                should_clear_background_display = False
+
+                if not self._interaction.is_vad_detected():
                     # Calculate how much left in percentages the time to hold the interaction
                     seconds_since_last_interaction = (datetime.now() - self._last_interaction_datetime).total_seconds()
+                
                     if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                         percent_left = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
                         self._last_processed_interaction_percentage = percent_left
-                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
-                        self._interaction.show_interaction_holding_percentage(percent_left)
+                        should_show_time_remaining = True
+
                     elif self._last_processed_interaction_percentage >= 0:
                         # Interaction time is over, and we were showing the percentage
                         self._last_processed_interaction_percentage = -1
+                        should_clear_background_display = True
+                    
+                else:
+                    # If the user is speaking, we want to reset the interaction holding time, so we update the last interaction datetime to now.
+                    self._last_interaction_datetime = datetime.now()
+                    self._xlog.debug("🎤 User is speaking, resetting interaction holding time.")
+
+                    if self._last_processed_interaction_percentage >= 0:
+                        # Interaction time is over, and we were showing the percentage
+                        self._last_processed_interaction_percentage = -1
+                        should_clear_background_display = True
+                    
+                # If the background display is idle, show interaction holding percentage if applicable
+                if not self._interaction.is_background_display_busy():
+                    if should_show_time_remaining:
+                        self._xlog.debug("⏳ Waiting for an user interaction. " + str(percent_left) + "% time left.")
+                        self._interaction.show_interaction_holding_percentage(percent_left)
+                    elif should_clear_background_display:
                         self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         self._interaction.clear_background_display()
                 else:

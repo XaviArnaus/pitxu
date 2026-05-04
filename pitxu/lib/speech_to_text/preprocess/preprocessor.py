@@ -1,7 +1,6 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, SHARED_USER_IS_SPEAKING
 from pitxu.lib.utils.signal_tools import SignalTools
 from pitxu.lib.speech_to_text.preprocess.filters import Filters
 from pitxu.lib.utils.conversors import Conversors
@@ -22,7 +21,6 @@ class Preprocessor(PyXavi):
 
     samplerate = 16000  # Sampling rate
 
-    shared_memory: SharedMemoryManager = None
     support: Support = None
     filters: Filters = None
     vad: RmsVAD = None
@@ -68,9 +66,6 @@ class Preprocessor(PyXavi):
         self.HIGHCUT_FREQ = params.get("audio_parameters.filter_highcut_freq")
         self.FILTER_ORDER = self._xconfig.get("speech-to-text.preprocessor.filter_order", self.FILTER_ORDER)
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
-
-        # self.shared_memory = SharedMemoryManager(config=config, params=params)
-        # self.shared_memory.initialize_existing_shared_memory_flags()
 
         params.set("samplerate", self.samplerate)
         params.set("lowcut_freq", self.LOWCUT_FREQ)
@@ -209,15 +204,6 @@ class Preprocessor(PyXavi):
         is_speech = self.vad.is_speaking
         self.vad.reset()
         return is_speech
-    
-    # def add_to_accumulated_signal(self, signal_chunk: bytes, filtered_signal_chunk: bytes):
-    #     signal_chunk_np = Conversors.byte_chunk_to_numpy_array(signal_chunk)
-    #     filtered_signal_chunk_np = Conversors.byte_chunk_to_numpy_array(filtered_signal_chunk)
-    #     self.add_to_accumulated_signal_np(signal_chunk_np, filtered_signal_chunk_np)
-    
-    # def add_to_accumulated_signal_np(self, signal_chunk: np.ndarray, filtered_signal_chunk: np.ndarray):
-    #     self.accummulated_signal.append(signal_chunk)
-    #     self.accummulated_filtered_signal.append(filtered_signal_chunk)
 
     def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
         """
@@ -244,15 +230,6 @@ class Preprocessor(PyXavi):
         # Calculate ratio of speech energy to total energy and return
         ratio = speechenergy / sum(energy_per_frequencies.values())
         return ratio
-    
-    def is_user_speaking(self) -> bool:
-        """
-        Checks if the user is currently speaking.
-        Only Local based.
-
-        NOT USED
-        """
-        return self.shared_memory.read_shared_memory_flag(SHARED_USER_IS_SPEAKING)
     
     def is_beyond_silence_threshold(self, silence_timeout_seconds: int = SPEAKING_SILENCE_TIMEOUT_SECONDS) -> bool:
         '''
