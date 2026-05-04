@@ -96,7 +96,7 @@ class Xtime:
             return None
     
     @staticmethod
-    def get_human_format_from_seconds(seconds: float) -> str:
+    def get_human_format_from_seconds(seconds: float, short_units: bool = True) -> str:
         """
         Converts a number of seconds into a human-readable format (e.g., "2 minutes, 30 seconds").
         """
@@ -105,13 +105,22 @@ class Xtime:
         try:
             minutes, sec = divmod(int(seconds), 60)
             hours, minutes = divmod(minutes, 60)
+            days, hours = divmod(hours, 24)
+            months, days = divmod(days, 30)
+            years, months = divmod(months, 12)
             parts = []
+            if years > 0:
+                parts.append(f"{years} year{'s' if years != 1 else ''}" if not short_units else f"{years}y")
+            if months > 0:
+                parts.append(f"{months} month{'s' if months != 1 else ''}" if not short_units else f"{months}mo")
+            if days > 0:
+                parts.append(f"{days} day{'s' if days != 1 else ''}" if not short_units else f"{days}d")
             if hours > 0:
-                parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}" if not short_units else f"{hours}h")
             if minutes > 0:
-                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}" if not short_units else f"{minutes}m")
             if sec > 0 or not parts:
-                parts.append(f"{sec} second{'s' if sec != 1 else ''}")
+                parts.append(f"{sec} second{'s' if sec != 1 else ''}" if not short_units else f"{sec}s")
             return ", ".join(parts)
         except Exception as e:
             print(f"⚙️  Error converting seconds to human format: {e}")

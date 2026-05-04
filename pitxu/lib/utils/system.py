@@ -158,11 +158,21 @@ class System:
     
     @staticmethod
     def get_system_uptime() -> float:
-        return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
+        if System.is_linux():
+            return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
+        elif System.is_macos():
+            return float(System._run_command("sysctl -n kern.boottime").split('}')[0].split('=')[2].strip()) # returns system uptime in seconds
+        else:
+            raise Exception("Unsupported OS for getting system uptime")
     
     @staticmethod
     def get_system_load() -> list[float]:
-        return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        if System.is_linux():
+            return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        elif System.is_macos():
+            return [float(x) for x in System._run_command("sysctl -n vm.loadavg").strip('{}\n ').split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        else:
+            raise Exception("Unsupported OS for getting system load")
     
     @staticmethod
     def get_memory_usage() -> dict:
