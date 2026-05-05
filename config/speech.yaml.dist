@@ -58,10 +58,10 @@ speech-to-text:
     lowcut_freq: 300
     # lowcut_freq: 100
     # [Integer] High cut frequency for the bandpass filter in Hz.
-    highcut_freq: 3400
+    highcut_freq: 7400
     # highcut_freq: 1100
     # [Integer] Order of the Butterworth filter used for preprocessing.
-    filter_order: 6
+    filter_order: 3
     # [Integer] Sample rate to use for the preprocessor. This should match the input_samplerate.
     # Tipically, this value will be ignored, as the Preprocessor should receive it as param from the main
     # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.

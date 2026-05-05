@@ -15,9 +15,9 @@ import logging
 class Preprocessor(PyXavi):
 
     # Desired frequency range for human voice (e.g., telephone band)
-    LOWCUT_FREQ = 300  # Hz
-    HIGHCUT_FREQ = 3400 # Hz
-    FILTER_ORDER = 7   # Order of the filter (higher order means steeper rolloff)
+    lowcut_freq = 300  # Hz
+    highcut_freq = 3400 # Hz
+    filter_order = 7   # Order of the filter (higher order means steeper rolloff)
 
     samplerate = 16000  # Sampling rate
 
@@ -62,23 +62,23 @@ class Preprocessor(PyXavi):
         release = self._xconfig.get("speech-to-text.vad.release", 1.5)
         self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
         
-        self.LOWCUT_FREQ = params.get("audio_parameters.filter_lowcut_freq")
-        self.HIGHCUT_FREQ = params.get("audio_parameters.filter_highcut_freq")
-        self.FILTER_ORDER = self._xconfig.get("speech-to-text.preprocessor.filter_order", self.FILTER_ORDER)
+        self.lowcut_freq = params.get("audio_parameters.filter_lowcut_freq")
+        self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
+        self.filter_order = params.get("audio_parameters.filter_order")
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
         params.set("samplerate", self.samplerate)
-        params.set("lowcut_freq", self.LOWCUT_FREQ)
-        params.set("highcut_freq", self.HIGHCUT_FREQ)
-        params.set("order", self.FILTER_ORDER)
+        params.set("lowcut_freq", self.lowcut_freq)
+        params.set("highcut_freq", self.highcut_freq)
+        params.set("order", self.filter_order)
 
         self.filters = Filters(config=config, params=params)
 
         self.log_summary("Preprocessor Initialization", [
             ("Preprocessor Enabled", str(self._xconfig.get("speech-to-text.preprocessor.enabled", False))),
-            ("Low cut freq", f"{self.LOWCUT_FREQ} Hz"),
-            ("High cut freq", f"{self.HIGHCUT_FREQ} Hz"),
-            ("Filter order", f"{self.FILTER_ORDER}"),
+            ("Low cut freq", f"{self.lowcut_freq} Hz"),
+            ("High cut freq", f"{self.highcut_freq} Hz"),
+            ("Filter order", f"{self.filter_order}"),
             ("Samplerate", f"{self.samplerate} Hz"),
             ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
             ("VAD Threshold", threshold),
@@ -114,7 +114,7 @@ class Preprocessor(PyXavi):
 
         # Apply bandpass filter to isolate human voice frequencies
         filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
+        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.lowcut_freq, 1.5 *self.highcut_freq, fs=self.samplerate)
 
         # Maintain the accummulators
         self.support.accumulate_audio(audio_data_np)
