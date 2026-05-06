@@ -295,3 +295,26 @@ language:
       es: "Aquí tienes el código:"
       en-us: "Here is the code:"
       de: "Hier ist der Code:"
+  
+  # Long term memory
+  memory:
+    entry_creation_error:
+      ca: "Ho sento, hi ha hagut un error al crear l'entrada de memòria."
+      es: "Lo siento, ha habido un error al crear la entrada de memoria."
+      en-us: "I'm sorry, there was an error creating the memory entry."
+      de: "Es tut mir leid, es gab einen Fehler beim Erstellen des Gedächtniseintrags."
+    entries_not_found:
+      ca: "Ho sento, no s'han trobat entrades de memòria per a %s."
+      es: "Lo siento, no se encontraron entradas de memoria para %s."
+      en-us: "I'm sorry, memory entries were not found for %s."
+      de: "Es tut mir leid, die Gedächtniseinträge wurden für %s nicht gefunden."
+    entry_not_found:
+      ca: "Ho sento, no s'ha trobat cap entrada de memòria relacionada amb %s."
+      es: "Lo siento, no se ha encontrado ninguna entrada de memoria relacionada con %s."
+      en-us: "I'm sorry, no memory entry was found related to %s."
+      de: "Es tut mir leid, es wurde kein Gedächtniseintrag in Bezug auf %s gefunden."
+    retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar les entrades de memòria."
+      es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
+      en-us: "I'm sorry, there was an error retrieving the memory entries."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."

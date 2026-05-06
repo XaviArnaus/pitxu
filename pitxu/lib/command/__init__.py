@@ -1,5 +1,6 @@
 from .stateful.lists import StatefulLists
 from .stateful.reminders import StatefulReminders
+from .stateful.memory import StatefulMemory
 from .system.date import SystemDate
 from .system.time import SystemTime
 from .system.network import SystemNetwork

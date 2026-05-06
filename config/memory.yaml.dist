@@ -1,0 +1,7 @@
+# Settings about long term memory
+memory:
+  # [String] Filename for the storage. It will start from /storage or whatever is defined in main.yaml
+  filename: memory.yaml
+  # [Float] Summary similarity threshold to accept the memory match.
+  #   The higher, the more similar the memory should be to be accepted.
+  summary_similarity_threshold: 0.8
