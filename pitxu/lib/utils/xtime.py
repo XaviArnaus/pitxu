@@ -77,3 +77,51 @@ class Xtime:
         if format is None:
             format = Xtime.FORMAT
         return datetime.strptime(date_str, format)
+    
+    @staticmethod
+    def get_seconds_since(date_str: str, format: str = None) -> float:
+        """
+        Returns the number of seconds that have passed since the given date string.
+        The date string is parsed based on the given format, or defaults to FORMAT.
+        """
+        if format is None:
+            format = Xtime.FORMAT
+        try:
+            past_time = Xtime.str_to_datetime(date_str, format)
+            now = Xtime.now()
+            elapsed_time = now - past_time
+            return elapsed_time.total_seconds()
+        except Exception as e:
+            print(f"⚙️  Error calculating seconds since {date_str}: {e}")
+            return None
+    
+    @staticmethod
+    def get_human_format_from_seconds(seconds: float, short_units: bool = True) -> str:
+        """
+        Converts a number of seconds into a human-readable format (e.g., "2 minutes, 30 seconds").
+        """
+        if seconds is None:
+            return "N/A"
+        try:
+            minutes, sec = divmod(int(seconds), 60)
+            hours, minutes = divmod(minutes, 60)
+            days, hours = divmod(hours, 24)
+            months, days = divmod(days, 30)
+            years, months = divmod(months, 12)
+            parts = []
+            if years > 0:
+                parts.append(f"{years} year{'s' if years != 1 else ''}" if not short_units else f"{years}y")
+            if months > 0:
+                parts.append(f"{months} month{'s' if months != 1 else ''}" if not short_units else f"{months}mo")
+            if days > 0:
+                parts.append(f"{days} day{'s' if days != 1 else ''}" if not short_units else f"{days}d")
+            if hours > 0:
+                parts.append(f"{hours} hour{'s' if hours != 1 else ''}" if not short_units else f"{hours}h")
+            if minutes > 0:
+                parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}" if not short_units else f"{minutes}m")
+            if sec > 0 or not parts:
+                parts.append(f"{sec} second{'s' if sec != 1 else ''}" if not short_units else f"{sec}s")
+            return ", ".join(parts)
+        except Exception as e:
+            print(f"⚙️  Error converting seconds to human format: {e}")
+            return "N/A" 

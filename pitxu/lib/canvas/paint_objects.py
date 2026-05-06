@@ -219,6 +219,22 @@ class ArbitraryContentWhileSpeakingForegroundPaint(ForegroundPaint):
             ignore_maintain_time=True
         )
 
+class ArbitraryContentWhileUserSpeakingForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "ArbitraryContentWhileUserSpeakingForegroundPaint"
+        super(ArbitraryContentWhileUserSpeakingForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.ARBITRARY_TEXT_ICON,
+            parameter=parameter,
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            ignore_maintain_time=True
+        )
+
 class ArbitraryContentWhileThinkingForegroundPaint(ForegroundPaint):
 
     def __init__(self, name = None, parameter: any = None):

@@ -11,6 +11,7 @@ from pitxu.lib.canvas.painter import Painter
 from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
                                             ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
+                                            ArbitraryContentWhileUserSpeakingForegroundPaint, \
                                             StartupForegroundPaint, CodeBlockForegroundPaint, ErrorForegroundPaint,\
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
@@ -158,6 +159,12 @@ class DsiLcd(XprocessDisplayCombined):
 
         self.painter.paint_into_foreground_while_idle(
             foreground_interaction=ArbitraryContentWhileIdleForegroundPaint(parameter=param, for_seconds=for_seconds))
+    
+    def show_arbitrary_icon_on_foreground_while_user_speaking(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary icon on DSI LCD while the user is speaking.")
+
+        self.painter.paint_into_foreground_while_user_speaking(
+            foreground_interaction=ArbitraryContentWhileUserSpeakingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD.")

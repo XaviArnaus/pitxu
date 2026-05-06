@@ -1,9 +1,11 @@
+from functools import partial
+
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
-    SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_USER_IS_SPEAKING
+    SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED
 
 import sys
 import queue as Queue
@@ -11,6 +13,7 @@ from rms_vad import RmsVAD, VADConfig
 import numpy as np
 import logging
 import samplerate
+import asyncio
 
 class CaptureHandler(PyXavi):
 
@@ -21,8 +24,11 @@ class CaptureHandler(PyXavi):
     queue: Queue.Queue = None
     vad: RmsVAD = None
     resampler: samplerate.Resampler = None
+    on_vad_detected_started_callback: callable = None
+    on_vad_detected_finished_callback: callable = None
+    main_event_loop: asyncio.AbstractEventLoop = None
 
-    local_user_is_speaking: bool = False
+    local_vad_detected: bool = False
 
     VERBOSE_DEBUG: bool = True
 
@@ -49,7 +55,25 @@ class CaptureHandler(PyXavi):
         else:
             self._xlog.warning(f"No target samplerate provided in params to CaptureHandler, using default of {self.target_samplerate} Hz")
 
-        # Control for `is_user_speaking` flag.
+        # Get the callback for when the user finishes speaking, or use defaults.
+        if params.key_exists("on_vad_detected_finished_callback"):
+            self.on_vad_detected_finished_callback = params.get("on_vad_detected_finished_callback")
+        else:
+            raise ValueError("No callback provided for when the user finishes speaking in params to CaptureHandler")
+        
+        # Get the callback for when the user starts speaking, or use defaults.
+        if params.key_exists("on_vad_detected_started_callback"):
+            self.on_vad_detected_started_callback = params.get("on_vad_detected_started_callback")
+        else:
+            raise ValueError("No callback provided for when the user starts speaking in params to CaptureHandler")
+        
+        # Get the callback's context for when the user finishes speaking, or use defaults.
+        if params.key_exists("main_event_loop"):
+            self.main_event_loop = params.get("main_event_loop")
+        else:
+            raise ValueError("No main event loop provided for when the user finishes speaking in params to CaptureHandler")
+
+        # Control for `is_vad_detected` flag.
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_existing_shared_memory_flags()
 
@@ -122,9 +146,13 @@ class CaptureHandler(PyXavi):
     
     def vad_on_speech_start(self, pre_buffer: list[bytes]):
         self._xlog.debug("🗣️ VAD detected speech start")
-        self.set_user_is_speaking()
+        self.set_vad_detected()
         for frame in pre_buffer:
             self.queue.put(bytes(frame))
+        
+        # Now we can trigger the main execution, as the user has started speaking.
+        if self.on_vad_detected_started_callback is not None:
+            asyncio.run_coroutine_threadsafe(self.on_vad_detected_started_callback(), self.main_event_loop)
     
     def vad_on_speech_chunk(self, chunk: bytes):
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
@@ -132,12 +160,14 @@ class CaptureHandler(PyXavi):
     
     def vad_on_speech_end(self):
         self._xlog.debug("🗣️ VAD detected speech end")
-        self.unset_user_is_speaking()
+        self.unset_vad_detected()
 
         # Sending None as a marker for end of speech, so the recognizer can trigger an END step.
         self.queue.put(None)
 
-        # TODO: ⚠️ This should actually trigger the whole Pitxu interaction pipeline.
+        # Now we can trigger the main execution, as the user has finished speaking.
+        if self.on_vad_detected_finished_callback is not None:
+            asyncio.run_coroutine_threadsafe(self.on_vad_detected_finished_callback(), self.main_event_loop)
     
     def get_vad_handler(self):
         return self.vad
@@ -164,23 +194,23 @@ class CaptureHandler(PyXavi):
 
         return mic_is_muted or speaker_is_busy
     
-    def set_user_is_speaking(self):
+    def set_vad_detected(self):
         """
         Sets the state to indicate that the user is currently speaking.
         Local flag, Shared memory flag, and ALWAYS resets the last human speaking datetime to now.
         """
-        self.shared_memory.write_shared_memory_flag(SHARED_USER_IS_SPEAKING, True)
+        self.shared_memory.write_shared_memory_flag(SHARED_VAD_DETECTED, True)
     
-    def unset_user_is_speaking(self):
+    def unset_vad_detected(self):
         """
         Unsets the state to indicate that the user is no longer speaking.
         Local flag, Shared memory flag, and ALWAYS nullifies the last human speaking datetime.
         """
-        self.shared_memory.write_shared_memory_flag(SHARED_USER_IS_SPEAKING, False)
+        self.shared_memory.write_shared_memory_flag(SHARED_VAD_DETECTED, False)
     
-    def is_user_speaking(self) -> bool:
+    def is_vad_detected(self) -> bool:
         """
         Checks if the user is currently speaking.
         Only Local based.
         """
-        return self.shared_memory.read_shared_memory_flag(SHARED_USER_IS_SPEAKING)
+        return self.shared_memory.read_shared_memory_flag(SHARED_VAD_DETECTED)

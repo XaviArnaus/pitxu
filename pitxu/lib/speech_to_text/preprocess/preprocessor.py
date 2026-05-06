@@ -1,7 +1,6 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, SHARED_USER_IS_SPEAKING
 from pitxu.lib.utils.signal_tools import SignalTools
 from pitxu.lib.speech_to_text.preprocess.filters import Filters
 from pitxu.lib.utils.conversors import Conversors
@@ -16,13 +15,12 @@ import logging
 class Preprocessor(PyXavi):
 
     # Desired frequency range for human voice (e.g., telephone band)
-    LOWCUT_FREQ = 300  # Hz
-    HIGHCUT_FREQ = 3400 # Hz
-    FILTER_ORDER = 7   # Order of the filter (higher order means steeper rolloff)
+    lowcut_freq = 300  # Hz
+    highcut_freq = 3400 # Hz
+    filter_order = 7   # Order of the filter (higher order means steeper rolloff)
 
     samplerate = 16000  # Sampling rate
 
-    shared_memory: SharedMemoryManager = None
     support: Support = None
     filters: Filters = None
     vad: RmsVAD = None
@@ -64,26 +62,23 @@ class Preprocessor(PyXavi):
         release = self._xconfig.get("speech-to-text.vad.release", 1.5)
         self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
         
-        self.LOWCUT_FREQ = params.get("audio_parameters.filter_lowcut_freq")
-        self.HIGHCUT_FREQ = params.get("audio_parameters.filter_highcut_freq")
-        self.FILTER_ORDER = self._xconfig.get("speech-to-text.preprocessor.filter_order", self.FILTER_ORDER)
+        self.lowcut_freq = params.get("audio_parameters.filter_lowcut_freq")
+        self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
+        self.filter_order = params.get("audio_parameters.filter_order")
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
-        # self.shared_memory = SharedMemoryManager(config=config, params=params)
-        # self.shared_memory.initialize_existing_shared_memory_flags()
-
         params.set("samplerate", self.samplerate)
-        params.set("lowcut_freq", self.LOWCUT_FREQ)
-        params.set("highcut_freq", self.HIGHCUT_FREQ)
-        params.set("order", self.FILTER_ORDER)
+        params.set("lowcut_freq", self.lowcut_freq)
+        params.set("highcut_freq", self.highcut_freq)
+        params.set("order", self.filter_order)
 
         self.filters = Filters(config=config, params=params)
 
         self.log_summary("Preprocessor Initialization", [
             ("Preprocessor Enabled", str(self._xconfig.get("speech-to-text.preprocessor.enabled", False))),
-            ("Low cut freq", f"{self.LOWCUT_FREQ} Hz"),
-            ("High cut freq", f"{self.HIGHCUT_FREQ} Hz"),
-            ("Filter order", f"{self.FILTER_ORDER}"),
+            ("Low cut freq", f"{self.lowcut_freq} Hz"),
+            ("High cut freq", f"{self.highcut_freq} Hz"),
+            ("Filter order", f"{self.filter_order}"),
             ("Samplerate", f"{self.samplerate} Hz"),
             ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
             ("VAD Threshold", threshold),
@@ -119,7 +114,7 @@ class Preprocessor(PyXavi):
 
         # Apply bandpass filter to isolate human voice frequencies
         filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.LOWCUT_FREQ, 1.5 *self.HIGHCUT_FREQ, fs=self.samplerate)
+        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.lowcut_freq, 1.5 *self.highcut_freq, fs=self.samplerate)
 
         # Maintain the accummulators
         self.support.accumulate_audio(audio_data_np)
@@ -209,15 +204,6 @@ class Preprocessor(PyXavi):
         is_speech = self.vad.is_speaking
         self.vad.reset()
         return is_speech
-    
-    # def add_to_accumulated_signal(self, signal_chunk: bytes, filtered_signal_chunk: bytes):
-    #     signal_chunk_np = Conversors.byte_chunk_to_numpy_array(signal_chunk)
-    #     filtered_signal_chunk_np = Conversors.byte_chunk_to_numpy_array(filtered_signal_chunk)
-    #     self.add_to_accumulated_signal_np(signal_chunk_np, filtered_signal_chunk_np)
-    
-    # def add_to_accumulated_signal_np(self, signal_chunk: np.ndarray, filtered_signal_chunk: np.ndarray):
-    #     self.accummulated_signal.append(signal_chunk)
-    #     self.accummulated_filtered_signal.append(filtered_signal_chunk)
 
     def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
         """
@@ -244,15 +230,6 @@ class Preprocessor(PyXavi):
         # Calculate ratio of speech energy to total energy and return
         ratio = speechenergy / sum(energy_per_frequencies.values())
         return ratio
-    
-    def is_user_speaking(self) -> bool:
-        """
-        Checks if the user is currently speaking.
-        Only Local based.
-
-        NOT USED
-        """
-        return self.shared_memory.read_shared_memory_flag(SHARED_USER_IS_SPEAKING)
     
     def is_beyond_silence_threshold(self, silence_timeout_seconds: int = SPEAKING_SILENCE_TIMEOUT_SECONDS) -> bool:
         '''

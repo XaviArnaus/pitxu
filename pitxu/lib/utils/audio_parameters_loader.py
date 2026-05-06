@@ -21,6 +21,7 @@ class AudioParametersLoader(PyXavi):
     server_samplerate: int = None
     filter_lowcut_freq: int = 300
     filter_highcut_freq: int = 3400
+    filter_order: int = 3
 
     full_audio_parameters: dict = {}
 
@@ -41,7 +42,7 @@ class AudioParametersLoader(PyXavi):
 
         self.filter_lowcut_freq = self.get_filter_lowcut_freq()
         self.filter_highcut_freq = self.get_filter_highcut_freq()
-
+        self.filter_order = self.get_filter_order()
         self.full_audio_parameters = {
             "input_device": self.input_device,
             "stt_engine": self.stt_engine,
@@ -51,7 +52,8 @@ class AudioParametersLoader(PyXavi):
             "stt_samplerate": self.stt_samplerate,
             "server_samplerate": self.server_samplerate,
             "filter_lowcut_freq": self.filter_lowcut_freq,
-            "filter_highcut_freq": self.filter_highcut_freq
+            "filter_highcut_freq": self.filter_highcut_freq,
+            "filter_order": self.filter_order
         }
     
     def get_audio_parameters(self) -> dict:
@@ -150,7 +152,10 @@ class AudioParametersLoader(PyXavi):
             return self.DEFAULT_PREPROCESSING_SAMPLERATE
     
     def get_filter_lowcut_freq(self) -> int:
-        return self._xconfig.get("speech-to-text.preprocessor.filter_lowcut_freq", self.filter_lowcut_freq)
+        return self._xconfig.get("speech-to-text.preprocessor.lowcut_freq", self.filter_lowcut_freq)
     
     def get_filter_highcut_freq(self) -> int:
-        return self._xconfig.get("speech-to-text.preprocessor.filter_highcut_freq", self.filter_highcut_freq)
+        return self._xconfig.get("speech-to-text.preprocessor.highcut_freq", self.filter_highcut_freq)
+
+    def get_filter_order(self) -> int:
+        return self._xconfig.get("speech-to-text.preprocessor.filter_order", self.filter_order)

@@ -48,6 +48,9 @@ class XprocessDisplayForeground(Xprocess):
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND and param:
             self.show_arbitrary_text_on_foreground(param)
         
+        if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND_USER_SPEAKING and param is not None:
+            self.show_arbitrary_icon_on_foreground_while_user_speaking(param)
+        
         if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
             self.show_arbitrary_icon_on_foreground(param)
         
@@ -143,6 +146,9 @@ class XprocessDisplayForeground(Xprocess):
     
     def show_arbitrary_icon_on_foreground(self, param: dict):
         raise NotImplementedError("show_arbitrary_icon_on_foreground() must be implemented in Display Foreground subclasses.")
+
+    def show_arbitrary_icon_on_foreground_while_user_speaking(self, param: dict):
+        raise NotImplementedError("show_arbitrary_icon_on_foreground_while_user_speaking() must be implemented in Display Foreground subclasses.")
 
     def splash_ready(self):
         raise NotImplementedError("splash_ready() must be implemented in Display Foreground subclasses.")

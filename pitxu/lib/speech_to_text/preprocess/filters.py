@@ -17,26 +17,10 @@ class Filters(PyXavi):
 
     signal_filter: np.ndarray = None
 
-    # energy_average: float = 0.0
-
     # Weight for the new energy value in the moving average calculation (between 0 and 1)
     # A higher weight means that the average will react more quickly to changes in energy,
     # while a lower weight means that the average will be more stable and less affected by short-term fluctuations.
     NEW_ENERGY_WEIGHT = 0.1
-
-    # # Define a threshold for what constitutes a "peak" in energy.
-    # # This can be adjusted based on experimentation.
-    # # 1st try: 1.5 times the average energy
-    # # PEAK_THRESHOLD = 1.5    # -> Too low, it detects everything as human.
-    # # 2nd try: 1.25 times the average energy
-    # # PEAK_THRESHOLD = 1.25  # -> Too low, it detects everything as human.
-    # # 3rd try: 1.75 times the average energy
-    # # PEAK_THRESHOLD = 1.75  # -> Too low
-    # # 4th try: 2.0 times the average energy
-    # PEAK_THRESHOLD = 500.0  # 
-
-    # # Define a threshold for what constitutes a "peak" in filtered energy.
-    # PEAK_FILTERED_THRESHOLD = 1.0  # 
     
     ENERGY_RATIO_THRESHOLD = 0.9
 
@@ -56,12 +40,8 @@ class Filters(PyXavi):
         self.highcut_freq = params.get("highcut_freq", self.highcut_freq)
         self.order = params.get("order", self.order)
         
-        # self.NEW_ENERGY_WEIGHT = self._xconfig.get("speech-to-text.preprocessor.new_energy_weight", self.NEW_ENERGY_WEIGHT)
-        # self.PEAK_THRESHOLD = self._xconfig.get("speech-to-text.preprocessor.peak_energy_threshold_multiplier", self.PEAK_THRESHOLD)
-        # self.PEAK_FILTERED_THRESHOLD = self._xconfig.get("speech-to-text.preprocessor.peak_filtered_energy_threshold_multiplier", self.PEAK_FILTERED_THRESHOLD)
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
-        # self.signal_filter = self.butter_filter_design()
         self.signal_filter = self.butter_filter_design_simple()
 
         self.log_summary("Audio Filter Initialization", [
@@ -382,54 +362,6 @@ class Filters(PyXavi):
         freqs = fft.rfftfreq(len(audio_data_np), d=1 / self.samplerate)
         return freqs, spectrum
 
-    # def get_energy(self, audio_buffer: np.ndarray, filter_out_unwanted_freqs = False) -> float:
-    #     """
-    #     Calculate the energy of the audio signal.
-
-    #     Parameters:
-    #     audio_data (np.ndarray): The input audio data.
-
-    #     Returns:
-    #     float: The energy of the audio signal.
-    #     """
-    #     # audio_buffer = audio_buffer.astype(float) / 32768.0 # Normalize to -1 to 1
-
-    #     # # features, feature_names = ShortTermFeatures.feature_extraction(audio_buffer, self.samplerate,
-    #     # #                                                                    self.window_size_samples,
-    #     # #                                                                    self.step_size_samples,
-    #     # #                                                                    deltas=True)
-    #     # # current_energy = features[1, 0] # Energy is typically at index 1
-    #     # current_energy = np.sum(audio_buffer ** 2) / np.float64(len(audio_buffer))
-    #     # return current_energy
-
-    #     # This approach uses Discrete Fourier Transform to calculate the energy of the signal across different frequencies.
-    #     # This means that we have energy per frequency.
-    #     energy_per_frequencies = SignalTools.energy(audio_buffer, self.samplerate)
-
-    #     # # Sum speech energy
-    #     # speechenergy = 0
-    #     # for f, e in energy_per_frequencies.items():
-    #     #     if self.lowcut_freq <= f <= self.highcut_freq:
-    #     #         speechenergy += e
-
-    #     # In case that we want the energy only from the range of frequencies that are relevant for us.
-    #     if filter_out_unwanted_freqs:
-    #         energy_per_frequencies = dict(filter(lambda fe: self.lowcut_freq <= fe[0] <= self.highcut_freq, energy_per_frequencies.items()))
-
-    #     # AVG speech energy
-    #     speechenergy = statistics.fmean(energy_per_frequencies.values())
-
-    #     # SUM speech energy
-    #     speechenergy = sum(energy_per_frequencies.values())
-        
-    #     # Calculate ratio of speech energy to total energy and return
-    #     # ratio = speechenergy / sum(energy_per_frequencies.values())
-    #     # logger.debug("SPEECH %.4f", ratio)
-    #     # return ratio >= self.vadthreshold
-        
-    #     # return ratio
-    #     return speechenergy
-
     # def normalize_volume(self, audio_data: np.ndarray, target_dBFS: float = -20.0) -> np.ndarray:
     #     """
     #     Normalize the volume of the audio data to a target level.
@@ -446,67 +378,3 @@ class Filters(PyXavi):
     #     normalized_audio = audio_data * gain
     #     return normalized_audio
     
-    # ---- Energy control ---
-
-    # def add_energy_to_average(self, energy: float):
-    #     '''
-    #     Adds the energy of an audio block to the average energy using a simple moving average.
-    #     This can be used to keep track of the average energy of the audio input, which can help to detect peaks in energy that may indicate speech activity.
-    #     '''
-    #     weight_for_current_average = 1 - self.NEW_ENERGY_WEIGHT
-    #     self.energy_average = weight_for_current_average * self.energy_average + self.NEW_ENERGY_WEIGHT * energy
-    
-    # def energy_is_a_peak(self, energy: float) -> bool:
-    #     '''
-    #     Checks if the energy of the audio block is a peak compared to the average energy, which can be an indication of speech activity.
-    #     This can be used to trigger certain actions only when there is a significant increase in energy, which may indicate that the user has started speaking.
-    #     '''
-    #     if self.energy_average == 0:
-    #         return False  # Avoid division by zero
-
-    #     return energy > self.PEAK_THRESHOLD * self.energy_average
-
-    # def filtered_energy_is_a_peak(self, energy: float) -> bool:
-    #     '''
-    #     Checks if the filtered energy of the audio block is a peak compared to the average energy, which can be an indication of speech activity.
-    #     This can be used to trigger certain actions only when there is a significant increase in energy, which may indicate that the user has started speaking.
-    #     '''
-    #     if self.energy_average == 0:
-    #         return False  # Avoid division by zero
-
-    #     return energy > self.PEAK_FILTERED_THRESHOLD * self.energy_average
-    
-    # def add_untranscripted_audio_energy_to_average(self, audio_data: bytes):
-    #     '''
-    #     Adds the energy of an audio block that was not transcribed (e.g., because it was not detected as speech) to the average energy.
-    #     This can help to keep the average energy updated for chunks identified as human voice but lead to no transcription.
-    #     '''
-    #     energy = self.get_energy(self.byte_chunk_to_numpy_array(audio_data), filter_out_unwanted_freqs=True)
-    #     self._xlog.debug(f"🗣️ Adding energy ({energy:.2f}) of untranscripted audio chunk to average {self.energy_average:.2f} to keep it updated.")
-    #     self.add_energy_to_average(energy)
-
-    # ---- States ----
-    
-    # def set_user_is_speaking(self):
-    #     """
-    #     Sets the state to indicate that the user is currently speaking.
-    #     Local flag, Shared memory flag, and ALWAYS resets the last human speaking datetime to now.
-    #     """
-    #     if not self.user_is_speaking:
-    #         self.user_is_speaking = True
-    #         self.shared_memory.write_shared_memory_flag(SHARED_USER_IS_SPEAKING, True)
-
-    #     # Keep it updated anyways
-    #     self.last_human_speaking_datetime = datetime.now()
-    
-    # def unset_user_is_speaking(self):
-    #     """
-    #     Unsets the state to indicate that the user is no longer speaking.
-    #     Local flag, Shared memory flag, and ALWAYS nullifies the last human speaking datetime.
-    #     """
-    #     if self.user_is_speaking:
-    #         self.user_is_speaking = False
-    #         self.shared_memory.write_shared_memory_flag(SHARED_USER_IS_SPEAKING, False)
-
-    #     # Ensure it is reset.
-    #     self.last_human_speaking_datetime = None

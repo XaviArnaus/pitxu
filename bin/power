@@ -17,7 +17,17 @@ print_cpu_ampers() {
 
 # Commandline to get current CPU volts
 print_cpu_volts() {
-    echo "CPU ampers: $(vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, "="); { print a[2]; } }')"
+    echo "CPU volts: $(vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, "="); { print a[2]; } }')"
+}
+
+# The UPS volts are available via i2c.
+print_ups_volts() {
+    # It takes only the integer part. We need the full decimal value.
+    echo "UPS volts: $(($(i2cget -y 1 0x36 0x04 <<< 4) * 78125 / 1000000))V"
+}
+
+print_ups_battery() {
+    echo "Battery level: $(($(i2cget -y 1 0x36 0x04)))%"
 }
 
 # Commandline to get the power consumption in watts
@@ -27,13 +37,19 @@ print_power_consumption() {
     # echo "vcgencmd pmic_read_adc VDD_CORE_V | awk '{ n=split($2, a, \"=\"); { print \"CPU ampers: \" a[2]; } }'"
 }
 
+print_help() {
+    echo "Usage: power [input_volts|cpu_volts|cpu_ampers|ups_volts|ups_battery]"
+}
+
 if [[ $# -eq 0 ]] ; then
     # No arguments provided, we give all info
     print_input_volts
     print_cpu_ampers
     print_cpu_volts
+    print_ups_volts
+    print_ups_battery
     echo ""
-    echo "Usage: power [input_volts|cpu_volts|cpu_ampers]"
+    print_help
     exit 0
 fi
 
@@ -41,7 +57,9 @@ case "$1" in
     "input_volts") print_input_volts ;;
     "cpu_ampers") print_cpu_ampers ;;
     "cpu_volts") print_cpu_volts ;;
-    "help") echo "Usage: power [input_volts|cpu_volts|cpu_ampers]" ;;
+    "ups_volts") print_ups_volts ;;
+    "ups_battery") print_ups_battery ;;
+    "help") print_help ;;
     *) echo "Command unknown" ;;
 esac
 

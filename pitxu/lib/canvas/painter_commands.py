@@ -3,6 +3,7 @@ class BackgroundComm:
     THINKING: str = "THINKING"
     NETWORKING: str = "NETWORKING"
     SPEAKING: str = "SPEAKING"
+
     INITIAL_PHASE: str = "INITIAL_PHASE"
     HOLDER_PERCENTAGE: str = "HOLDER_PERCENTAGE"
     ERROR: str = "ERROR"

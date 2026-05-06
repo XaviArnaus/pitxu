@@ -1,0 +1,10 @@
+battery:
+
+    # How often should we check the battery level (in seconds)
+    check_interval: 10
+
+    # Charge threshold
+    charge_threshold: 100
+
+    # Shut down after these many intervals discharging below the threshold
+    threshold_count: 180

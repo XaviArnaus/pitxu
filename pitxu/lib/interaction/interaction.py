@@ -15,7 +15,7 @@ from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
-                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_USER_IS_SPEAKING, \
+                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
                         SHARED_IDLE_MODE # <-- This needs to be converted to a more overarching one.
 
@@ -456,6 +456,21 @@ class Interaction(PyXavi):
             "padding": padding
         })
     
+    def show_arbitrary_icon_on_foreground_while_user_speaking(
+            self,
+            icon: str = None,
+            text: str = None,
+            color: str = None
+        ):
+        """
+        Shows arbitrary icon on the foreground display only while the user is speaking.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND_USER_SPEAKING, {
+            "icon": icon,
+            "text": text,
+            "color": color
+        })
+    
     def show_arbitrary_text_on_foreground_while_thinking(
             self,
             icon: str = None,
@@ -601,14 +616,14 @@ class Interaction(PyXavi):
 
     def mute_microphone(self, input_stream: RawInputStream = None):
         if input_stream:
-            self._log_debug("🔇 Stopping the input stream as microphone is muted.")
+            self._log_debug("🔇 Stopping the input stream as microphone is muting.")
             input_stream.stop()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
     def unmute_microphone(self, input_stream: RawInputStream = None):
         if input_stream:
-            self._log_debug("🔊 Starting the input stream as microphone is unmuted.")
+            self._log_debug("🔊 Starting the input stream as microphone is unmuting.")
             input_stream.start()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, False)
         self._log_debug("🔊 Unmuting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
@@ -667,11 +682,14 @@ class Interaction(PyXavi):
     def unset_speaker_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
     
-    def set_user_is_speaking(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_USER_IS_SPEAKING, True)
+    def set_vad_detected(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, True)
     
-    def unset_user_is_speaking(self):
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_USER_IS_SPEAKING, False)
+    def unset_vad_detected(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, False)
+    
+    def is_vad_detected(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
 
     # --------- Internal helper functions ---------
 

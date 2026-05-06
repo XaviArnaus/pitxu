@@ -4,10 +4,13 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.utils.system import System
 
 from flask import Flask, request, current_app
 import base64
 import sys, logging
+
+from pitxu.lib.utils.xtime import Xtime
 
 class Server(PyXavi, MicroserviceBase):
 
@@ -167,6 +170,12 @@ class Server(PyXavi, MicroserviceBase):
                 "version": params.get("app_version", "?"),
                 "execution_mode": config.get("app.execution_mode", "?"),
                 "chatbot_name": config.get("chatbot.name", "?"),
+                "running_since": params.get("current_start_timestamp", "?"),
+                "uptime": Xtime.get_human_format_from_seconds(
+                    Xtime.get_seconds_since(
+                        params.get("current_start_timestamp", Xtime.current_time_str()))) \
+                            if params.key_exists("current_start_timestamp") \
+                                else "N/A"
             },
             "modules_enabled": {
                 "foreground_display": not config.get(f"{foreground_display_id}.mock", False),
@@ -192,7 +201,9 @@ class Server(PyXavi, MicroserviceBase):
                 "charging_eta": charging_eta,
                 "cpu_temperature": cpu_temperature["cpu_temperature"] if isinstance(cpu_temperature, dict) else "N/A",
                 "cpu_fan_speed": cpu_temperature["cpu_fan_speed"] if isinstance(cpu_temperature, dict) else "N/A",
-                "case_fans": cpu_temperature["case_fans"] if isinstance(cpu_temperature, dict) else "N/A"
+                "case_fans": cpu_temperature["case_fans"] if isinstance(cpu_temperature, dict) else "N/A",
+                "load": System.get_system_load(),
+                "uptime": Xtime.get_human_format_from_seconds(System.get_system_uptime())
             },
             "reports": {
                 "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"

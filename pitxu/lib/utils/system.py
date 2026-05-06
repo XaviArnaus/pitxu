@@ -116,7 +116,7 @@ class System:
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
     
     @staticmethod
-    def get_power_throttle(test_bin_value = None) -> list:
+    def get_power_throttle(test_bin_value = None) -> list[dict]:
         """
         Returns a dictionary describing the current power throttle state of the system.
         
@@ -126,6 +126,11 @@ class System:
         https://github.com/HarlemSquirrel/scripts/blob/master/rpi-check-throttling.py
         """
         try:
+
+            if not System.is_linux():
+                # Faking it for others.
+                return []
+
             map = {
                 0: "Currently under-voltage",
                 1: "ARM frequency currently capped",
@@ -153,11 +158,21 @@ class System:
     
     @staticmethod
     def get_system_uptime() -> float:
-        return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
+        if System.is_linux():
+            return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
+        elif System.is_macos():
+            return float(System._run_command("sysctl -n kern.boottime").split('}')[0].split('=')[2].strip()) # returns system uptime in seconds
+        else:
+            raise Exception("Unsupported OS for getting system uptime")
     
     @staticmethod
     def get_system_load() -> list[float]:
-        return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        if System.is_linux():
+            return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        elif System.is_macos():
+            return [float(x) for x in System._run_command("sysctl -n vm.loadavg").strip('{}\n ').split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
+        else:
+            raise Exception("Unsupported OS for getting system load")
     
     @staticmethod
     def get_memory_usage() -> dict:
@@ -262,3 +277,15 @@ class System:
             return metric_str # converts the cleaned-up string to float and returns it.
         except (Exception) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
             raise Exception(f"Error reading hardware metric: {e}")
+    
+    @staticmethod
+    def is_linux() -> bool:
+        return platform.system() == "Linux"
+    
+    @staticmethod
+    def is_macos() -> bool:
+        return platform.system() == "Darwin"
+    
+    @staticmethod
+    def is_windows() -> bool:
+        return platform.system() == "Windows"

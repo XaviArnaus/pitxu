@@ -108,6 +108,7 @@ class Vosk(PyXavi):
         return self._queue
     
     def recognize(self) -> str:
+        # TODO: Not used in Main anymore after the Callback-based approach. Check the Client PTT and follow the Server Side processing!!
         try:
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
@@ -162,7 +163,66 @@ class Vosk(PyXavi):
             self.close()
             return None
     
+    def recognize_all_queue_at_once(self) -> str:
+        """
+        Processes all chunks in the queue in one shot.
+        It does NOT concatenate the chunks and process them all, because this could lead to memory issues if the user speaks for a long time.
+            Instead, it processes each chunk one by one, and concatenates the results.
+        This is meant for the new Callback-based approach, where we want to process the audio data at the end of the speech.
+        """
+
+        try:
+            if self._xconfig.get("speech-to-text.mock", True):
+                return input("Type your question: [\"exit\" to leave]: \n")
+            elif self.is_active == False:
+                raise VoskException("Vosk is not active, cannot recognize audio")
+            elif self.is_active and self._queue is not None:
+
+                result = None
+
+                self._log_debug(f"Vosk: Recognize all queue at once called, processing all audio chunks [{self._queue.qsize()}] from the queue")
+
+                # Process all the chunks in the queue until it's empty.
+                while not self._queue.empty():
+
+                    # Get the next chunk from the queue.
+                    data = self._queue.get()
+
+                    # This method is only useful for VAD processing, so simply rely on the process we know that already works.
+                    transcription = self.process_audio_input_vad(data)
+                    if transcription is not None and transcription.strip() != "":
+                        if result is None:
+                            result = transcription.strip()
+                        else:
+                            self._xlog.warning("Vosk: Multiple transcriptions received in the queue, concatenating results.")
+                            result = result + " " + transcription.strip()
+                
+                self._log_debug(f"Vosk: Finished processing all audio chunks from the queue, final result: {result}")
+                return result
+
+        except queue.ShutDown as e:
+            self.is_active = False
+            raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
+        except VoskException as ve:
+            self.is_active = False
+            # It's handled in Main, don't even log it here
+            raise ve
+        except KeyboardInterrupt:
+            self._xlog.debug("Pressed Control + C while running Vosk transcription.")
+            self.is_active = False
+            self.close()
+        except BrokenPipeError as bpe:
+            self.is_active = False
+            raise VoskException("Vosk BrokenPipeError: " + str(bpe))
+        except Exception as e:
+            self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
+            self._xlog.error(full_stack())
+            self.close()
+            return None
+    
     def process_audio_input_without_vad(self, data: bytes):
+        # TODO: Not used in Main anymore after the Callback-based approach. Check the Client PTT and follow the Server Side processing!!
+
         # We have a VAD identifying the end of the speech,
         #   but if apparently gets stuck at the end of the speech, not sending the end of speech marker (`None`) to the queue.
 
@@ -200,7 +260,7 @@ class Vosk(PyXavi):
                 self.reset_result()
                 return result
         
-    def process_audio_input_vad(self, data: bytes):
+    def process_audio_input_vad(self, data: bytes) -> str | None:
 
         # Remember: we use `None` as a marker, so protect against it!
         if data is not None:
@@ -321,51 +381,6 @@ class Vosk(PyXavi):
         """
         self.transcription_result = None
         self._recognizer.Reset()
-
-    # def _get_samplerate(self) -> int:
-    #     device_info = sd.query_devices(self.device, "input")
-    #     # soundfile expects an int, sounddevice provides a float:
-    #     return int(device_info["default_samplerate"])
-
-    # def callback(self, indata, frames, time, status):
-    #     """
-    #     This is called (from a separate thread) for each audio block.
-    #     Audio blocks are sentences.
-
-    #     NOT USED. See CaptureHandler.
-    #     """
-    #     if status:
-    #         self._xlog.debug(f"Vosk callback: Audio input status: {status}")
-    #         print(status, file=sys.stderr)
-
-    #     if not self.should_skip_audio_input() and self._queue is not None:
-    #         # self._xlog.debug(f"Vosk callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
-    #         # print(time.inputBufferAdcTime)
-    #         self._queue.put(bytes(indata))
-    #     # else:
-    #     #     self._xlog.debug("Vosk callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
-    
-    # def should_skip_audio_input(self):
-    #     '''
-    #     Checks if the microphone is muted by reading AND if the speaker is talking via the shared memory flags
-    #     '''
-
-    #     speaker_is_busy = False
-    #     mic_is_muted = False
-
-    #     if self._shared_memory is None:
-    #         self._xlog.error("Shared Memory is None, cannot read 'SHARED_MICROPHONE_MUTED' flag")
-    #         return False
-    #     if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED), bool)):
-    #         self._xlog.error("Shared Memory flag 3 should be 'SHARED_MICROPHONE_MUTED' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)))
-    #         return False
-    #     if (not isinstance(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
-    #         self._xlog.error("Shared Memory flag 4 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
-    #         return False
-    #     mic_is_muted = self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
-    #     speaker_is_busy = self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
-
-    #     return mic_is_muted or speaker_is_busy
 
     def close(self):
         self._xlog.info("Closing Vosk STT")
