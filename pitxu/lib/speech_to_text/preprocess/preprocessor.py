@@ -65,12 +65,8 @@ class Preprocessor(PyXavi):
         self.lowcut_freq = params.get("audio_parameters.filter_lowcut_freq")
         self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
         self.filter_order = params.get("audio_parameters.filter_order")
+        self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
-
-        params.set("samplerate", self.samplerate)
-        params.set("lowcut_freq", self.lowcut_freq)
-        params.set("highcut_freq", self.highcut_freq)
-        params.set("order", self.filter_order)
 
         self.filters = Filters(config=config, params=params)
 

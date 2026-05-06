@@ -35,10 +35,10 @@ class Filters(PyXavi):
 
         self._xlog.info("Initializing Filters for Speech-to-Text")
 
-        self.samplerate = params.get("samplerate", self.samplerate)
-        self.lowcut_freq = params.get("lowcut_freq", self.lowcut_freq)
-        self.highcut_freq = params.get("highcut_freq", self.highcut_freq)
-        self.order = params.get("order", self.order)
+        self.lowcut_freq = params.get("audio_parameters.filter_lowcut_freq", self.lowcut_freq)
+        self.highcut_freq = params.get("audio_parameters.filter_highcut_freq", self.highcut_freq)
+        self.order = params.get("audio_parameters.filter_order", self.order)
+        self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
         
         self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
@@ -225,7 +225,10 @@ class Filters(PyXavi):
         nyquist = 0.5 * self.samplerate
         low = self.lowcut_freq / nyquist
         high = self.highcut_freq / nyquist
-        # b, a = signal.butter(self.FILTER_ORDER, [low, high], btype='band')
+        # Most likely this IF should not be here
+        if high >= 1.0:
+            self._xlog.warning(f"High cut frequency {self.highcut_freq} Hz is above Nyquist frequency for samplerate {self.samplerate} Hz, adjusting to {0.99*nyquist} Hz.")
+            high = 0.99
         sos = signal.butter(self.order, [low, high], btype='band', analog=False, output='sos')
 
         self.log_summary("Butterworth Filter Design", [
