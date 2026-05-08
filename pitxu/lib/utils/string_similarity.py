@@ -73,6 +73,15 @@ class StringSimilarity:
 
         return (2.0 * intersectionSize) / (len(first) + len(second) - 2)
 
+    @staticmethod
+    def compareAllAgainstOne(mainString: str, targetStrings: list[str]) -> list[Rating]:
+        ratings: list[Rating] = []
+        for i in range(len(targetStrings)):
+            currentTargetString = targetStrings[i]
+            currentRating = StringSimilarity.compareTwoStrings(mainString, currentTargetString)
+            ratings.append(Rating(target=currentTargetString, rating=currentRating))
+        return ratings
+
 
     @staticmethod
     def findBestMatch(mainString: str, targetStrings: list[str]) -> BestMatch:

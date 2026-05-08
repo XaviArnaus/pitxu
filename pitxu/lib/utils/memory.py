@@ -13,6 +13,7 @@ import logging
 class Memory(PyXavi):
 
     filename = "memory.yaml"
+    # Not used, by now.
     summary_similarity_threshold = 0.8
 
     ENTRY_TEMPLATE = {
@@ -49,7 +50,7 @@ class Memory(PyXavi):
         entry = self.ENTRY_TEMPLATE.copy()
         entry["summary"] = summary
         entry["content"] = content
-        entry["created_at"] = Xtime.now_str()
+        entry["created_at"] = Xtime.current_time_str()
 
         entries = list(self.state.get("entries"))
         entries.append(entry)
@@ -69,39 +70,57 @@ class Memory(PyXavi):
         target_datetime = Xtime.str_to_datetime(datetime_str)
         return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]) == target_datetime]
     
-    def _match_bunch_of_words(self, summary: str, entries: list) -> list:
+    def get_by_exact_summary(self, summary: str) -> dict | None:
+        entries = list(self.state.get("entries"))
+        for entry in entries:
+            if entry["summary"].lower() == summary.lower():
+                return entry
+        return None
+    
+    def _match_bunch_of_words(self, summary: str, entries: list) -> list[dict]:
         requested_words = set(summary.lower().split())
         requested_words = requested_words - self.WORDS_TO_BAN_FROM_BUNCH_OF_WORDS_MATCHING
-        found = []
+        found_fully = []
+        found_partially = []
         for entry in entries:
             entry_words = set(entry["summary"].lower().split())
+            entry_words = entry_words - self.WORDS_TO_BAN_FROM_BUNCH_OF_WORDS_MATCHING
+
+            # First, check if all the words in the requested summary are present in the entry summary. No need to look further, then.
             if requested_words.issubset(entry_words):
-                found.append(entry)
-        return found
+                found_fully.append(entry)
+                continue
+
+            # Second, check if at least one of the words in the requested summary is present in the entry summary.
+            if requested_words & entry_words:
+                found_partially.append(entry)
+        
+        # Now return these lists, merging them discarding duplicated entries (those that are in found_fully should not be in found_partially, even if they match partially too).
+        found_partially = [entry for entry in found_partially if entry not in found_fully]
+        return found_fully + found_partially
     
-    def get_by_summary_like(self, summary: str) -> dict | None:
+    def get_by_summary_like(self, summary: str) -> list[dict] | None:
         entries = list(self.state.get("entries"))
 
-        # First approach: use string similarity to find the best match
-        best_match = StringSimilarity.findBestMatch(summary.lower(), [entry["summary"].lower() for entry in entries])
-        if best_match.bestMatch.rating >= self.summary_similarity_threshold:
-            self._log_debug(f"Found a memory entry with summary similar enough to '{summary}'. Returning this entry as a match. Entry summary: '{best_match.bestMatch.target}', similarity: {best_match.bestMatch.rating:.2f}")
-            return entries[best_match.bestMatchIndex]
-        
-        # Second approach: check if there is an entry that contains the words in the requestedsummary (ignoring common words), and if so, return that entry as a match, since it might be relevant even if the overall similarity is low.
-        matches = self._match_bunch_of_words(summary, entries)
-        if len(matches) == 1:
-            # Only one match found, return it.
-            self._log_debug(f"Found a memory entry with summary that contains all the words in '{summary}', even though the overall similarity is below the threshold. Returning this entry as a match. Entry summary: '{matches[0]['summary']}'")
-            return matches[0]
-        elif len(matches) > 1:
-            # More than one, just get the best match, regardless of the similarity score, since they all contain the words in the requested summary.
-            best_match = StringSimilarity.findBestMatch(summary.lower(), [entry["summary"].lower() for entry in matches])
-            self._log_debug(f"Found multiple memory entries with summary that contains all the words in '{summary}'. Returning the best match. Entry summary: '{best_match.bestMatch.target}', similarity: {best_match.bestMatch.rating:.2f}")
-            return matches[best_match.bestMatchIndex]
+        # 1st, get all summaries that contain the words in the requested summary, either fully (all the words) or partially (at least one of the words).
+        # This is to reduce the number of comparisons we need to do with the string similarity, which is more expensive and also may not work well with long summaries.
+        entries = self._match_bunch_of_words(summary, entries)
+        self._log_debug(f"Found {len(entries)} entries that match the words in the requested summary '{summary}'.")
+
+        # 2nd, rate the similarity of the summaries of these entries with the requested summary.
+        rated_entries = StringSimilarity.compareAllAgainstOne(mainString=summary.lower(), targetStrings=[entry["summary"].lower() for entry in entries])
+        self._log_debug(f"Rated the similarity of the summaries of the {len(entries)} entries with the requested summary '{summary}'. Ratings: {[f'{rated_entry.target}: {rated_entry.rating}' for rated_entry in rated_entries]}")
+
+        # 3rd, sort the entries by similarity rating in descending order.
+        rated_entries.sort(key=lambda x: x.rating, reverse=True)
+        self._log_debug(f"Filtered and sorted the rated entries. Remaining entries: {[f'{rated_entry.target}: {rated_entry.rating}' for rated_entry in rated_entries]}")
+
+        # 4th, Return the full entries that correspond to the rated entries already sorted by similarity.
+        if rated_entries:
+            return [self.get_by_exact_summary(rated_entry.target) for rated_entry in rated_entries]
         
         # Still here, no match found.
-        self._log_debug(f"No memory entry found with summary similar to '{summary}' or that contains all the words in '{summary}'. Returning None.")
+        self._log_debug(f"No memory entries found with summary similar to '{summary}' or that contains the words in '{summary}'. Returning None.")
         return None
     
     def get_last_entry(self) -> dict | None:

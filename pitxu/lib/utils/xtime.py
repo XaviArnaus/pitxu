@@ -13,7 +13,7 @@ class Xtime:
         """Returns the current time as a formatted string."""
         if format is None:
             format = Xtime.FORMAT
-        return datetime.now().strftime(format)
+        return Xtime.now().strftime(format)
     
     @staticmethod
     def now() -> datetime:

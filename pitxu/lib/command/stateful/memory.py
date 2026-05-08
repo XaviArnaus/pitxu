@@ -5,9 +5,6 @@ from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.utils.memory import Memory
 
-from google import genai
-from google.genai import types
-import json
 import logging
 
 
@@ -43,30 +40,30 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.entry_creation_error." + self._xparams.get("language"))
 
-    def get_memory_entry_by_summary(self, summary: str) -> dict | str:
+    def get_memory_entries_by_summary(self, summary: str) -> list[dict] | str:
         '''
-        Retrieve a specific memory entry by summary.
-
+        Retrieve memory entries by summary.
+    
         Args:
             summary (str): The summary of the memory entry to retrieve.
 
         Returns:
-            dict | str: If successful, returns a JSON with the memory entry details; otherwise, an error message.
+            list[dict] | str: If successful, returns a list of memory entries; otherwise, an error message.
         '''
-        self._xlog.info(f"Ⓜ️ Request for Retrieving a memory entry for [{summary}]")
+        self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{summary}]")
 
         try:
-            memory_entry = self._memory.get_by_summary_like(summary)
-            if memory_entry:
-                return memory_entry
+            memory_entries = self._memory.get_by_summary_like(summary)
+            if memory_entries:
+                return memory_entries
             else:
-                return self._xconfig.get("language.memory.entry_not_found." + self._xparams.get("language")) % summary
+                return self._xconfig.get("language.memory.entries_not_found." + self._xparams.get("language")) % summary
         except Exception as e:
-            self._xlog.error(f"🛑 Error retrieving memory entry for [{summary}]: {e}")
+            self._xlog.error(f"🛑 Error retrieving memory entries for [{summary}]: {e}")
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
-    def get_memory_entry_by_date(self, date: str) -> dict | str:
+    def get_memory_entries_by_date(self, date: str) -> list[dict] | str:
         '''
         Retrieve all memory entries by date.
 
@@ -74,14 +71,14 @@ class StatefulMemory(PyXavi, Command):
             date (str): The date of the memory entries to retrieve in YYYY-MM-DD format.
 
         Returns:
-            dict | str: If successful, returns a JSON with the memory entry details; otherwise, an error message.
+            list[dict] | str: If successful, returns a list of memory entries; otherwise, an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{date}]")
 
         try:
-            memory_entry = self._memory.get_by_date(date)
-            if memory_entry:
-                return memory_entry
+            memory_entries = self._memory.get_by_date(date)
+            if memory_entries:
+                return memory_entries
             else:
                 return self._xconfig.get("language.memory.entries_not_found." + self._xparams.get("language")) % date
         except Exception as e:
@@ -216,8 +213,8 @@ class StatefulMemory(PyXavi, Command):
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
         return [self.create_memory_entry,
-                self.get_memory_entry_by_summary,
-                self.get_memory_entry_by_date,
+                self.get_memory_entries_by_summary,
+                self.get_memory_entries_by_date,
                 self.update_last_memory_entry,
                 self.summarize_chatbot_history_into_new_memory_entry]
 
@@ -232,6 +229,6 @@ class StatefulMemory(PyXavi, Command):
         """
         if function_name == "summarize_chatbot_history_into_new_memory_entry":
             return self.callback_summarize_chatbot_history_into_new_memory_entry
-        elif function_name in ["get_memory_entry_by_summary", "get_memory_entry_by_date", "create_memory_entry", "update_last_memory_entry"]:
+        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback
