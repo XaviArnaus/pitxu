@@ -6,9 +6,7 @@ from pitxu.lib.utils.string_similarity import StringSimilarity
 import os
 
 from google import genai
-from google.genai import types
 import json
-import logging
 
 class Memory(PyXavi):
 
@@ -37,7 +35,10 @@ class Memory(PyXavi):
         )
         self.summary_similarity_threshold = self._xconfig.get("memory.summary_similarity_threshold", self.summary_similarity_threshold) 
 
-        self.state = self._state = Storage(filename=self.filename)
+        self.reload_state()
+    
+    def reload_state(self):
+        self.state = Storage(filename=self.filename)
         if not self.state.key_exists("entries"):
             self.state.set("entries", [])
             self.state.write_file()
@@ -51,30 +52,30 @@ class Memory(PyXavi):
         entry["summary"] = summary
         entry["content"] = content
         entry["created_at"] = Xtime.current_time_str()
+        entry["id"] = self._generate_memory_entry_id()
 
-        entries = list(self.state.get("entries"))
-        entries.append(entry)
-        self.state.set("entries", entries)
-
+        self.state.set(f"entries.{entry['id']}", entry)
         self.state.write_file()
 
         return entry
     
+    def _generate_memory_entry_id(self) -> str:
+        return Xtime.now_key()
+    
     def get_by_date(self, date_str: str) -> list:
-        entries = list(self.state.get("entries"))
+        entries = list(self.state.get("entries").values())
         date = Xtime.str_to_datetime(date_str).date()
         return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]).date() == date]
     
     def get_by_datetime(self, datetime_str: str) -> list:
-        entries = list(self.state.get("entries"))
+        entries = list(self.state.get("entries").values())
         target_datetime = Xtime.str_to_datetime(datetime_str)
         return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]) == target_datetime]
     
-    def get_by_exact_summary(self, summary: str) -> dict | None:
-        entries = list(self.state.get("entries"))
-        for entry in entries:
-            if entry["summary"].lower() == summary.lower():
-                return entry
+    def get_by_id(self, entry_id: str) -> dict | None:
+        entry = self.state.get(f"entries.{entry_id}")
+        if entry:
+            return entry
         return None
     
     def _match_bunch_of_words(self, summary: str, entries: list) -> list[dict]:
@@ -100,7 +101,7 @@ class Memory(PyXavi):
         return found_fully + found_partially
     
     def get_by_summary_like(self, summary: str) -> list[dict] | None:
-        entries = list(self.state.get("entries"))
+        entries = list(self.state.get("entries").values())
 
         # 1st, get all summaries that contain the words in the requested summary, either fully (all the words) or partially (at least one of the words).
         # This is to reduce the number of comparisons we need to do with the string similarity, which is more expensive and also may not work well with long summaries.
@@ -108,7 +109,10 @@ class Memory(PyXavi):
         self._log_debug(f"Found {len(entries)} entries that match the words in the requested summary '{summary}'.")
 
         # 2nd, rate the similarity of the summaries of these entries with the requested summary.
-        rated_entries = StringSimilarity.compareAllAgainstOne(mainString=summary.lower(), targetStrings=[entry["summary"].lower() for entry in entries])
+        rated_entries = StringSimilarity.compareAllAgainstOne(
+            mainString=summary.lower(),
+            targetStrings=[entry["summary"].lower() for entry in entries],
+            targetTokens=[entry["id"] for entry in entries])
         self._log_debug(f"Rated the similarity of the summaries of the {len(entries)} entries with the requested summary '{summary}'. Ratings: {[f'{rated_entry.target}: {rated_entry.rating}' for rated_entry in rated_entries]}")
 
         # 3rd, sort the entries by similarity rating in descending order.
@@ -117,21 +121,34 @@ class Memory(PyXavi):
 
         # 4th, Return the full entries that correspond to the rated entries already sorted by similarity.
         if rated_entries:
-            return [self.get_by_exact_summary(rated_entry.target) for rated_entry in rated_entries]
+            return [self.get_by_id(rated_entry.target) for rated_entry in rated_entries]
         
         # Still here, no match found.
         self._log_debug(f"No memory entries found with summary similar to '{summary}' or that contains the words in '{summary}'. Returning None.")
         return None
     
     def get_last_entry(self) -> dict | None:
-        entries = list(self.state.get("entries"))
+        entries = list(self.state.get("entries").values())
         if entries:
             return entries[-1]
         else:
             return None
     
+    def update_entry_by_id(self, entry_id: str, summary: str = None, content: str = None) -> dict | None:
+        entry = self.get_by_id(entry_id)
+        if not entry:
+            return None
+        
+        if summary is not None:
+            entry["summary"] = summary
+        if content is not None:
+            entry["content"] = content
+        
+        self.state.set(f"entries.{entry_id}", entry)
+        self.state.write_file()
+    
     def update_last_entry(self, summary: str = None, content: str = None) -> dict | None:
-        entries = list(self.state.get("entries"))
+        entries = list(self.state.get("entries").values())
         if not entries:
             return None
         
@@ -141,7 +158,7 @@ class Memory(PyXavi):
         if content is not None:
             last_entry["content"] = content
         
-        self.state.set("entries", entries)
+        self.state.set(f"entries.{last_entry['id']}", last_entry)
         self.state.write_file()
 
         return last_entry

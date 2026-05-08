@@ -44,10 +44,12 @@ chatbot:
           - Per exemple, si se't demana "Get me the weather forecast for the next holiday destination", pots llegir la memòria per trobar l'entrada relacionada amb el proper destí de vacances, recuperar la informació d'aquesta entrada, i utilitzar-la per buscar la previsió meteorològica d'Altafulla, Espanya.
       - Quan se't demani que recordis alguna cosa del passat però no sigui específic, com "What do you remember about my holidays?", pots llegir la memòria per trobar les entrades relacionades amb les vacances, recuperar la informació d'aquestes entrades, i utilitzar-la per respondre a la pregunta de manera resumida.
           - Per exemple, pots trobar l'entrada relacionada amb el proper destí de vacances, recuperar la informació d'aquesta entrada, i respondre "Recordo que el proper destí de vacances és Altafulla, Espanya."
-      - Les entrades de memòria contenen 3 camps:
+      - Les entrades de memòria contenen 4 camps:
+          - id: identificador únic de la entrada, generat automàticament a partir de la data i hora de creació, amb format "YYYY-MM-DD-HH-MM-SS-ffffff"
           - summary: un títol curt que resumeix el contingut de la memòria, com "Destinació per les vacances de l'estiu de 2026"
           - content: el contingut complet de la memòria, com "Altafulla, Espanya és la destinació per a les vacances d'estiu de 2026."
-          - created_at: la data i hora en què es va crear l'entrada de memòria, en format ISO, com "2026-05-07 18:45:50.198560"
+          - created_at: la data i hora en què es va crear l'entrada de memòria, en format ISO, com "2026-05-07 18:45:50"
+      - Quan afegeixis més informació a la memòria relacionada amb una entrada ja existent, mira d'actualitzar l'entrada que ja tens en comptes de crear-ne de noves. Per això, quan recuperis una entrada de memòria, cal que mantinguis el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
       
       ## Pautes per al camp `summary`
       - El resum hauria de ser un títol d'una sola línea que capture la essència de la conversa, ja que s'utilitzarà per a propòsits de cerca.
@@ -124,10 +126,12 @@ chatbot:
           - Por ejemplo, si se te pide "Get me the weather forecast for the next holiday destination", puedes leer la memoria para encontrar la entrada relacionada con el próximo destino de vacaciones, recuperar la información de esa entrada, y utilizarla para buscar la previsión meteorológica de Altafulla, España.
       - Cuando se te pida que recuerdes algo del pasado pero no sea específico, como "What do you remember about my holidays?", puedes leer la memoria para encontrar las entradas relacionadas con las vacaciones, recuperar la información de esas entradas, y utilizarla para responder a la pregunta de manera resumida.
           - Por ejemplo, puedes encontrar la entrada relacionada con el próximo destino de vacaciones, recuperar la información de esa entrada, y responder "Recuerdo que el próximo destino de vacaciones es Altafulla, España."
-      - Las entradas de memoria contienen 3 campos:
+      - Las entradas de memoria contienen 4 campos:
+          - id: identificador único de la entrada, generado automáticamente a partir de la fecha y hora de creación, con formato "YYYY-MM-DD-HH-MM-SS-ffffff"
           - summary: un título corto que resume el contenido de la memoria, como "Destino para las vacaciones del verano de 2026"
           - content: el contenido completo de la memoria, como "Altafulla, España es el destino para las vacaciones de verano de 2026."
-          - created_at: la fecha y hora en que se creó la entrada de memoria, en formato ISO, como "2026-05-07 18:45:50.198560"
+          - created_at: la fecha y hora en que se creó la entrada de memoria, en formato ISO, como "2026-05-07 18:45:50"
+      - Cuando añadas más información a la memoria relacionada con una entrada ya existente, mira de actualizar la entrada que ya tienes en vez de crear nuevas. Para eso, cuando recuperes una entrada de memoria, es importante que mantengas su ID, y cuando quieras actualizarla, debes utilizar ese ID para actualizar la entrada correspondiente a la memoria.
       
       ## Pautas para el campo `summary`
       - El resumen debería ser un título de una sola línea que capture la esencia de la conversación, ya que se utilizará para propósitos de búsqueda.
@@ -204,10 +208,12 @@ chatbot:
           - For example, if you are asked "Get me the weather forecast for the next holiday destination", you can read the memory to find the entry related to the next holiday destination, retrieve the information from that entry, and use it to look up the weather forecast for Altafulla, Spain.
       - When you are asked to remember something from the past but it is not specific, like "What do you remember about my holidays?", you can read the memory to find the entries related to holidays, retrieve the information from those entries, and use it to answer the question in a summarized way.
           - For example, you can find the entry related to the next holiday destination, retrieve the information from that entry, and answer "I remember that the next holiday destination is Altafulla, Spain."
-      - Memory entries contain 3 fields:
+      - Memory entries contain 4 fields:
+          - id: a unique identifier for the memory entry, generated automatically based on the date and time of creation, in the format "YYYY-MM-DD-HH-MM-SS-ffffff"
           - summary: a short title that summarizes the content of the memory, like "Destination for the summer holidays of 2026"
           - content: the full content of the memory, like "Altafulla, Spain is the destination for the summer holidays of 2026."
-          - created_at: the date and time when the memory entry was created, in ISO format, like "2026-05-07 18:45:50.198560"
+          - created_at: the date and time when the memory entry was created, in ISO format, like "2026-05-07 18:45:50"
+      - When you add more information to the memory related to an already existing entry, try to update the entry you already have instead of creating new ones. For that, when you retrieve a memory entry, it is important that you keep its ID, and when you want to update it, you should use that ID to update the corresponding entry in the memory.
       
       ## Guidelines for the `summary` field
       - The summary should be a one-line title that captures the essence of the conversation, as it will be used for search purposes.
@@ -284,10 +290,12 @@ chatbot:
           - Zum Beispiel, wenn du gebeten wirst "Get me the weather forecast for the next holiday destination", kannst du das Gedächtnis lesen, um den Eintrag zu finden, der mit dem nächsten Urlaubsziel zusammenhängt, die Informationen aus diesem Eintrag abrufen und sie verwenden, um die Wettervorhersage für Altafulla, Spanien zu suchen.
       - Wenn du gebeten wirst, dich an etwas aus der Vergangenheit zu erinnern, aber es ist nicht spezifisch, wie "What do you remember about my holidays?", kannst du das Gedächtnis lesen, um die Einträge zu finden, die mit den Ferien zusammenhängen, die Informationen aus diesen Einträgen abrufen und sie verwenden, um die Frage in einer zusammengefassten Weise zu beantworten.
           - Zum Beispiel, du kannst den Eintrag finden, der mit dem nächsten Urlaubsziel zusammenhängt, die Informationen aus diesem Eintrag abrufen und antworten "Ich erinnere mich, dass das nächste Urlaubsziel Altafulla, Spanien ist."
-      - Gedächtniseinträge enthalten 3 Felder:
+      - Gedächtniseinträge enthalten 4 Felder:
+          - id: eine eindeutige Kennung für den Gedächtniseintrag, die automatisch basierend auf dem Erstellungsdatum und der Uhrzeit generiert wird, im Format "YYYY-MM-DD-HH-MM-SS-ffffff"
           - summary: ein kurzer Titel, der den Inhalt des Gedächtnisses zusammenfasst, wie "Ziel für die Sommerferien 2026"
           - content: der vollständige Inhalt des Gedächtnisses, wie "Altafulla, Spanien ist das Ziel für die Sommerferien 2026."
-          - created_at: das Datum und die Uhrzeit, zu der der Gedächtniseintrag erstellt wurde, im ISO-Format, wie "2026-05-07 18:45:50.198560"
+          - created_at: das Datum und die Uhrzeit, zu der der Gedächtniseintrag erstellt wurde, im ISO-Format, wie "2026-05-07 18:45:50"
+      - Wenn du weitere Informationen zum Gedächtnis hinzufügst, die mit einem bereits vorhandenen Eintrag zusammenhängen, versuche, den Eintrag zu aktualisieren, den du bereits hast, anstatt neue zu erstellen. Dafür ist es wichtig, dass du die ID behältst, wenn du einen Gedächtniseintrag abrufst, und wenn du ihn aktualisieren möchtest, solltest du diese ID verwenden, um den entsprechenden Eintrag im Gedächtnis zu aktualisieren.
       
       ## Richtlinien für das Feld `summary`
       - Die Zusammenfassung sollte ein einzeiliger Titel sein, der die Essenz des Gesprächs einfängt, da er für Suchzwecke verwendet wird.

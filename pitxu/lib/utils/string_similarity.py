@@ -74,24 +74,31 @@ class StringSimilarity:
         return (2.0 * intersectionSize) / (len(first) + len(second) - 2)
 
     @staticmethod
-    def compareAllAgainstOne(mainString: str, targetStrings: list[str]) -> list[Rating]:
+    def compareAllAgainstOne(mainString: str, targetStrings: list[str], targetTokens: list[str] = None) -> list[Rating]:
         ratings: list[Rating] = []
+        if not targetTokens:
+             targetTokens = targetStrings
         for i in range(len(targetStrings)):
             currentTargetString = targetStrings[i]
+            currentTargetToken = targetTokens[i]
             currentRating = StringSimilarity.compareTwoStrings(mainString, currentTargetString)
-            ratings.append(Rating(target=currentTargetString, rating=currentRating))
+            ratings.append(Rating(target=currentTargetToken, rating=currentRating))
         return ratings
 
 
     @staticmethod
-    def findBestMatch(mainString: str, targetStrings: list[str]) -> BestMatch:
+    def findBestMatch(mainString: str, targetStrings: list[str], targetTokens: list[str] = None) -> BestMatch:
         ratings: list[Rating] = []
         bestMatchIndex: int = 0
 
+        if not targetTokens:
+            targetTokens = targetStrings
+
         for i in range(len(targetStrings)):
             currentTargetString = targetStrings[i]
+            currentTargetToken = targetTokens[i]
             currentRating = StringSimilarity.compareTwoStrings(mainString, currentTargetString)
-            ratings.append(Rating(target=currentTargetString, rating=currentRating))
+            ratings.append(Rating(target=currentTargetToken, rating=currentRating))
             if currentRating > ratings[bestMatchIndex].rating:
                 bestMatchIndex = i
 

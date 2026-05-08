@@ -404,10 +404,15 @@ class Main(PyXavi):
                 if text_has_exit_intention:
                     self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
-                    # Before closing, log down the chatbot history.
-                    chatbot_hisotry = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_hisotry)} entries")
-                    memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_hisotry)
+                    # ---- Before closing, log down the chatbot history ----
+
+                    # 1. Reload the memory. The chatbot may have updated it during the interaction, and we want to have the latest version.
+                    self._memory.reload_state()
+                    # 2. Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
+                    chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
+                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries")
+                    # 3. Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
+                    memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
                     self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
                     if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
                         self._memory.write_entry(summary=memory_entry["summary"], content=memory_entry["content"])

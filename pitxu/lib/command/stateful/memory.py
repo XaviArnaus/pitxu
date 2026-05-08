@@ -86,6 +86,31 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
+    def update_memory_entry_by_id(self, entry_id: str, summary: str = None, content: str = None) -> dict | str:
+        '''
+        Update a memory entry by its ID with the given summary and/or content.
+
+        Args:
+            entry_id (str): The ID of the memory entry to update.
+            summary (str, optional): The new summary for the memory entry. Defaults to None.
+            content (str, optional): The new content for the memory entry. Defaults to None.
+
+        Returns:
+            dict | str: The updated memory entry or an error message.
+        '''
+        self._xlog.info(f"Ⓜ️ Request for Updating memory entry with ID [{entry_id}] with summary [{summary}] and content [{content}]")
+        entry = self._memory.get_by_id(entry_id)
+        if entry is None:
+            error = f"🛑 Memory entry with ID [{entry_id}] not found."
+            self._xlog.error(error)
+            return error
+        
+        if summary is None or content is None:
+            error = f"⚠️ Memory entry with ID [{entry_id}] intended to be updated with summary [{summary}] and content [{content}]. One of the fields is None, so it will not be updated."
+            self._xlog.warning(error)
+            return error
+        return self._memory.update_entry_by_id(entry_id=entry_id, summary=summary, content=content)
+    
     def update_last_memory_entry(self, summary: str = None, content: str = None) -> dict | None:
         '''
         Update the last memory entry with the given summary and/or content.
@@ -216,6 +241,7 @@ class StatefulMemory(PyXavi, Command):
                 self.get_memory_entries_by_summary,
                 self.get_memory_entries_by_date,
                 self.update_last_memory_entry,
+                self.update_memory_entry_by_id,
                 self.summarize_chatbot_history_into_new_memory_entry]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
@@ -229,6 +255,6 @@ class StatefulMemory(PyXavi, Command):
         """
         if function_name == "summarize_chatbot_history_into_new_memory_entry":
             return self.callback_summarize_chatbot_history_into_new_memory_entry
-        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry"]:
+        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback
