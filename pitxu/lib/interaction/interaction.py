@@ -525,6 +525,32 @@ class Interaction(PyXavi):
             "for_seconds": for_seconds
         })
     
+    def show_text_block_on_foreground(self, text: str, for_seconds: float = 10.0):
+        """
+        Shows a text block on the foreground display.
+
+        Args:
+            text (str): The text block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_TEXT_BLOCK, {
+            "text": text,
+            "for_seconds": for_seconds
+        })
+    
+    def show_text_block_on_foreground_while_speaking(self, text: str, for_seconds: float = 10.0):
+        """
+        Shows a text block on the foreground display.
+
+        Args:
+            text (str): The text block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_TEXT_BLOCK_WHILE_SPEAKING, {
+            "text": text,
+            # This is not used, but I'd like that stays AT MINIMUM for_seconds,
+            #   even after finishing speaking.
+            "for_seconds": for_seconds
+        })
+    
     def show_interaction_holding_percentage(self, percentage: int):
         """
         Shows the interaction holding percentage on the background display.

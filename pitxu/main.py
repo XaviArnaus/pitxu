@@ -410,7 +410,7 @@ class Main(PyXavi):
                     self._memory.reload_state()
                     # 2. Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
                     chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries")
+                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")
                     # 3. Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
                     memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
                     self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")

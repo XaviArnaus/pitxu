@@ -25,7 +25,7 @@ class Test(PyXavi):
 
         # Cleaning up the shared memory, just in case.
         if self.shared_memory is not None:
-            self.shared_memory.cleanup_shared_memory_flags()
+            self.shared_memory.close()
     
     # -------- The tests themselves --------
 
@@ -235,7 +235,7 @@ class Test(PyXavi):
             from pitxu.lib.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
 
-            MODE_IN_USE = "paint" # Valid values: "paint", "direct"
+            MODE_IN_USE = "direct" # Valid values: "paint", "direct"
 
             expected_screen_size = Point(280, 240)
 
@@ -386,6 +386,15 @@ finally:
 ```            
             """]
 
+            self._xlog.debug(f"Showing background frame...")
+            # This is copied from the Painter. The Background is defined at painting time.
+            foreground_frame_color = canvas.COLOR_WHITE
+            foreground_frame_opacity = 0.75
+            macros.draw_foreground_frame(
+                draw=canvas.get_image(), 
+                frame_color=foreground_frame_color, 
+                opacity=foreground_frame_opacity)
+
             counter = 1
             for text in code:
                 self._xlog.debug(f"Showing text with code {counter}...")
@@ -397,6 +406,57 @@ finally:
                     self._xlog.debug("Pausing 3 seconds to let it show")
                     time.sleep(2)
                 counter += 1
+
+            # Clear screen
+            device.clear()
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack()) 
+    
+    def test_text_block(self):
+        try:
+            from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.objects.point import Point
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing showing text block in the LCD display")
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": Point(int(self._xconfig.get("dsi_lcd.size.x")), int(self._xconfig.get("dsi_lcd.size.y"))),
+                "device_config_prefix": "dsi_lcd"
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            canvas = Canvas(config=self._xconfig, params=self._xparams)
+            self._xparams.set("canvas", canvas)
+            macros = Macros(config=self._xconfig, params=self._xparams)
+
+            text = """To change a car wheel, you will need several essential tools:
+*   **Jack:** This is used to lift your vehicle off the ground, allowing you to remove the flat tire. Options include hydraulic floor jacks for stability or more portable scissor jacks often found with your car's emergency kit.
+*   **Lug Wrench (Tire Iron):** This tool is used to loosen and tighten the lug nuts that secure the wheel to the vehicle. Cross-shaped lug wrenches offer better leverage than standard L-shaped ones.
+*   **Wheel Chocks (Wheel Wedges):** These wedge-shaped blocks are placed against the wheels to prevent the vehicle from rolling while it's jacked up, ensuring safety.
+*   **Torque Wrench:** A torque wrench is crucial for tightening the lug nuts to the manufacturer's recommended specifications, preventing them from being too loose or overtightened, which can cause damage.
+*   **Spare Tire:** A spare tire is necessary to replace the flat one.
+*   **Work Gloves:** These protect your hands during the process.
+*   **Flashlight:** Useful if you need to change a tire at night or in low-light conditions.
+*   **Portable Tire Inflator and Tire Gauge:** These can be helpful for ensuring the spare tire is at the correct pressure.   
+            """
+
+            self._xlog.debug(f"Showing background frame...")
+            # This is copied from the Painter. The Background is defined at painting time.
+            foreground_frame_color = canvas.COLOR_WHITE
+            foreground_frame_opacity = 0.75
+            macros.draw_foreground_frame(
+                draw=canvas.get_image(), 
+                frame_color=foreground_frame_color, 
+                opacity=foreground_frame_opacity)
+
+            self._xlog.debug(f"Showing text with Markdown...")
+            macros.text_block(text)
 
             # Clear screen
             device.clear()

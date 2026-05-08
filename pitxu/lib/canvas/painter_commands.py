@@ -16,6 +16,7 @@ class ForegroundComm:
     ARBITRARY_TEXT: str = "ARBITRARY_TEXT"
     ARBITRARY_TEXT_ICON: str = "ARBITRARY_TEXT_ICON"
     CODE_BLOCK: str = "CODE_BLOCK"
+    TEXT_BLOCK: str = "TEXT_BLOCK"
     ARBITRARY_ICON: str = "ARBITRARY_ICON"
 
     CLEAR: str = "CLEAR"

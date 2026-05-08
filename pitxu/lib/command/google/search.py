@@ -78,7 +78,7 @@ class GoogleSearch(PyXavi, Command):
             if code:
                 code = Code.remove_comment_lines_from_code(code)
                 code_blocks.append(code)
-            text = Code.remove_code_from_text(text)
+            text = Code.remove_all_code_blocks_from_text(text)
         
         try:
             if len(code_blocks) > 0:
@@ -86,12 +86,13 @@ class GoogleSearch(PyXavi, Command):
                 log.info(f"Google Search response includes {len(code_blocks)} code blocks. Showing only the first one.")
                 interaction.show_code_block_on_foreground(code=code_blocks[0])
             else:
-                text = text[:50] + ("..." if len(text) > 100 else "")
-                log.debug(f"🔎 Showing extract of Google Search result: [{text}]")
-                interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="🔎 ",
-                    text=text,
-                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                # text = text[:50] + ("..." if len(text) > 100 else "")
+                log.debug(f"🔎 Showing Google Search result: [{text}]")
+                # interaction.show_arbitrary_text_on_foreground_while_speaking(
+                #     icon="🔎 ",
+                #     text=text,
+                #     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                interaction.show_text_block_on_foreground_while_speaking(text=text)
         except Exception as e:
             log.error(f"🛑 Error showing Google searched term on Foreground: {e}")
             log.error(full_stack())

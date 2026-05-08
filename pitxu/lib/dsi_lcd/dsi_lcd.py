@@ -12,7 +12,8 @@ from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBack
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
                                             ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
                                             ArbitraryContentWhileUserSpeakingForegroundPaint, \
-                                            StartupForegroundPaint, CodeBlockForegroundPaint, ErrorForegroundPaint,\
+                                            StartupForegroundPaint, CodeBlockForegroundPaint, TextBlockForegroundPaint, TextBlockWhileSpeakingForegroundPaint, \
+                                            ErrorForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
@@ -245,6 +246,21 @@ class DsiLcd(XprocessDisplayCombined):
             foreground_interaction=CodeBlockForegroundPaint(
                 parameter={"text": param.get("code", "")}, 
                 for_seconds=show_for_seconds))
+    
+    def show_text_block(self, param: dict):
+        self._xlog.info(f"👀 Showing text block on DSI LCD.")
+        # The config takes precedence over the parameter that is hardcoded from Main
+        show_for_seconds = self.interaction_delays.get("text_block", param.get("for_seconds", 10.0))
+        self.painter.just_paint(
+            foreground_interaction=TextBlockForegroundPaint(
+                parameter={"text": param.get("text", "")}, 
+                for_seconds=show_for_seconds))
+    
+    def show_text_block_while_speaking(self, param: dict):
+        self._xlog.info(f"👀 Showing text block on DSI LCD while speaking.")
+        
+        self.painter.paint_into_foreground_while_speaking(
+            foreground_interaction=TextBlockWhileSpeakingForegroundPaint(parameter=param))
 
     # ------- Common functions ---------
     
