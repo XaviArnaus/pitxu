@@ -6,7 +6,7 @@ from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPower
                                 WorldPosition, WorldWeather, WorldWikipedia,\
                                 GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
-                                StatefulReminders, StatefulLists,\
+                                StatefulReminders, StatefulLists, StatefulMemory,\
                                 ServiceMail, ServicePrint
 
 class ChatbotSessionManager(PyXavi):
@@ -52,6 +52,7 @@ class ChatbotSessionManager(PyXavi):
             "volume": SystemVolume(config=self._xconfig, params=self._xparams),
             "reminders": StatefulReminders(config=self._xconfig, params=self._xparams),
             "lists": StatefulLists(config=self._xconfig, params=self._xparams),
+            "memory": StatefulMemory(config=self._xconfig, params=self._xparams),
             "mail": ServiceMail(config=self._xconfig, params=self._xparams),
             "print": ServicePrint(config=self._xconfig, params=self._xparams),
             "system_network": SystemNetwork(config=self._xconfig, params=self._xparams),

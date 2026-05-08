@@ -318,3 +318,18 @@ language:
       es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
       en-us: "I'm sorry, there was an error retrieving the memory entries."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."
+    summarization_error:
+      ca: "Ho sento, hi ha hagut un error en resumir l'historial de xat en una entrada de memòria."
+      es: "Lo siento, ha habido un error al resumir el historial de chat en una entrada de memoria."
+      en-us: "I'm sorry, there was an error summarizing the chat history into a memory entry."
+      de: "Es tut mir leid, es gab einen Fehler beim Zusammenfassen des Chatverlaufs in einen Gedächtniseintrag."
+    summarization_error_no_summary_fields:
+      ca: "Ho sento, el resum de l'historial de xat no conté camps de resum per crear una entrada de memòria."
+      es: "Lo siento, el resumen del historial de chat no contiene campos de resumen para crear una entrada de memoria."
+      en-us: "I'm sorry, the summary of the chat history does not contain fields to create a memory entry."
+      de: "Es tut mir leid, die Zusammenfassung des Chatverlaufs enthält keine Felder, um einen Gedächtniseintrag zu erstellen."
+    summarization_error_invalid_json:
+      ca: "Ho sento, el resum de l'historial de xat no és un JSON vàlid per crear una entrada de memòria."
+      es: "Lo siento, el resumen del historial de chat no es un JSON válido para crear una entrada de memoria."
+      en-us: "I'm sorry, the summary of the chat history is not a valid JSON to create a memory entry."
+      de: "Es tut mir leid, die Zusammenfassung des Chatverlaufs ist kein gültiges JSON, um einen Gedächtniseintrag zu erstellen."

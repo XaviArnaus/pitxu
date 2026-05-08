@@ -97,8 +97,26 @@ class GeminiChatbot(PyXavi):
     def get_session_manager(self):
         return self._session_manager
     
-    def get_chat_history(self):
-        return self._chat.get_history()
+    def get_chat_history(self, curated: bool = False) -> list[types.Content]:
+        return self._chat.get_history(curated=curated)
+    
+    def get_chat_history_as_list_of_dicts(self, curated: bool = False) -> list[dict]:
+        history = self.get_chat_history(curated=curated)
+        history_as_dicts = []
+        for item in history:
+            parts = item.parts if item.parts is not None else []
+            text = "\n".join([part.text for part in parts if part.text is not None])
+            functions = {
+                "calls": [{ "name": part.function_call.name, "args": part.function_call.args } for part in parts if part.function_call is not None],
+                "responses": [{ "name": part.function_response.name, "response": part.function_response.response } for part in parts if part.function_response is not None]
+            }
+            item_dict = {
+                "role": item.role,
+                "text": text,
+                "functions": functions
+            }
+            history_as_dicts.append(item_dict)
+        return history_as_dicts
 
     def pick_new_model(self) -> str:
         """

@@ -4,4 +4,217 @@ memory:
   filename: memory.yaml
   # [Float] Summary similarity threshold to accept the memory match.
   #   The higher, the more similar the memory should be to be accepted.
-  summary_similarity_threshold: 0.8
+  summary_similarity_threshold: 0.5
+  # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
+  #   The prompt will receive the chatbot history as a list of dictionaries with "role" and "content" as keys.
+  #   The prompt should return a concise summary of the chatbot history that captures the main points and context. 
+  #   The summary should be brief and informative, providing a clear overview of the conversation 
+  #   without including unnecessary details.
+  summary_prompt:
+    ca: |
+      # Objectiu Principal
+      Resumeix l'historial de converses del chatbot en un resum concís que capturi els punts principals i el context.
+      S'utilitzarà en el futur per recuperar informació relevant de les converses passades amb el chatbot, així que hauria de ser informatiu i útil per a aquest propòsit.
+
+      # Estructura del resum
+      L'entrada creada amb el resum tindrà la següent estructura:
+      - Resum (camp `summary`): Un títol d'una sola línia sobre el resum de la conversa del chatbot.
+        - Serà el camp utilitzat per buscar a la memòria, així que hauria de ser cridaner i informatiu, donant una idea clara del que tracta la conversa.
+        - Hauria de seguir les pautes proporcionades més abaix.
+      - Contingut (camp `content`): Un resum concís de la conversa del chatbot que capturi els punts principals i el context.
+        - Conté els punts principals i el context de l'historial de converses del chatbot.
+        - Hauria de seguir les pautes proporcionades més abaix.
+      
+      # Format de sortida
+      La sortida es un objecte JSON amb el següent format:
+      {
+        "summary": "Un títol d'una sola línia sobre el resum de la conversa del chatbot",
+        "content": "Un resum concís de la conversa del chatbot que capturi els punts principals i el context"
+      }
+
+      # Pautes
+      Segueix aquestes pautes quan resumeixis l'historial de converses del chatbot:
+
+      ## Pautes per al camp `summary`
+      - El resum hauria de ser un títol d'una sola línea que capture la essència de l'historial de converses del chatbot, ja que s'utilitzarà per a propòsits de cerca.
+      - Hauria de ser cridaner i informatiu, donant una idea clara del que tracta la conversa.
+      - Exemples: 
+        - 'Parlant dels millors restaurants de Barcelona'.
+        - 'Arreglant un error en l'entrada d'àudio de Speech-To-Text'.
+      
+      ## Pautes per al camp `content`
+      - El contingut hauria de capturar els punts principals i el context de l'historial de converses del chatbot.
+      - Hauria de ser breu i informatiu, proporcionant una visió clara de la conversa sense incloure detalls innecessaris.
+      - Si el resultat de la conversa és una resposta específica a una pregunta, el contingut hauria d'incloure aquesta resposta.
+      - Si el resultat de la conversa és un enllaç o recurs específic, el contingut hauria d'incloure aquest enllaç o recurs.
+      - Si la conversa tracta sobre un tema específic, el contingut hauria d'incloure aquest tema.
+      - Si la conversa porta a una ubicació específica, el contingut hauria d'incloure tota la informació sobre aquesta ubicació que la conversa proporciona, incloent adreça, coordenades geogràfiques i qualsevol altre detall rellevant.
+      - Utilitza el format Markdown per fer el resum més llegible, com llistes, text en negreta per a informació important i enllaços per a recursos.
+      - Reemplaça els pronoms amb els noms o descripcions reals de les entitats a les quals es refereixen, per fer el resum més clar i autònom.
+      - Reemplaça els termes vagos amb descripcions més específiques basades en el context de la conversa, per fer el resum més informatiu i útil per a referència futura.
+      - Reemplaça les expressions de temps relatives amb expressions de temps absolutes basades en el context de la conversa, per fer el resum més clar i útil per a referència futura. Per exemple, si la conversa menciona "demà", reemplaça-ho amb la data real de demà.
+      - Quan reemplacis les expressions de temps relatives amb expressions de temps absolutes, assegura't que les expressions de temps absolutes siguin correctes.
+        - Si la conversa menciona "el proper dilluns" i avui és dimarts 5 de maig de 2026, reemplaça "dilluns" amb "11 de maig de 2026", no amb "4 de maig de 2026".
+        - Si la conversa menciona "aquest estiu" i avui és 5 de maig de 2026, reemplaça "aquest estiu" amb "estiu de 2026", no amb "estiu de 2025".
+        - Si la conversa menciona "aquest estiu" i avui és 5 de setembre de 2026, reemplaça "aquest estiu" amb "estiu de 2026", no amb "estiu de 2027".
+
+      # Historial del Chatbot
+      ```json
+      %s
+      ```
+    es: |
+      # Objetivo Principal
+      Resume el historial de conversaciones del chatbot en un resumen conciso que capture los puntos principales y el contexto.
+      Se utilizará en el futuro para recuperar información relevante de las conversaciones pasadas con el chatbot, así que debería ser informativo y útil para ese propósito.
+
+      # Estructura del resumen
+      La entrada creada con el resumen tendrá la siguiente estructura:
+      
+      - Resumen (campo `summary`): Un título de una sola línea sobre el resumen de la conversación del chatbot.
+        - Será el campo utilizado para buscar en la memoria, así que debería ser llamativo e informativo, dando una idea clara de lo que trata la conversación.
+        - Debería seguir las pautas proporcionadas más abajo.
+      - Contenido (campo `content`): Un resumen conciso de la conversación del chatbot que capture los puntos principales y el contexto.
+        - Contiene los puntos principales y el contexto del historial de conversaciones del chatbot.
+        - Debería seguir las pautas proporcionadas más abajo.
+
+      # Formato de salida
+      La salida es un objeto JSON con el siguiente formato:
+      {
+        "summary": "Un título de una sola línea sobre el resumen de la conversación del chatbot",
+        "content": "Un resumen conciso de la conversación del chatbot que capture los puntos principales y el contexto"
+      }
+      
+      # Pautas
+      Sigue estas pautas cuando resumas el historial de conversaciones del chatbot:
+
+      ## Pautas para el campo `summary`
+      - El resumen debería ser un título de una sola línea que capture la esencia del historial de conversaciones del chatbot, ya que se utilizará para propósitos de búsqueda.
+      - Debería ser llamativo e informativo, dando una idea clara de lo que trata la conversación.
+      - Ejemplos: 
+        - 'Hablando de los mejores restaurantes de Barcelona'.
+        - 'Arreglando un error en la entrada de audio de Speech-To-Text'.
+      
+      ## Pautas para el campo `content`
+      - El contenido debería capturar los puntos principales y el contexto del historial de conversaciones del chatbot.
+      - Debería ser breve e informativo, proporcionando una visión clara de la conversación sin incluir detalles innecesarios.
+      - Si el resultado de la conversación es una respuesta específica a una pregunta, el contenido debería incluir esa respuesta.
+      - Si el resultado de la conversación es un enlace o recurso específico, el contenido debería incluir ese enlace o recurso.
+      - Si la conversación trata sobre un tema específico, el contenido debería incluir ese tema.
+      - Si la conversación lleva a una ubicación específica, el contenido debería incluir toda la información sobre esa ubicación que la conversación proporciona, incluyendo dirección, coordenadas geográficas y cualquier otro detalle relevante.
+      - Utiliza el formato Markdown para hacer el resumen más legible, como listas, texto en negrita para información importante y enlaces para recursos.
+      - Reemplaza los pronombres con los nombres o descripciones reales de las entidades a las que se refieren, para hacer el resumen más claro y autónomo.
+      - Reemplaza los términos vagos con descripciones más específicas basadas en el contexto de la conversación, para hacer el resumen más informativo y útil para referencia futura.
+      - Reemplaza las expresiones de tiempo relativas con expresiones de tiempo absolutas basadas en el contexto de la conversación, para hacer el resumen más claro y útil para referencia futura. Por ejemplo, si la conversación menciona "mañana", reemplázalo con la fecha real de mañana.
+      - Asegúrate de que las expresiones de tiempo absolutas sean correctas y coherentes con el contexto de la conversación.
+        - Si la conversación menciona "el próximo lunes" y hoy es martes 5 de mayo de 2026, reemplaza "lunes" con "11 de mayo de 2026", no con "4 de mayo de 2026".
+        - Si la conversación menciona "este verano" y hoy es 5 de mayo de 2026, reemplaza "este verano" con "verano de 2026", no con "verano de 2025".
+        - Si la conversación menciona "este verano" y hoy es 5 de septiembre de 2026, reemplaza "este verano" con "verano de 2026", no con "verano de 2027".
+
+      # Historial del Chatbot
+      ```json
+      %s
+      ```
+    en-us: |
+      # Main Goal
+      Summarize the given chatbot conversation history into a concise summary that captures the main points and context.
+      It will be used in the future to retrieve relevant information from the past conversations with the chatbot, so it should be informative and useful for that purpose.
+
+      # Structure of the summary
+      The entry created with the summary will have the following structure:
+      
+      - Summary (field `summary`): A one line headline of the chatbot conversation summary.
+        - It is going to be the field used for searching the memory, so it should be catchy and informative, giving a clear idea of what the conversation is about.
+        - It must follow the guidelines provided below.
+      - Content (field `content`): A concise summary of the chatbot conversation that captures the main points and context.
+        - It contains the main points and context of the chatbot conversation history.
+        - It must follow the guidelines provided below.
+
+      # Output Format
+      The output is a JSON object with the following format:
+      {
+        "summary": "A one line headline of the chatbot conversation summary",
+        "content": "A concise summary of the chatbot conversation that captures the main points and context"
+      }
+      
+      # Guidelines
+      Follow these guidelines when summarizing the chatbot conversation history:
+
+      ## `summary` field guidelines
+      - The summary should be a one line headline that captures the essence of the chatbot conversation history, as it will be used for searching purposes.
+      - It should be catchy and informative, giving a clear idea of what the conversation is about.
+      - Examples: 
+        - 'Discussing the best restaurants in Barcelona'.
+        - 'Fixing a bug in the input audio Speech-To-Text'.
+
+      ## `content` field guidelines
+      - The content should capture the main points and context of the chatbot conversation history.
+      - The content should be brief and informative, providing a clear overview of the conversation without including unnecessary details.
+      - If the outcome of the conversation is a specific answer to a question, the content should include that answer.
+      - If the outcome of the conversation is a specific link or resource, the content should include that link or resource.
+      - If the conversation is about a specific topic, the content should include that topic.
+      - If the conversation leads to a specific location, the content should include all the information about that location that the conversation provides, including address, geographical coordinates, and any other relevant details.
+      - Use Markdown formatting to make the summary more readable, such as bullet points, bold text for important information, and links for resources.
+      - Replace pronouns with the actual names or descriptions of the entities they refer to, to make the summary more clear and self-contained.
+      - Replace vague terms with more specific descriptions based on the context of the conversation, to make the summary more informative and useful for future reference.
+      - Replace relative time expressions with absolute time expressions based on the context of the conversation, to make the summary more clear and useful for future reference. For example, if the conversation mentions "tomorrow", replace it with the actual date of tomorrow.
+      - When replacing relative time expressions with absolute time expressions, make sure the absolute time expressions are correct and consistent with the context of the conversation.
+        - If the conversation mentions "next Monday" and today is Tuesday 5th of May 2026, replace "Monday" with "11th of May 2026", not with "4th of May 2026".
+        - If the conversation mentions "this summer" and today is 5th of May 2026, replace "this summer" with "summer of 2026", not with "summer of 2025".
+        - If the conversation mentions "this summer" and today is 5th of September 2026, replace "this summer" with "summer of 2026", not with "summer of 2027".
+      
+      # Chatbot History
+      ```json
+      %s
+      ```
+    de: |
+      # Hauptziel
+      Fasse den gegebenen Chatbot-Gesprächsverlauf in einer prägnanten Zusammenfassung zusammen, die die wichtigsten Punkte und den Kontext erfasst.
+      Es wird in Zukunft verwendet, um relevante Informationen aus den vergangenen Gesprächen mit dem Chatbot abzurufen, daher sollte es informativ und nützlich für diesen Zweck sein.
+
+      # Struktur der Zusammenfassung
+      Der Eintrag, der mit der Zusammenfassung erstellt wird, hat die folgende Struktur:
+      
+      - Zusammenfassung (Feld `summary`): Eine einzeilige Überschrift der Chatbot-Gesprächszusammenfassung.
+        - Es wird das Feld sein, das für die Suche im Speicher verwendet wird, also sollte es eingängig und informativ sein und eine klare Vorstellung davon geben, worum es in dem Gespräch geht.
+        - Es muss den unten bereitgestellten Richtlinien folgen.
+      - Inhalt (Feld `content`): Eine prägnante Zusammenfassung des Chatbot-Gesprächs, die die wichtigsten Punkte und den Kontext erfasst.
+        - Es enthält die wichtigsten Punkte und den Kontext des Chatbot-Gesprächsverlaufs.
+        - Es muss den unten bereitgestellten Richtlinien folgen.
+
+      # Ausgabeformat
+      Die Ausgabe ist ein JSON-Objekt mit folgendem Format:
+      {
+        "summary": "Eine einzeilige Überschrift der Chatbot-Gesprächszusammenfassung",
+        "content": "Eine prägnante Zusammenfassung des Chatbot-Gesprächs, die die wichtigsten Punkte und den Kontext erfasst"
+      }
+
+      # Richtlinien
+      Befolgen Sie diese Richtlinien, wenn Sie den Chatbot-Gesprächsverlauf zusammenfassen:
+
+      ## Richtlinien für das Feld `summary`
+      - Die Zusammenfassung sollte eine einzeilige Überschrift sein, die die Essenz des Chatbot-Gesprächsverlaufs erfasst, da sie für Suchzwecke verwendet wird.
+      - Es sollte eingängig und informativ sein und eine klare Vorstellung davon geben, worum es in dem Gespräch geht.
+      - Beispiele: 
+        - 'Diskussion über die besten Restaurants in Barcelona'.
+        - 'Behebung eines Fehlers bei der Audioeingabe von Speech-To-Text'.
+      
+      ## Richtlinien für das Feld `content`
+      - Der Inhalt sollte die wichtigsten Punkte und den Kontext des Chatbot-Gesprächsverlaufs erfassen.
+      - Der Inhalt sollte kurz und informativ sein und einen klaren Überblick über das Gespräch geben, ohne unnötige Details zu enthalten.
+      - Wenn das Ergebnis des Gesprächs eine spezifische Antwort auf eine Frage ist, sollte der Inhalt diese Antwort enthalten.
+      - Wenn das Ergebnis des Gesprächs ein spezifischer Link oder eine Ressource ist, sollte der Inhalt diesen Link oder diese Ressource enthalten.
+      - Wenn das Gespräch über ein spezifisches Thema handelt, sollte der Inhalt dieses Thema enthalten.
+      - Wenn das Gespräch zu einem spezifischen Ort führt, sollte der Inhalt alle Informationen über diesen Ort enthalten, die das Gespräch bereitstellt, einschließlich Adresse, geografische Koordinaten und alle anderen relevanten Details.
+      - Verwenden Sie Markdown-Formatierung, um die Zusammenfassung lesbarer zu machen, wie z.B. Aufzählungspunkte, Fettdruck für wichtige Informationen und Links für Ressourcen.
+      - Ersetzen Sie Pronomen durch die tatsächlichen Namen oder Beschreibungen der Entitäten, auf die sie sich beziehen, um die Zusammenfassung klarer und eigenständiger zu machen.
+      - Ersetzen Sie vage Begriffe durch spezifischere Beschreibungen basierend auf dem Kontext des Gesprächs, um die Zusammenfassung informativer und nützlicher für zukünftige Referenz zu machen.
+      - Ersetzen Sie relative Zeitausdrücke durch absolute Zeitausdrücke basierend auf dem Kontext des Gesprächs, um die Zusammenfassung klarer und nützlicher für zukünftige Referenz zu machen. Zum Beispiel, wenn das Gespräch "morgen" erwähnt, ersetzen Sie es durch das tatsächliche Datum von morgen.
+      - Wenn Sie relative Zeitausdrücke durch absolute Zeitausdrücke ersetzen, stellen Sie sicher, dass die absoluten Zeitausdrücke korrekt und konsistent mit dem Kontext des Gesprächs sind.
+        - Wenn das Gespräch "nächsten Montag" erwähnt und heute ist Dienstag, der 5. Mai 2026, ersetzen Sie "Montag" durch "11. Mai 2026", nicht durch "4. Mai 2026".
+        - Wenn das Gespräch "diesen Sommer" erwähnt und heute ist 5. Mai 2026, ersetzen Sie "diesen Sommer" durch "Sommer 2026", nicht durch "Sommer 2025".
+        - Wenn das Gespräch "diesen Sommer" erwähnt und heute ist 5. September 2026, ersetzen Sie "diesen Sommer" durch "Sommer 2026", nicht durch "Sommer 2027".
+
+      # Chatbot-Verlauf
+      ```json
+      %s
+      ```

@@ -23,13 +23,13 @@ from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
+from pitxu.lib.utils.memory import Memory
 
 import sys
 import sounddevice
 import time
 import logging
 import asyncio
-from copy import deepcopy
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
@@ -72,6 +72,7 @@ class Main(PyXavi):
     _maintenance: Maintenance = None
     _reminders: Reminders = None
     _fan_control: FanControl = None
+    _memory: Memory = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -401,8 +402,23 @@ class Main(PyXavi):
                     self._interaction.unset_chatbot_error()
                 
                 if text_has_exit_intention:
-                    self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so proceeding to close Pitxu nicely.")
-                    # The goodbye sentence is said, we can proceed to close.
+                    self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
+
+                    # Before closing, log down the chatbot history.
+                    chatbot_hisotry = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
+                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_hisotry)} entries")
+                    memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_hisotry)
+                    self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
+                    if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
+                        self._memory.write_entry(summary=memory_entry["summary"], content=memory_entry["content"])
+                        self._xlog.info("Chatbot history summarized and written into memory at exit.")
+                    else:
+                        self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
+                        # do you get the reference to the movie "Blade Runner"?
+                        # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
+                        self._xlog.debug("... all those moments will be lost in time, like tears in rain.")
+
+                    # Now close the app nicely.
                     self.close_nicely()
                     return
                 
@@ -410,13 +426,7 @@ class Main(PyXavi):
                 # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                 self.reset_last_interaction_event_mark()
 
-            # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
-            # This second here makes the human-computer interaction worse.
-            # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
-            # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
-            #   instead of waiting. 
-            # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
-            # time.sleep(1)
+            # Unmute microphone to continue listening
             self._interaction.unmute_microphone(input_stream=self._input_stream)
         
         except KeyboardInterrupt:
@@ -543,15 +553,16 @@ class Main(PyXavi):
         # Stop the Chatbot Session Manager.
         # ❗️ THE CLOSING STOPS HERE. RESULT() TIMESOUT AND THE EXCEPTION GETS CAUGHT, BUT THE APP KEEPS RUNNING AND DOES NOT CLOSE. IT SEEMS LIKE THE EXCEPTION IS NOT THE PROBLEM, BUT THE FACT OF WAITING FOR THE COROUTINE TO FINISH WITH RESULT() IS WHAT MAKES IT HANG. MAYBE WE CAN JUST CALL THE COROUTINE WITHOUT WAITING FOR IT TO FINISH? OR WAIT FOR IT WITH A TIMEOUT AND IGNORE IF IT TIMES OUT?
         if self._chatbot_session_manager is not None:
-            future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            try:
-                if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
-                    self._xlog.info("Chatbot Session Manager closed successfully.")
-                else:
-                    self._xlog.warning("Chatbot Session Manager did not close successfully.")
-            except Exception as e:
-                self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
-                self._xlog.error("🛑 " + full_stack())
+            asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # try:
+            #     if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
+            #         self._xlog.info("Chatbot Session Manager closed successfully.")
+            #     else:
+            #         self._xlog.warning("Chatbot Session Manager did not close successfully.")
+            # except Exception as e:
+            #     self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
+            #     self._xlog.error("🛑 " + full_stack())
 
         # Close the server
         if self._server is not None:
@@ -631,6 +642,9 @@ class Main(PyXavi):
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+
+        # The Long Term Memory management
+        self._memory = Memory(config=self._xconfig, params=self._xparams)
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()

@@ -87,13 +87,13 @@ class GoogleSearch(PyXavi, Command):
                 interaction.show_code_block_on_foreground(code=code_blocks[0])
             else:
                 text = text[:50] + ("..." if len(text) > 100 else "")
-                log.error(f"🔎 Showing extract of Google Search result: [{text}]")
+                log.debug(f"🔎 Showing extract of Google Search result: [{text}]")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🔎 ",
                     text=text,
                     font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            log.error(f"🛑 Error showing Google searched term on eInk: {e}")
+            log.error(f"🛑 Error showing Google searched term on Foreground: {e}")
             log.error(full_stack())
 
     def get_tool_definition(self) -> list[callable]:
