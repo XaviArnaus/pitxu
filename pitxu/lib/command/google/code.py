@@ -85,7 +85,8 @@ class GoogleCode(PyXavi, Command):
         # First remove the code language identifier if it exists
         text = Code.remove_code_language_identifier(text)
         # Get the code blocks from the text
-        for code_block in Code.extract_code_from_text(text):
+        raw_code_blocks = Code.extract_code_from_text(text)
+        for code_block in raw_code_blocks:
             code_blocks.append(Code.remove_comment_lines_from_code(code_block))
         # Remove the code blocks from the text
         text = Code.remove_all_code_blocks_from_text(text)

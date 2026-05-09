@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, TerminalColor, full_stack
+from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
@@ -326,6 +326,50 @@ class Test(PyXavi):
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+    
+    def test_extracting_code_blocks_from_text(self):
+        try:
+            from pitxu.lib.utils.text import Code
+
+            text = """Here is some text with a code block:
+```python
+def hello_world():
+    print("Hello, world!")
+```
+And here is some more text with another code block:
+```javascript
+function greet() {
+    console.log("Hello, world!");
+}
+```
+And here is some text without a code block.
+And now some tricky cases with backticks with end and start in the same line:
+```python
+print("Hello World")
+``````python
+print("Hello again")
+````"""
+            # Does the text contain a code block?
+            # We may even have several code blocks.
+            code_blocks = []
+            # First remove the code language identifier if it exists
+            text = Code.remove_code_language_identifier(text)
+            # Get the code blocks from the text
+            raw_code_blocks = Code.extract_code_from_text(text)
+            for code_block in raw_code_blocks:
+                code_blocks.append(Code.remove_comment_lines_from_code(code_block))
+            # Remove the code blocks from the text
+            text = Code.remove_all_code_blocks_from_text(text)
+
+            self._xlog.debug(f"Extracted code blocks: {len(code_blocks)}")
+            for i, code_block in enumerate(code_blocks):
+                self._xlog.debug(f"Code block {i+1}:\n{code_block}\n")
+
+            self._xlog.debug(f"Remaining text after removing code blocks:\n{text}")
+
+        except Exception as e:
+            self._xlog.error(f"🛑 Error extracting code blocks from text: {e}")
+            self._xlog.debug(full_stack())
     
     def test_code_block(self):
         try:
