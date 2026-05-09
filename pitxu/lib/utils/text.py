@@ -53,7 +53,7 @@ class Text:
 
 class Code:
 
-    CODE_BLOCK_TRIPLE_BACKTICKS = "```"
+    CODE_BLOCK_TRIPLE_BACKTICKS = r'[`]{3}'
 
     @staticmethod
     def text_includes_code(text: str) -> bool:
@@ -63,7 +63,7 @@ class Code:
         Returns:
             bool: True if the text includes code snippets, False otherwise.
         """
-        return text is not None and Code.CODE_BLOCK_TRIPLE_BACKTICKS in text
+        return text is not None and re.search(Code.CODE_BLOCK_TRIPLE_BACKTICKS, text) is not None
     
     @staticmethod
     def extract_code_from_text(text: str) -> list[str]:
@@ -78,7 +78,7 @@ class Code:
         while text is not None and Code.text_includes_code(text):
         
             # Naively extract code between triple backticks
-            parts = text.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
+            parts = re.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS, text)
             if len(parts) < 3:
                 return None
             
@@ -111,7 +111,7 @@ class Code:
         while text is not None and Code.text_includes_code(text):
         
             # Naively extract code between triple backticks
-            parts = text.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
+            parts = re.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS, text)
             if len(parts) < 3:
                 return None
             
@@ -155,11 +155,22 @@ class Code:
         outcome = []
         lines = text.split("\n")
         for line in lines:
-            if Code.CODE_BLOCK_TRIPLE_BACKTICKS in line:
-                substring_start = 0
-                substring_end = line.find(Code.CODE_BLOCK_TRIPLE_BACKTICKS) + len(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
-                outcome.append(line[substring_start:substring_end])
-            else:
+            # I've seen some text with 2 code blocks, without new line between the triplebackticks, like:
+            # ```python
+            # print("Hello World")
+            # ``````python
+            # print("Hello again")
+            # ````
+            matches = re.finditer(Code.CODE_BLOCK_TRIPLE_BACKTICKS, line)
+            if matches:
+                new_line = []
+                for match in matches:
+                    substring_start = match.start()
+                    substring_end = match.end()
+                    new_line.append(line[substring_start:substring_end])
+                joiner = "\n" if len(new_line) > 1 else ""
+                outcome.append(joiner.join(new_line))
+            else:   
                 outcome.append(line)
         
         return "\n".join(outcome).strip()

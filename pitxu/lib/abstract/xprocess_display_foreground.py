@@ -57,6 +57,9 @@ class XprocessDisplayForeground(Xprocess):
         if action == XprocAction.SHOW_CODE_BLOCK and param:
             self.show_code_block(param)
         
+        if action == XprocAction.SHOW_CODE_BLOCK_WHILE_SPEAKING and param:
+            self.show_code_block_while_speaking(param)
+        
         if action == XprocAction.SHOW_TEXT_BLOCK and param:
             self.show_text_block(param)
         
@@ -161,6 +164,9 @@ class XprocessDisplayForeground(Xprocess):
     
     def show_code_block(self, param: dict):
         raise NotImplementedError("show_code_block() must be implemented in Display Foreground subclasses.")
+    
+    def show_code_block_while_speaking(self, param: dict):
+        raise NotImplementedError("show_code_block_while_speaking() must be implemented in Display Foreground subclasses.")
 
     def show_text_block(self, param: dict):
         raise NotImplementedError("show_text_block() must be implemented in Display Foreground subclasses.")

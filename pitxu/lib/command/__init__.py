@@ -8,6 +8,7 @@ from .system.power_management import SystemPowerManagement
 from .system.volume import SystemVolume
 from .system.language import SystemLanguage
 from .system.json_metrics import SystemJsonMetrics
+from .system.conversation_flow import SystemConversationFlow
 from .world.position import WorldPosition
 from .world.weather import WorldWeather
 from .world.wikipedia import WorldWikipedia

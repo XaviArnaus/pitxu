@@ -12,7 +12,8 @@ from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBack
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
                                             ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
                                             ArbitraryContentWhileUserSpeakingForegroundPaint, \
-                                            StartupForegroundPaint, CodeBlockForegroundPaint, TextBlockForegroundPaint, TextBlockWhileSpeakingForegroundPaint, \
+                                            StartupForegroundPaint, CodeBlockForegroundPaint, CodeBlockWhileSpeakingForegroundPaint, \
+                                            TextBlockForegroundPaint, TextBlockWhileSpeakingForegroundPaint, \
                                             ErrorForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
@@ -246,6 +247,12 @@ class DsiLcd(XprocessDisplayCombined):
             foreground_interaction=CodeBlockForegroundPaint(
                 parameter={"text": param.get("code", "")}, 
                 for_seconds=show_for_seconds))
+    
+    def show_code_block_while_speaking(self, param: dict):
+        self._xlog.info(f"👀 Showing code block on DSI LCD while speaking.")
+        
+        self.painter.paint_into_foreground_while_speaking(
+            foreground_interaction=CodeBlockWhileSpeakingForegroundPaint(parameter={"text": param.get("code", "")}))
     
     def show_text_block(self, param: dict):
         self._xlog.info(f"👀 Showing text block on DSI LCD.")

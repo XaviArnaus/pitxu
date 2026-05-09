@@ -295,6 +295,12 @@ language:
       es: "Aquí tienes el código:"
       en-us: "Here is the code:"
       de: "Hier ist der Code:"
+    # This is the text to add at the end of the answer when there was a code block that couldn't be extracted properly.
+    unable_to_extract_code_callback_text_addendum:
+      ca: "⚠️ La resposta inclou un bloc de codi que no s'ha pogut extraurear correctamente. Si quieres verlo, por favor pide a Pitxu que te envíe la respuesta completa a un email o algo así."
+      es: "⚠️ La respuesta incluye un bloque de código que no se ha podido extraer correctamente. Si quieres verlo, por favor pide a Pitxu que te envíe la respuesta completa a un email o algo así."
+      en-us: "⚠️ The response includes a code block that couldn't be extracted properly. If you want to see it, please ask Pitxu to send you the full response to an email or something like that."
+      de: "⚠️ Die Antwort enthält einen Codeblock, der nicht richtig extrahiert werden konnte. Wenn Sie ihn sehen möchten, bitten Sie Pitxu, Ihnen die vollständige Antwort per E-Mail oder ähnlichem zu senden."
   
   # Long term memory
   memory:

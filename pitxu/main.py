@@ -227,6 +227,32 @@ class Main(PyXavi):
         # However it happened, just close nicely.
         self.close_nicely()
     
+    def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
+        self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
+        # 1. Reload the memory. The chatbot may have updated it during the interaction, and we want to have the latest version.
+        self._memory.reload_state()
+        # 2. Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
+        chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
+        self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")
+        # 3. Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
+        memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
+        self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
+        if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
+            self._memory.write_entry(summary=memory_entry["summary"], content=memory_entry["content"])
+            self._xlog.info("Chatbot history summarized and written into memory at exit.")
+        else:
+            self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
+            # do you get the reference to the movie "Blade Runner"?
+            # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
+            self._xlog.debug("... all those moments will be lost in time, like tears in rain.")
+        # 4. Reset the chatbot session to clear the conversation history and start fresh for the next interaction.
+        #   We want to avoid reseting the session in case it's the last summarization, at the end of the app.
+        if not is_end_of_application:
+            self._chatbot.reset_session()
+            self._log_debug("Chatbot session reset after end of conversation request.")
+        else:
+            self._log_debug("End of application requested, not resetting chatbot session.")
+    
     async def main_execution_on_vad_detected_started(self):
         """
         This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
@@ -237,7 +263,7 @@ class Main(PyXavi):
         THE ACTION ON THE user_speaking MUST BE ONCE THE TRANSCRIPTION IS POSITIVE, BUT THE DISPLAY FLOW CAN STAY.
         """
 
-        self._xlog.info("User started speaking, via VAD callback.")
+        self._xlog.info("VAD detected speech, via VAD callback.")
 
         try:
 
@@ -404,24 +430,8 @@ class Main(PyXavi):
                 if text_has_exit_intention:
                     self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
-                    # ---- Before closing, log down the chatbot history ----
-
-                    # 1. Reload the memory. The chatbot may have updated it during the interaction, and we want to have the latest version.
-                    self._memory.reload_state()
-                    # 2. Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
-                    chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-                    self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")
-                    # 3. Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
-                    memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
-                    self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
-                    if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
-                        self._memory.write_entry(summary=memory_entry["summary"], content=memory_entry["content"])
-                        self._xlog.info("Chatbot history summarized and written into memory at exit.")
-                    else:
-                        self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
-                        # do you get the reference to the movie "Blade Runner"?
-                        # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
-                        self._xlog.debug("... all those moments will be lost in time, like tears in rain.")
+                    # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
+                    self.on_end_of_conversation_requested()
 
                     # Now close the app nicely.
                     self.close_nicely()
@@ -897,6 +907,7 @@ class Main(PyXavi):
             "interaction": self._interaction,
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
+            "end_of_conversation_callback": self.on_end_of_conversation_requested,
             "input_stream": input_stream
         })
         self._reactions = Reactions(config=self._xconfig, params=params)

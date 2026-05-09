@@ -525,6 +525,20 @@ class Interaction(PyXavi):
             "for_seconds": for_seconds
         })
     
+    def show_code_block_on_foreground_while_speaking(self, code: str, for_seconds: float = 10.0):
+        """
+        Shows a code block on the foreground display while speaking.
+
+        Args:
+            code (str): The code block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_CODE_BLOCK_WHILE_SPEAKING, {
+            "code": code,
+            # This is not used, but I'd like that stays AT MINIMUM for_seconds,
+            #   even after finishing speaking.
+            "for_seconds": for_seconds
+        })
+    
     def show_text_block_on_foreground(self, text: str, for_seconds: float = 10.0):
         """
         Shows a text block on the foreground display.
@@ -539,7 +553,7 @@ class Interaction(PyXavi):
     
     def show_text_block_on_foreground_while_speaking(self, text: str, for_seconds: float = 10.0):
         """
-        Shows a text block on the foreground display.
+        Shows a text block on the foreground display while speaking.
 
         Args:
             text (str): The text block to show.

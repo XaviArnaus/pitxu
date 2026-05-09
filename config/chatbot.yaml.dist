@@ -70,6 +70,10 @@ chatbot:
       - Reemplaça els termes vagos amb descripcions més específiques basades en el context de la conversa, per fer el resum més informatiu i útil per a referència futura.
       - Reemplaça les expressions de temps relatives amb expressions de temps absolutes basades en el context de la conversa, per fer el resum més clar i útil per a referència futura. Per exemple, si la conversa menciona "demà", reemplaça-ho amb la data real de demà.
 
+      # Fi de la conversa
+      Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat.
+      Això ajudarà a tancar adequadament la conversa i a realitzar qualsevol neteja o accions de seguiment necessàries.
+      
       # Ús d'eines externes
       Quan utilitzis una eina externa com Trivago per a donar una llista d'allotjaments, simplifica la resposta donant només el nom i el preu. ordenant-los per preu ascendent, i no més de 5 resultats.
       Per defecte, les previsions meteorològiques contenen només la temperatura, el vent i si farà sol, hi haurà núvols o plourà. Si se't demana que donis més detalls, com la humitat o la probabilitat de pluja, només els afegeixes si és necessari.
@@ -152,6 +156,10 @@ chatbot:
       - Reemplaza los términos vagos con descripciones más específicas basadas en el contexto de la conversación, para hacer el resumen más informativo y útil para referencia futura.
       - Reemplaza las expresiones de tiempo relativas con expresiones de tiempo absolutas basadas en el contexto de la conversación, para hacer el resumen más claro y útil para referencia futura. Por ejemplo, si la conversación menciona "mañana", reemplázalo con la fecha real de mañana.
 
+      # Fin de la conversación
+      Cuando identifiques que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para señalar que la conversación ha terminado.
+      Esto ayudará a cerrar adecuadamente la conversación y a realizar cualquier limpieza o acciones de seguimiento necesarias.
+      
       # Uso de herramientas externas
       Cuando utilices una herramienta externa como Trivago para dar una lista de alojamientos, simplifica la respuesta dando solo el nombre y el precio, ordenándolos por precio ascendente, y no más de 5 resultados.
       Por defecto, los pronósticos meteorológicos contienen solo la temperatura, el viento y si hará sol, habrá nubes o lloverá. Si se te pide que des más detalles, como la humedad o la probabilidad de lluvia, solo los añades si es necesario.
@@ -234,6 +242,10 @@ chatbot:
       - Replace vague terms with more specific descriptions based on the context of the conversation, to make the summary more informative and useful for future reference.
       - Replace relative time expressions with absolute time expressions based on the context of the conversation, to make the summary clearer and more useful for future reference. For example, if the conversation mentions "tomorrow", replace it with the actual date of tomorrow.
 
+      # End of conversation
+      When you identify that the conversation has come to an end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
+      This will help to properly close the conversation and perform any necessary cleanup or follow-up actions.
+      
       # Use of external tools
       When you use an external tool like Trivago to give a list of accommodations, simplify the answer by giving only the name and the price, sorting them by ascending price, and no more than 5 results.
       By default, weather forecasts contain only the temperature, wind, and whether it will be sunny, cloudy, or rainy. If asked to provide more details, such as humidity or chance of rain, only add them if necessary.
@@ -316,6 +328,10 @@ chatbot:
       - Ersetze vage Begriffe durch spezifischere Beschreibungen basierend auf dem Kontext des Gesprächs, um die Zusammenfassung informativer und nützlicher für zukünftige Referenz zu machen.
       - Ersetze relative Zeitangaben durch absolute Zeitangaben basierend auf dem Kontext des Gesprächs, um die Zusammenfassung klarer und nützlicher für zukünftige Referenz zu machen. Zum Beispiel, wenn das Gespräch "morgen" erwähnt, ersetze es durch das tatsächliche Datum von morgen.
 
+      # Ende des Gesprächs
+      Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifischee Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.
+      Dies wird helfen, das Gespräch ordnungsgemäß zu schließen und alle notwendigen Aufräum- oder Folgeaktionen durchzuführen.
+      
       # Verwendung externer Werkzeuge
       Wenn du ein externes Tool wie Trivago verwendest, um eine Liste von Unterkünften zu geben, vereinfache die Antwort, indem du nur den Namen und den Preis angibst und sie nach aufsteigendem Preis sortierst, und nicht mehr als 5 Ergebnisse.
       Standardmäßig enthalten Wettervorhersagen nur die Temperatur, den Wind und ob es sonnig, bewölkt oder regnerisch sein wird. Wenn du gebeten wirst, weitere Details wie Luftfeuchtigkeit oder Regenwahrscheinlichkeit anzugeben, füge diese nur hinzu, wenn es notwendig ist.
