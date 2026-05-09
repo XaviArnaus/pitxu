@@ -1,5 +1,3 @@
-from subprocess import call
-
 from pyxavi import Config, Dictionary, Storage, full_stack, dd
 
 import signal
@@ -19,11 +17,10 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
-from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
+from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
-from pitxu.lib.utils.memory import Memory
 
 import sys
 import sounddevice
@@ -72,7 +69,6 @@ class Main(PyXavi):
     _maintenance: Maintenance = None
     _reminders: Reminders = None
     _fan_control: FanControl = None
-    _memory: Memory = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list = []
@@ -229,24 +225,15 @@ class Main(PyXavi):
     
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
-        # 1. Reload the memory. The chatbot may have updated it during the interaction, and we want to have the latest version.
-        self._memory.reload_state()
-        # 2. Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
+        
+        # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
         chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-        self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")
-        # 3. Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
-        memory_entry = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
-        self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
-        if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
-            self._memory.write_entry(summary=memory_entry["summary"], content=memory_entry["content"])
-            self._xlog.info("Chatbot history summarized and written into memory at exit.")
-        else:
-            self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
-            # do you get the reference to the movie "Blade Runner"?
-            # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
-            self._xlog.debug("... all those moments will be lost in time, like tears in rain.")
-        # 4. Reset the chatbot session to clear the conversation history and start fresh for the next interaction.
-        #   We want to avoid reseting the session in case it's the last summarization, at the end of the app.
+        
+        # Do the summarization and storage in memory in the Support Worker, 
+        #   that has the summarization tools and the access to memory, 
+        #   to avoid blocking the main thread with the LLM call and the file writing.
+        self._support.summarize_and_store_in_memory(chatbot_history)
+
         if not is_end_of_application:
             self._chatbot.reset_session()
             self._log_debug("Chatbot session reset after end of conversation request.")
@@ -657,9 +644,6 @@ class Main(PyXavi):
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
-
-        # The Long Term Memory management
-        self._memory = Memory(config=self._xconfig, params=self._xparams)
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()

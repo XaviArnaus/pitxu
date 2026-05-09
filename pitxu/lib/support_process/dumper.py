@@ -3,7 +3,6 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_graph import AudioGraph
-from pitxu.lib.utils.conversors import Conversors
 
 from scipy import io
 import numpy as np

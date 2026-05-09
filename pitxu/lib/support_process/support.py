@@ -79,3 +79,8 @@ class Support(PyXavi):
         Sends 1 action to the process queue, and there it uses the context manager to fit the same timestamp for all.
         """
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.DUMP_ALL)
+    
+    def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
+        self.process_pool.send(QUEUE_SUPPORT, 
+                               XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY, 
+                               chatbot_history)
