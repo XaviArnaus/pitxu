@@ -40,7 +40,7 @@ class Memory(PyXavi):
     def reload_state(self):
         self.state = Storage(filename=self.filename)
         if not self.state.key_exists("entries"):
-            self.state.set("entries", [])
+            self.state.set("entries", {})
             self.state.write_file()
         
     def write_entry(self, summary: str, content: str) -> dict:
