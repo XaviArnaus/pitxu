@@ -22,6 +22,9 @@ class Reactions(PyXavi):
     # Link to the close nicely function, so we can trigger it from a reaction if needed.
     close_nicely_callback: callable = None
 
+    # Support to trigger a particular callback when the user intends to end the conversation.
+    end_of_conversation_callback: callable = None
+
     # Support to behave with the microphone.
     input_stream: sounddevice.RawInputStream = None
 
@@ -42,6 +45,9 @@ class Reactions(PyXavi):
         if not params.key_exists("close_nicely_callback") or not callable(params.get("close_nicely_callback")):
             raise Exception("Reactions class needs a callable with the close nicely function passed in the params with key 'close_nicely_callback'")
         self.close_nicely_callback = params.get("close_nicely_callback")
+
+        if params.key_exists("end_of_conversation_callback") and callable(params.get("end_of_conversation_callback")):
+            self.end_of_conversation_callback = params.get("end_of_conversation_callback")
 
         if params.key_exists("input_stream") and isinstance(params.get("input_stream"), sounddevice.RawInputStream):
             self.input_stream = params.get("input_stream")
@@ -147,6 +153,11 @@ class Reactions(PyXavi):
 
                 # We got a language change request.
                 self.handle_language_change_request(function_call_pair)
+            
+            elif function_call_pair.function_name == "user_intends_to_end_conversation":
+
+                # We got an end of conversation request.
+                self.handle_end_of_conversation_request(function_call_pair)
             
             elif function_call_pair.function_name in self.client_callbacks.keys():
 
@@ -273,6 +284,29 @@ class Reactions(PyXavi):
                 sys.exit(42)
             except Exception as e:
                 self._xlog.error(f"🛑 Failed to change system language to '{result}': {e}")
+
+        # If we reached this point, means that the language change failed for any reason.
+        self._unmute_microphone_if_needed()
+    
+    def handle_end_of_conversation_request(self, function_call_pair: FunctionCallPair):
+        self._xlog.debug("🏁 Handling end of conversation request...")
+
+        result = function_call_pair.function_response.response.get("result", False)
+
+        if isinstance(result, bool) and result is True:
+            # This means that the end of conversation request was successful.
+            self._xlog.info("🏁 End of conversation request handled successfully.")
+
+            try:
+                # Just trigger the end of conversation callback if it exists, 
+                #   so the app can decide what to do, like going to idle mode, or shutting down, or whatever.
+                if self.end_of_conversation_callback is not None:
+                    self.end_of_conversation_callback()
+                else:
+                    self._xlog.debug("⚠️  No end of conversation callback defined, just unmuting the microphone if needed.")
+                    self._unmute_microphone_if_needed()
+            except Exception as e:
+                self._xlog.error(f"🛑 Failed to handle end of conversation request: {e}")
 
         # If we reached this point, means that the language change failed for any reason.
         self._unmute_microphone_if_needed()

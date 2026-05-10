@@ -49,14 +49,16 @@ class GeminiChatbot(PyXavi):
     MODELS = [
         # 'gemini-2.5-flash-preview-09-2025',
         # 'gemini-2.5-pro',
+        'gemini-3.1-flash-lite',
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite',
         "gemma-3-27b-it",
-        'gemini-2.0-flash',
+        # 'gemini-2.0-flash',
     ]
     # We define the Priority model.
     # MODEL_MAIN = 'gemini-2.5-pro'
-    MODEL_MAIN = 'gemini-2.5-flash'
+    # MODEL_MAIN = 'gemini-2.5-flash'
+    MODEL_MAIN = 'gemini-3.1-flash-lite'
     # MODEL_MAIN = "gemma-3-27b-it"
 
     _used_models = []
@@ -97,8 +99,31 @@ class GeminiChatbot(PyXavi):
     def get_session_manager(self):
         return self._session_manager
     
-    def get_chat_history(self):
-        return self._chat.get_history()
+    def get_chat_history(self, curated: bool = False) -> list[types.Content]:
+        return self._chat.get_history(curated=curated)
+    
+    def reset_session(self):
+        self._xlog.info("Resetting GeminiChatbot session for the next conversation.")
+        # asyncio.run_coroutine_threadsafe(self.initialize_async(tools=self.get_session_manager().tools), asyncio.get_event_loop()).result()
+        self._initialize_chat(tools=self.get_session_manager().tools)
+    
+    def get_chat_history_as_list_of_dicts(self, curated: bool = False) -> list[dict]:
+        history = self.get_chat_history(curated=curated)
+        history_as_dicts = []
+        for item in history:
+            parts = item.parts if item.parts is not None else []
+            text = "\n".join([part.text for part in parts if part.text is not None])
+            functions = {
+                "calls": [{ "name": part.function_call.name, "args": part.function_call.args } for part in parts if part.function_call is not None],
+                "responses": [{ "name": part.function_response.name, "response": part.function_response.response } for part in parts if part.function_response is not None]
+            }
+            item_dict = {
+                "role": item.role,
+                "text": text,
+                "functions": functions
+            }
+            history_as_dicts.append(item_dict)
+        return history_as_dicts
 
     def pick_new_model(self) -> str:
         """
@@ -150,22 +175,26 @@ class GeminiChatbot(PyXavi):
         else:
             self.MODEL = self.pick_new_model()
         self._xlog.info("🧠 Using model: " + str(self.MODEL))
+        self._initialize_chat(tools=tools)
+        self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
+    
+    def _initialize_chat(self, tools: list):
         self._chat = self._client.aio.chats.create(
-                model=self.MODEL,
-                config=types.GenerateContentConfig(
-                    system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
-                    tools=tools,
-                    temperature=0.1,
-                    # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
-                    #   or from the Asyncio library, when sending a chatbot message from the Flask server,
-                    #   only in the second request (the first goes through).
-                    # One explanation would be in how Flask manages asyncio calls (own thread that gets closed after request):
-                    #   https://flask.palletsprojects.com/en/stable/async-await/
-                    # The hack comes from here:
-                    #   https://stackoverflow.com/questions/78117476/event-loop-is-closed-in-flask-langchain-asyncio-app
-                    http_options=types.HttpOptions(headers={"Connection": "close"})
-                )
+            model=self.MODEL,
+            config=types.GenerateContentConfig(
+                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
+                tools=tools,
+                temperature=0.1,
+                # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
+                #   or from the Asyncio library, when sending a chatbot message from the Flask server,
+                #   only in the second request (the first goes through).
+                # One explanation would be in how Flask manages asyncio calls (own thread that gets closed after request):
+                #   https://flask.palletsprojects.com/en/stable/async-await/
+                # The hack comes from here:
+                #   https://stackoverflow.com/questions/78117476/event-loop-is-closed-in-flask-langchain-asyncio-app
+                http_options=types.HttpOptions(headers={"Connection": "close"})
             )
+        )
         self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
     
     async def ask_async(self, question: str) -> ChatbotResponse:

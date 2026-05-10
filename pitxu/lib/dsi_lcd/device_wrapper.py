@@ -1,6 +1,5 @@
 
 from datetime import datetime
-import logging
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.device import Device

@@ -165,6 +165,8 @@ dsi_lcd:
     startup_splash: 4.0
     # [Float] Time showing a code block in the foreground. Defaults to 10.0 secs
     code_block_foreground_notification: 10.0
+    # [Float] Time showing a text block in the foreground. Defaults to 10.0 secs
+    text_block_foreground_notification: 10.0
     # [Float] Time showing the idle status in the foreground. Defaults to 10.0 secs
     idle_status_foreground_notification: 15.0
     # [Float] Time showing an error message in the foreground. Defaults to 3.0 secs

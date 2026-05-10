@@ -1,5 +1,6 @@
 from .stateful.lists import StatefulLists
 from .stateful.reminders import StatefulReminders
+from .stateful.memory import StatefulMemory
 from .system.date import SystemDate
 from .system.time import SystemTime
 from .system.network import SystemNetwork
@@ -7,6 +8,7 @@ from .system.power_management import SystemPowerManagement
 from .system.volume import SystemVolume
 from .system.language import SystemLanguage
 from .system.json_metrics import SystemJsonMetrics
+from .system.conversation_flow import SystemConversationFlow
 from .world.position import WorldPosition
 from .world.weather import WorldWeather
 from .world.wikipedia import WorldWikipedia

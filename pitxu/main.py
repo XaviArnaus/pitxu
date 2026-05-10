@@ -1,5 +1,3 @@
-from subprocess import call
-
 from pyxavi import Config, Dictionary, Storage, full_stack, dd
 
 import signal
@@ -19,7 +17,7 @@ from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
-from pitxu.lib.objects import ChatbotResponse, FunctionCallPair
+from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
@@ -29,7 +27,6 @@ import sounddevice
 import time
 import logging
 import asyncio
-from copy import deepcopy
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
@@ -164,10 +161,10 @@ class Main(PyXavi):
             self._interaction.show_init_phases(9, text="⏱️  Schedulers")
             self._initialize_schedulers()
 
-            # Welcome greeting
+            # # Welcome greeting
             sw_greeting = self._stopwatch.start(name="greeting")
             self._interaction.show_init_phases(10, text="👋 Greeting")
-            self._interaction.say(self._greeting_sentence)
+            self._greeting_interaction()
             self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
             # Clean the display after initialisation.
@@ -226,6 +223,24 @@ class Main(PyXavi):
         # However it happened, just close nicely.
         self.close_nicely()
     
+    def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
+        self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
+        
+        # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
+        chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
+        
+        # Do the summarization and storage in memory in the Support Worker, 
+        #   that has the summarization tools and the access to memory, 
+        #   to avoid blocking the main thread with the LLM call and the file writing.
+        self._support.summarize_and_store_in_memory(chatbot_history)
+
+        if not is_end_of_application:
+            self._chatbot.reset_session()
+            self._log_debug("Chatbot session reset after end of conversation request.")
+        else:
+            self._log_debug("End of application requested, not resetting chatbot session, but waiting for the support process to summarize")
+            self._interaction.wait_for_support_process_to_finish()
+    
     async def main_execution_on_vad_detected_started(self):
         """
         This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
@@ -236,7 +251,7 @@ class Main(PyXavi):
         THE ACTION ON THE user_speaking MUST BE ONCE THE TRANSCRIPTION IS POSITIVE, BUT THE DISPLAY FLOW CAN STAY.
         """
 
-        self._xlog.info("User started speaking, via VAD callback.")
+        self._xlog.info("VAD detected speech, via VAD callback.")
 
         try:
 
@@ -401,8 +416,12 @@ class Main(PyXavi):
                     self._interaction.unset_chatbot_error()
                 
                 if text_has_exit_intention:
-                    self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so proceeding to close Pitxu nicely.")
-                    # The goodbye sentence is said, we can proceed to close.
+                    self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
+
+                    # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
+                    self.on_end_of_conversation_requested(is_end_of_application=True)
+
+                    # Now close the app nicely.
                     self.close_nicely()
                     return
                 
@@ -410,13 +429,7 @@ class Main(PyXavi):
                 # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                 self.reset_last_interaction_event_mark()
 
-            # Unmute microphone to continue listening, but we'll wait an extra second to avoid immediate re-triggering.
-            # This second here makes the human-computer interaction worse.
-            # We need to find a way to stop the TTS audio from being input into the SST without intorducing such a delay.
-            # COMMENTED: Trying to activelly stop and start the input stream at the same mutin/unmuting the mic,
-            #   instead of waiting. 
-            # Hypothesis: When we activate the mic again, the buffer may contain data (the last spoken text) and it gets processed.
-            # time.sleep(1)
+            # Unmute microphone to continue listening
             self._interaction.unmute_microphone(input_stream=self._input_stream)
         
         except KeyboardInterrupt:
@@ -543,15 +556,16 @@ class Main(PyXavi):
         # Stop the Chatbot Session Manager.
         # ❗️ THE CLOSING STOPS HERE. RESULT() TIMESOUT AND THE EXCEPTION GETS CAUGHT, BUT THE APP KEEPS RUNNING AND DOES NOT CLOSE. IT SEEMS LIKE THE EXCEPTION IS NOT THE PROBLEM, BUT THE FACT OF WAITING FOR THE COROUTINE TO FINISH WITH RESULT() IS WHAT MAKES IT HANG. MAYBE WE CAN JUST CALL THE COROUTINE WITHOUT WAITING FOR IT TO FINISH? OR WAIT FOR IT WITH A TIMEOUT AND IGNORE IF IT TIMES OUT?
         if self._chatbot_session_manager is not None:
-            future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            try:
-                if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
-                    self._xlog.info("Chatbot Session Manager closed successfully.")
-                else:
-                    self._xlog.warning("Chatbot Session Manager did not close successfully.")
-            except Exception as e:
-                self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
-                self._xlog.error("🛑 " + full_stack())
+            asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # try:
+            #     if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
+            #         self._xlog.info("Chatbot Session Manager closed successfully.")
+            #     else:
+            #         self._xlog.warning("Chatbot Session Manager did not close successfully.")
+            # except Exception as e:
+            #     self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
+            #     self._xlog.error("🛑 " + full_stack())
 
         # Close the server
         if self._server is not None:
@@ -878,6 +892,7 @@ class Main(PyXavi):
             "interaction": self._interaction,
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
+            "end_of_conversation_callback": self.on_end_of_conversation_requested,
             "input_stream": input_stream
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
@@ -910,6 +925,24 @@ class Main(PyXavi):
                             f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
                             f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
                             ") > not initializing it.")
+    def _greeting_interaction(self):
+        """
+        Greets the user with a short message depending on factors like the time of the day.
+        """
+        # Get the current hour to adapt the greeting
+        current_hour = datetime.now().hour
+
+        # Determine the appropriate greeting based on the time of day
+        if 5 <= current_hour < 12:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_morning." + self._xparams.get("language"))
+        elif 12 <= current_hour < 18:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_afternoon." + self._xparams.get("language"))
+        elif 18 <= current_hour < 22:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_evening." + self._xparams.get("language"))
+        else:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_night." + self._xparams.get("language"))
+
+        self._interaction.say(greeting)
 
     # ------- Stuff to do every minute -------
 

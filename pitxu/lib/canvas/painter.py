@@ -724,10 +724,10 @@ class Painter(PyXavi, Thread):
                         # That's why, even a flushed image stays until changed, we need to keep on repainting it.
                     
                         # Whatever we print here, make it over a semi-transparent frame
-                        # For code blocks we want a specific setup to make it more readable.
+                        # For code blocks and text blocks we want a specific setup to make it more readable.
                         foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
                         foreground_frame_opacity = 0.25
-                        if current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                        if current_foreground_interaction.interaction in [ForegroundComm.CODE_BLOCK, ForegroundComm.TEXT_BLOCK]:
                             foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
                             foreground_frame_opacity = 0.75
                         self.macros.draw_foreground_frame(
@@ -763,6 +763,9 @@ class Painter(PyXavi, Thread):
                         elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
                             self._log_debug("Painter Loop: Drawing code block on LCD display.")
                             self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
+                        elif current_foreground_interaction.interaction == ForegroundComm.TEXT_BLOCK:
+                            self._log_debug("Painter Loop: Drawing text block on LCD display.")
+                            self.macros.draw_text_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
                         elif current_foreground_interaction.interaction == ForegroundComm.CLEAR:
                             # If we need to clear the foreground, actualy we use the iteration to draw nothing.
                             # this is because if we clean the foreground, we may loose the background that was painted before.

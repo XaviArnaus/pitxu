@@ -295,3 +295,47 @@ language:
       es: "Aquí tienes el código:"
       en-us: "Here is the code:"
       de: "Hier ist der Code:"
+    # This is the text to add at the end of the answer when there was a code block that couldn't be extracted properly.
+    unable_to_extract_code_callback_text_addendum:
+      ca: "⚠️ La resposta inclou un bloc de codi que no s'ha pogut extraurear correctamente. Si quieres verlo, por favor pide a Pitxu que te envíe la respuesta completa a un email o algo así."
+      es: "⚠️ La respuesta incluye un bloque de código que no se ha podido extraer correctamente. Si quieres verlo, por favor pide a Pitxu que te envíe la respuesta completa a un email o algo así."
+      en-us: "⚠️ The response includes a code block that couldn't be extracted properly. If you want to see it, please ask Pitxu to send you the full response to an email or something like that."
+      de: "⚠️ Die Antwort enthält einen Codeblock, der nicht richtig extrahiert werden konnte. Wenn Sie ihn sehen möchten, bitten Sie Pitxu, Ihnen die vollständige Antwort per E-Mail oder ähnlichem zu senden."
+  
+  # Long term memory
+  memory:
+    entry_creation_error:
+      ca: "Ho sento, hi ha hagut un error al crear l'entrada de memòria."
+      es: "Lo siento, ha habido un error al crear la entrada de memoria."
+      en-us: "I'm sorry, there was an error creating the memory entry."
+      de: "Es tut mir leid, es gab einen Fehler beim Erstellen des Gedächtniseintrags."
+    entries_not_found:
+      ca: "Ho sento, no s'han trobat entrades de memòria per a %s."
+      es: "Lo siento, no se encontraron entradas de memoria para %s."
+      en-us: "I'm sorry, memory entries were not found for %s."
+      de: "Es tut mir leid, die Gedächtniseinträge wurden für %s nicht gefunden."
+    entry_not_found:
+      ca: "Ho sento, no s'ha trobat cap entrada de memòria relacionada amb %s."
+      es: "Lo siento, no se ha encontrado ninguna entrada de memoria relacionada con %s."
+      en-us: "I'm sorry, no memory entry was found related to %s."
+      de: "Es tut mir leid, es wurde kein Gedächtniseintrag in Bezug auf %s gefunden."
+    retrieval_error:
+      ca: "Ho sento, hi ha hagut un error en recuperar les entrades de memòria."
+      es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
+      en-us: "I'm sorry, there was an error retrieving the memory entries."
+      de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."
+    summarization_error:
+      ca: "Ho sento, hi ha hagut un error en resumir l'historial de xat en una entrada de memòria."
+      es: "Lo siento, ha habido un error al resumir el historial de chat en una entrada de memoria."
+      en-us: "I'm sorry, there was an error summarizing the chat history into a memory entry."
+      de: "Es tut mir leid, es gab einen Fehler beim Zusammenfassen des Chatverlaufs in einen Gedächtniseintrag."
+    summarization_error_no_summary_fields:
+      ca: "Ho sento, el resum de l'historial de xat no conté camps de resum per crear una entrada de memòria."
+      es: "Lo siento, el resumen del historial de chat no contiene campos de resumen para crear una entrada de memoria."
+      en-us: "I'm sorry, the summary of the chat history does not contain fields to create a memory entry."
+      de: "Es tut mir leid, die Zusammenfassung des Chatverlaufs enthält keine Felder, um einen Gedächtniseintrag zu erstellen."
+    summarization_error_invalid_json:
+      ca: "Ho sento, el resum de l'historial de xat no és un JSON vàlid per crear una entrada de memòria."
+      es: "Lo siento, el resumen del historial de chat no es un JSON válido para crear una entrada de memoria."
+      en-us: "I'm sorry, the summary of the chat history is not a valid JSON to create a memory entry."
+      de: "Es tut mir leid, die Zusammenfassung des Chatverlaufs ist kein gültiges JSON, um einen Gedächtniseintrag zu erstellen."

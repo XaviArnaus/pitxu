@@ -7,6 +7,7 @@ from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.support_process.dumper import Dumper
+from pitxu.lib.support_process.summarizer import Summarizer
 
 from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
@@ -20,7 +21,7 @@ class SupportProcess(Xprocess):
     """
 
     dumper: Dumper = None
-    
+    summarizer: Summarizer = None
 
     def get_process_name(self) -> str:
         return "Support"
@@ -36,6 +37,8 @@ class SupportProcess(Xprocess):
         # - highcut_freq (int): The high cut frequency for the bandpass filter. Default is 3400.
         self.dumper = Dumper(config=self._xconfig, params=self._xparams)
 
+        self.summarizer = Summarizer(config=self._xconfig, params=self._xparams)
+        
     def finish(self):
         # self._xlog.debug("Closing Dumper in Support Worker")
         # self._xlog.debug("Done finishing Support Worker")
@@ -68,6 +71,9 @@ class SupportProcess(Xprocess):
                 self.dump_accumulated_audio(preprocessed=False)
                 self.dump_accumulated_audio(preprocessed=True)
                 self.plot_accumulated_audio()
+        
+        if action == XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY and isinstance(param, list):
+            self.summarize_and_store_in_memory(param)
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
         self._log_debug(f"Accummulating {'preprocessed' if preprocessed else 'raw'} audio data in Support Worker")
@@ -84,5 +90,9 @@ class SupportProcess(Xprocess):
     def plot_accumulated_audio(self):
         self._log_debug(f"Plotting accumulated audio data in Support Worker")
         self.dumper.plot_accumulated_audio()
+    
+    def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
+        self._log_debug("Summarizing chatbot history and storing it in memory in Support Worker")
+        self.summarizer.summarize_and_store_in_memory(chatbot_history)
 
     

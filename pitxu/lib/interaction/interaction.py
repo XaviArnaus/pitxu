@@ -14,10 +14,10 @@ from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
+from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_IDLE_MODE # <-- This needs to be converted to a more overarching one.
+                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY
 
 class Interaction(PyXavi):
     """
@@ -525,6 +525,46 @@ class Interaction(PyXavi):
             "for_seconds": for_seconds
         })
     
+    def show_code_block_on_foreground_while_speaking(self, code: str, for_seconds: float = 10.0):
+        """
+        Shows a code block on the foreground display while speaking.
+
+        Args:
+            code (str): The code block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_CODE_BLOCK_WHILE_SPEAKING, {
+            "code": code,
+            # This is not used, but I'd like that stays AT MINIMUM for_seconds,
+            #   even after finishing speaking.
+            "for_seconds": for_seconds
+        })
+    
+    def show_text_block_on_foreground(self, text: str, for_seconds: float = 10.0):
+        """
+        Shows a text block on the foreground display.
+
+        Args:
+            text (str): The text block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_TEXT_BLOCK, {
+            "text": text,
+            "for_seconds": for_seconds
+        })
+    
+    def show_text_block_on_foreground_while_speaking(self, text: str, for_seconds: float = 10.0):
+        """
+        Shows a text block on the foreground display while speaking.
+
+        Args:
+            text (str): The text block to show.
+        """
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_TEXT_BLOCK_WHILE_SPEAKING, {
+            "text": text,
+            # This is not used, but I'd like that stays AT MINIMUM for_seconds,
+            #   even after finishing speaking.
+            "for_seconds": for_seconds
+        })
+    
     def show_interaction_holding_percentage(self, percentage: int):
         """
         Shows the interaction holding percentage on the background display.
@@ -570,6 +610,10 @@ class Interaction(PyXavi):
     
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+    
+    def wait_for_support_process_to_finish(self):
+        self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self._get_active_foreground_display_queue())

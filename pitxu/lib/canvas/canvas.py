@@ -91,6 +91,8 @@ class Canvas(PyXavi):
         }
     }
 
+    VERBOSE_DEBUG: bool = False
+
     @property
     def COLOR_BLACK(self) -> tuple | int:
         return self.COLOR_CODES["black"][str(self.COLOR_MODE)]

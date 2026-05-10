@@ -85,23 +85,31 @@ class GoogleCode(PyXavi, Command):
         # First remove the code language identifier if it exists
         text = Code.remove_code_language_identifier(text)
         # Get the code blocks from the text
-        for code_block in Code.extract_code_from_text(text):
+        raw_code_blocks = Code.extract_code_from_text(text)
+        for code_block in raw_code_blocks:
             code_blocks.append(Code.remove_comment_lines_from_code(code_block))
         # Remove the code blocks from the text
         text = Code.remove_all_code_blocks_from_text(text)
         
         try:
+            # don't go crazy. Log how many do you have, if more than 1, and simply show the first.
+            code_block_to_show = None
             if len(code_blocks) > 0:
-                # don't go crazy. Log how many do you have, if more than 1, and simply show the first.
-                log.info(f"Gemini's Code Generation response includes {len(code_blocks)} code blocks. Showing only the first one.")
-                interaction.show_code_block_on_foreground(code=code_blocks[0])
+                if code_blocks[0] is not None and code_blocks[0].strip() != "":
+                    code_block_to_show = code_blocks[0]
+                else:
+                    # I've seen code blocks inside code blocks (Markdown Python examples), and ATM the naive code block extractor goes nuts with that.
+                    log.warning("The extracted code block is empty after removing comment lines. Will show the text instead.")
+                    # Maybe add a note at the end of the text to indicate that there is some code,
+                    #   so we can tell the user that it should ask Pitxu to send it to an email or something like that.
+                    text += "\n\n" + self._xconfig.get("language.unable_to_extract_code_callback_text_addendum." + self._xparams.get("language"),
+                                                       "⚠️ The response includes a code block that couldn't be extracted properly. If you want to see it, please ask Pitxu to send you the full response to an email or something like that.")
+            if code_block_to_show is not None:
+                log.info(f"Gemini's Code Generation response includes {len(code_blocks)} code blocks. Showing only the first one:\n{code_block_to_show}")
+                interaction.show_code_block_on_foreground_while_speaking(code=code_block_to_show)
             else:
-                text = text[:50] + ("..." if len(text) > 100 else "")
-                log.error(f"🔎 Showing Gemini's Code Generation result: [{text}]")
-                interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="🔎 ",
-                    text=text,
-                    font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                log.info(f"🔎 Showing Gemini's Code Generation result: [{text}]")
+                interaction.show_text_block_on_foreground_while_speaking(text=text)
         except Exception as e:
             log.error(f"🛑 Error showing Gemini's Code Generation result on Foreground: {e}")
             log.error(full_stack())

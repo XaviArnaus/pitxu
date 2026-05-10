@@ -2,6 +2,8 @@ import emoji
 import re
 import unicodedata
 
+from pyxavi import dd
+
 class Text:
 
     @staticmethod
@@ -53,7 +55,7 @@ class Text:
 
 class Code:
 
-    CODE_BLOCK_TRIPLE_BACKTICKS = "```"
+    CODE_BLOCK_TRIPLE_BACKTICKS = r'[`]{3}'
 
     @staticmethod
     def text_includes_code(text: str) -> bool:
@@ -63,43 +65,64 @@ class Code:
         Returns:
             bool: True if the text includes code snippets, False otherwise.
         """
-        return text is not None and Code.CODE_BLOCK_TRIPLE_BACKTICKS in text
+        return text is not None and re.search(Code.CODE_BLOCK_TRIPLE_BACKTICKS, text) is not None
     
     @staticmethod
     def extract_code_from_text(text: str) -> list[str]:
         """
         Extracts code snippets from the text of the response.
-        This is a very naive implementation that extracts text between triple backticks.
+        It relies on the presence of triple backticks to identify code blocks, one per line.
+        It can handle multiple code blocks in the same text, but it does not handle nested code blocks 
+            or code blocks that are not properly closed.
+
         Returns:
             list[str]: The extracted code snippets, or None if no code snippets are found.
         """
 
+        if text is None:
+            return None
+        
         outcome = []
-        while text is not None and Code.text_includes_code(text):
-        
-            # Naively extract code between triple backticks
-            parts = text.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
-            if len(parts) < 3:
-                return None
+        lines = text.split("\n")
+        current_code_block_lines = []
+        line_is_in_code_block = False
+        for line in lines:
+
+            # Check if this line includes triple backticks, which may indicate the start or end of a code block.
+            if re.search(Code.CODE_BLOCK_TRIPLE_BACKTICKS, line) is not None:
+                # toggle the flag
+                line_is_in_code_block = not line_is_in_code_block
+
+                # If there are 2 code blocks in consecutive lines without new line between the triple backticks, like:
+                # ```
+                # print("Hello World")
+                # ```
+                # ```
+                # print("Hello again")
+                # ```
+                # we need to reset the current code block lines, as the naive code block extractor will consider that we are still in the same code block.
+                if line_is_in_code_block and len(current_code_block_lines) > 0:
+                    outcome.append("\n".join(current_code_block_lines))
+                    current_code_block_lines = []
+
+                # discard the actual line with the triple backticks, as it is not part of the code.
+                continue
             
-            # We take the first one. next iterations will care about the subsequent ones.
-            code_block = parts[1].strip()
-
-            # Keep track of the very first part
-            part_0 = parts[0]
-            # Remove it from the list of the parts
-            del parts[0]
-            # Now remove the code part to avoid extracting it again in the next iteration.
-            # Note that it became the first part.
-            del parts[0]
-            # Reconstruct the text without the extracted code and the first part.
-            # Note that we need to join them using the triple backticks again.
-            text = part_0 + Code.CODE_BLOCK_TRIPLE_BACKTICKS.join(parts)
-
-            # Finally append the cleaned code block to the outcome.
-            outcome.append(code_block)
+            if line_is_in_code_block:
+                # The current line matches the ticks, append the line into the current code block lines
+                current_code_block_lines.append(line)
+            else:
+                # The current line does not match the ticks:
+                #   if we are currently accummulating a code block, dump it into the outcome and reset the current code block lines.
+                if len(current_code_block_lines) > 0:
+                    outcome.append("\n".join(current_code_block_lines))
+                    current_code_block_lines = []
         
-        return outcome if outcome else None
+        # If we finished the loop and we are still accummulating a code block, dump it into the outcome.
+        if len(current_code_block_lines) > 0:
+            outcome.append("\n".join(current_code_block_lines))
+
+        return outcome if len(outcome) > 0 else None
     
     @staticmethod
     def remove_all_code_blocks_from_text(text: str) -> str:
@@ -108,27 +131,16 @@ class Code:
         This is a very naive implementation that removes text between triple backticks.
         """
         outcome = []
-        while text is not None and Code.text_includes_code(text):
+        line_is_in_code_block = False
+        for line in text.split("\n"):
+            matches = re.search(Code.CODE_BLOCK_TRIPLE_BACKTICKS, line)
+            if matches is not None:
+                line_is_in_code_block = not line_is_in_code_block
+                continue
+            if not line_is_in_code_block:
+                outcome.append(line)
         
-            # Naively extract code between triple backticks
-            parts = text.split(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
-            if len(parts) < 3:
-                return None
-            
-            # We take the first one. next iterations will care about the subsequent ones.
-            outcome.append(parts[1].strip())
-            # Keep track of the very first part
-            part_0 = parts[0]
-            # Remove it from the list of the parts
-            del parts[0]
-            # Now remove the code part to avoid extracting it again in the next iteration.
-            # Note that it became the first part.
-            del parts[0]
-            # Reconstruct the text without the extracted code and the first part.
-            # Note that we need to join them using the triple backticks again.
-            text = part_0 + Code.CODE_BLOCK_TRIPLE_BACKTICKS.join(parts)
-        
-        return text
+        return "\n".join(outcome).strip()
     
     @staticmethod
     def remove_comment_lines_from_code(text: str) -> str:
@@ -155,11 +167,21 @@ class Code:
         outcome = []
         lines = text.split("\n")
         for line in lines:
-            if Code.CODE_BLOCK_TRIPLE_BACKTICKS in line:
-                substring_start = 0
-                substring_end = line.find(Code.CODE_BLOCK_TRIPLE_BACKTICKS) + len(Code.CODE_BLOCK_TRIPLE_BACKTICKS)
-                outcome.append(line[substring_start:substring_end])
-            else:
+            # I've seen some text with 2 code blocks, without new line between the triplebackticks, like:
+            # ```python
+            # print("Hello World")
+            # ``````python
+            # print("Hello again")
+            # ````
+            matches = re.finditer(Code.CODE_BLOCK_TRIPLE_BACKTICKS, line)
+            new_line = []
+            for match in matches:
+                new_line = []
+                substring_start = match.start()
+                substring_end = match.end()
+                new_line.append(line[substring_start:substring_end])
+                outcome.append("\n".join(new_line))
+            if len(new_line) == 0:
                 outcome.append(line)
         
         return "\n".join(outcome).strip()

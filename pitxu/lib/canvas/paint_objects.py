@@ -355,6 +355,55 @@ class CodeBlockForegroundPaint(ForegroundPaint):
             ignore_maintain_time=False
         )
 
+class CodeBlockWhileSpeakingForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "CodeBlockWhileSpeakingForegroundPaint"
+        super(CodeBlockWhileSpeakingForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.CODE_BLOCK,
+            parameter=parameter,
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            ignore_maintain_time=True
+        )
+
+class TextBlockForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: dict = None, for_seconds: float = 10.0):
+        if name is None:
+            name = "TextBlockForegroundPaint"
+        super(TextBlockForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.TEXT_BLOCK,
+            parameter=parameter,
+            # Be careful with this, this places a black screen over whatever is already painted in the canvas.
+            # (so, it removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            maintain_paint_for_seconds=for_seconds,
+            ignore_maintain_time=False
+        )
+
+class TextBlockWhileSpeakingForegroundPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "TextBlockWhileSpeakingForegroundPaint"
+        super(TextBlockWhileSpeakingForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.TEXT_BLOCK,
+            parameter=parameter,
+            # Be careful with this, ensure that avoids painting and not places a black screen 
+            # (that removes the background when painting combined)
+            final_screen_clearing=True,
+            remove_interaction_after_painting=True,
+            ignore_maintain_time=True
+        )
+
 class ClearForegroundPaint(ForegroundPaint):
 
     def __init__(self, name = None):
