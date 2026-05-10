@@ -64,7 +64,7 @@ class Memory(PyXavi):
     
     def get_by_date(self, date_str: str) -> list:
         entries = list(self.state.get("entries").values())
-        date = Xtime.str_to_datetime(date_str).date()
+        date = Xtime.str_to_datetime(date_str, "%Y-%m-%d").date()
         return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]).date() == date]
     
     def get_by_datetime(self, datetime_str: str) -> list:

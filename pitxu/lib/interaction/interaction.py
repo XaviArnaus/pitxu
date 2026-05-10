@@ -14,10 +14,10 @@ from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD,\
+from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_IDLE_MODE # <-- This needs to be converted to a more overarching one.
+                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY
 
 class Interaction(PyXavi):
     """
@@ -610,6 +610,10 @@ class Interaction(PyXavi):
     
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
+    
+    def wait_for_support_process_to_finish(self):
+        self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self._get_active_foreground_display_queue())

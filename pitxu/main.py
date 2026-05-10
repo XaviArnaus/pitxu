@@ -161,10 +161,10 @@ class Main(PyXavi):
             self._interaction.show_init_phases(9, text="⏱️  Schedulers")
             self._initialize_schedulers()
 
-            # Welcome greeting
+            # # Welcome greeting
             sw_greeting = self._stopwatch.start(name="greeting")
             self._interaction.show_init_phases(10, text="👋 Greeting")
-            self._interaction.say(self._greeting_sentence)
+            self._greeting_interaction()
             self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
             # Clean the display after initialisation.
@@ -238,7 +238,8 @@ class Main(PyXavi):
             self._chatbot.reset_session()
             self._log_debug("Chatbot session reset after end of conversation request.")
         else:
-            self._log_debug("End of application requested, not resetting chatbot session.")
+            self._log_debug("End of application requested, not resetting chatbot session, but waiting for the support process to summarize")
+            self._interaction.wait_for_support_process_to_finish()
     
     async def main_execution_on_vad_detected_started(self):
         """
@@ -418,7 +419,7 @@ class Main(PyXavi):
                     self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
                     # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
-                    self.on_end_of_conversation_requested()
+                    self.on_end_of_conversation_requested(is_end_of_application=True)
 
                     # Now close the app nicely.
                     self.close_nicely()
@@ -924,6 +925,24 @@ class Main(PyXavi):
                             f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
                             f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
                             ") > not initializing it.")
+    def _greeting_interaction(self):
+        """
+        Greets the user with a short message depending on factors like the time of the day.
+        """
+        # Get the current hour to adapt the greeting
+        current_hour = datetime.now().hour
+
+        # Determine the appropriate greeting based on the time of day
+        if 5 <= current_hour < 12:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_morning." + self._xparams.get("language"))
+        elif 12 <= current_hour < 18:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_afternoon." + self._xparams.get("language"))
+        elif 18 <= current_hour < 22:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_evening." + self._xparams.get("language"))
+        else:
+            greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_night." + self._xparams.get("language"))
+
+        self._interaction.say(greeting)
 
     # ------- Stuff to do every minute -------
 

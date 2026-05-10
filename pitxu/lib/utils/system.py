@@ -93,26 +93,38 @@ class System:
     
     @staticmethod
     def get_cpu_temperature() -> float:
+        if not System.is_linux():
+            return 0.0 
         return round(int(System._run_command("cat /sys/class/thermal/thermal_zone*/temp")) / 1000, 1)
     
     @staticmethod
     def get_cpu_fan_speed() -> float:
+        if not System.is_linux():
+            return 0.0
         return int(System._run_command("cat /sys/class/hwmon/hwmon*/fan1_input"))
     
     @staticmethod
     def get_cpu_volts() -> float: 
+        if not System.is_linux():
+            return 0.0
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_V"], 'V')) # return current cpu voltage
 
     @staticmethod
     def get_cpu_amps() -> float:
+        if not System.is_linux():
+            return 0.0
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_A"], 'A')) # reurn current cpu amperage
 
     @staticmethod
     def get_cpu_temp() -> float:
+        if not System.is_linux():
+            return 0.0
         return float(System._read_hardware_metric(["vcgencmd", "measure_temp"], "'C")) # return current cpu temp
 
     @staticmethod
     def get_input_voltage() -> float:
+        if not System.is_linux():
+            return 0.0
         return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
     
     @staticmethod
