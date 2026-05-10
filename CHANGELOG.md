@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.4 - 2026-5-10
+
+### Added
+
+- Long Term Memory, initial implementation [#30](https://github.com/XaviArnaus/pitxu/pull/30).
+    - New Code Generation visualization while speaking
+    - New Text block visualization while speaking
+
+### Changed
+
+- Greeting is sensible about the time of the day
+
+### Fixed
+
+- Code extraction for visualization
+
 ## v0.3.3 - 2026-4-30
 
 ### Changed
