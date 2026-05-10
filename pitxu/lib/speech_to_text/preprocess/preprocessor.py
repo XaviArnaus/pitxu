@@ -84,14 +84,17 @@ class Preprocessor(PyXavi):
 
         self._log_debug("🎤 Done Initializing Preprocess for Speech-to-Text")
     
-    def preprocess_chunk(self, indata: bytes) -> bytes | None:
+    def preprocess_chunk(self, indata: bytes, return_in_numpy: bool = False) -> bytes | np.ndarray | None:
 
         if self._xconfig.get("speech-to-text.preprocessor.enabled", True) == False:
             audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
             audio_data_np = Conversors.stereo_to_mono(audio_data_np)
             self.support.accumulate_audio(audio_data_np)
 
-            return indata
+            if return_in_numpy:
+                return audio_data_np
+            else:
+                return indata
 
         # Stop a second and ready this:
         # https://github.com/pipecat-ai/pipecat/issues/1653#issuecomment-3021647937
@@ -116,7 +119,10 @@ class Preprocessor(PyXavi):
         self.support.accumulate_audio(audio_data_np)
         self.support.accumulate_audio(filtered_audio_np, preprocessed=True)
 
-        return Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
+        if return_in_numpy:
+            return filtered_audio_np
+        else:
+            return Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
 
         # All calculations are done with numpy arrays for performance reasons, so convert it first.
         audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)

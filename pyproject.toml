@@ -43,6 +43,7 @@ scipy = "^1.17.1"
 rms-vad = {extras = ["numpy"], version="^0.2.0"}
 samplerate = "^0.2.4"
 matplotlib = "^3.10.8"
+openai-whisper = "^20250625"
 
 [tool.poetry.scripts]
 main = "runner:run"

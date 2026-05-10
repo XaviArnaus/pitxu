@@ -84,6 +84,31 @@ speech-to-text:
     # The value should be passed from the Main class, otherwise takes this value.
     # -1 means that it will infer the sample rate from the input device (Mic) using the sounddevice library.
     input_samplerate: 16000
+  # Specific configuration for Whisper, when applicable.
+  whisper:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://github.com/openai/whisper# Models: tiny, base, small, medium, large. The ones with ".en" are optimized for English.
+    model: 
+      # Catalan
+      ca: small
+      # Spanish
+      es: small
+      # English
+      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
+      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
+      en: small.en
+      # German
+      de: small
+    # [String] The location where the offline whisper files are stored.
+    #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
+    download_root: "whisper"
+    # [String] The device to use for the Whisper model. Options: "cpu", "cuda", "mps", etc.
+    #   See https://github.com/openai/whisper#usage for more details.
+    device: "cpu"
+    # [Bool] Whether to load the whole model in memory or not.
+    #   Loading the whole model in memory can improve performance, but it can also consume more RAM. 
+    #   If False, the model will be loaded on demand for each inference, which can save RAM but can increase latency.
+    in_memory: True
   
 
 

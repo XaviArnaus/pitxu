@@ -16,6 +16,7 @@ from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.whisper import Whisper, WhisperException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
@@ -210,14 +211,21 @@ class Main(PyXavi):
             self._xlog.info("Pressed Control + C from main")
         except VoskException as ve:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
+                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
                 return
-            self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
+            self._xlog.error("🛑 VoskException detected in Main run(): " + str(ve))
+            self._xlog.error(full_stack()) 
+        except WhisperException as we:
+            if not self._is_pitxu_active:
+                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(we))
+                return
+            self._xlog.error("🛑 WhisperException detected in Main run(): " + str(we))
+            self._xlog.error(full_stack()) 
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
                 return
-            self._xlog.error("🛑 Error in Main run loop: " + str(e))
+            self._xlog.error("🛑 Error in Main run(): " + str(e))
             self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.
@@ -693,7 +701,8 @@ class Main(PyXavi):
     def _load_models(self):
         
         # Initialise Speech-to-Text. This runs in the main process
-        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+        self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
+                         f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
         # COMMENTED: This way Vosk chooses between config or device.
         # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
 
@@ -701,9 +710,12 @@ class Main(PyXavi):
             self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
             self._xparams.set("support", self._support)
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+        if self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+            self._xparams.set("support", self._support)
+            self._dictate = Whisper(config=self._xconfig, params=self._xparams)
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
-            self._xlog.error("🛑 Supported engines are: vosk")
+            self._xlog.error("🛑 Supported engines are: vosk, whisper")
             self._xlog.error("🛑 Exiting now.")
             sys.exit(1)
 
@@ -788,6 +800,7 @@ class Main(PyXavi):
         # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
         samplerate = self._audio_parameters.get("input_samplerate")
         blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
+        device = self._xparams.get("audio_parameters.input_device", None)
 
         self._xlog.debug("Initialising the Raw Input Stream for microphone")
         self._input_stream = sounddevice.RawInputStream(
@@ -796,14 +809,14 @@ class Main(PyXavi):
                             samplerate=samplerate,
                             # blocksize=0, 
                             blocksize=blocksize,
-                            device=self._dictate.device,
+                            device=device,
                             dtype="int16", 
                             channels=1,
                             # callback=self._dictate.callback) as input_stream:
                             callback=self._capture_handler.callback)
         
         self.log_summary("Raw Input Stream (Mic) initialized", [
-                    ("Device", self._dictate.device),
+                    ("Device", device),
                     ("Sample Rate", samplerate),
                     ("Block Size", blocksize if blocksize > 0 else "0 (automatic by pyAudio)"),
                     ("Channels", 1),

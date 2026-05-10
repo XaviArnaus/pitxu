@@ -1,9 +1,7 @@
 import queue
-import logging
-import sys
 import json
 
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.support_process.support import Support
@@ -11,7 +9,6 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
-import sounddevice as sd
 
 class VoskException(Exception):
     pass
@@ -28,10 +25,8 @@ class Vosk(PyXavi):
     _recognizer: KaldiRecognizer = None
     _preprocessor: Preprocessor = None
     _support: Support = None
-
     _shared_memory: SharedMemoryManager = None
 
-    device = None
     samplerate = None
 
     is_active: bool = False
@@ -57,7 +52,7 @@ class Vosk(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
+            # Set the log levels for the Vosk libraries based on the configuration
             self.VOICE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.vosk.loglevel", self.VOICE_LIB_LOG_LEVEL)
             self._log_debug("Setting Vosk client log level to: " + str(self.VOICE_LIB_LOG_LEVEL))
             SetLogLevel(self.VOICE_LIB_LOG_LEVEL)
@@ -79,9 +74,6 @@ class Vosk(PyXavi):
             #   > Both set a "samplerate" param, which value depends on one or another gathered in AudioParametersLoader.
             self.samplerate = self._xparams.get("samplerate", None)
             logging_parts.append(("Sample rate", self.samplerate))
-            
-            self.device = self._xparams.get("audio_parameters.input_device", None)
-            logging_parts.append(("Input device", self.device))
 
             # Forwarding the Support process to the Preprocessor via xparams,
             #   here just checking that it's there, for the log summary.

@@ -282,10 +282,10 @@ class Maintenance(PyXavi):
             timestamp = Xtime.current_time_str()
             with open(self._new_start_timestamp_file, "w") as f:
                 f.write(timestamp)
-            print(f"⚙️  Written new start timestamp [{timestamp}] to file: {self._new_start_timestamp_file}")
+            self._xlog.info(f"⚙️  Written new start timestamp [{timestamp}] to file: {self._new_start_timestamp_file}")
             return timestamp
         except Exception as e:
-            print(f"⚙️  Error writing new start timestamp to file: {e}")
+            self._xlog.error(f"⚙️  Error writing new start timestamp to file: {e}")
             return None
     
     def load_current_start_timestamp_from_file(self) -> str | None:

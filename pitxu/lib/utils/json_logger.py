@@ -25,6 +25,8 @@ class JsonLogger(PyXavi):
             self._name = self._xparams.get("maintenance_logger_name")
         elif kwargs.get("name") is not None:
             self._name = kwargs.get("name")
+        
+        self._directory = self._xparams.get("maintenance_logger_directory", self._directory)
 
         self._initialize()
     
