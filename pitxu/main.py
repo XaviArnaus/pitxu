@@ -710,7 +710,7 @@ class Main(PyXavi):
             self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
             self._xparams.set("support", self._support)
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
-        if self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
             self._xparams.set("support", self._support)
             self._dictate = Whisper(config=self._xconfig, params=self._xparams)
         else:
