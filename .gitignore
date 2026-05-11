@@ -24,6 +24,9 @@ storage/audio/preprocessed_input/*.wav
 storage/audio/signals/*.png
 storage/audio/spectograms/*.png
 
+# No Wisper models
+storage/whisper/*.pt
+
 # No user config files
 config.yaml
 config/*.yaml
