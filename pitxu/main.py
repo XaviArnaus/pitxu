@@ -994,7 +994,10 @@ class Main(PyXavi):
 
             # If we've been inactive for more than 2 minutes, start the idle mode.
             if self._last_interaction_datetime == None or \
-                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+                (
+                    Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000 \
+                    and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()
+                ):
 
                 if not self._interaction.is_idle_mode_on():
                     self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")

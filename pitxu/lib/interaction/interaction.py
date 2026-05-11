@@ -720,6 +720,9 @@ class Interaction(PyXavi):
     def is_background_display_busy(self):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(self._get_active_background_display_busy_flag())
     
+    def is_speaker_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_SPEAKER_BUSY)
+    
     def set_speaker_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
     
