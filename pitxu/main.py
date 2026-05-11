@@ -476,8 +476,8 @@ class Main(PyXavi):
         self._last_interaction_datetime = datetime.now()
         self._last_interaction_paused_seconds = 0
 
-    def _text_has_exit_intention(self, text):
-        return text in self._exit_words
+    def _text_has_exit_intention(self, text: str) -> bool:
+        return text.replace(".", "").lower() in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time

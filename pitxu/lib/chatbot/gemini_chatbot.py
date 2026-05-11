@@ -57,8 +57,8 @@ class GeminiChatbot(PyXavi):
     ]
     # We define the Priority model.
     # MODEL_MAIN = 'gemini-2.5-pro'
-    # MODEL_MAIN = 'gemini-2.5-flash'
-    MODEL_MAIN = 'gemini-3.1-flash-lite'
+    MODEL_MAIN = 'gemini-2.5-flash'
+    # MODEL_MAIN = 'gemini-3.1-flash-lite'
     # MODEL_MAIN = "gemma-3-27b-it"
 
     _used_models = []
