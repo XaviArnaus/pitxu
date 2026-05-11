@@ -24,6 +24,27 @@ language:
     es: "Hola"
     en-us: "Hello"
     de: "Hallo"
+  # Welcome message based on the time of the day
+  greeting_morning:
+    ca: "Bon dia"
+    es: "Buenos días"
+    en-us: "Good morning"
+    de: "Guten Morgen"
+  greeting_afternoon:
+    ca: "Bona tarda"
+    es: "Buenas tardes"
+    en-us: "Good afternoon"
+    de: "Guten Tag"
+  greeting_evening:
+    ca: "Bona nit"
+    es: "Buenas noches"
+    en-us: "Good evening"
+    de: "Guten Abend"
+  greeting_night:
+    ca: "Bona nit"
+    es: "Buenas noches"
+    en-us: "Good night"
+    de: "Gute Nacht"
   # This is the goodbye message
   goodbye:
     ca: "Fins la propera! Adéu!"
