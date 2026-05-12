@@ -24,6 +24,7 @@ class Whisper(PyXavi):
     is_active: bool = False
     language: str = "en"
 
+    VERBOSE_WHISPER_LIB: bool = False
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
@@ -152,7 +153,7 @@ class Whisper(PyXavi):
                 transcription_data = self._model.transcribe(
                     np.concatenate(audio_np).flatten().astype(np.float32) / 32768.0, 
                     language=self.language,
-                    verbose=self.VERBOSE_DEBUG)
+                    verbose=self.VERBOSE_WHISPER_LIB)
                 
                 # Extract just the transcription result. Keep in mind that we receive more info, like:
                 # {'text': ' Hello?', 'segments': [{'id': 0, 'seek': 0, 'start': 0.0, 'end': 2.0, 'text': ' Hello?', 'tokens': [50363, 18435, 30, 50463], 'temperature': 0.0, 'avg_logprob': -0.8661511421203614, 'compression_ratio': 0.42857142857142855, 'no_speech_prob': 0.01292417012155056}], 'language': 'en'}
