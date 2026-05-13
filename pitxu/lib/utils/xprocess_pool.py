@@ -98,6 +98,7 @@ class XprocessPool(PyXavi):
             sentinel_output_queue=sentinel_output_queue,
             busy_flag=self._shared_flags_per_queue.get(name, None)
         )
+        self._process[name].name = self._process[name].get_process_name()  # set the process name for better logging
 
         if output_queue is not None:
             return {

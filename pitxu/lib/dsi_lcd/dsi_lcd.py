@@ -42,7 +42,7 @@ class DsiLcd(XprocessDisplayCombined):
     VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
-        return "DSI_LCD"
+        return "DsiLcd"
 
     def get_canvas_handler(self) -> Canvas | None:
         if self.canvas is not None:

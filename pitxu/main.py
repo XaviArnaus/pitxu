@@ -864,26 +864,23 @@ class Main(PyXavi):
         """
         Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
         """
+        self._xlog.info("Initialising Schedulers")
+
+        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
+        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
+        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
         def job_listener(event):
             if event.exception:
                 self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
-            # We already show some minimal logging for each job executed. This is not really needed beyond debug.
-            # else:
-            #     self._log_debug("✅ Scheduled job executed successfully: " + str(event.job_id))
 
-        self._xlog.info("Initialising Schedulers")
         self._scheduler = BackgroundScheduler(
             job_defaults={
                 "coalesce": True
             }
         )
         self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
-
-        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
-        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
-        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
-        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
         # EVERY MINUTE
         self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
