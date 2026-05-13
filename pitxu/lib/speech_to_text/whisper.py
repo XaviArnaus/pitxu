@@ -148,6 +148,9 @@ class Whisper(PyXavi):
                 
                 self._log_debug(f"Whisper: All audio chunks from the queue have been preprocessed, total {len(audio_np)} chunks. Transcribing them with Whisper...")
 
+                if len(audio_np) == 0:
+                    self._log_debug("Whisper: No audio chunks to process after preprocessing, returning empty result.")
+                    return ""
                 # Join the chunks and transcribe them with Whisper.
                 #   Note: we don't want to join the chunks before preprocessing, because this could lead to memory issues if the user speaks for a long time, and also because the Preprocessor may do some operations that are better to do on smaller chunks (for example, VAD).
                 transcription_data = self._model.transcribe(
@@ -203,4 +206,73 @@ class Whisper(PyXavi):
         self._xlog.info("Whisper STT closed")
 
 
-        
+# 🗣️ VAD detected speech end
+# 2026-05-13 06:36:14,958 [MainProcess      | MainThread            ] INFO     pitxu        Main execution triggered by user finishing speaking, via VAD callback.
+# 2026-05-13 06:36:14,958 [MainProcess      | MainThread            ] DEBUG    pitxu        Whisper: Processing all audio chunks [1] from the queue at once
+# 2026-05-13 06:36:14,958 [MainProcess      | MainThread            ] DEBUG    pitxu        Whisper: Received None data from the queue, skipping it.
+# 2026-05-13 06:36:14,958 [MainProcess      | MainThread            ] DEBUG    pitxu        Whisper: All audio chunks from the queue have been preprocessed, total 0 chunks. Transcribing them with Whisper...
+# 2026-05-13 06:36:14,958 [MainProcess      | MainThread            ] ERROR    pitxu        🛑 Error during Whisper recognition: need at least one array to concatenate
+# 2026-05-13 06:36:14,962 [MainProcess      | MainThread            ] ERROR    pitxu        Traceback (most recent call last):
+#   File "<string>", line 1, in <module>
+#     import sys; from importlib import import_module; sys.argv = ['/Users/xavier/Library/Caches/pypoetry/virtualenvs/pitxu-8ywc-t6q-py3.13/bin/main']; sys.exit(import_module('runner').run())
+#   File "/Users/xavier/Developer/pitxu/runner.py", line 166, in run
+#     asyncio.run(main.run())
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 195, in run
+#     return runner.run(main)
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 118, in run
+#     return self._loop.run_until_complete(task)
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 706, in run_until_complete
+#     self.run_forever()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 677, in run_forever
+#     self._run_once()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 2034, in _run_once
+#     handle._run()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/events.py", line 89, in _run
+#     self._context.run(self._callback, *self._args)
+#   File "/Users/xavier/Developer/pitxu/pitxu/main.py", line 300, in main_execution_on_vad_detected_finished
+#     question = self._dictate.recognize_all_queue_at_once()
+#   File "/Users/xavier/Developer/pitxu/pitxu/lib/speech_to_text/whisper.py", line 154, in recognize_all_queue_at_once
+#     np.concatenate(audio_np).flatten().astype(np.float32) / 32768.0,
+#     ~~~~~~~~~~~~~~^^^^^^^^^^
+# ValueError: need at least one array to concatenate
+
+# 2026-05-13 06:36:14,963 [MainProcess      | MainThread            ] INFO     pitxu        Closing Whisper STT
+# 2026-05-13 06:36:14,963 [MainProcess      | MainThread            ] DEBUG    pitxu        Deleting Whisper model
+# 2026-05-13 06:36:14,988 [MainProcess      | MainThread            ] DEBUG    pitxu        Deleting Whisper queue
+# 2026-05-13 06:36:14,989 [MainProcess      | MainThread            ] INFO     pitxu        Whisper STT closed
+# 2026-05-13 06:36:15,097 [MainProcess      | ThreadPoolExecutor-0_1] DEBUG    pitxu        ⏳ Waiting for an user interaction. 98% (paused 0s) time left.
+# 2026-05-13 06:36:15,097 [MainProcess      | ThreadPoolExecutor-0_1] DEBUG    pitxu        🚥 Showing interaction holding percentage 98% on background display
+# 2026-05-13 06:36:15,104 [DsiLcd-3         | MainThread            ] INFO     pitxu        🚥 Showing interaction holding percentage 98% on DSI LCD
+# 2026-05-13 06:36:15,726 [MainProcess      | Dummy-42              ] DEBUG    pitxu        🗣️ VAD detected speech start
+# 2026-05-13 06:36:15,727 [MainProcess      | MainThread            ] INFO     pitxu        VAD detected speech, via VAD callback.
+# 2026-05-13 06:36:16,100 [MainProcess      | ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 User may be speaking, pausing interaction holding time counter.
+# 2026-05-13 06:36:16,100 [MainProcess      | ThreadPoolExecutor-0_0] DEBUG    pitxu        ⏳ Waiting for an user interaction. 98% (paused 1s) time left.
+# 2026-05-13 06:36:16,100 [MainProcess      | ThreadPoolExecutor-0_0] DEBUG    pitxu        🚥 Showing interaction holding percentage 98% on background display
+# 2026-05-13 06:36:16,113 [DsiLcd-3         | MainThread            ] INFO     pitxu        🚥 Showing interaction holding percentage 98% on DSI LCD
+# 2026-05-13 06:36:16,793 [MainProcess      | Dummy-42              ] DEBUG    pitxu        🗣️ VAD detected speech end
+# 2026-05-13 06:36:16,793 [MainProcess      | MainThread            ] INFO     pitxu        Main execution triggered by user finishing speaking, via VAD callback.
+# 2026-05-13 06:36:16,794 [MainProcess      | MainThread            ] ERROR    pitxu        🛑 Error in Main run callback: Whisper is not active, cannot recognize audio
+# 2026-05-13 06:36:16,794 [MainProcess      | MainThread            ] ERROR    pitxu        Traceback (most recent call last):
+#   File "<string>", line 1, in <module>
+#     import sys; from importlib import import_module; sys.argv = ['/Users/xavier/Library/Caches/pypoetry/virtualenvs/pitxu-8ywc-t6q-py3.13/bin/main']; sys.exit(import_module('runner').run())
+#   File "/Users/xavier/Developer/pitxu/runner.py", line 166, in run
+#     asyncio.run(main.run())
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 195, in run
+#     return runner.run(main)
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 118, in run
+#     return self._loop.run_until_complete(task)
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 706, in run_until_complete
+#     self.run_forever()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 677, in run_forever
+#     self._run_once()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 2034, in _run_once
+#     handle._run()
+#   File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/events.py", line 89, in _run
+#     self._context.run(self._callback, *self._args)
+#   File "/Users/xavier/Developer/pitxu/pitxu/main.py", line 300, in main_execution_on_vad_detected_finished
+#     question = self._dictate.recognize_all_queue_at_once()
+#   File "/Users/xavier/Developer/pitxu/pitxu/lib/speech_to_text/whisper.py", line 171, in recognize_all_queue_at_once
+#     raise ve
+#   File "/Users/xavier/Developer/pitxu/pitxu/lib/speech_to_text/whisper.py", line 121, in recognize_all_queue_at_once
+#     raise WhisperException("Whisper is not active, cannot recognize audio")
+# pitxu.lib.speech_to_text.whisper.WhisperException: Whisper is not active, cannot recognize audio
