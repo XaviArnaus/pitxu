@@ -284,6 +284,9 @@ class Main(PyXavi):
 
         self._xlog.info("Main execution triggered by user finishing speaking, via VAD callback.")
 
+        # Mute microphone to avoid self-looping
+        self._interaction.mute_microphone(input_stream=self._input_stream)
+
         try:
         
             # Pitxu may be already closing, so we better check the state before doing anything.
@@ -296,21 +299,20 @@ class Main(PyXavi):
             
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
-            # question = self._dictate.recognize()
             question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
+
+                # We unmute the microphone to let the user try again.
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+                self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
                 return
 
             # Still here? Then something got recognised.
             self._log_debug("💬 Recognised dictate: " + question)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
             self._dictate_count += 1
-
-            # Mute microphone to avoid self-looping
-            # ❗️ THE FLOW STOPS HERE, JUST AFTER MUTING THE MIC, THE LOGGING THA COMES NEXT DOES NOT SHOW UP.
-            self._interaction.mute_microphone(input_stream=self._input_stream)
-            self._log_debug("REMOVEME Microphone muted to avoid self-looping while processing the interaction.")
 
             # Initialize the answer that collects until interaction.
             answer = None
@@ -415,6 +417,11 @@ class Main(PyXavi):
 
                 # Answer
                 sw_answer = self._stopwatch.start(name="answer" + str(self._answer_count))
+
+                # Maybe the user said a looooong sentence, and the chatbot also has a looong answer.
+                # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
+                self.reset_last_interaction_event_mark()
+
                 self._interaction.say(answer)
                 self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                 self._answer_count += 1
@@ -434,7 +441,6 @@ class Main(PyXavi):
                     return
                 
                 # Last thing to do is to remember this as the last interaction.
-                # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                 self.reset_last_interaction_event_mark()
 
             # Unmute microphone to continue listening
