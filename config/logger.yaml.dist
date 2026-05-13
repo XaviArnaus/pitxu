@@ -134,3 +134,9 @@ logger:
 logging:
     # [Bool] Enables the Verbose Debug mode: Some modules will output extra debug information
     verbose_debug: False
+
+json_logger:
+    # [String] Filename, without extension.
+    name: "system_log"
+    # [String] Path where the log file will be stored, starting from the storage_path defined in the Main configuration.
+    path: "log"

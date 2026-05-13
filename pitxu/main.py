@@ -230,7 +230,7 @@ class Main(PyXavi):
         
         # However it happened, just close nicely.
         self.close_nicely()
-    
+
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
         
@@ -648,7 +648,10 @@ class Main(PyXavi):
         self._xparams.set("language", language)
 
         # Initialize Maintenance utility
-        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
+        self._maintenance = Maintenance(config=self._xconfig, params=Dictionary({
+            "maintenance_logger_name": self._xconfig.get("json_logger.name", "system_log"),
+            "maintenance_logger_directory": self._xconfig.get("json_logger.path", "log"),
+        }))
 
         # Supported Languages
         self._supported_languages = self._xconfig.get("app.supported_languages")
