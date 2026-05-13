@@ -236,11 +236,15 @@ class Main(PyXavi):
         
         # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
         chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-        
-        # Do the summarization and storage in memory in the Support Worker, 
-        #   that has the summarization tools and the access to memory, 
-        #   to avoid blocking the main thread with the LLM call and the file writing.
-        self._support.summarize_and_store_in_memory(chatbot_history)
+
+        # If nothing to summarize, just skip it.
+        if not chatbot_history:
+            self._xlog.debug("No chatbot history to summarize for memory entry, skipping summarization and storage.")
+        else:
+            # Do the summarization and storage in memory in the Support Worker, 
+            #   that has the summarization tools and the access to memory, 
+            #   to avoid blocking the main thread with the LLM call and the file writing.
+            self._support.summarize_and_store_in_memory(chatbot_history)
 
         if not is_end_of_application:
             self._chatbot.reset_session()
