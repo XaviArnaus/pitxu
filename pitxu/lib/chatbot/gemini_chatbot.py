@@ -96,6 +96,9 @@ class GeminiChatbot(PyXavi):
         self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
         self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)
 
+        # define which is the main model (the one initially preferred, if available, and the one we want to use the most)
+        self.MODEL_MAIN = self._xconfig.get("chatbot.model", self.MODEL_MAIN)
+
     def get_session_manager(self):
         return self._session_manager
     
