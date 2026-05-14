@@ -445,11 +445,11 @@ class Main(PyXavi):
         
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
+        except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
+                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
                 return
-            self._xlog.error("🛑 VoskException detected in Main run callback: " + str(ve))
+            self._xlog.error("🛑 SpeechToTextException detected in Main run callback: " + str(stte))
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(e))

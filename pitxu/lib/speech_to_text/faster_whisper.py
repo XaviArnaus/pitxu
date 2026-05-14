@@ -10,6 +10,7 @@ import queue
 from faster_whisper import WhisperModel
 import os
 import numpy as np
+import logging
 
 class FasterWhisper(PyXavi):
 
@@ -45,6 +46,9 @@ class FasterWhisper(PyXavi):
         else:
             model = self._xconfig.get("speech-to-text.faster_whisper.model." + language, )
             if model is not None:
+                # Control the internal Faster Whisper logging
+                logging_level = self._xconfig.get("libs_logger.faster_whisper.loglevel", logging.INFO)
+                logging.getLogger("faster_whisper").setLevel(logging_level)
 
                 # I don't understand why device and download_root get read as tuples instead of strings.
                 device = str(self._xconfig.get("speech-to-text.faster_whisper.device", "cpu"))
@@ -55,6 +59,7 @@ class FasterWhisper(PyXavi):
                 logging_parts.append(("Device for Faster Whisper", device))
                 logging_parts.append(("Download root", download_root))
                 logging_parts.append(("Compute type", compute_type))
+                logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
                 self.log_summary("Faster Whisper Model Initialization", logging_parts)
 
                 self._model = WhisperModel(model,
