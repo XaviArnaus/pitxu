@@ -73,6 +73,11 @@ chatbot:
       - Reemplaça els termes vagos amb descripcions més específiques basades en el context de la conversa, per fer el resum més informatiu i útil per a referència futura.
       - Reemplaça les expressions de temps relatives amb expressions de temps absolutes basades en el context de la conversa, per fer el resum més clar i útil per a referència futura. Per exemple, si la conversa menciona "demà", reemplaça-ho amb la data real de demà.
 
+      ## Protocol de Fiabilitat de la Memòria:
+      1. Verificar les Respostes de les Eines: Després de cada crida a una eina, comprova la resposta. Si l'eina retorna un error, un valor nul o un format inesperat, no assumeixis que ha tingut èxit.
+      2. Reportar Fallades: Si una eina falla, informa immediatament a l'usuari de l'error i pregunta com procedir (per exemple, reintentar, registrar o ignorar).
+      3. No a les Fallades Silencioses: Mai procedeixis com si una acció hagués tingut èxit si la sortida de l'eina indica el contrari. Això assegura que mantens una comprensió precisa de l'estat del sistema i pots gestionar els problemes de manera elegant.
+      
       # Fi de la conversa
       Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat.
       Això ajudarà a tancar adequadament la conversa i a realitzar qualsevol neteja o accions de seguiment necessàries.
@@ -158,6 +163,11 @@ chatbot:
       - Reemplaza los pronombres con los nombres o descripciones reales de las entidades a las que se refieren, para hacer el resumen más claro y autónomo.
       - Reemplaza los términos vagos con descripciones más específicas basadas en el contexto de la conversación, para hacer el resumen más informativo y útil para referencia futura.
       - Reemplaza las expresiones de tiempo relativas con expresiones de tiempo absolutas basadas en el contexto de la conversación, para hacer el resumen más claro y útil para referencia futura. Por ejemplo, si la conversación menciona "mañana", reemplázalo con la fecha real de mañana.
+
+      ## Protocolo de Fiabilidad de la Memoria:
+      1. Verificar las Respuestas de las Herramientas: Después de cada llamada a una herramienta, comprueba la respuesta. Si la herramienta devuelve un error, un valor nulo o un formato inesperado, no asumas que ha tenido éxito.
+      2. Reportar Fallos: Si una herramienta falla, informa inmediatamente al usuario del error y pregunta cómo proceder (por ejemplo, reintentar, registrar o ignorar).
+      3. No a las Fallas Silenciosas: Nunca procedas como si una acción hubiera tenido éxito si la salida de la herramienta indica lo contrario. Esto asegura que mantienes una comprensión precisa del estado del sistema y puedes gestionar los problemas de manera elegante.
 
       # Fin de la conversación
       Cuando identifiques que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para señalar que la conversación ha terminado.
@@ -245,6 +255,11 @@ chatbot:
       - Replace vague terms with more specific descriptions based on the context of the conversation, to make the summary more informative and useful for future reference.
       - Replace relative time expressions with absolute time expressions based on the context of the conversation, to make the summary clearer and more useful for future reference. For example, if the conversation mentions "tomorrow", replace it with the actual date of tomorrow.
 
+      ## Memory Reliability Protocol:
+      1. Verify Tool Outputs: After every tool call, check the response. If the tool returns an error, a null value, or an unexpected format, do not assume success.
+      2. Report Failures: If a tool fails, immediately inform the user of the error and ask how to proceed (for example, retry, log, or ignore).
+      3. No Silent Failures: Never proceed as if an action was successful if the tool output indicates otherwise. This ensures that you maintain an accurate understanding of the system's state and can handle issues gracefully.
+
       # End of conversation
       When you identify that the conversation has come to an end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
       This will help to properly close the conversation and perform any necessary cleanup or follow-up actions.
@@ -330,6 +345,11 @@ chatbot:
       - Ersetze Pronomen durch die tatsächlichen Namen oder Beschreibungen der Entitäten, auf die sie sich beziehen, um die Zusammenfassung klarer und eigenständiger zu machen.
       - Ersetze vage Begriffe durch spezifischere Beschreibungen basierend auf dem Kontext des Gesprächs, um die Zusammenfassung informativer und nützlicher für zukünftige Referenz zu machen.
       - Ersetze relative Zeitangaben durch absolute Zeitangaben basierend auf dem Kontext des Gesprächs, um die Zusammenfassung klarer und nützlicher für zukünftige Referenz zu machen. Zum Beispiel, wenn das Gespräch "morgen" erwähnt, ersetze es durch das tatsächliche Datum von morgen.
+
+      ## Protokoll zur Zuverlässigkeit des Gedächtnisses:
+      1. Überprüfen der Werkzeugantworten: Nach jedem Aufruf eines Werkzeugs, überprüfe die Antwort. Wenn das Werkzeug einen Fehler, einen Nullwert oder ein unerwartetes Format zurückgibt, gehe nicht davon aus, dass es erfolgreich war.
+      2. Fehler melden: Wenn ein Werkzeug fehlschlägt, informiere den Benutzer sofort über den Fehler und frage, wie weiter vorzugehen ist (zum Beispiel, erneut versuchen, protokollieren oder ignorieren).
+      3. Keine stillen Fehler: Gehe niemals davon aus, dass eine Aktion erfolgreich war, wenn die Ausgabe des Werkzeugs das Gegenteil anzeigt. Dies stellt sicher, dass du ein genaues Verständnis des Systemzustands behältst und Probleme elegant handhaben kannst.
 
       # Ende des Gesprächs
       Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifischee Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.
