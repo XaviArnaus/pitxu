@@ -134,17 +134,17 @@ class Reactions(PyXavi):
                 # We got an error.
                 self.handle_error(function_call_pair)
             
-            elif function_call_pair.function_name == "shutdown":
+            elif function_call_pair.function_name == "shutdown_local_machine":
 
                 # We got a shutdown request.
                 self.handle_shutdown_request()
             
-            elif function_call_pair.function_name == "reboot":
+            elif function_call_pair.function_name == "reboot_local_machine":
 
                 # We got a reboot request.
                 self.handle_reboot_request()
             
-            elif function_call_pair.function_name == "restart":
+            elif function_call_pair.function_name == "restart_system":
 
                 # We got a restart request.
                 self.handle_restart_request()
