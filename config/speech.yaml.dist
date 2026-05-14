@@ -12,7 +12,8 @@ speech-to-text:
     #left: True
     # [Bool] Activates the right channel
     #right: False
-  # [String] Engine to use for the Speech-to-Text. Options: "vosk", "whisper", as the string used for the key in the configuration.
+  # [String] Engine to use for the Speech-to-Text. 
+  # Options: "vosk", "whisper", "faster_whisper" as the string used for the key in the configuration.
   engine: "vosk"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.

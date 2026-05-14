@@ -27,6 +27,9 @@ storage/audio/spectograms/*.png
 # No Wisper models
 storage/whisper/*.pt
 
+# No Faster Whisper models
+storage/faster_whisper/**
+
 # No user config files
 config.yaml
 config/*.yaml

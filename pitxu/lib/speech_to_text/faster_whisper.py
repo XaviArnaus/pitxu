@@ -7,13 +7,13 @@ from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 import queue
-import whisper
+from faster_whisper import WhisperModel
 import os
 import numpy as np
 
-class Whisper(PyXavi):
+class FasterWhisper(PyXavi):
 
-    _model: whisper.Whisper = None
+    _model: WhisperModel = None
     _queue: queue.Queue = None
     _preprocessor: Preprocessor = None
     _support: Support = None
@@ -22,17 +22,16 @@ class Whisper(PyXavi):
     is_active: bool = False
     language: str = "en"
 
-    VERBOSE_WHISPER_LIB: bool = False
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
-        super(Whisper, self).init_pyxavi(config=config, params=params)
+        super(FasterWhisper, self).init_pyxavi(config=config, params=params)
 
         self.initialize()
     
     def initialize(self):
 
-        self._xlog.info("Initializing Whisper STT")
+        self._xlog.info("Initializing Faster Whisper STT")
         logging_parts = []
 
         language = self._xparams.get("language", "en")
@@ -50,18 +49,18 @@ class Whisper(PyXavi):
                 # I don't understand why device and download_root get read as tuples instead of strings.
                 device = str(self._xconfig.get("speech-to-text.whisper.device", "cpu"))
                 download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.whisper.download_root", None)))
-                in_memory = self._xconfig.get("speech-to-text.whisper.in_memory", True)
+                compute_type = "int8"
 
                 logging_parts.append(("Model from config", model))
                 logging_parts.append(("Device for Whisper", device))
                 logging_parts.append(("Download root", download_root))
-                logging_parts.append(("In memory loading", in_memory))
-                self.log_summary("Whisper Model Initialization", logging_parts)
+                logging_parts.append(("Compute type", compute_type))
+                self.log_summary("Faster Whisper Model Initialization", logging_parts)
 
-                self._model = whisper.load_model(model,
-                                                 device=device,
-                                                 download_root=download_root,
-                                                 in_memory=in_memory)
+                self._model = WhisperModel(model,
+                                           device=device,
+                                           download_root=download_root,
+                                           compute_type=compute_type)
             else:
                 raise SpeechToTextException(f"No model specified in config for language {language}, and mocking is disabled, cannot initialize Whisper STT.")
 
@@ -94,7 +93,7 @@ class Whisper(PyXavi):
         # Keeping track that Whisper is active
         self.is_active = True
 
-        self.log_summary("Whisper Initialization", logging_parts)
+        self.log_summary("Faster Whisper Initialization", logging_parts)
     
     def get_queue(self) -> queue.Queue:
         return self._queue
@@ -116,7 +115,7 @@ class Whisper(PyXavi):
 
                 result = None
 
-                self._log_debug(f"Whisper: Processing all audio chunks [{self._queue.qsize()}] from the queue at once")
+                self._log_debug(f"FasterWhisper: Processing all audio chunks [{self._queue.qsize()}] from the queue at once")
 
                 audio_np = []
 
@@ -127,73 +126,72 @@ class Whisper(PyXavi):
                     data = self._queue.get()
 
                     if data is None:
-                        self._log_debug("Whisper: Received None data from the queue, skipping it.")
+                        self._log_debug("FasterWhisper: Received None data from the queue, skipping it.")
                         continue
 
                     # Preprocess. Returns a numpy array in INT16 (PCM_16) format.
                     preprocessed_data = self._preprocessor.preprocess_chunk(data, return_in_numpy=True)
 
                     if preprocessed_data is None:
-                        self._log_debug("Whisper: Preprocessed data is None, skipping this chunk.")
+                        self._log_debug("FasterWhisper: Preprocessed data is None, skipping this chunk.")
                         continue
 
                     audio_np.append(preprocessed_data)
                 
-                self._log_debug(f"Whisper: All audio chunks from the queue have been preprocessed, total {len(audio_np)} chunks. Transcribing them with Whisper...")
+                self._log_debug(f"FasterWhisper: All audio chunks from the queue have been preprocessed, total {len(audio_np)} chunks. Transcribing them with FasterWhisper...")
 
                 if len(audio_np) == 0:
-                    self._log_debug("Whisper: No audio chunks to process after preprocessing, returning empty result.")
+                    self._log_debug("FasterWhisper: No audio chunks to process after preprocessing, returning empty result.")
                     return ""
-                # Join the chunks and transcribe them with Whisper.
+                # Join the chunks and transcribe them with FasterWhisper.
                 #   Note: we don't want to join the chunks before preprocessing, because this could lead to memory issues if the user speaks for a long time, and also because the Preprocessor may do some operations that are better to do on smaller chunks (for example, VAD).
-                transcription_data = self._model.transcribe(
+                segments, info = self._model.transcribe(
                     np.concatenate(audio_np).flatten().astype(np.float32) / 32768.0, 
-                    language=self.language,
-                    verbose=self.VERBOSE_WHISPER_LIB)
+                    beam_size=5,
+                    language=self.language)
                 
-                # Extract just the transcription result. Keep in mind that we receive more info, like:
-                # {'text': ' Hello?', 'segments': [{'id': 0, 'seek': 0, 'start': 0.0, 'end': 2.0, 'text': ' Hello?', 'tokens': [50363, 18435, 30, 50463], 'temperature': 0.0, 'avg_logprob': -0.8661511421203614, 'compression_ratio': 0.42857142857142855, 'no_speech_prob': 0.01292417012155056}], 'language': 'en'}
-                result = transcription_data.get("text", "").strip()
+                # The transcription actually is done per segment, it's a generator, so we could improve the code speed here.
+                result = " ".join([segment.text for segment in segments]).strip()
 
-                self._log_debug(f"Whisper: Finished processing all audio chunks from the queue, final result: {result}")
+                self._log_debug(f"FasterWhisper: Finished processing all audio chunks from the queue, final result: {result}")
                 return result
 
         except queue.ShutDown as e:
             self.is_active = False
-            raise SpeechToTextException("Queue Shutdown detected in Whisper recognize(): " + str(e))
+            raise SpeechToTextException("Queue Shutdown detected in FasterWhisper recognize(): " + str(e))
         except SpeechToTextException as ve:
             self.is_active = False
             # It's handled in Main, don't even log it here
             raise ve
         except KeyboardInterrupt:
-            self._xlog.debug("Pressed Control + C while running Whisper transcription.")
+            self._xlog.debug("Pressed Control + C while running FasterWhisper transcription.")
             self.is_active = False
             self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
-            raise SpeechToTextException("Whisper BrokenPipeError: " + str(bpe))
+            raise SpeechToTextException("FasterWhisper BrokenPipeError: " + str(bpe))
         except Exception as e:
-            self._xlog.error("🛑 Error during Whisper recognition: " + str(e))
+            self._xlog.error("🛑 Error during FasterWhisper recognition: " + str(e))
             self._xlog.error(full_stack())
             self.close()
             return None
     
     def close(self):
-        self._xlog.info("Closing Whisper STT")
+        self._xlog.info("Closing FasterWhisper STT")
         
         if self._model is not None:
-            self._xlog.debug("Deleting Whisper model")
+            self._xlog.debug("Deleting FasterWhisper model")
             del self._model
         
         if self._queue is not None:
-            self._xlog.debug("Deleting Whisper queue")
+            self._xlog.debug("Deleting FasterWhisper queue")
             del self._queue
         
         if self._support is not None:
-            self._xlog.debug("Closing Support process from Whisper and deleting it")
+            self._xlog.debug("Closing Support process from FasterWhisper and deleting it")
             del self._support
         
-        # Remember that Whisper is not active anymore
+        # Remember that FasterWhisper is not active anymore
         self.is_active = False
 
-        self._xlog.info("Whisper STT closed")
+        self._xlog.info("FasterWhisper STT closed")

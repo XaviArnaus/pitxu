@@ -15,8 +15,7 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
-from pitxu.lib.speech_to_text.whisper import Whisper, WhisperException
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
@@ -52,7 +51,7 @@ class Main(PyXavi):
 
     _chatbot: GeminiChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
-    _dictate: Vosk = None
+    _dictate = None
     _raw_input_stream: sounddevice.RawInputStream = None
     _capture_handler: CaptureHandler = None
 
@@ -209,17 +208,11 @@ class Main(PyXavi):
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
+        except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
+                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
                 return
-            self._xlog.error("🛑 VoskException detected in Main run(): " + str(ve))
-            self._xlog.error(full_stack()) 
-        except WhisperException as we:
-            if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(we))
-                return
-            self._xlog.error("🛑 WhisperException detected in Main run(): " + str(we))
+            self._xlog.error("🛑 SpeechToTextException detected in Main run(): " + str(stte))
             self._xlog.error(full_stack()) 
         except Exception as e:
             if not self._is_pitxu_active:
@@ -720,15 +713,30 @@ class Main(PyXavi):
         # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
 
         if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+
+            from pitxu.lib.speech_to_text.vosk import Vosk
+
             self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
             self._xparams.set("support", self._support)
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+
+            from pitxu.lib.speech_to_text.whisper import Whisper
+
             self._xparams.set("support", self._support)
             self._dictate = Whisper(config=self._xconfig, params=self._xparams)
+
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
+
+            from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
+
+            self._xparams.set("support", self._support)
+            self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
+
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
-            self._xlog.error("🛑 Supported engines are: vosk, whisper")
+            self._xlog.error("🛑 Supported engines are: vosk, whisper, faster_whisper")
             self._xlog.error("🛑 Exiting now.")
             sys.exit(1)
 

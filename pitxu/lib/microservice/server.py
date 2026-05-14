@@ -3,7 +3,8 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.vosk import Vosk
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.utils.system import System
 
 from flask import Flask, request, current_app
@@ -340,9 +341,9 @@ class Server(PyXavi, MicroserviceBase):
                 "transcription": transcription
             }
 
-        except VoskException as ve:
+        except SpeechToTextException as ve:
             error = str(ve)
-            logger.error(f"🛑 VoskException during STT recognition in the server [transcriber] endpoint: {error}")
+            logger.error(f"🛑 SpeechToTextException during STT recognition in the server [transcriber] endpoint: {error}")
             logger.error(full_stack())
 
         except Exception as e:

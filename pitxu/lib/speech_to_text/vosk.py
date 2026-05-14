@@ -4,14 +4,12 @@ import json
 from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
-
-class VoskException(Exception):
-    pass
 
 class Vosk(PyXavi):
 
@@ -105,7 +103,7 @@ class Vosk(PyXavi):
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
             elif self.is_active == False:
-                raise VoskException("Vosk is not active, cannot recognize audio")
+                raise SpeechToTextException("Vosk is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
 
                 # self._log_debug("Vosk: Recognize called, processing audio chunk from the queue")
@@ -137,8 +135,8 @@ class Vosk(PyXavi):
 
         except queue.ShutDown as e:
             self.is_active = False
-            raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
-        except VoskException as ve:
+            raise SpeechToTextException("Queue Shutdown detected in Vosk recognize(): " + str(e))
+        except SpeechToTextException as ve:
             self.is_active = False
             # It's handled in Main, don't even log it here
             raise ve
@@ -148,7 +146,7 @@ class Vosk(PyXavi):
             self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
-            raise VoskException("Vosk BrokenPipeError: " + str(bpe))
+            raise SpeechToTextException("Vosk BrokenPipeError: " + str(bpe))
         except Exception as e:
             self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
             self._xlog.error(full_stack())
@@ -167,7 +165,7 @@ class Vosk(PyXavi):
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
             elif self.is_active == False:
-                raise VoskException("Vosk is not active, cannot recognize audio")
+                raise SpeechToTextException("Vosk is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
 
                 result = None
@@ -194,8 +192,8 @@ class Vosk(PyXavi):
 
         except queue.ShutDown as e:
             self.is_active = False
-            raise VoskException("Queue Shutdown detected in Vosk recognize(): " + str(e))
-        except VoskException as ve:
+            raise SpeechToTextException("Queue Shutdown detected in Vosk recognize(): " + str(e))
+        except SpeechToTextException as ve:
             self.is_active = False
             # It's handled in Main, don't even log it here
             raise ve
@@ -205,7 +203,7 @@ class Vosk(PyXavi):
             self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
-            raise VoskException("Vosk BrokenPipeError: " + str(bpe))
+            raise SpeechToTextException("Vosk BrokenPipeError: " + str(bpe))
         except Exception as e:
             self._xlog.error("🛑 Error during Vosk recognition: " + str(e))
             self._xlog.error(full_stack())
