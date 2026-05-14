@@ -43,16 +43,16 @@ class FasterWhisper(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            model = self._xconfig.get("speech-to-text.whisper.model." + language, )
+            model = self._xconfig.get("speech-to-text.faster_whisper.model." + language, )
             if model is not None:
 
                 # I don't understand why device and download_root get read as tuples instead of strings.
-                device = str(self._xconfig.get("speech-to-text.whisper.device", "cpu"))
-                download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.whisper.download_root", None)))
+                device = str(self._xconfig.get("speech-to-text.faster_whisper.device", "cpu"))
+                download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper.download_root", None)))
                 compute_type = "int8"
 
                 logging_parts.append(("Model from config", model))
-                logging_parts.append(("Device for Whisper", device))
+                logging_parts.append(("Device for Faster Whisper", device))
                 logging_parts.append(("Download root", download_root))
                 logging_parts.append(("Compute type", compute_type))
                 self.log_summary("Faster Whisper Model Initialization", logging_parts)
@@ -62,7 +62,7 @@ class FasterWhisper(PyXavi):
                                            download_root=download_root,
                                            compute_type=compute_type)
             else:
-                raise SpeechToTextException(f"No model specified in config for language {language}, and mocking is disabled, cannot initialize Whisper STT.")
+                raise SpeechToTextException(f"No model specified in config for language {language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
