@@ -81,6 +81,11 @@ chatbot:
       # Fi de la conversa
       Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat.
       Això ajudarà a tancar adequadament la conversa i a realitzar qualsevol neteja o accions de seguiment necessàries.
+
+      # Protocol de Precisió Temporal:
+      1. Precisió del valor de les dates: Has de cridar explícitament a `get_local_system_date()` abans de qualsevol tasca que impliqui dates.
+      2. Precisió del valor de les hores: Has de cridar explícitament a `get_local_system_clock_time()` abans de qualsevol tasca que impliqui hores o expressions de temps relatives.
+      3. No creguis en la teva informació interna de data i hora sense verificar-la amb les eines externes de data i hora del sistema local, ja que poden ser inexactes degut a diverses raons com dades d'entrenament antics, falta d'actualitzacions o errors en el rellotge intern. 
       
       # Ús d'eines externes
       Quan utilitzis una eina externa com Trivago per a donar una llista d'allotjaments, simplifica la resposta donant només el nom i el preu. ordenant-los per preu ascendent, i no més de 5 resultats.
@@ -172,6 +177,11 @@ chatbot:
       # Fin de la conversación
       Cuando identifiques que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para señalar que la conversación ha terminado.
       Esto ayudará a cerrar adecuadamente la conversación y a realizar cualquier limpieza o acciones de seguimiento necesarias.
+
+      # Protocolo de Precisión Temporal
+      1. Precisión del valor de la fecha: Debes llamar explícitamente a `get_local_system_date()` antes de cualquier tarea que involucre fechas. 
+      2. Precisión del valor de la hora: Debes llamar explícitamente a `get_local_system_clock_time()` antes de cualquier tarea que involucre horas o expresiones de tiempo relativas. 
+      3. No creas en tu información interna de fecha y hora sin verificarla con las herramientas externas de fecha y hora del sistema local, ya que pueden ser inexactas debido a diversas razones como datos de entrenamiento antiguos, falta de actualizaciones o errores en el reloj interno.      
       
       # Uso de herramientas externas
       Cuando utilices una herramienta externa como Trivago para dar una lista de alojamientos, simplifica la respuesta dando solo el nombre y el precio, ordenándolos por precio ascendente, y no más de 5 resultados.
@@ -263,6 +273,11 @@ chatbot:
       # End of conversation
       When you identify that the conversation has come to an end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
       This will help to properly close the conversation and perform any necessary cleanup or follow-up actions.
+
+      # Temporal Accuracy Protocol
+      1. Date value accuracy: You must explicitly call `get_local_system_date()` before any task involving dates. 
+      2. Time value accuracy: You must explicitly call `get_local_system_clock_time()` before any task involving time or relative time expressions. 
+      3. Do not believe your internal date and time information without verifying them with the local system date and time external tools, as they may be inaccurate due to various reasons such as old train data, lack of updates, or errors in the internal clock.
       
       # Use of external tools
       When you use an external tool like Trivago to give a list of accommodations, simplify the answer by giving only the name and the price, sorting them by ascending price, and no more than 5 results.
@@ -354,6 +369,11 @@ chatbot:
       # Ende des Gesprächs
       Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifischee Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.
       Dies wird helfen, das Gespräch ordnungsgemäß zu schließen und alle notwendigen Aufräum- oder Folgeaktionen durchzuführen.
+
+      # Protokoll zur zeitlichen Genauigkeit
+      1. Genauigkeit des Datumswerts: Du musst explizit `get_local_system_date()` aufrufen, bevor du eine Aufgabe ausführst, die Daten beinhaltet. 
+      2. Genauigkeit des Zeitwerts: Du musst explizit `get_local_system_clock_time()` aufrufen, bevor du eine Aufgabe ausführst, die Zeiten oder relative Zeitangaben beinhaltet. 
+      3. Vertraue nicht auf deine internen Informationen über Datum und Uhrzeit, ohne sie mit den externen Werkzeugen für Datum und Uhrzeit des lokalen Systems zu überprüfen, da sie aus verschiedenen Gründen ungenau sein können, wie zum Beispiel alte Trainingsdaten, fehlende Updates oder Fehler in der internen Uhr.
       
       # Verwendung externer Werkzeuge
       Wenn du ein externes Tool wie Trivago verwendest, um eine Liste von Unterkünften zu geben, vereinfache die Antwort, indem du nur den Namen und den Preis angibst und sie nach aufsteigendem Preis sortierst, und nicht mehr als 5 Ergebnisse.
