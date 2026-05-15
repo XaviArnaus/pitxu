@@ -40,6 +40,7 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _last_interaction_paused_seconds: int = 0
+    _last_interaction_stt_seconds: int = 0
     _seconds_to_hold_interaction_answer: int = 15
     _idle_minutes_to_show_status: int = 2
 
@@ -250,10 +251,6 @@ class Main(PyXavi):
         """
         This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
         It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_start() method there.
-
-        THE WHOLE CHAIN IS WRONG. USER DIDN'T START SPEAKING, INSTEAD, VAD DETECTED SOMETHING.
-        WE NEED TO CHANGE THE SHARED MEMORY FLAG THAT IT USES, AND ALL THE METHOD NAMES FROM user_speaking TO vad_detected_speech.
-        THE ACTION ON THE user_speaking MUST BE ONCE THE TRANSCRIPTION IS POSITIVE, BUT THE DISPLAY FLOW CAN STAY.
         """
 
         self._xlog.info("VAD detected speech, via VAD callback.")
@@ -296,6 +293,9 @@ class Main(PyXavi):
             
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
+            self._interaction.set_stt_busy()
+            self._last_interaction_stt_seconds = 0
+
             question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
@@ -308,7 +308,10 @@ class Main(PyXavi):
 
             # Still here? Then something got recognised.
             self._log_debug("💬 Recognised dictate: " + question)
-            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
+
+            self._interaction.unset_stt_busy()
+            self._last_interaction_stt_seconds = self._stopwatch.stop(sw_dictate)
+            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_interaction_stt_seconds))
             self._dictate_count += 1
 
             # Initialize the answer that collects until interaction.
@@ -448,14 +451,16 @@ class Main(PyXavi):
         except SpeechToTextException as stte:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
+                self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 SpeechToTextException detected in Main run callback: " + str(stte))
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
+                self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 Error in Main run callback: " + str(e))
-            self._xlog.error(full_stack())  
+            self._xlog.error(full_stack())
 
 
     # ------------- End of the main method run() -------------
@@ -468,12 +473,16 @@ class Main(PyXavi):
         #   Current time
         #       minus last interaction time
         #       minus the amount of seconds that VAD detection paused the counter.
+        #       minus the amount of seconds that the STT process took.
         #
-        # The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
-        #   in the block of the holding interaction time.
+        # - The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
+        #       in the block of the holding interaction time.
+        # - The self._last_interaction_stt_seconds is set right after the STT process finishes, 
+        #       in the main_execution_on_vad_detected_finished() method, and it is reset to 0 right before starting the STT process, in the same method.
         return (datetime.now() \
                 - self._last_interaction_datetime).total_seconds() \
-                - self._last_interaction_paused_seconds
+                - self._last_interaction_paused_seconds \
+                - self._last_interaction_stt_seconds
     
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
@@ -484,7 +493,7 @@ class Main(PyXavi):
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
-        # We must take in account the time spent talking
+        # We must take in account the time spent in stt and tts.
         if self._last_interaction_datetime is not None and \
                 self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
                 return True

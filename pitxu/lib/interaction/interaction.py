@@ -17,7 +17,7 @@ from multiprocessing import JoinableQueue
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY
+                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY
 
 class Interaction(PyXavi):
     """
@@ -685,6 +685,17 @@ class Interaction(PyXavi):
     
     def is_chatbot_busy(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_CHATBOT_BUSY)
+    
+    def set_stt_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_STT_BUSY, True)
+        self._log_debug("🎙️ Setting STT as busy.")
+    
+    def unset_stt_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_STT_BUSY, False)
+        self._log_debug("🎙️ Unsetting STT as busy.")
+    
+    def is_stt_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_STT_BUSY)
     
     def set_communication_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_NETWORK_BUSY, True)
