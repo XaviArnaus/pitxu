@@ -502,7 +502,7 @@ class Main(PyXavi):
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
         first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
         for trigger_word in self._trigger_words:
-            if trigger_word in first_words:
+            if trigger_word.replace(".", "").lower() in first_words:
                 return True
         
         # No trigger word found
@@ -512,7 +512,7 @@ class Main(PyXavi):
         # Let's consider that from what the user said, all words need to be one of the trigger words
         all_user_input = Text.remove_accents(question.lower().strip())
         for trigger_word in self._trigger_words:
-            if trigger_word in all_user_input:
+            if trigger_word.replace(".", "").lower() in all_user_input:
                 return True
         
         # No trigger word found
@@ -794,8 +794,8 @@ class Main(PyXavi):
         self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
 
         # Load trigger words
-        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
-        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
+        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "] with chatbot name [" + self._xconfig.get("chatbot.name") + "]")
+        self._trigger_words = [trigger_words % self._xconfig.get("chatbot.name") for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language"))]
 
         # Load trigger answers
         self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
