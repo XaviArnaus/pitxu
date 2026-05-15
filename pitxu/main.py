@@ -40,7 +40,7 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _last_interaction_paused_seconds: int = 0
-    _last_interaction_stt_seconds: int = 0
+    _last_stt_processing_time: int = 0
     _seconds_to_hold_interaction_answer: int = 15
     _idle_minutes_to_show_status: int = 2
 
@@ -294,7 +294,7 @@ class Main(PyXavi):
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
             self._interaction.set_stt_busy()
-            self._last_interaction_stt_seconds = 0
+            self._last_stt_processing_time = 0
 
             question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
@@ -310,8 +310,8 @@ class Main(PyXavi):
             self._log_debug("💬 Recognised dictate: " + question)
 
             self._interaction.unset_stt_busy()
-            self._last_interaction_stt_seconds = self._stopwatch.stop(sw_dictate)
-            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_interaction_stt_seconds))
+            self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
+            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
 
             # Initialize the answer that collects until interaction.
@@ -481,8 +481,7 @@ class Main(PyXavi):
         #       in the main_execution_on_vad_detected_finished() method, and it is reset to 0 right before starting the STT process, in the same method.
         return (datetime.now() \
                 - self._last_interaction_datetime).total_seconds() \
-                - self._last_interaction_paused_seconds \
-                - self._last_interaction_stt_seconds
+                - self._last_interaction_paused_seconds
     
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
@@ -495,7 +494,7 @@ class Main(PyXavi):
         # We may be in an ongoing interaction, so let's check the last interaction time
         # We must take in account the time spent in stt and tts.
         if self._last_interaction_datetime is not None and \
-                self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
+                self.get_seconds_since_last_interaction() - self._last_stt_processing_time <= self._seconds_to_hold_interaction_answer:
                 return True
         
         # No ongoing interaction
