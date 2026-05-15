@@ -73,6 +73,8 @@ class GeminiChatbot(PyXavi):
 
     _mcp_trivago_client: fastmcp.Client = None
 
+    DEFAULT_CHATBOT_NAME = "Pitxu"
+
     VERBOSE_DEBUG: bool = False
     GENAI_LIB_LOG_LEVEL: int = logging.WARNING
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
@@ -185,7 +187,7 @@ class GeminiChatbot(PyXavi):
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
+                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME),
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client

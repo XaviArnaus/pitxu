@@ -1086,7 +1086,7 @@ class Main(PyXavi):
                 
                 # Calculate how much left in percentages the time to hold the interaction
                 seconds_since_last_interaction = self.get_seconds_since_last_interaction()
-                dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
+                # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
             
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.

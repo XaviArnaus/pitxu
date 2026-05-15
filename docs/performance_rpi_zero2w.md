@@ -129,7 +129,7 @@ https://pimylifeup.com/raspberry-pi-swap-file/
 
 ## Logs
 
-### First run aftger setup:
+### First run after setup:
 1. Swap was only increased to ~400 MB
 2. Pitxu OOM when leading the Vosk model.
 

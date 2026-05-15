@@ -25,8 +25,9 @@ class Piper(Xprocess):
     def initialize(self):
         self._xlog.info("Initializing Piper Worker")
         language = self._xparams.get("language")
-        self._log_debug("Language is: " + str(language))
-        model_name = self._xconfig.get("text-to-speech.per_language." + language)
+        gender = self._xconfig.get("chatbot.gender", "female")
+        self._log_debug("Language is: " + str(language) + ", Gender is: " + str(gender))
+        model_name = self._xconfig.get("text-to-speech.per_language." + language + "." + gender)
         self._model = ROOT_DIR + "/" + str(self._xconfig.get("storage.path")) + str(self.MODELS_PATH) + str(model_name) + ".onnx"
         self._xlog.info("Loading TTS model from: " + self._model)
         self._voice = PiperVoice.load(self._model)
@@ -62,6 +63,13 @@ class Piper(Xprocess):
         #         channels=1,
         #         dtype='int16'
         #     )
+
+        self.log_summary("Piper Worker", [
+            ("Language", language),
+            ("Gender", gender),
+            ("Model", model_name),
+            ("Sample Rate", self._voice.config.sample_rate)
+        ])
 
     def finish(self):
         self._xlog.debug("Closing output stream")
