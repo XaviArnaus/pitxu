@@ -1,6 +1,26 @@
 # Changelog
 
-## v0.3.4 - 2026-5-10
+## v0.3.5 - 2026-05-15
+
+### Added
+
+- Implement Whisper and Faster Whisper Speech-To-Text transcription engines [#31](https://github.com/XaviArnaus/pitxu/pull/31).
+    - Prompt instructions to care about dates, times and memory saving success
+    - New execution mode `local_status` that allows only local and the `/status` endpoint
+
+### Changed
+
+- Process names now are defined by the class identification method
+- Chatbot Gemini main model is now be defined in the config
+- Account for the STT processing time when identifying an ongoing conversation (avoid ignoring long trascriptions)
+
+### Fixed
+
+- Missing Greetings per time of the day texts in configs
+- JSON Logger naming configurations
+- Shudown, Reboot and Restart did not work
+
+## v0.3.4 - 2026-05-10
 
 ### Added
 
@@ -16,7 +36,7 @@
 
 - Code extraction for visualization
 
-## v0.3.3 - 2026-4-30
+## v0.3.3 - 2026-04-30
 
 ### Changed
 
