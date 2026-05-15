@@ -933,20 +933,20 @@ class Main(PyXavi):
         Initializes the Server that accepts requests to the defined endpoints
         """
 
-        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
+        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server", "local_status"]:
             self._xlog.info("Initializing Server as it is enabled by configuration.")
-            # params = deepcopy(self._xparams)
             params = Dictionary()
-            # Needed for the Server.
+            # Needed for the local_status (includes only the "status" endpoint).
             params.set("app_version", self._xparams.get("app_version"))
+            params.set("current_start_timestamp", self._current_start_timestamp)
+            params.set("language", self._xparams.get("language"))
+            # Needed for the Server (includes chatbot, STT and TTS, and whatever for local_status).
             params.set("samplerate", self._audio_parameters.get("server_samplerate")) # Also needed in Vosk.
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
             params.set("support", self._support) # Also needed in Vosk & Preprocessor
-            params.set("current_start_timestamp", self._current_start_timestamp)
             # Needed for the Vosk class initialised inside the Server.
-            params.set("language", self._xparams.get("language"))
             params.set("audio_parameters", self._audio_parameters) # Also needed by the Preprocessor
 
             self._server = Server(config=self._xconfig, params=params)

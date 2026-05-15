@@ -152,14 +152,14 @@ def run():
         # Get the execution mode. Ensure that we have an accepted value only.
         # Default to the normal (local) execution mode.
         exec_mode = config.get("app.execution_mode", "local")
-        if exec_mode not in ["local", "public", "client", "server"]:
-            logger.error(f"🛑 Invalid execution mode [{exec_mode}] in config. Accepted values are: local, public, client, server. Defaulting to 'local' mode.")
+        if exec_mode not in ["local", "public", "local_status", "client", "server"]:
+            logger.error(f"🛑 Invalid execution mode [{exec_mode}] in config. Accepted values are: local, public, local_status, client, server. Defaulting to 'local' mode.")
             exec_mode = "local"
         parameters.set("execution_mode", exec_mode)
 
-        # For "local" and "public" execution modes, we run the normal Main. 
+        # For "local", "public", and "local_status" execution modes, we run the normal Main. 
         # There is an IF in the Main to check if the server should be initialized or not.
-        if exec_mode in ["local", "public"]:
+        if exec_mode in ["local", "public", "local_status"]:
             from pitxu.main import Main
             logger.info(f"🚀 Starting in {exec_mode.upper()} execution mode")
             main = Main(config=config, params=parameters)
