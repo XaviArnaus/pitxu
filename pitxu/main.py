@@ -473,15 +473,13 @@ class Main(PyXavi):
         #   Current time
         #       minus last interaction time
         #       minus the amount of seconds that VAD detection paused the counter.
-        #       minus the amount of seconds that the STT process took.
         #
         # - The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
         #       in the block of the holding interaction time.
-        # - The self._last_interaction_stt_seconds is set right after the STT process finishes, 
-        #       in the main_execution_on_vad_detected_finished() method, and it is reset to 0 right before starting the STT process, in the same method.
-        return (datetime.now() \
+        secs = (datetime.now() \
                 - self._last_interaction_datetime).total_seconds() \
                 - self._last_interaction_paused_seconds
+        return secs if secs >= 0 else 0
     
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
@@ -1088,6 +1086,7 @@ class Main(PyXavi):
                 
                 # Calculate how much left in percentages the time to hold the interaction
                 seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+                dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
             
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
