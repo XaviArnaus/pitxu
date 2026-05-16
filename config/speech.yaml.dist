@@ -129,11 +129,14 @@ speech-to-text:
     #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
     download_root: faster_whisper
     # [String] The device to use for the Faster Whisper model. Options: "cpu", "cuda", "mps", etc.
-    #   See https://github.com/openai/whisper#usage for more details.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
     device: cpu
+    # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    compute_type: int8
     # [Bool] Allow transcription of multilingual input.
     # NOT YET USED
-    multilingual=True
+    multilingual: True
 
 
 # Configurations for the Text-to-Speech

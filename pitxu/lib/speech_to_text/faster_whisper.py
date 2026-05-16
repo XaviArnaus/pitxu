@@ -44,7 +44,7 @@ class FasterWhisper(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            model = self._xconfig.get("speech-to-text.faster_whisper.model." + language, )
+            model = self._xconfig.get("speech-to-text.faster_whisper.model." + language, None)
             if model is not None:
                 # Control the internal Faster Whisper logging
                 logging_level = self._xconfig.get("libs_logger.faster_whisper.loglevel", logging.INFO)
@@ -58,7 +58,7 @@ class FasterWhisper(PyXavi):
                 # I don't understand why device and download_root get read as tuples instead of strings.
                 device = str(self._xconfig.get("speech-to-text.faster_whisper.device", "cpu"))
                 download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper.download_root", None)))
-                compute_type = "int8"
+                compute_type = str(self._xconfig.get("speech-to-text.faster_whisper.compute_type", "int8"))
 
                 logging_parts.append(("Model from config", model))
                 logging_parts.append(("Device for Faster Whisper", device))
