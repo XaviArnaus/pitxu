@@ -49,6 +49,11 @@ class FasterWhisper(PyXavi):
                 # Control the internal Faster Whisper logging
                 logging_level = self._xconfig.get("libs_logger.faster_whisper.loglevel", logging.INFO)
                 logging.getLogger("faster_whisper").setLevel(logging_level)
+                # Control other support logging
+                httpx_logger_level = self._xconfig.get("libs_logger.httpx.loglevel", logging.INFO)
+                logging.getLogger("httpx").setLevel(httpx_logger_level)
+                httpcore_logger_level = self._xconfig.get("libs_logger.httpcore.loglevel", logging.INFO)
+                logging.getLogger("httpcore").setLevel(httpcore_logger_level)
 
                 # I don't understand why device and download_root get read as tuples instead of strings.
                 device = str(self._xconfig.get("speech-to-text.faster_whisper.device", "cpu"))
@@ -60,6 +65,8 @@ class FasterWhisper(PyXavi):
                 logging_parts.append(("Download root", download_root))
                 logging_parts.append(("Compute type", compute_type))
                 logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
+                logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
+                logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
                 self.log_summary("Faster Whisper Model Initialization", logging_parts)
 
                 self._model = WhisperModel(model,

@@ -41,6 +41,14 @@ libs_logger:
     faster_whisper:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
         loglevel: 20
+    # HTTPX, defaults to INFO
+    httpx:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
+    # HTTPCore, defaults to INFO
+    httpcore:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
 
 # Logging config
 logger:
