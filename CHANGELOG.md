@@ -7,6 +7,7 @@
 - Implement Whisper and Faster Whisper Speech-To-Text transcription engines [#31](https://github.com/XaviArnaus/pitxu/pull/31).
     - Prompt instructions to care about dates, times and memory saving success
     - New execution mode `local_status` that allows only local and the `/status` endpoint
+    - Ability to download the content of a given URL and return it to the chatbot, as an external tool.
 
 ### Changed
 
