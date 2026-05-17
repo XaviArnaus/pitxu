@@ -12,7 +12,8 @@ speech-to-text:
     #left: True
     # [Bool] Activates the right channel
     #right: False
-  # [String] Engine to use for the Speech-to-Text. Options: "vosk", "whisper", as the string used for the key in the configuration.
+  # [String] Engine to use for the Speech-to-Text. 
+  # Options: "vosk", "whisper", "faster_whisper" as the string used for the key in the configuration.
   engine: "vosk"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.
@@ -49,7 +50,7 @@ speech-to-text:
     # [Float] Seconds before speech onset confirmed
     attack: 0.0
     # [Float] Seconds of silence before speech end
-    release: 1.0
+    release: 2.0
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
     # [Bool] Preprocessor is activated or not.
@@ -84,7 +85,58 @@ speech-to-text:
     # The value should be passed from the Main class, otherwise takes this value.
     # -1 means that it will infer the sample rate from the input device (Mic) using the sounddevice library.
     input_samplerate: 16000
-  
+  # Specific configuration for Whisper, when applicable.
+  whisper:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://github.com/openai/whisper# Models: tiny, base, small, medium, large. The ones with ".en" are optimized for English.
+    model: 
+      # Catalan
+      ca: tiny
+      # Spanish
+      es: tiny
+      # English
+      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
+      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
+      en: tiny.en
+      # German
+      de: tiny
+    # [String] The location where the offline whisper files are stored.
+    #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
+    download_root: whisper
+    # [String] The device to use for the Whisper model. Options: "cpu", "cuda", "mps", etc.
+    #   See https://github.com/openai/whisper#usage for more details.
+    device: cpu
+    # [Bool] Whether to load the whole model in memory or not.
+    #   Loading the whole model in memory can improve performance, but it can also consume more RAM. 
+    #   If False, the model will be loaded on demand for each inference, which can save RAM but can increase latency.
+    in_memory: True
+  # Specific configuration for Faster Whisper, when applicable.
+  faster_whisper:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://github.com/openai/whisper# Models: tiny, base, small, medium, large. The ones with ".en" are optimized for English.
+    model:
+      # Catalan
+      ca: small
+      # Spanish
+      es: small
+      # English
+      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
+      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
+      en: small.en
+      # German
+      de: small
+    # [String] The location where the offline faster whisper files are stored.
+    #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
+    download_root: faster_whisper
+    # [String] The device to use for the Faster Whisper model. Options: "cpu", "cuda", "mps", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    device: cpu
+    # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    compute_type: int8
+    # [Bool] Allow transcription of multilingual input.
+    # NOT YET USED
+    multilingual: True
 
 
 # Configurations for the Text-to-Speech
@@ -108,10 +160,18 @@ text-to-speech:
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan
-    ca: ca_ES-upc_pau-x_low
+    ca: 
+      male: ca_ES-upc_pau-x_low
+      female: ca_ES-upc_ona-x_medium
     # Spanish
-    es: es_ES-davefx-medium
+    es: 
+      male: es_ES-davefx-medium
+      female: es_ES-sharvard-medium
     # English
-    en-us: en_US-joe-medium
+    en-us: 
+      male: en_US-joe-medium
+      female: en_GB-jenny_dioco-medium
     # German
-    de: de_DE-karlsson-low
+    de: 
+      male: de_DE-karlsson-low
+      female: de_DE-thorsten-low

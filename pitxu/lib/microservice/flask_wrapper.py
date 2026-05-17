@@ -29,3 +29,6 @@ class FlaskWrapper(Thread):
     
     def shutdown(self):
         self.server.shutdown()
+    
+    def add_endpoint(self, rule, endpoint=None, view_func=None, **options):
+        self.server.service_actions .add_url_rule(rule, endpoint=endpoint, view_func=view_func, **options)

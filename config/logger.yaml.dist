@@ -37,6 +37,18 @@ libs_logger:
     numba:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
         loglevel: 30
+    # Faster Whisper, defaults to INFO
+    faster_whisper:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
+    # HTTPX, defaults to INFO
+    httpx:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
+    # HTTPCore, defaults to INFO
+    httpcore:
+        # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
+        loglevel: 20
 
 # Logging config
 logger:
@@ -45,7 +57,7 @@ logger:
   # [String] Name of the logger
   name: "pitxu"
   # [String] Format of the log
-  format: "%(asctime)s [%(processName)-16s %(threadName)-22s] %(levelname)-8s %(name)-12s %(message)s"
+  format: "%(asctime)s [%(processName)-11s %(threadName)-22s] %(levelname)-8s %(name)-12s %(message)s"
   # File related parameters
   file:
     # [Bool] Dump the log into a file
@@ -90,7 +102,7 @@ logger:
             TextToSpeech: YELLOW_BRIGHT
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
-            SupportProcess: BLUE_BRIGHT
+            Support: BLUE_BRIGHT
         by_thread:
             MainThread: GREEN_BRIGHT
             Thread-1: CYAN_BRIGHT
@@ -134,3 +146,9 @@ logger:
 logging:
     # [Bool] Enables the Verbose Debug mode: Some modules will output extra debug information
     verbose_debug: False
+
+json_logger:
+    # [String] Filename, without extension.
+    name: "system_log"
+    # [String] Path where the log file will be stored, starting from the storage_path defined in the Main configuration.
+    path: "log"

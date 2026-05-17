@@ -3,7 +3,8 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.vosk import Vosk
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.utils.system import System
 
 from flask import Flask, request, current_app
@@ -34,7 +35,7 @@ class Server(PyXavi, MicroserviceBase):
         super(Server, self).init_pyxavi(config=config, params=params)
 
         self._xlog.info("Initializing Server")
-        
+
         if params.key_exists("chatbot"):
             self.chatbot = params.get("chatbot")
         else:
@@ -44,25 +45,29 @@ class Server(PyXavi, MicroserviceBase):
             self.chatbot_client_callbacks = params.get("chatbot_client_callbacks")
         else:
             raise ValueError("Chatbot client callbacks must be provided in params with key 'chatbot_client_callbacks'")
+
+        if self._xconfig.get("app.execution_mode", "") != "local_status":
+            # For the "local_status" execution mode, we only initialize the status endpoint,
+            #   which does not require any of these dependencies. This is expected to be more lightweight.
         
-        if params.key_exists("output_interaction"):
-            self.output_interaction = params.get("output_interaction")
-        else:
-            raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
-        
-        if params.key_exists("support"):
-            self.support = params.get("support")
-        else:
-            raise ValueError("Support Class must be provided in params with key 'support'")
-        
-        if params.key_exists("samplerate"):
-            self.stt_samplerate = params.get("samplerate")
-            self._xlog.debug(f"Server: STT samplerate set from params: {self.stt_samplerate}")
-        elif self._xconfig.key_exists("server.input_samplerate"):
-            self.stt_samplerate = self._xconfig.get("server.input_samplerate", None)
-            self._xlog.debug(f"Server: STT samplerate set from config: {self.stt_samplerate}")
-        else:
-            self._xlog.debug("Server: No STT samplerate provided in params or config, using default gathered from microphone input.")
+            if params.key_exists("output_interaction"):
+                self.output_interaction = params.get("output_interaction")
+            else:
+                raise ValueError("Output interaction must be provided in params with key 'output_interaction'")
+            
+            if params.key_exists("support"):
+                self.support = params.get("support")
+            else:
+                raise ValueError("Support Class must be provided in params with key 'support'")
+            
+            if params.key_exists("samplerate"):
+                self.stt_samplerate = params.get("samplerate")
+                self._xlog.debug(f"Server: STT samplerate set from params: {self.stt_samplerate}")
+            elif self._xconfig.key_exists("server.input_samplerate"):
+                self.stt_samplerate = self._xconfig.get("server.input_samplerate", None)
+                self._xlog.debug(f"Server: STT samplerate set from config: {self.stt_samplerate}")
+            else:
+                self._xlog.debug("Server: No STT samplerate provided in params or config, using default gathered from microphone input.")
         
         # Set the log levels for the Piper libraries based on the configuration
         self.FLASK_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.flask.loglevel", self.FLASK_LIB_LOG_LEVEL)
@@ -87,14 +92,20 @@ class Server(PyXavi, MicroserviceBase):
             #   with the server endpoint calls and it produces a segmentation fault.
             self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
 
-            if not self._xparams.key_exists("samplerate") and self.stt_samplerate is not None:
-                self._xparams.set("samplerate", self.stt_samplerate)
-
-            self.server.config['stt'] = Vosk(config=self._xconfig, params=self._xparams)
             self.server.config['chatbot'] = self.chatbot
             self.server.config['chatbot_client_callbacks'] = self.chatbot_client_callbacks
-            self.server.config['output_interaction'] = self.output_interaction
-            self.server.config['support'] = self.support
+
+            if self._xconfig.get("app.execution_mode", "") != "local_status":
+                # For the "local_status" execution mode, we only initialize the status endpoint,
+                #   which does not require any of these dependencies. This is expected to be more lightweight.
+
+                if not self._xparams.key_exists("samplerate") and self.stt_samplerate is not None:
+                    self._xparams.set("samplerate", self.stt_samplerate)
+
+                self.server.config['stt'] = Vosk(config=self._xconfig, params=self._xparams)
+                self.server.config['output_interaction'] = self.output_interaction
+                self.server.config['support'] = self.support
+
         # Start the server
         self.start_server()
 
@@ -214,9 +225,15 @@ class Server(PyXavi, MicroserviceBase):
     @server.route('/transcribe', methods=['POST'])
     def transcribe():
         # Framework initialization.
-        # config = current_app.config['config']
         logger = current_app.config['logger']
-        # params = current_app.config['params']
+        config = current_app.config['config']
+
+        if config.get("app.execution_mode", "") == "local_status":
+            logger.warning("🟠 Local status mode. Limited functionality. Ignoring request.")
+            return {
+                "status": "ko",
+                "error": "Local status mode. Limited functionality."
+            }
 
         # Endpoint initialisation
         bytes_per_chunk = request.json.get("speech-to-text.bytes_per_chunk", 4000)
@@ -340,9 +357,9 @@ class Server(PyXavi, MicroserviceBase):
                 "transcription": transcription
             }
 
-        except VoskException as ve:
+        except SpeechToTextException as ve:
             error = str(ve)
-            logger.error(f"🛑 VoskException during STT recognition in the server [transcriber] endpoint: {error}")
+            logger.error(f"🛑 SpeechToTextException during STT recognition in the server [transcriber] endpoint: {error}")
             logger.error(full_stack())
 
         except Exception as e:
@@ -362,12 +379,19 @@ class Server(PyXavi, MicroserviceBase):
         """
         Method to send a query to the chatbot and get a response.
         """
-        from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
-        from pitxu.lib.objects import ChatbotResponse
-
         # Framework initialization.
         logger = current_app.config['logger']
-        # asyncio_runner: asyncio.Runner = current_app.config["asyncio_runner"]
+        config = current_app.config['config']
+
+        if config.get("app.execution_mode", "") == "local_status":
+            logger.warning("🟠 Local status mode. Limited functionality. Ignoring request.")
+            return {
+                "status": "ko",
+                "error": "Local status mode. Limited functionality."
+            }
+
+        from pitxu.lib.chatbot.gemini_chatbot import GeminiChatbot
+        from pitxu.lib.objects import ChatbotResponse
 
         question = request.json.get("question", None)
         logger.info(f"📥 Received /ask_chatbot request with question: {question}")
@@ -406,10 +430,19 @@ class Server(PyXavi, MicroserviceBase):
         Method to send a text to be synthesized into an audio array of bytes,
         ready to be piped to the sound output
         """
-        from pitxu.lib.interaction.interaction import Interaction
 
         # Framework initialization.
         logger = current_app.config['logger']
+        config = current_app.config['config']
+
+        if config.get("app.execution_mode", "") == "local_status":
+            logger.warning("🟠 Local status mode. Limited functionality. Ignoring request.")
+            return {
+                "status": "ko",
+                "error": "Local status mode. Limited functionality."
+            }
+
+        from pitxu.lib.interaction.interaction import Interaction
 
         text = request.json.get("text", None)
         logger.info(f"📥 Received /synthesize request with text: {text}")

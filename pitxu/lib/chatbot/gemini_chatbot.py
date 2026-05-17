@@ -57,8 +57,8 @@ class GeminiChatbot(PyXavi):
     ]
     # We define the Priority model.
     # MODEL_MAIN = 'gemini-2.5-pro'
-    # MODEL_MAIN = 'gemini-2.5-flash'
-    MODEL_MAIN = 'gemini-3.1-flash-lite'
+    MODEL_MAIN = 'gemini-2.5-flash'
+    # MODEL_MAIN = 'gemini-3.1-flash-lite'
     # MODEL_MAIN = "gemma-3-27b-it"
 
     _used_models = []
@@ -72,6 +72,8 @@ class GeminiChatbot(PyXavi):
     _shared_memory: SharedMemoryManager = None
 
     _mcp_trivago_client: fastmcp.Client = None
+
+    DEFAULT_CHATBOT_NAME = "Pitxu"
 
     VERBOSE_DEBUG: bool = False
     GENAI_LIB_LOG_LEVEL: int = logging.WARNING
@@ -95,6 +97,9 @@ class GeminiChatbot(PyXavi):
         # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
         self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
         self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)
+
+        # define which is the main model (the one initially preferred, if available, and the one we want to use the most)
+        self.MODEL_MAIN = self._xconfig.get("chatbot.model", self.MODEL_MAIN)
 
     def get_session_manager(self):
         return self._session_manager
@@ -182,7 +187,7 @@ class GeminiChatbot(PyXavi):
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")),
+                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME),
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client

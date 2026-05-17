@@ -406,6 +406,14 @@ This is not needed for the Python / Poetry application to work, but it's useful 
 sudo apt install i2c-tools
 ```
 
+#### Related to `whisper`
+
+This is needed for the Whisper Speech-To-Text transcription
+
+```
+sudo apt install ffmpeg
+```
+
 ### Packages to support some other operations
 
 The packages suggested to install here are optional, but they are referenced by some funcionality and are strongly encouraged

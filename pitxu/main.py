@@ -15,7 +15,7 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
-from pitxu.lib.speech_to_text.vosk import Vosk, VoskException
+from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
@@ -40,6 +40,7 @@ class Main(PyXavi):
     _last_processed_interaction_percentage: int = -1
     _last_interaction_datetime: datetime = None
     _last_interaction_paused_seconds: int = 0
+    _last_stt_processing_time: int = 0
     _seconds_to_hold_interaction_answer: int = 15
     _idle_minutes_to_show_status: int = 2
 
@@ -51,7 +52,7 @@ class Main(PyXavi):
 
     _chatbot: GeminiChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
-    _dictate: Vosk = None
+    _dictate = None
     _raw_input_stream: sounddevice.RawInputStream = None
     _capture_handler: CaptureHandler = None
 
@@ -208,31 +209,36 @@ class Main(PyXavi):
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
+        except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
+                self._xlog.warning("🛑 Exception detected in Main run(), but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
                 return
-            self._xlog.error("🛑 VoskException detected in Main run loop: " + str(ve))
+            self._xlog.error("🛑 SpeechToTextException detected in Main run(): " + str(stte))
+            self._xlog.error(full_stack()) 
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run loop, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
                 return
-            self._xlog.error("🛑 Error in Main run loop: " + str(e))
+            self._xlog.error("🛑 Error in Main run(): " + str(e))
             self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.
         self.close_nicely()
-    
+
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
         
         # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
         chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
-        
-        # Do the summarization and storage in memory in the Support Worker, 
-        #   that has the summarization tools and the access to memory, 
-        #   to avoid blocking the main thread with the LLM call and the file writing.
-        self._support.summarize_and_store_in_memory(chatbot_history)
+
+        # If nothing to summarize, just skip it.
+        if not chatbot_history:
+            self._xlog.debug("No chatbot history to summarize for memory entry, skipping summarization and storage.")
+        else:
+            # Do the summarization and storage in memory in the Support Worker, 
+            #   that has the summarization tools and the access to memory, 
+            #   to avoid blocking the main thread with the LLM call and the file writing.
+            self._support.summarize_and_store_in_memory(chatbot_history)
 
         if not is_end_of_application:
             self._chatbot.reset_session()
@@ -245,10 +251,6 @@ class Main(PyXavi):
         """
         This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
         It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_start() method there.
-
-        THE WHOLE CHAIN IS WRONG. USER DIDN'T START SPEAKING, INSTEAD, VAD DETECTED SOMETHING.
-        WE NEED TO CHANGE THE SHARED MEMORY FLAG THAT IT USES, AND ALL THE METHOD NAMES FROM user_speaking TO vad_detected_speech.
-        THE ACTION ON THE user_speaking MUST BE ONCE THE TRANSCRIPTION IS POSITIVE, BUT THE DISPLAY FLOW CAN STAY.
         """
 
         self._xlog.info("VAD detected speech, via VAD callback.")
@@ -276,6 +278,9 @@ class Main(PyXavi):
 
         self._xlog.info("Main execution triggered by user finishing speaking, via VAD callback.")
 
+        # Mute microphone to avoid self-looping
+        self._interaction.mute_microphone(input_stream=self._input_stream)
+
         try:
         
             # Pitxu may be already closing, so we better check the state before doing anything.
@@ -288,21 +293,26 @@ class Main(PyXavi):
             
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
-            # question = self._dictate.recognize()
+            self._interaction.set_stt_busy()
+            self._last_stt_processing_time = 0
+
             question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
+
+                # We unmute the microphone to let the user try again.
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+                self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
                 return
 
             # Still here? Then something got recognised.
             self._log_debug("💬 Recognised dictate: " + question)
-            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._stopwatch.stop(sw_dictate)))
-            self._dictate_count += 1
 
-            # Mute microphone to avoid self-looping
-            # ❗️ THE FLOW STOPS HERE, JUST AFTER MUTING THE MIC, THE LOGGING THA COMES NEXT DOES NOT SHOW UP.
-            self._interaction.mute_microphone(input_stream=self._input_stream)
-            self._log_debug("REMOVEME Microphone muted to avoid self-looping while processing the interaction.")
+            self._interaction.unset_stt_busy()
+            self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
+            self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
+            self._dictate_count += 1
 
             # Initialize the answer that collects until interaction.
             answer = None
@@ -407,6 +417,11 @@ class Main(PyXavi):
 
                 # Answer
                 sw_answer = self._stopwatch.start(name="answer" + str(self._answer_count))
+
+                # Maybe the user said a looooong sentence, and the chatbot also has a looong answer.
+                # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
+                self.reset_last_interaction_event_mark()
+
                 self._interaction.say(answer)
                 self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
                 self._answer_count += 1
@@ -426,7 +441,6 @@ class Main(PyXavi):
                     return
                 
                 # Last thing to do is to remember this as the last interaction.
-                # Has to happen at the very last otherwise the time is consumed by the possible answering process.
                 self.reset_last_interaction_event_mark()
 
             # Unmute microphone to continue listening
@@ -434,17 +448,19 @@ class Main(PyXavi):
         
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
-        except VoskException as ve:
+        except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(ve))
+                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
+                self._xlog.error(full_stack())
                 return
-            self._xlog.error("🛑 VoskException detected in Main run callback: " + str(ve))
+            self._xlog.error("🛑 SpeechToTextException detected in Main run callback: " + str(stte))
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
+                self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 Error in Main run callback: " + str(e))
-            self._xlog.error(full_stack())  
+            self._xlog.error(full_stack())
 
 
     # ------------- End of the main method run() -------------
@@ -458,24 +474,25 @@ class Main(PyXavi):
         #       minus last interaction time
         #       minus the amount of seconds that VAD detection paused the counter.
         #
-        # The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
-        #   in the block of the holding interaction time.
-        return (datetime.now() \
+        # - The self._last_interaction_paused_seconds is maintained in the on_every_second_tasks(), 
+        #       in the block of the holding interaction time.
+        secs = (datetime.now() \
                 - self._last_interaction_datetime).total_seconds() \
                 - self._last_interaction_paused_seconds
+        return secs if secs >= 0 else 0
     
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
         self._last_interaction_paused_seconds = 0
 
-    def _text_has_exit_intention(self, text):
-        return text in self._exit_words
+    def _text_has_exit_intention(self, text: str) -> bool:
+        return text.replace(".", "").lower() in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
-        # We must take in account the time spent talking
+        # We must take in account the time spent in stt and tts.
         if self._last_interaction_datetime is not None and \
-                self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
+                self.get_seconds_since_last_interaction() - self._last_stt_processing_time <= self._seconds_to_hold_interaction_answer:
                 return True
         
         # No ongoing interaction
@@ -485,7 +502,7 @@ class Main(PyXavi):
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
         first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
         for trigger_word in self._trigger_words:
-            if trigger_word in first_words:
+            if trigger_word.replace(".", "").lower() in first_words:
                 return True
         
         # No trigger word found
@@ -495,7 +512,7 @@ class Main(PyXavi):
         # Let's consider that from what the user said, all words need to be one of the trigger words
         all_user_input = Text.remove_accents(question.lower().strip())
         for trigger_word in self._trigger_words:
-            if trigger_word in all_user_input:
+            if trigger_word.replace(".", "").lower() in all_user_input:
                 return True
         
         # No trigger word found
@@ -630,7 +647,10 @@ class Main(PyXavi):
         self._xparams.set("language", language)
 
         # Initialize Maintenance utility
-        self._maintenance = Maintenance(config=self._xconfig, params=self._xparams)
+        self._maintenance = Maintenance(config=self._xconfig, params=Dictionary({
+            "maintenance_logger_name": self._xconfig.get("json_logger.name", "system_log"),
+            "maintenance_logger_directory": self._xconfig.get("json_logger.path", "log"),
+        }))
 
         # Supported Languages
         self._supported_languages = self._xconfig.get("app.supported_languages")
@@ -693,17 +713,36 @@ class Main(PyXavi):
     def _load_models(self):
         
         # Initialise Speech-to-Text. This runs in the main process
-        self._xlog.debug("Initialising the Speech-to-Text with language [" + self._xparams.get("language") + "]")
+        self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
+                         f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
         # COMMENTED: This way Vosk chooses between config or device.
         # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
 
         if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+
+            from pitxu.lib.speech_to_text.vosk import Vosk
+
             self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
             self._xparams.set("support", self._support)
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+
+            from pitxu.lib.speech_to_text.whisper import Whisper
+
+            self._xparams.set("support", self._support)
+            self._dictate = Whisper(config=self._xconfig, params=self._xparams)
+
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
+
+            from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
+
+            self._xparams.set("support", self._support)
+            self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
+
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
-            self._xlog.error("🛑 Supported engines are: vosk")
+            self._xlog.error("🛑 Supported engines are: vosk, whisper, faster_whisper")
             self._xlog.error("🛑 Exiting now.")
             sys.exit(1)
 
@@ -755,8 +794,8 @@ class Main(PyXavi):
         self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
 
         # Load trigger words
-        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "]")
-        self._trigger_words = self._xconfig.get("language.trigger_words." + self._xparams.get("language"))
+        self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "] with chatbot name [" + self._xconfig.get("chatbot.name") + "]")
+        self._trigger_words = [trigger_words % self._xconfig.get("chatbot.name") for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language"))]
 
         # Load trigger answers
         self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
@@ -788,6 +827,7 @@ class Main(PyXavi):
         # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
         samplerate = self._audio_parameters.get("input_samplerate")
         blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
+        device = self._xparams.get("audio_parameters.input_device", None)
 
         self._xlog.debug("Initialising the Raw Input Stream for microphone")
         self._input_stream = sounddevice.RawInputStream(
@@ -796,14 +836,14 @@ class Main(PyXavi):
                             samplerate=samplerate,
                             # blocksize=0, 
                             blocksize=blocksize,
-                            device=self._dictate.device,
+                            device=device,
                             dtype="int16", 
                             channels=1,
                             # callback=self._dictate.callback) as input_stream:
                             callback=self._capture_handler.callback)
         
         self.log_summary("Raw Input Stream (Mic) initialized", [
-                    ("Device", self._dictate.device),
+                    ("Device", device),
                     ("Sample Rate", samplerate),
                     ("Block Size", blocksize if blocksize > 0 else "0 (automatic by pyAudio)"),
                     ("Channels", 1),
@@ -838,26 +878,23 @@ class Main(PyXavi):
         """
         Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
         """
+        self._xlog.info("Initialising Schedulers")
+
+        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
+        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
+        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
         def job_listener(event):
             if event.exception:
                 self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
-            # We already show some minimal logging for each job executed. This is not really needed beyond debug.
-            # else:
-            #     self._log_debug("✅ Scheduled job executed successfully: " + str(event.job_id))
 
-        self._xlog.info("Initialising Schedulers")
         self._scheduler = BackgroundScheduler(
             job_defaults={
                 "coalesce": True
             }
         )
         self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
-
-        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
-        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
-        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
-        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
         # EVERY MINUTE
         self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
@@ -902,20 +939,20 @@ class Main(PyXavi):
         Initializes the Server that accepts requests to the defined endpoints
         """
 
-        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server"]:
+        if self._xconfig.get("server.enabled", False) and self._xconfig.get("app.execution_mode", "") in ["public", "server", "local_status"]:
             self._xlog.info("Initializing Server as it is enabled by configuration.")
-            # params = deepcopy(self._xparams)
             params = Dictionary()
-            # Needed for the Server.
+            # Needed for the local_status (includes only the "status" endpoint).
             params.set("app_version", self._xparams.get("app_version"))
+            params.set("current_start_timestamp", self._current_start_timestamp)
+            params.set("language", self._xparams.get("language"))
+            # Needed for the Server (includes chatbot, STT and TTS, and whatever for local_status).
             params.set("samplerate", self._audio_parameters.get("server_samplerate")) # Also needed in Vosk.
             params.set("output_interaction", self._interaction)
             params.set("chatbot", self._chatbot)
             params.set("chatbot_client_callbacks", self._chatbot_client_callbacks)
             params.set("support", self._support) # Also needed in Vosk & Preprocessor
-            params.set("current_start_timestamp", self._current_start_timestamp)
             # Needed for the Vosk class initialised inside the Server.
-            params.set("language", self._xparams.get("language"))
             params.set("audio_parameters", self._audio_parameters) # Also needed by the Preprocessor
 
             self._server = Server(config=self._xconfig, params=params)
@@ -981,7 +1018,10 @@ class Main(PyXavi):
 
             # If we've been inactive for more than 2 minutes, start the idle mode.
             if self._last_interaction_datetime == None or \
-                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000:
+                (
+                    Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000 \
+                    and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()
+                ):
 
                 if not self._interaction.is_idle_mode_on():
                     self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
@@ -1046,6 +1086,7 @@ class Main(PyXavi):
                 
                 # Calculate how much left in percentages the time to hold the interaction
                 seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+                # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
             
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.

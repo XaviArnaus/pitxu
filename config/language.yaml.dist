@@ -2,10 +2,10 @@
 language:
   # Trigger words to start an interaction (lowercase, no accents)
   trigger_words:
-    ca: ["hola oscar", "ep oscar", "ei oscar", "bon dia oscar", "bona tarda oscar", "bona nit oscar", "escolta oscar", "oscar"]
-    es: ["hola oscar", "eh oscar", "oye oscar", "buenos días oscar", "buenas tardes oscar", "buenas noches oscar", "escucha oscar", "oscar"]
-    en-us: ["hello oscar", "hi oscar", "hey oscar", "good morning oscar", "good afternoon oscar", "good evening oscar", "listen oscar", "oscar"]
-    de: ["hallo oscar", "hi oscar", "hey oscar", "guten morgen oscar", "guten tag oscar", "guten abend oscar", "hör zu oscar", "oscar"]
+    ca: ["hola %s", "ep %s", "ei %s", "bon dia %s", "bona tarda %s", "bona nit %s", "escolta %s", "%s"]
+    es: ["hola %s", "eh %s", "oye %s", "buenos días %s", "buenas tardes %s", "buenas noches %s", "escucha %s", "%s"]
+    en-us: ["hello %s", "hi %s", "hey %s", "good morning %s", "good afternoon %s", "good evening %s", "listen %s", "%s"]
+    de: ["hallo %s", "hi %s", "hey %s", "guten morgen %s", "guten tag %s", "guten abend %s", "hör zu %s", "%s"]
   # Answers to trigger words only, that wake up the chatbot. Will choose one random.
   trigger_answers:
     ca: ["Digues", "Què passa?", "Què tal?"]
@@ -24,6 +24,27 @@ language:
     es: "Hola"
     en-us: "Hello"
     de: "Hallo"
+  # Welcome message based on the time of the day
+  greeting_morning:
+    ca: "Bon dia"
+    es: "Buenos días"
+    en-us: "Good morning"
+    de: "Guten Morgen"
+  greeting_afternoon:
+    ca: "Bona tarda"
+    es: "Buenas tardes"
+    en-us: "Good afternoon"
+    de: "Guten Tag"
+  greeting_evening:
+    ca: "Bona nit"
+    es: "Buenas noches"
+    en-us: "Good evening"
+    de: "Guten Abend"
+  greeting_night:
+    ca: "Bona nit"
+    es: "Buenas noches"
+    en-us: "Good night"
+    de: "Gute Nacht"
   # This is the goodbye message
   goodbye:
     ca: "Fins la propera! Adéu!"
