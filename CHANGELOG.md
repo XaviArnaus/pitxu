@@ -8,6 +8,7 @@
     - Prompt instructions to care about dates, times and memory saving success
     - New execution mode `local_status` that allows only local and the `/status` endpoint
     - Ability to download the content of a given URL and return it to the chatbot, as an external tool.
+    - Ability to download the raw code from a Github url, as an external tool
 
 ### Changed
 

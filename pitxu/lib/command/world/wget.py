@@ -34,7 +34,24 @@ class WorldWget(PyXavi, Command):
         
         self._xlog.error(f"🛑 Error getting content from URL {url}: No results found after retries.")
         return False
+    
+    def get_raw_code_from_github_url(self, url: str) -> str | bool:
+        '''
+        Get the raw code content from a given GitHub URL.
 
+        Args:
+            url (str): The GitHub URL to get the raw code content from.
+        Returns:
+            str | bool: The raw code content as a string, or False if not found.
+        '''
+        if "github.com" not in url:
+            self._xlog.error(f"URL {url} is not a GitHub URL.")
+            return False
+        
+        # Convert the GitHub URL to a raw content URL
+        raw_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+        self._xlog.debug(f"Converted GitHub URL to raw URL: {raw_url}")
+        return self.get_content_from_url(raw_url)
 
     def get_tool_definition(self) -> list[callable]:
         """
@@ -42,7 +59,8 @@ class WorldWget(PyXavi, Command):
 
         It is used by ChatbotSessionManager to register the tools and link functions with callbacks.
         """
-        return [self.get_content_from_url]
+        return [self.get_content_from_url,
+                self.get_raw_code_from_github_url]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
