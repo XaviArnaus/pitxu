@@ -12,6 +12,7 @@ from .system.conversation_flow import SystemConversationFlow
 from .world.position import WorldPosition
 from .world.weather import WorldWeather
 from .world.wikipedia import WorldWikipedia
+from .world.wget import WorldWget
 from .google.maps import GoogleMaps
 from .google.search import GoogleSearch
 from .google.code import GoogleCode
