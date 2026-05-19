@@ -537,7 +537,10 @@ This model is around 3.3GB at the moment of writing, so it can take a while to d
 ```
 curl --silent http://localhost:8000/api/chat \
      -H 'Content-Type: application/json' \
-     -d '{"model": "qwen2.5-instruct:1.5b", "messages": [{"role": "user", "content": "Translate to Catalan: This is my very first test of a local LLM engine using a Raspberry Pi"}]}'
+     -d '{"model": "qwen2.5-instruct:1.5b", "messages": [
+        {"role": "system", "content": "You are a concise assistant. Answer just what is asked, no further explanations"},
+        {"role": "user", "content": "What is 2 + 3?"}
+      ]}'
 ```
 
 ## 2. Clone the repository
