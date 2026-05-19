@@ -66,6 +66,8 @@ BOOT_ORDER=0xf416
 6. Remove the SD card
 7. Boot the machine.
 
+⚠️ While initially appeared to work very good (fast, reliable), and therefore I moved to NVME M.2 disks in both test hardwares, in the long term both gave problems, like lack of power, giving plenty of issues, freezing, hanging, and at the end, failing during a EEPROM update in one Raspberry that left it unusable. I've moved back to SD card in the RPi that still works. At this point in time, I do not recommend using a PCIe NVME M.2 disk.
+
 ### First start
 
 Most of these steps are optional, and depend on what are the features that you want **Pitxu** to support. Soundcards, Displays, UPSs and so on usually need to have activated the SPI, I2C and xxx interfaces, and maybe to add some overlays or extra config in `/boot/firmware/config.txt`. I mention all here, and you simply jump whatever does not fit in your setup.
@@ -246,13 +248,13 @@ Pitxu is designed as a 2-channel display interaction: One for foreground notific
 - Based on chip Max7219. Uses SPI, activated as explained above.
 - https://www.az-delivery.de/en/products/64er-led-matrix-display
 
-#### PiSuhar Whisplay HAT
+#### PiSugar Whisplay HAT
 
 - Regardles of the all-in-one packaging, it is a simple ST7789 (specifically a ST7789P3) which is common.
 - Uses SPI, activated as explained above.
 - https://github.com/PiSugar/whisplay
 
-#### Waveshare 5inch Touchscreen DSI LCD (C)
+#### Waveshare 5 inch Touchscreen DSI LCD (C)
 
 - Clear and fast. Touchscreen not yet used. Behaves as a main Linux display, and Pitxu interacts via it's framebuffer.
 - Uses DSI interface, the RPi5 has 2. The provider recommends the one most far from the USB connections. The DSI interface Frees up GPIO connections. The Touchscreen is ignored ATM, maybe future features for Pitxu.
@@ -349,7 +351,7 @@ The following are the system dependencies that are needed at OS level so that th
 Debian packages can be installed all at once. Just make sure that I did not forget to add in this line anything from the below sections, I'm just putting them all together here.
 
 ```
-sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools libasound2-plugins
+sudo apt install python3-dev libjpeg-dev zlib1g-dev libfreetype6-dev libffi-dev portaudio19-dev python3-pyaudio swig liblgpio-dev i2c-tools libasound2-plugins dkms hailo-h10-all
 ```
 
 #### Ability to build other dependencies: `python3-dev`
@@ -410,8 +412,18 @@ sudo apt install i2c-tools
 
 This is needed for the Whisper Speech-To-Text transcription
 
+⚠️ I'm not really sure that it is needed, as we're not doing any conversion or picking up audio files. I just followed the instructions but I doubt that it is needed.
+
 ```
 sudo apt install ffmpeg
+```
+
+#### Related to `AI Hat+ 2`
+
+These packages are needed for the use of the AI Hat+ 2 accelerator.
+
+```
+sudo apt install dkms hailo-h10-all
 ```
 
 ### Packages to support some other operations
@@ -447,6 +459,89 @@ This will tell you in which groups the your user is registered.
 References:
 - https://gist.github.com/Quasimondo/e47a5be0c2fa9a3ef80c433e3ee2aead
 - https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
+
+### Raspberry Pi 5 AI Hat+ 2
+
+I've installed a [Raspberry Pi 5 AI Hat+ 2](https://www.raspberrypi.com/documentation/accessories/ai-hat-plus.html).
+It is a PCIe device. If you're using a PCIe disk, think about a multiplexer or challenge yourself if you really can't live with a SD card. The installation instructions here are assuming that the PCIe port is free.
+
+⚠️ Keep in mind that this is only meant to be executed in a Raspberry Pi. A development computer (like a MacOS) is not mocked for it and should not even be tried.
+
+Once the packages are installed and the machine, we need to reboot again
+```
+sudo reboot
+```
+
+#### System installation
+
+Now, we run the following command to ensure that we have the device ready:
+```
+hailortcli fw-control identify
+```
+
+... which has to return an output similar to:
+```
+Executing on device: 0001:01:00.0
+Identifying board
+Control Protocol Version: 2
+Firmware Version: 5.1.1 (release,app)
+Logger Version: 0
+Device Architecture: HAILO10H
+```
+
+If we don't receive any output, most likely the device is not recognized. We can ensure this by running:
+```
+hailortcli scan
+```
+
+if the output is `Hailo devices not found`, it is then clear that we have any hardware issue. Double check the PCIe connections, most likely the PCIe cable is in the other way around (on the RPi, the brown side looks outside the card, and in the HAT, the open (copper) connections are up)
+
+#### Software layer installation
+
+Even the docs indicate to install the Software layer and the Web UI, the second won't be needed. Focusing in the Software layer, which is basically starting the `hailo-ollama` service that will respond to the POST HTTP requests.
+
+⚠️ The Pitxu application is a Python app that has its own SDK. This means that actually the following commands are not needed because the whole server / client and model handling are done by the app itself. Still, to be able to test the AI Hat is good to have it installed because once we close the server running in the terminal, the whole instance is teared down freeing memory.
+
+1. Download the `hailo-ollama` package. At the moment of writing, it's the version 5.1.1 according to [the documentation](https://www.raspberrypi.com/documentation/computers/ai.html#step1-llm):
+```
+wget https://dev-public.hailo.ai/2025_12/Hailo10/hailo_gen_ai_model_zoo_5.1.1_arm64.deb
+```
+
+2. Install the `hailo-ollama` package:
+```
+sudo dpkg -i hailo_gen_ai_model_zoo_5.1.1_arm64.deb
+```
+
+3. Run the `hailo-ollama` server:
+```
+hailo-ollama
+```
+
+This will kidnap the terminal session, as the server is not running as a system service. The next commands need to be running in a **separate terminal session, without closing this one**.
+
+4. List the available models:
+```
+curl --silent http://localhost:8000/hailo/v1/list
+```
+
+5. Download the desired model, for example for `qwen2.5-instruct:1.5b`:
+```
+curl --silent http://localhost:8000/api/pull \
+     -H 'Content-Type: application/json' \
+     -d '{ "model": "qwen2.5-instruct:1.5b", "stream" : false }'
+```
+
+This model is around 3.3GB at the moment of writing, so it can take a while to download.
+
+6. Test the communication with the model, sending any Chat query to it:
+```
+curl --silent http://localhost:8000/api/chat \
+     -H 'Content-Type: application/json' \
+     -d '{"model": "qwen2.5-instruct:1.5b", "messages": [
+        {"role": "system", "content": "You are a concise assistant. Answer just what is asked, no further explanations"},
+        {"role": "user", "content": "What is 2 + 3?"}
+      ]}'
+```
 
 ## 2. Clone the repository
 

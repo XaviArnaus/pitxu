@@ -1,6 +1,12 @@
 # Changelog
 
-## v0.3.5 - 2026-05-15
+## v0.3.6 - 2026-05-19?????
+
+### Added
+
+- Implement Hailo-Whisper using Raspberry Pi 5 AI Hat+2 [#32](https://github.com/XaviArnaus/pitxu/pull/32).
+
+## v0.3.5 - 2026-05-17
 
 ### Added
 
