@@ -13,7 +13,7 @@ from vosk import Model, KaldiRecognizer, SetLogLevel
 
 class Vosk(PyXavi):
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
@@ -39,6 +39,12 @@ class Vosk(PyXavi):
 
         self.initialize()
     
+    def _convert_to_vosk_language(self, language: str) -> str:
+        # Vosk uses "en-us" for English, but we use "en" in the rest of the code, so we need to convert it.
+        if language == "en":
+            return "en-us"
+        return language
+    
     def initialize(self):
 
         self._xlog.info("Initializing Vosk STT")
@@ -61,7 +67,8 @@ class Vosk(PyXavi):
                 self._model = Model(model_name=model)
             else:
                 logging_parts.append(("Model default for language", language))
-                self._model = Model(lang=language)
+                logging_parts.append(("vosk language code", self._convert_to_vosk_language(language)))
+                self._model = Model(lang=self._convert_to_vosk_language(language))
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.

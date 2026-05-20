@@ -33,7 +33,7 @@ class GoogleMaps(PyXavi, Command):
                     "Sigues curt i precís. Si necessites rebre una ubicació, demana les coordenades geogràfiques al usuari.",
             "es": "Usa Google Maps para obtener la respuesta sobre distancias, rutas y localizaciones en el mapa."
                     "Sé breve y preciso. Si necesitas recibir una ubicación, pide las coordenadas geográficas al usuario.",
-            "en-us": "Use Google Maps to obtain the answer about distances, routes, and locations on the map."
+            "en": "Use Google Maps to obtain the answer about distances, routes, and locations on the map."
                     "Be brief and precise. If you need to receive a location, ask the user for the geographic coordinates.",
             "de": "Verwenden Sie Google Maps, um die Antwort zu Entfernungen, Routen und Standorten auf der Karte zu erhalten."
                     "Seien Sie kurz und präzise. Wenn Sie einen Standort erhalten müssen, fragen Sie den Benutzer nach den geografischen Koordinaten.",
@@ -49,7 +49,6 @@ class GoogleMaps(PyXavi, Command):
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],
-                # system_instruction=instructions["en-us"],
                 tools=tools
             )
         )

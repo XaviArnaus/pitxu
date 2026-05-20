@@ -115,7 +115,7 @@ memory:
       ```json
       %s
       ```
-    en-us: |
+    en: |
       # Main Goal
       Summarize the given chatbot conversation history into a concise summary that captures the main points and context.
       It will be used in the future to retrieve relevant information from the past conversations with the chatbot, so it should be informative and useful for that purpose.

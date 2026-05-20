@@ -36,9 +36,6 @@ class Whisper(PyXavi):
         logging_parts = []
 
         language = self._xparams.get("language", "en")
-        if language == "en-us":
-            # I need to correct this Vosk language stupidity that is populated all around the code!!!
-            language = "en"
         logging_parts.append(("Language", language))
 
         if self._xconfig.get("speech-to-text.mock", True):

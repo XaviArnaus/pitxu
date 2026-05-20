@@ -32,7 +32,7 @@ class GoogleCode(PyXavi, Command):
         instructions = {
             "ca": f"Genera un bloc de codi relacionat amb el següent prompt: [{prompt}]. Sigues curt i precís.",
             "es": f"Genera un bloque de código relacionado con el siguiente prompt: [{prompt}]. Sé breve y preciso.",
-            "en-us": f"Generate a code block related to the following prompt: [{prompt}]. Be brief and precise.",
+            "en": f"Generate a code block related to the following prompt: [{prompt}]. Be brief and precise.",
             "de": f"Generiere einen Codeblock im Zusammenhang mit dem folgenden Prompt: [{prompt}]. Sei kurz und präzise.",
         }
 
@@ -46,7 +46,6 @@ class GoogleCode(PyXavi, Command):
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],
-                # system_instruction=instructions["en-us"],
                 tools=tools
             )
         )

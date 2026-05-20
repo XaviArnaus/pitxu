@@ -27,12 +27,6 @@ class WorldWikipedia(PyXavi, Command):
         '''
 
         # These are the languages we support towards the ones supported by Wikipedia
-        switch = {
-            "en-us": "en",
-            "es": "es",
-            "ca": "ca",
-            "de": "de",
-        }
         lang = switch.get(self._xconfig.get("app.default_language"), "en")
 
         self._xlog.debug(f"Getting summary for language {lang} from Wikipedia for term: {term}")

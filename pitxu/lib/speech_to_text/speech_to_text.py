@@ -13,7 +13,7 @@ class SpeechToTextException(Exception):
 
 class SpeechToText(PyXavi):
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"

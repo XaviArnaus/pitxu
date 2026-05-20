@@ -83,7 +83,7 @@ class Main(PyXavi):
     _dictate_count: int = 0
     _answer_count: int = 0
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"

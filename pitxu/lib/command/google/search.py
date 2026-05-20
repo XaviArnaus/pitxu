@@ -32,7 +32,7 @@ class GoogleSearch(PyXavi, Command):
         instructions = {
             "ca": f"Usa Google Search per obtenir la resposta. Sigues curt i precís.",
             "es": f"Usa Google Search para obtener la respuesta. Sé breve y preciso.",
-            "en-us": f"Use Google Search to obtain the answer. Be brief and precise.",
+            "en": f"Use Google Search to obtain the answer. Be brief and precise.",
             "de": f"Verwenden Sie Google Search, um die Antwort zu erhalten. Seien Sie kurz und präzise.",
         }
 
@@ -46,7 +46,6 @@ class GoogleSearch(PyXavi, Command):
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],
-                # system_instruction=instructions["en-us"],
                 tools=tools
             )
         )
