@@ -10,6 +10,8 @@ chatbot:
   # [String] The name of the main LLM model to use.
   # model: "gemini-2.5-flash"
   model: "gemini-3.1-flash-lite"
+  # [String] Warm up question. Should be simple and without using external tools
+  warmup_question: "Acknowledge that you are ready."
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction: 
     ca: |
