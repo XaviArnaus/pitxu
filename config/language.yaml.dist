@@ -18,6 +18,12 @@ language:
     es: ["salir", "adios"]
     en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
     de: ["tschüss", "beenden", "ende"]
+  # [String] Warm up question. Should be simple and without using external tools
+  warmup_question: 
+    ca: "Reconeix que estàs llest."
+    es: "Reconoce que estás listo."
+    en-us: "Acknowledge that you are ready."
+    de: "Bestätige, dass du bereit bist."
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"

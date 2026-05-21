@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.5 - 2026-05-15
+## v0.3.5 - 2026-05-21
 
 ### Added
 
@@ -9,6 +9,8 @@
     - New execution mode `local_status` that allows only local and the `/status` endpoint
     - Ability to download the content of a given URL and return it to the chatbot, as an external tool.
     - Ability to download the raw code from a Github url, as an external tool
+- Pronounce correctly "Xavi" [#33](https://github.com/XaviArnaus/pitxu/pull/33).
+- Warm up the Chatbot before the user interaction [#34](https://github.com/XaviArnaus/pitxu/pull/34)
 
 ### Changed
 
