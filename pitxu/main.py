@@ -869,7 +869,7 @@ class Main(PyXavi):
 
         self._xlog.info("Warming up Chatbot with a simple question to make sure everything is loaded and working.")
 
-        warmup_question = self._xconfig.get("chatbot.warmup_question", "Acknowledge that you're ready")
+        warmup_question = self._xconfig.get(f"language.warmup_question.{self._xparams.get('language')}", "Acknowledge that you're ready")
 
         try:
             warmup_response: ChatbotResponse = await self._chatbot.ask_async(warmup_question)
