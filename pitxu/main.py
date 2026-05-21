@@ -139,15 +139,14 @@ class Main(PyXavi):
             # Initialize the microphone and defines the callback for the audio capture.
             self._interaction.show_init_phases(4, text="🎙️  Microphone")
             self._instantiate_input_stream()
-                
-            # Set up of all the session context we need for the Chatbot and the MCP tools
-            self._interaction.show_init_phases(5, text="🤖 Chatbot Session Manager")
-            await self._initialize_chatbot_session_manager()
 
             # Initialise the Chatbot async context with all the tools from the session manager
-            self._interaction.show_init_phases(6, text="🤖 Chatbot")
-            await self._chatbot.initialize_async(tools=self._chatbot_session_manager.tools)
-            self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+            self._interaction.show_init_phases(5, text="🤖 Chatbot")
+            await self._initialize_chatbot()
+
+            # Warm up the chatbot
+            self._interaction.show_init_phases(6, text="🔥 Chatbot warm up")
+            await self._warmup_chatbot()
 
             # Initialise the Server that accepts requests to the defined endpoints.
             self._interaction.show_init_phases(7, text="🖥️  Server")
@@ -850,6 +849,32 @@ class Main(PyXavi):
                     ("Data Type", "int16"),
                     ("Callback", "CaptureHandler.callback")
                 ])
+    
+    async def _initialize_chatbot(self):
+        """
+        Initialization of the Chatbot, that manages the conversation with the Chatbot and its history.
+        """
+
+        # Set up of all the session context we need for the Chatbot and the MCP tools
+        await self._initialize_chatbot_session_manager()
+
+        # Initialise the Chatbot async context with all the tools from the session manager
+        await self._chatbot.initialize_async(tools=self._chatbot_session_manager.tools)
+        self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+    
+    async def _warmup_chatbot(self):
+        """
+        Warmup of the Chatbot, that makes a simple question to the Chatbot to make sure that everything is loaded and working before starting to interact with the user.
+        """
+
+        self._xlog.info("Warming up Chatbot with a simple question to make sure everything is loaded and working.")
+
+        warmup_question = self._xconfig.get(f"language.warmup_question.{self._xparams.get('language')}", "Acknowledge that you're ready")
+
+        try:
+            warmup_response: ChatbotResponse = await self._chatbot.ask_async(warmup_question)
+        except Exception as e:
+            self._xlog.error("🛑 Error during Chatbot warmup: " + str(e))
     
     async def _initialize_chatbot_session_manager(self):
         """
