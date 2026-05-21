@@ -262,10 +262,37 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            pass
+            
+            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
+            # This was introduced for Faster Whisper, take care if you change the transcription engine.
+            if self._xconfig.get("speech-to-text.engine") == "faster_whisper":
+                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
+                self._dictate.reset_context()
+            
+            # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
+            self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
+            partial_transcription = self._dictate.recognize_chunks_from_queue()
+            if partial_transcription is not None and partial_transcription.strip() != "":
+                self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
+            self._xlog.error(full_stack())
+    
+    async def main_execution_on_vad_detected_ongoing(self):
+        """
+        This method is called while the user is speaking, detected by the VAD in CaptureHandler.
+        It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_ongoing() method there.
+        """
+
+        try:
+            # So we have a new chunk in the queue. Process it.
+            #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
+            partial_transcription = self._dictate.recognize_chunks_from_queue()
+            if partial_transcription is not None and partial_transcription.strip() != "":
+                self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_vad_detected_ongoing(): " + str(e))
             self._xlog.error(full_stack())
 
     
@@ -296,7 +323,9 @@ class Main(PyXavi):
             self._interaction.set_stt_busy()
             self._last_stt_processing_time = 0
 
-            question = self._dictate.recognize_all_queue_at_once()
+            # COMMENTED OUT: We're moving towards a Streaming / Windowing approach.
+            #question = self._dictate.recognize_all_queue_at_once()
+            question = self._dictate.get_transcription()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
@@ -756,6 +785,8 @@ class Main(PyXavi):
             "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
             # The callback that triggers when the user starts speaking, detected by the VAD.
             "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
+            # The callback that triggers while the user is speaking, detected by the VAD.
+            "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
             "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.

@@ -25,6 +25,7 @@ class CaptureHandler(PyXavi):
     vad: RmsVAD = None
     resampler: samplerate.Resampler = None
     on_vad_detected_started_callback: callable = None
+    on_vad_detected_ongoing_callback: callable = None
     on_vad_detected_finished_callback: callable = None
     main_event_loop: asyncio.AbstractEventLoop = None
 
@@ -67,6 +68,12 @@ class CaptureHandler(PyXavi):
         else:
             raise ValueError("No callback provided for when the user starts speaking in params to CaptureHandler")
         
+        # Get the callback for when the user is speaking, or use defaults.
+        if params.key_exists("on_vad_detected_ongoing_callback"):
+            self.on_vad_detected_ongoing_callback = params.get("on_vad_detected_ongoing_callback")
+        else:
+            raise ValueError("No callback provided for when the user is speaking in params to CaptureHandler")
+
         # Get the callback's context for when the user finishes speaking, or use defaults.
         if params.key_exists("main_event_loop"):
             self.main_event_loop = params.get("main_event_loop")
@@ -153,10 +160,18 @@ class CaptureHandler(PyXavi):
         # Now we can trigger the main execution, as the user has started speaking.
         if self.on_vad_detected_started_callback is not None:
             asyncio.run_coroutine_threadsafe(self.on_vad_detected_started_callback(), self.main_event_loop)
+        else:
+            self._xlog.warning("🗣️ No callback provided for when the user starts speaking, but VAD detected speech start. Please provide an 'on_vad_detected_started_callback' in the params of CaptureHandler to handle this event.")
     
     def vad_on_speech_chunk(self, chunk: bytes):
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
         self.queue.put(bytes(chunk))
+
+        # Now we can trigger the main execution, as the user is speaking.
+        if self.on_vad_detected_ongoing_callback is not None:
+            asyncio.run_coroutine_threadsafe(self.on_vad_detected_ongoing_callback(), self.main_event_loop)
+        else:
+            self._xlog.warning("🗣️ No callback provided for when the user is speaking, but VAD detected speech chunk. Please provide an 'on_vad_detected_ongoing_callback' in the params of CaptureHandler to handle this event.")
     
     def vad_on_speech_end(self):
         self._xlog.debug("🗣️ VAD detected speech end")
@@ -168,7 +183,9 @@ class CaptureHandler(PyXavi):
         # Now we can trigger the main execution, as the user has finished speaking.
         if self.on_vad_detected_finished_callback is not None:
             asyncio.run_coroutine_threadsafe(self.on_vad_detected_finished_callback(), self.main_event_loop)
-    
+        else:
+            self._xlog.warning("🗣️ No callback provided for when the user finishes speaking, but VAD detected speech end. Please provide an 'on_vad_detected_finished_callback' in the params of CaptureHandler to handle this event."
+)
     def get_vad_handler(self):
         return self.vad
     

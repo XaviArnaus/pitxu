@@ -134,6 +134,12 @@ speech-to-text:
     # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
     #   See https://github.com/SYSTRAN/faster-whisper for more details.
     compute_type: int8
+    # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
+    #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
+    #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
+    overlap_size: 8000
+    # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
+    chunks_window: 50
     # [Bool] Allow transcription of multilingual input.
     # NOT YET USED
     multilingual: True
