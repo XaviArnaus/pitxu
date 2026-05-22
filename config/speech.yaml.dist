@@ -137,8 +137,10 @@ speech-to-text:
     # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
     #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
     #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
-    overlap_size: 8000
+    # ONLY USED IN THE STREAMING VERSION OF FASTER WHISPER, NOT IN THE NORMAL ONE.
+    overlap_size: 4000
     # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
+    # ONLY USED IN THE STREAMING VERSION OF FASTER WHISPER, NOT IN THE NORMAL ONE.
     chunks_window: 50
     # [Bool] Allow transcription of multilingual input.
     # NOT YET USED
