@@ -66,11 +66,11 @@ class WorldWget(PyXavi, Command):
         '''
 
         # Construct the URL for the pull request
-        url = f"https://github.com/{account}/{repo}/pull/{pull_request_number}"
+        url = f"https://github.com/{account.lower()}/{repo.lower()}/pull/{pull_request_number}"
         self._xlog.debug(f"Constructed GitHub API URL for pull request: {url}")
         return self.get_content_from_url(url)
     
-    def get_file_from_github_branch(self, account: str, repo: str, branch: str, file_path: str) -> str | bool:
+    def get_file_from_github_branch(self, account: str, repo: str, branch: str, file_path: str, file_name: str) -> str | bool:
         '''
         Get the content of a file from a specific branch in a GitHub repository.
 
@@ -79,10 +79,11 @@ class WorldWget(PyXavi, Command):
             repo (str): The GitHub repository name.
             branch (str): The branch name.
             file_path (str): The path to the file in the repository.
+            file_name (str): The name of the file in the repository.
         Returns:
             str | bool: The content of the file as a string, or False if not found.
         '''
-        url = f"https://github.com/{account}/{repo}/blob/{branch}/{file_path}"
+        url = f"https://github.com/{account.lower()}/{repo.lower()}/blob/{branch.lower()}/{file_path.lower()}/{file_name.lower()}"
         self._xlog.debug(f"Constructed GitHub URL for file: {url}")
         return self.get_content_from_url(url)
 
