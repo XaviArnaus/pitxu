@@ -3,7 +3,19 @@ chatbot:
   # [Bool] Avoids the communication to the LLM server
   mock: True
   # [String] Name of the chatbot
-  name: "Gina"
+  name: "Teresa"
+  # [String] Secondary versions of the name (basically, for fonetical recognition purposes, so the STT can pick up the name even if it is misheard).
+  name_variations:
+    - "Treza"
+    - "Trezza"
+    - "Tresa"
+    - "Thresa"
+    - "Threza"
+    - "Teresa"
+    - "Tereza"
+    - "Theresa"
+    - "Chereza"
+    - "Thresham"
   # [String] Gender, so it picks up the voice according to it. Accepted only: "male", "female"
   # This is used to pick the voice in the TTS engine, so be sure that the TTS configuration contains voices for the gender selected here.
   gender: "female"

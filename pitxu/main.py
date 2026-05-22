@@ -796,6 +796,17 @@ class Main(PyXavi):
         self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "] with chatbot name [" + self._xconfig.get("chatbot.name") + "]")
         self._trigger_words = [trigger_words % self._xconfig.get("chatbot.name") for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language"))]
 
+        # Add more trigger words based on the name variations, if specified in the config.
+        if self._xconfig.get("chatbot.name_variations"):
+            name_variations = self._xconfig.get("chatbot.name_variations", [])
+            self._xlog.debug("Adding trigger words based on name variations: " + ", ".join(name_variations))
+            for name_variation in name_variations:
+                for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language")):
+                    new_trigger_word = trigger_words % name_variation
+                    if new_trigger_word not in self._trigger_words:
+                        self._trigger_words.append(new_trigger_word)
+        self._xlog.debug("Added trigger words based on name variations: " + ", ".join(self._trigger_words))
+
         # Load trigger answers
         self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
         self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
@@ -806,7 +817,7 @@ class Main(PyXavi):
             for word in exit_words:
                 if word not in all_possible_exit_words:
                     all_possible_exit_words.append(word)
-        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._xlog.debug("Load ALL possible exit words " + ", ".join(all_possible_exit_words))
         self._exit_words = all_possible_exit_words
 
         # Idle mode after some minutes of inactivity
