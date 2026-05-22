@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.5 - 2026-05-21
+## v0.3.5 - 2026-05-22
 
 ### Added
 
@@ -12,12 +12,14 @@
 - Pronounce correctly "Xavi" [#33](https://github.com/XaviArnaus/pitxu/pull/33).
 - Warm up the Chatbot before the user interaction [#34](https://github.com/XaviArnaus/pitxu/pull/34)
 - Add Ability to pull content from Github PR and branches [#37](https://github.com/XaviArnaus/pitxu/pull/37)
+- Add name variations to improve the waking up by triggering words [#38](https://github.com/XaviArnaus/pitxu/pull/38)
 
 ### Changed
 
 - Process names now are defined by the class identification method
 - Chatbot Gemini main model is now be defined in the config
 - Account for the STT processing time when identifying an ongoing conversation (avoid ignoring long trascriptions)
+- Change the name from Gina to Teresa to improve the STT recognition as Trigger Word.
 
 ### Fixed
 
