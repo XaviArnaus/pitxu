@@ -11,6 +11,7 @@
     - Ability to download the raw code from a Github url, as an external tool
 - Pronounce correctly "Xavi" [#33](https://github.com/XaviArnaus/pitxu/pull/33).
 - Warm up the Chatbot before the user interaction [#34](https://github.com/XaviArnaus/pitxu/pull/34)
+- Add Ability to pull content from Github PR and branches [#37](https://github.com/XaviArnaus/pitxu/pull/37)
 
 ### Changed
 
