@@ -270,10 +270,11 @@ class Main(PyXavi):
                 self._dictate.reset_context()
             
                 # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
-                self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
-                partial_transcription = self._dictate.recognize_chunks_from_queue()
-                if partial_transcription is not None and partial_transcription.strip() != "":
-                    self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+                # COMMENTED: We now have a thread that processes the chunks as they arrive.
+                # self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
+                # partial_transcription = self._dictate.recognize_chunks_from_queue()
+                # if partial_transcription is not None and partial_transcription.strip() != "":
+                #     self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -287,18 +288,38 @@ class Main(PyXavi):
 
         try:
             # Attention: only for Streaming engines!
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
-                # So we have a new chunk in the queue. Process it.
-                #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
-                partial_transcription = self._dictate.recognize_chunks_from_queue()
-                if partial_transcription is not None and partial_transcription.strip() != "":
-                    self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+            # COMMENTED: We now have a thread that processes the chunks as they arrive.
+            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+            #     # So we have a new chunk in the queue. Process it.
+            #     #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
+            #     partial_transcription = self._dictate.recognize_chunks_from_queue()
+            #     if partial_transcription is not None and partial_transcription.strip() != "":
+            #         self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+            pass
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_ongoing(): " + str(e))
             self._xlog.error(full_stack())
-
     
     async def main_execution_on_vad_detected_finished(self):
+        """
+        This method is called when the user finishes speaking, detected by the VAD in CaptureHandler.
+        It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_end() method there.
+        It WAS used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
+        Now this work is done in the callback triggered when the transcription finishes. See main_execution_on_transcription_finished() method.
+        """
+
+        try:
+            pass
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
+            self._xlog.error(full_stack())
+    
+    async def main_execution_on_transcription_finished(self):
+        """
+        This method is called when the Transcription is finished (receiving a None in the transcription).
+        It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
+        It is meant to be passed as a callback to the FasterWhisper Streaming Thread..
+        """
         """
         This method is called when the user finishes speaking, detected by the VAD in CaptureHandler.
         It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
@@ -776,10 +797,16 @@ class Main(PyXavi):
         
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
 
-            from pitxu.lib.speech_to_text.faster_whisper_stream_v2 import FasterWhisperStreamV2
+            from pitxu.lib.speech_to_text.faster_whisper_stream_v3 import FasterWhisperStreamV3
 
             self._xparams.set("support", self._support)
-            self._dictate = FasterWhisperStreamV2(config=self._xconfig, params=self._xparams)
+            self._dictate = FasterWhisperStreamV3(config=self._xconfig, params=Dictionary({
+                "support": self._support,
+                "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                "main_event_loop": asyncio.get_event_loop(),
+                "language": self._xparams.get("language"),
+                "audio_parameters": self._audio_parameters,
+            }))
 
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
@@ -1134,9 +1161,10 @@ class Main(PyXavi):
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
             
             # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
-            if self._xconfig.get("speech-to-text.vad.enabled", False):
-                vad_stats = self._capture_handler.get_vad_handler().get_stats()
-                self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
+            # COMMENTED: Not that interesting... Unless we're debugging the VAD.
+            # if self._xconfig.get("speech-to-text.vad.enabled", False):
+            #     vad_stats = self._capture_handler.get_vad_handler().get_stats()
+            #     self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
     
     # ------- Stuff to do every second -------
 
