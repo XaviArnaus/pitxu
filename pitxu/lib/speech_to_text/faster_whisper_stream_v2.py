@@ -19,10 +19,11 @@ class FasterWhisperStreamV2(PyXavi):
 
     - Works
     - Processes the audio chunks in the queue with a sliding window approach, while the user is still speaking.
-    - Chunks are accummulated in a window of 50 chunks, overlapping last "n" samples (4000 samples = 250ms at 16kHz), merging text with stupid string processing.
-    - Fast enough. Last left-over processing takes too much time, most likely as a bug.
-    - Way less accurate, some words are repeated, some words are cut, some words are wrong, ... But the model afterwards corrects it and understands it mostly.
+    - Chunks are accummulated in a window of 40/50 chunks, overlapping last "n" samples (4000 samples = 250ms at 16kHz), merging text with some sort of string diff.
+    - Fast enough. Still working on it.
+    - Way less accurate, some words are repeated, some words are cut, some words are wrong, ... But the model afterwards corrects it and understands it mostly (which I want to avoid).
     - Tried in the RPi 5 since 2026-05-21.
+    - Pitxu suggested the difflib merging (2026-05-22), works better, but needs improvement.
     """
 
     _model: WhisperModel = None
@@ -49,7 +50,7 @@ class FasterWhisperStreamV2(PyXavi):
     
     def initialize(self):
 
-        self._xlog.info("Initializing Faster Whisper STT")
+        self._xlog.info("Initializing Faster Whisper Stream STT")
         logging_parts = []
 
         language = self._xparams.get("language", "en")
@@ -91,7 +92,7 @@ class FasterWhisperStreamV2(PyXavi):
                 logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
                 logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
                 logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
-                self.log_summary("Faster Whisper Model Initialization", logging_parts)
+                self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
 
                 self._model = WhisperModel(model,
                                            device=device,
@@ -129,7 +130,7 @@ class FasterWhisperStreamV2(PyXavi):
         # Keeping track that Whisper is active
         self.is_active = True
 
-        self.log_summary("Faster Whisper Initialization", logging_parts)
+        self.log_summary("Faster Whisper Stream Initialization", logging_parts)
     
     def get_queue(self) -> queue.Queue:
         return self._queue
@@ -150,7 +151,7 @@ class FasterWhisperStreamV2(PyXavi):
             if self._xconfig.get("speech-to-text.mock", True):
                 return input("Type your question: [\"exit\" to leave]: \n")
             elif self.is_active == False:
-                self._xlog.warning("🟠 FasterWhisper is not active, cannot recognize audio")
+                self._xlog.warning("🟠 FasterWhisper Stream is not active, cannot recognize audio")
             elif self.is_active and self._queue is not None:
 
                 if self._queue.empty():
@@ -163,7 +164,7 @@ class FasterWhisperStreamV2(PyXavi):
                 #   but we could have the following cases:
                 #   - The user is speaking very fast and the VAD is sending chunks faster than we can process them.
                 #   - It is the start of the VAD detection, that VAD adds some previous chunks as a window before the detection.
-                # self._log_debug(f"FasterWhisper: Processing audio chunks from the queue, current queue size: {self._queue.qsize()}")
+                # self._log_debug(f"FasterWhisper Stream: Processing audio chunks from the queue, current queue size: {self._queue.qsize()}")
 
                 # Second approach, get the chunks from the queue so it gets empty ASAP, and process them in one shot.
                 chunk_list_to_process = []
@@ -171,16 +172,16 @@ class FasterWhisperStreamV2(PyXavi):
                     data = self._queue.get()
 
                     if data is None:
-                        self._log_debug("FasterWhisper: Received None data from the queue, skipping it.")
+                        self._log_debug("FasterWhisper Stream: Received None data from the queue, skipping it.")
                         continue
                     else:
                         if len(self._ongoing_chunk_window) > self._chunks_window:
-                            self._log_debug(f"FasterWhisper: Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
+                            self._log_debug(f"FasterWhisper Stream: Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
                             chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
                             self._ongoing_chunk_window = []
                         self._ongoing_chunk_window.append(data)
                 if len(chunk_list_to_process) > 0:
-                    self._log_debug(f"FasterWhisper: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
+                    self._log_debug(f"FasterWhisper Stream: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
                     partial_transcription = self._process_chunks(chunk_list_to_process)
                 
                 # -----
@@ -190,20 +191,20 @@ class FasterWhisperStreamV2(PyXavi):
 
         except queue.ShutDown as e:
             self.is_active = False
-            raise SpeechToTextException("Queue Shutdown detected in FasterWhisper recognize(): " + str(e))
+            raise SpeechToTextException("Queue Shutdown detected in FasterWhisper Stream recognize(): " + str(e))
         except SpeechToTextException as ve:
             self.is_active = False
             # It's handled in Main, don't even log it here
             raise ve
         except KeyboardInterrupt:
-            self._xlog.debug("Pressed Control + C while running FasterWhisper transcription.")
+            self._xlog.debug("Pressed Control + C while running FasterWhisper Stream transcription.")
             self.is_active = False
             self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
-            raise SpeechToTextException("FasterWhisper BrokenPipeError: " + str(bpe))
+            raise SpeechToTextException("FasterWhisper Stream BrokenPipeError: " + str(bpe))
         except Exception as e:
-            self._xlog.error("🛑 Error during FasterWhisper recognition: " + str(e))
+            self._xlog.error("🛑 Error during FasterWhisper Stream recognition: " + str(e))
             self._xlog.error(full_stack())
             self.close()
             return None
@@ -211,20 +212,20 @@ class FasterWhisperStreamV2(PyXavi):
     def _process_leftover_chunks(self) -> str:
         # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
         if len(self._ongoing_chunk_window) == 0:
-            self._log_debug("FasterWhisper: No leftover audio chunks in the ongoing window to process.")
+            self._log_debug("FasterWhisper Stream: No leftover audio chunks in the ongoing window to process.")
             return ""
         
-        self._log_debug(f"FasterWhisper: Processing leftover {len(self._ongoing_chunk_window)} audio chunks from the ongoing window.")
+        self._log_debug(f"FasterWhisper Stream: Processing leftover {len(self._ongoing_chunk_window)} audio chunks from the ongoing window.")
         last_partial = self._process_chunks(self._ongoing_chunk_window)
         return last_partial
     
     def _process_chunks(self, chunk_list: list[bytes]) -> str:
         # Join together the chunks in the window and process them with the context of the last overlap and the ongoing transcription.
-        self._log_debug(f"FasterWhisper: Processing {len(chunk_list)} audio chunks with the context of the last overlap and the ongoing transcription. Current ongoing transcription: '{self._ongoing_transcription}'")
+        self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with the context of the last overlap and the ongoing transcription. Current ongoing transcription: '{self._ongoing_transcription}'")
         preprocessed_chunks = [self._preprocessor.preprocess_chunk(chunk, return_in_numpy=True) for chunk in chunk_list]
         preprocessed_chunks = list(filter(lambda x: x is not None and len(x) > 0, preprocessed_chunks))
         if len(preprocessed_chunks) == 0:
-            self._log_debug("FasterWhisper: No valid audio chunks to process after preprocessing, returning empty result.")
+            self._log_debug("FasterWhisper Stream: No valid audio chunks to process after preprocessing, returning empty result.")
             return ""
         preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
         audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
@@ -232,7 +233,7 @@ class FasterWhisperStreamV2(PyXavi):
         # Use the last 50 characters of the ongoing transcription as a prompt
         prompt = self._ongoing_transcription[-50:] if self._ongoing_transcription else ""
 
-        self._log_debug(f"FasterWhisper: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
+        self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
         segments, _ = self._model.transcribe(
             audio_to_process,
             beam_size=2,
@@ -306,7 +307,7 @@ class FasterWhisperStreamV2(PyXavi):
 
                 result = None
 
-                self._log_debug(f"FasterWhisper: Processing all audio chunks [{self._queue.qsize()}] from the queue at once")
+                self._log_debug(f"FasterWhisper Stream: Processing all audio chunks [{self._queue.qsize()}] from the queue at once")
 
                 audio_np = []
 
@@ -317,22 +318,22 @@ class FasterWhisperStreamV2(PyXavi):
                     data = self._queue.get()
 
                     if data is None:
-                        self._log_debug("FasterWhisper: Received None data from the queue, skipping it.")
+                        self._log_debug("FasterWhisper Stream: Received None data from the queue, skipping it.")
                         continue
 
                     # Preprocess. Returns a numpy array in INT16 (PCM_16) format.
                     preprocessed_data = self._preprocessor.preprocess_chunk(data, return_in_numpy=True)
 
                     if preprocessed_data is None:
-                        self._log_debug("FasterWhisper: Preprocessed data is None, skipping this chunk.")
+                        self._log_debug("FasterWhisper Stream: Preprocessed data is None, skipping this chunk.")
                         continue
 
                     audio_np.append(preprocessed_data)
                 
-                self._log_debug(f"FasterWhisper: All audio chunks from the queue have been preprocessed, total {len(audio_np)} chunks. Transcribing them with FasterWhisper...")
+                self._log_debug(f"FasterWhisper Stream: All audio chunks from the queue have been preprocessed, total {len(audio_np)} chunks. Transcribing them with FasterWhisper...")
 
                 if len(audio_np) == 0:
-                    self._log_debug("FasterWhisper: No audio chunks to process after preprocessing, returning empty result.")
+                    self._log_debug("FasterWhisper Stream: No audio chunks to process after preprocessing, returning empty result.")
                     return ""
                 # Join the chunks and transcribe them with FasterWhisper.
                 #   Note: we don't want to join the chunks before preprocessing, because this could lead to memory issues if the user speaks for a long time, and also because the Preprocessor may do some operations that are better to do on smaller chunks (for example, VAD).
@@ -344,7 +345,7 @@ class FasterWhisperStreamV2(PyXavi):
                 # The transcription actually is done per segment, it's a generator, so we could improve the code speed here.
                 result = " ".join([segment.text for segment in segments]).strip()
 
-                self._log_debug(f"FasterWhisper: Finished processing all audio chunks from the queue, final result: {result}")
+                self._log_debug(f"FasterWhisper Stream: Finished processing all audio chunks from the queue, final result: {result}")
                 return result
 
         except queue.ShutDown as e:
@@ -355,34 +356,34 @@ class FasterWhisperStreamV2(PyXavi):
             # It's handled in Main, don't even log it here
             raise ve
         except KeyboardInterrupt:
-            self._xlog.debug("Pressed Control + C while running FasterWhisper transcription.")
+            self._xlog.debug("Pressed Control + C while running FasterWhisper Stream transcription.")
             self.is_active = False
             self.close()
         except BrokenPipeError as bpe:
             self.is_active = False
-            raise SpeechToTextException("FasterWhisper BrokenPipeError: " + str(bpe))
+            raise SpeechToTextException("FasterWhisper Stream BrokenPipeError: " + str(bpe))
         except Exception as e:
-            self._xlog.error("🛑 Error during FasterWhisper recognition: " + str(e))
+            self._xlog.error("🛑 Error during FasterWhisper Stream recognition: " + str(e))
             self._xlog.error(full_stack())
             self.close()
             return None
     
     def close(self):
-        self._xlog.info("Closing FasterWhisper STT")
+        self._xlog.info("Closing FasterWhisper Stream STT")
         
         if self._model is not None:
-            self._xlog.debug("Deleting FasterWhisper model")
+            self._xlog.debug("Deleting FasterWhisper Stream model")
             del self._model
         
         if self._queue is not None:
-            self._xlog.debug("Deleting FasterWhisper queue")
+            self._xlog.debug("Deleting FasterWhisper Stream queue")
             del self._queue
         
         if self._support is not None:
-            self._xlog.debug("Closing Support process from FasterWhisper and deleting it")
+            self._xlog.debug("Closing Support process from FasterWhisper Stream and deleting it")
             del self._support
         
-        # Remember that FasterWhisper is not active anymore
+        # Remember that FasterWhisper Stream is not active anymore
         self.is_active = False
 
-        self._xlog.info("FasterWhisper STT closed")
+        self._xlog.info("FasterWhisper Stream STT closed")

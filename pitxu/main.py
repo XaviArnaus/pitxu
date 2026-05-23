@@ -262,17 +262,18 @@ class Main(PyXavi):
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
             
+            # Attention: only for Streaming engines!
             # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
-            # This was introduced for Faster Whisper, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper", "faster_whisper_streaming"]:
+            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
                 self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
                 self._dictate.reset_context()
             
-            # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
-            self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
-            partial_transcription = self._dictate.recognize_chunks_from_queue()
-            if partial_transcription is not None and partial_transcription.strip() != "":
-                self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+                # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
+                self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
+                partial_transcription = self._dictate.recognize_chunks_from_queue()
+                if partial_transcription is not None and partial_transcription.strip() != "":
+                    self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -285,11 +286,13 @@ class Main(PyXavi):
         """
 
         try:
-            # So we have a new chunk in the queue. Process it.
-            #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
-            partial_transcription = self._dictate.recognize_chunks_from_queue()
-            if partial_transcription is not None and partial_transcription.strip() != "":
-                self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+            # Attention: only for Streaming engines!
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+                # So we have a new chunk in the queue. Process it.
+                #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
+                partial_transcription = self._dictate.recognize_chunks_from_queue()
+                if partial_transcription is not None and partial_transcription.strip() != "":
+                    self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_ongoing(): " + str(e))
             self._xlog.error(full_stack())
@@ -322,9 +325,13 @@ class Main(PyXavi):
             self._interaction.set_stt_busy()
             self._last_stt_processing_time = 0
 
-            # COMMENTED OUT: We're moving towards a Streaming / Windowing approach.
-            #question = self._dictate.recognize_all_queue_at_once()
-            question = self._dictate.get_transcription()
+            # If we are using a streaming engine, we don't want to process the audio, we just want to get the transcription.
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+                self._log_debug("Getting transcription from Dictate after VAD detected speech finished, for streaming engine...")
+                question = self._dictate.get_transcription()
+            else:
+                self._log_debug("Getting transcription from Dictate after VAD detected speech finished, for non-streaming engine...")
+                question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
@@ -599,7 +606,6 @@ class Main(PyXavi):
         self._interaction.wait_for_all_busy_processes_to_idle()
 
         # Stop the Chatbot Session Manager.
-        # ❗️ THE CLOSING STOPS HERE. RESULT() TIMESOUT AND THE EXCEPTION GETS CAUGHT, BUT THE APP KEEPS RUNNING AND DOES NOT CLOSE. IT SEEMS LIKE THE EXCEPTION IS NOT THE PROBLEM, BUT THE FACT OF WAITING FOR THE COROUTINE TO FINISH WITH RESULT() IS WHAT MAKES IT HANG. MAYBE WE CAN JUST CALL THE COROUTINE WITHOUT WAITING FOR IT TO FINISH? OR WAIT FOR IT WITH A TIMEOUT AND IGNORE IF IT TIMES OUT?
         if self._chatbot_session_manager is not None:
             asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
             # future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
