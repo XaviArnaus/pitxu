@@ -8,6 +8,7 @@ from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 import threading
 import queue
+import time
 from faster_whisper import WhisperModel
 import os
 import numpy as np
@@ -41,6 +42,8 @@ class FasterWhisperStreamV3(PyXavi):
 
     _overlap_size = 2000
     _chunks_window = 10
+    _sleep_when_no_chunks = 0.1
+
     _last_overlap = np.array([], dtype=np.float32)
     _ongoing_transcription = ""
     _ongoing_chunk_window = []
@@ -81,7 +84,7 @@ class FasterWhisperStreamV3(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            model = self._xconfig.get("speech-to-text.faster_whisper.model." + language, None)
+            model = self._xconfig.get("speech-to-text.faster_whisper_streaming.model." + language, None)
             if model is not None:
                 # Control the internal Faster Whisper logging
                 logging_level = self._xconfig.get("libs_logger.faster_whisper.loglevel", logging.INFO)
@@ -93,13 +96,15 @@ class FasterWhisperStreamV3(PyXavi):
                 logging.getLogger("httpcore").setLevel(httpcore_logger_level)
 
                 # I don't understand why device and download_root get read as tuples instead of strings.
-                device = str(self._xconfig.get("speech-to-text.faster_whisper.device", "cpu"))
-                download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper.download_root", None)))
-                compute_type = str(self._xconfig.get("speech-to-text.faster_whisper.compute_type", "int8"))
-                overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper.overlap_size", 2000))
-                chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper.chunks_window", 10))
+                device = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.device", "cpu"))
+                download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
+                compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
+                overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
+                chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
+                sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
                 self._overlap_size = overlap_size
                 self._chunks_window = chunks_window
+                self._sleep_when_no_chunks = sleep_when_no_chunks
 
                 logging_parts.append(("Model from config", model))
                 logging_parts.append(("Device for Faster Whisper", device))
@@ -108,6 +113,7 @@ class FasterWhisperStreamV3(PyXavi):
                 logging_parts.append(("Overlap size", overlap_size))
                 logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
                 logging_parts.append(("Chunks window", chunks_window))
+                logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
                 logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
                 logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
                 logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
@@ -190,6 +196,8 @@ class FasterWhisperStreamV3(PyXavi):
 
                 # If the queue is empty, we just wait for the next chunk to arrive, without doing anything.
                 if self._queue.empty():
+                    # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
+                    time.sleep(self._sleep_when_no_chunks)
                     continue
 
                 # Get the next chunk from the queue.
@@ -324,6 +332,14 @@ class FasterWhisperStreamV3(PyXavi):
         else:
             # No significant overlap, just append
             merged = self._ongoing_transcription + " " + partial_transcription
+        
+        # If there are multiple dots in the merged transcription, replace them with a single dot.
+        while ".." in merged:
+            merged = merged.replace("..", ".")
+        
+        # If there are multiple space & comas in the merged transcription, just remove them.
+        while " ," in merged:
+            merged = merged.replace(" ,", "")
 
         self._ongoing_transcription = merged.strip()
         return self._ongoing_transcription

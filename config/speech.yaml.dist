@@ -128,17 +128,41 @@ speech-to-text:
     # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
     #   See https://github.com/SYSTRAN/faster-whisper for more details.
     compute_type: int8
-    # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
-    #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
-    #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
-    # ONLY USED IN THE STREAMING VERSION OF FASTER WHISPER, NOT IN THE NORMAL ONE.
-    overlap_size: 4000
-    # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
-    # ONLY USED IN THE STREAMING VERSION OF FASTER WHISPER, NOT IN THE NORMAL ONE.
-    chunks_window: 50
     # [Bool] Allow transcription of multilingual input.
     # NOT YET USED
     multilingual: True
+  # Specific configuration for Faster Whisper Streaming, when applicable.
+  faster_whisper_streaming:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://github.com/openai/whisper# Models: tiny, base, small, medium, large. The ones with ".en" are optimized for English.
+    model:
+      # Catalan
+      ca: small
+      # Spanish
+      es: small
+      # English
+      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
+      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
+      en: small.en
+      # German
+      de: small
+    # [String] The location where the offline faster whisper files are stored.
+    #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
+    download_root: faster_whisper
+    # [String] The device to use for the Faster Whisper model. Options: "cpu", "cuda", "mps", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    device: cpu
+    # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    compute_type: int8
+    # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
+    #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
+    #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
+    overlap_size: 8000
+    # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
+    chunks_window: 50
+    # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
+    sleep_when_no_chunks: 0.1
 
 
 # Configurations for the Text-to-Speech

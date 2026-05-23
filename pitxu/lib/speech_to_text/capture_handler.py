@@ -139,6 +139,11 @@ class CaptureHandler(PyXavi):
                                             indata,
                                             in_rate=self.microphone_samplerate,
                                             out_rate=self.target_samplerate)
+                
+                # Sometimes the resampled audio can be empty due to some issue in the resampling process, so we check for that before feeding the VAD.
+                if len(indata) == 0 or indata is None:
+                    self._xlog.warning("🗣️ Resampled audio is None or empty, skipping this block")
+                    return
 
 
             if self._xconfig.get("speech-to-text.vad.enabled", False):
