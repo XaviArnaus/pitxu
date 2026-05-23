@@ -9,7 +9,7 @@
     - New execution mode `local_status` that allows only local and the `/status` endpoint
     - Ability to download the content of a given URL and return it to the chatbot, as an external tool.
     - Ability to download the raw code from a Github url, as an external tool
-- Pronounce correctly "Xavi" [#33](https://github.com/XaviArnaus/pitxu/pull/33).
+- Pronounce correctly "Xavi" [#33](https://github.com/XaviArnaus/pitxu/pull/33)
 - Warm up the Chatbot before the user interaction [#34](https://github.com/XaviArnaus/pitxu/pull/34)
 - Add Ability to pull content from Github PR and branches [#37](https://github.com/XaviArnaus/pitxu/pull/37)
 - Add name variations to improve the waking up by triggering words [#38](https://github.com/XaviArnaus/pitxu/pull/38)
@@ -20,6 +20,7 @@
 - Chatbot Gemini main model is now be defined in the config
 - Account for the STT processing time when identifying an ongoing conversation (avoid ignoring long trascriptions)
 - Change the name from Gina to Teresa to improve the STT recognition as Trigger Word.
+- Pronounce correctly "Xavi", second iteration [#39](https://github.com/XaviArnaus/pitxu/pull/39)
 
 ### Fixed
 

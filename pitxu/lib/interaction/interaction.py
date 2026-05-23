@@ -10,6 +10,7 @@ from pitxu.lib.eink.display import Display as eInk
 from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
+from pitxu.lib.utils.text import Text
 
 from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
@@ -227,7 +228,8 @@ class Interaction(PyXavi):
             self.show_networking()
 
             self._log_debug(f"🗣️ Gatehring TTS from the server")
-            self.process_pool.send(QUEUE_SPEAKER, XprocAction.GATHER_TTS, message)
+            tts_message = Text.replace_known_text(message, self._xconfig.get("language.tts_text_replacements." + self._xparams.get("language"), {}))
+            self.process_pool.send(QUEUE_SPEAKER, XprocAction.GATHER_TTS, tts_message)
 
             self.wait_for_server_to_start_and_finish_networking()
 
@@ -254,7 +256,8 @@ class Interaction(PyXavi):
 
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending SAY command to Speaker")
-            self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, message)
+            tts_message = Text.replace_known_text(message, self._xconfig.get("language.tts_text_replacements." + self._xparams.get("language"), {}))
+            self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, tts_message)
 
             # We want that the main thread waits until the actions finished in the subprocesses
             self._log_debug(f"🗣️ Waiting for Speaker and Display to start and finish speaking")
