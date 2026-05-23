@@ -144,6 +144,7 @@ language:
       "etc.": "etcètera"
       "°C": "graus"
       "km/h": "quilòmetres per hora"
+      "Xavi": "Txabi"
     es:
       "&amp;": "y"
       "&lt;": "menor que"
@@ -153,6 +154,7 @@ language:
       "etc.": "etcétera"
       "°C": "grados"
       "km/h": "kilómetros por hora"
+      "Xavi": "Chabi"
     en-us:
       "&amp;": "and"
       "&lt;": "less than"
@@ -163,6 +165,7 @@ language:
       "°C": "degrees"
       "km/h": "kilometers per hour"
       "e.g.": "for example"
+      "Xavi": "Chabee"
     de:
       "&amp;": "und"
       "&lt;": "kleiner als"
@@ -172,6 +175,7 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
+      "Xavi": "Chabi"
 
   # Reminders
   reminders:
