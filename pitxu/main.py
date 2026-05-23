@@ -264,7 +264,7 @@ class Main(PyXavi):
             
             # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
             # This was introduced for Faster Whisper, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") == "faster_whisper":
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper", "faster_whisper_streaming"]:
                 self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
                 self._dictate.reset_context()
             
@@ -767,6 +767,13 @@ class Main(PyXavi):
 
             self._xparams.set("support", self._support)
             self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
+        
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+
+            from pitxu.lib.speech_to_text.faster_whisper_stream_v2 import FasterWhisperStreamV2
+
+            self._xparams.set("support", self._support)
+            self._dictate = FasterWhisperStreamV2(config=self._xconfig, params=self._xparams)
 
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))

@@ -10,13 +10,19 @@ import queue
 from faster_whisper import WhisperModel
 import os
 import numpy as np
+import difflib
 import logging
 
 class FasterWhisperStreamV2(PyXavi):
     """
-    STT with Faster Whisper, with Streaming Window and naive string merging, evolving from V1.
+    STT with Faster Whisper, with Streaming Window and naive string merging.
 
-    - Work in progress, trying to improve V1, fine tunning and iterating here and there. Kinda abandoned.
+    - Works
+    - Processes the audio chunks in the queue with a sliding window approach, while the user is still speaking.
+    - Chunks are accummulated in a window of 50 chunks, overlapping last "n" samples (4000 samples = 250ms at 16kHz), merging text with stupid string processing.
+    - Fast enough. Last left-over processing takes too much time, most likely as a bug.
+    - Way less accurate, some words are repeated, some words are cut, some words are wrong, ... But the model afterwards corrects it and understands it mostly.
+    - Tried in the RPi 5 since 2026-05-21.
     """
 
     _model: WhisperModel = None
@@ -30,7 +36,6 @@ class FasterWhisperStreamV2(PyXavi):
 
     _overlap_size = 2000
     _chunks_window = 10
-    _chunk_length = 4000
     _last_overlap = np.array([], dtype=np.float32)
     _ongoing_transcription = ""
     _ongoing_chunk_window = []
@@ -73,10 +78,8 @@ class FasterWhisperStreamV2(PyXavi):
                 compute_type = str(self._xconfig.get("speech-to-text.faster_whisper.compute_type", "int8"))
                 overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper.overlap_size", 2000))
                 chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper.chunks_window", 10))
-                chunk_length = int(self._xconfig.get("speech-to-text.bytes_per_chunk", 4000))
                 self._overlap_size = overlap_size
                 self._chunks_window = chunks_window
-                self._chunk_length = chunk_length
 
                 logging_parts.append(("Model from config", model))
                 logging_parts.append(("Device for Faster Whisper", device))
@@ -85,7 +88,6 @@ class FasterWhisperStreamV2(PyXavi):
                 logging_parts.append(("Overlap size", overlap_size))
                 logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
                 logging_parts.append(("Chunks window", chunks_window))
-                logging_parts.append(("Chunk length", chunk_length))
                 logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
                 logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
                 logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
@@ -206,14 +208,6 @@ class FasterWhisperStreamV2(PyXavi):
             self.close()
             return None
     
-    def get_transcription(self) -> str:
-        """
-        This method just retrieves the transcription done per chunks.
-        """
-        # Ensure that we're exhausting the leftover chunks in the window, if any, before getting the transcription.
-        self._process_leftover_chunks()
-        return self._ongoing_transcription
-    
     def _process_leftover_chunks(self) -> str:
         # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
         if len(self._ongoing_chunk_window) == 0:
@@ -221,11 +215,10 @@ class FasterWhisperStreamV2(PyXavi):
             return ""
         
         self._log_debug(f"FasterWhisper: Processing leftover {len(self._ongoing_chunk_window)} audio chunks from the ongoing window.")
-        last_partial = self._process_chunks(self._ongoing_chunk_window.copy(), is_final=True)
-        self._ongoing_chunk_window = []
+        last_partial = self._process_chunks(self._ongoing_chunk_window)
         return last_partial
     
-    def _process_chunks(self, chunk_list: list[bytes], is_final: bool = False) -> str:
+    def _process_chunks(self, chunk_list: list[bytes]) -> str:
         # Join together the chunks in the window and process them with the context of the last overlap and the ongoing transcription.
         self._log_debug(f"FasterWhisper: Processing {len(chunk_list)} audio chunks with the context of the last overlap and the ongoing transcription. Current ongoing transcription: '{self._ongoing_transcription}'")
         preprocessed_chunks = [self._preprocessor.preprocess_chunk(chunk, return_in_numpy=True) for chunk in chunk_list]
@@ -236,142 +229,65 @@ class FasterWhisperStreamV2(PyXavi):
         preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
         audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
 
+        # Use the last 50 characters of the ongoing transcription as a prompt
+        prompt = self._ongoing_transcription[-50:] if self._ongoing_transcription else ""
+
         self._log_debug(f"FasterWhisper: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
         segments, _ = self._model.transcribe(
-            # What to process
             audio_to_process,
-            # 
-            beam_size=5,
-            #
-            best_of=10,
-            #
-            repetition_penalty=2,
-            #
-            without_timestamps=False,
-            #
-            chunk_length=self._chunk_length,
-            #
+            beam_size=2,
             language=self.language,
-            condition_on_previous_text=True
-            # initial_prompt=self._ongoing_transcription
+            initial_prompt=prompt
         )
 
         # Update state
-        for segment in segments:
-            dd(segment)
         current_text = " ".join([s.text for s in segments]).strip()
 
         # Keep the last defined samples as overlap
         self._last_overlap = audio_to_process[-self._overlap_size:]
-        self._ongoing_transcription = self._merge_partial_transcription(current_text, is_final=is_final)
+        self._ongoing_transcription = self._merge_partial_transcription(current_text)
 
         return current_text
     
-    def _merge_partial_transcription(self, partial_transcription: str, is_final: bool = False) -> str:
+    def _merge_partial_transcription(self, partial_transcription: str) -> str:
 
-        # ---- Phase 0: Avoid doing work if no need for it, and initialize ----
-
-        self._ongoing_transcription = self._ongoing_transcription.strip() if self._ongoing_transcription is not None else ""
-        partial_transcription = partial_transcription.strip() if partial_transcription is not None else ""
-
-        # No partial transcription, no further work to do.
-        if partial_transcription == "":
+        # 1. Clean the input
+        partial_transcription = partial_transcription.strip()
+        if not partial_transcription:
             return self._ongoing_transcription
-
-        # ---- Phase 1: Preprocessing the partial transcriptions to try to merge them better ----
-
+        
         # Remove triple dots at the end, as they are added by Faster Whisper when it detects that the transcription is not finished,
         # but they are not useful for us, and they can cause problems when merging with the ongoing transcription.
+        # This should help the difflib to find a better overlap
         partial_transcription = partial_transcription.replace("...", "")
 
-        # If the last character of the ongoing is not a punctuation, make the first character of the partial transcription lowercase, to try to merge them better.
-        if len(self._ongoing_transcription) > 0 and self._ongoing_transcription[-1] not in [".", "!", "?"]:
-             partial_transcription = partial_transcription[0].lower() + partial_transcription[1:]
-        
-        # Remove the uhm, ahm, etc. from the partial transcription, as they are not useful for us, and they can cause problems when merging with the ongoing transcription.
-        expressions_to_remove = ["um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
-        for expr in expressions_to_remove:
-            partial_transcription = partial_transcription.replace(expr.capitalize(), "")
-            partial_transcription = partial_transcription.replace(expr, "")
-        
-        # After the previous we may end up with multiple spaces with dots, so we can remove them.
-        partial_transcription = partial_transcription.replace(" .", ".").replace("  ", " ")
+        # If there is a hyphen at the end of a word followed by a space, it means that the word is cut, so we remove the hyphen.
+        # This should help the difflib to find a better overlap
+        partial_transcription = partial_transcription.replace("- ", " ")
 
-        # In most of the cases, the partial transcription's last word is wrong or cut, so we can remove it to try to merge better with the ongoing transcription, that is more complete.
-        # Avoid doing so in case it is the last chunk and we are sure that the transcription is final, because in this case the last word could be correct and we don't want to remove it.
-        if len(partial_transcription) > 0 and not is_final:
-            partial_words = partial_transcription.split()
-            if len(partial_words) > 1:
-                partial_transcription = " ".join(partial_words[:-1])
-        
-        # In the partial transcription, after a comma the next word should be lowercase, and after a dot the next word should be uppercase
-        if len(partial_transcription) > 0:
-            partial_words = partial_transcription.split()
-            for i in range(1, len(partial_words)):
-                if partial_words[i-1].endswith(","):
-                    partial_words[i] = partial_words[i].lower()
-                elif partial_words[i-1].endswith("."):
-                    partial_words[i] = partial_words[i].capitalize()
-            partial_transcription = " ".join(partial_words)
-        
-        # ---- Phase 2: Decide the merge itself ----
+        # 2. Use SequenceMatcher to find the overlap
+        # We look for the best match between the end of the ongoing transcription
+        # and the beginning of the new partial transcription.
+        matcher = difflib.SequenceMatcher(None, self._ongoing_transcription[-100:].lower(), partial_transcription[:100].lower())
+        match = matcher.find_longest_match(0, len(self._ongoing_transcription[-100:]), 0, len(partial_transcription[:100]))
 
-        merged_transcription = ""
+        if match.size > 10: # Threshold for a valid overlap
+            # Merge by taking the ongoing part + the new part after the overlap
+            merged = self._ongoing_transcription + partial_transcription[match.size:]
+        else:
+            # No significant overlap, just append
+            merged = self._ongoing_transcription + " " + partial_transcription
 
-        # The partial transcription is the same as the ongoing one, no need to merge, just return it.
-        if self._ongoing_transcription.lower() == partial_transcription.lower():
-            merged_transcription = self._ongoing_transcription
-
-        # No ongoing transcription, just return the partial one.
-        if self._ongoing_transcription == "":
-            merged_transcription = partial_transcription
-
-        # If the partial trascription is fully included in the ongoing transcription, we can just keep the ongoing transcription, it's more complete.
-        if partial_transcription.lower() in self._ongoing_transcription.lower():
-            merged_transcription = self._ongoing_transcription
-        
-        # If the last 2 words of the ongoing transcription are the same as the first 2 words of the partial transcription, we can merge them by removing the last 2 words of the ongoing transcription.
-        ongoing_words = self._ongoing_transcription.lower().split()
-        partial_words = partial_transcription.lower().split()
-        if len(ongoing_words) > 1 and len(partial_words) > 1 and ongoing_words[-2:] == partial_words[:2]:
-            merged = " ".join(ongoing_words[:-2]) + " " + " ".join(partial_words)
-            merged_transcription = merged.strip()
-        
-        # If the last word of the ongoing transcription is the same as the first word of the partial transcription, we can merge them by removing the last word of the ongoing transcription.
-        ongoing_words = self._ongoing_transcription.lower().split()
-        partial_words = partial_transcription.lower().split()
-        if len(ongoing_words) > 0 and len(partial_words) > 0 and ongoing_words[-1] == partial_words[0]:
-            merged = " ".join(ongoing_words[:-1]) + " " + " ".join(partial_words)
-            merged_transcription = merged.strip()
-        
-        # Still here? Just concatenate them, we couldn't find any common words to merge them better.
-        merged = self._ongoing_transcription + " " + partial_transcription
-        merged_transcription = merged.strip()
-
-        # ---- Phase 3: Postprocessing the merged transcription to try to make it better ----
-
-        # If the merged transcription has multiple spaces, replace them with a single space.
-        merged_transcription = merged_transcription.replace("  ", " ")
-
-        # In the merged transcription, after a comma the next word should be lowercase, and after a dot the next word should be uppercase, so we can fix this to try to merge better with the ongoing transcription.
-        if len(merged_transcription) > 0:
-            partial_words = merged_transcription.split()
-            for i in range(1, len(partial_words)):
-                if partial_words[i-1].endswith(","):
-                    partial_words[i] = partial_words[i].lower()
-                elif partial_words[i-1].endswith("."):
-                    partial_words[i] = partial_words[i].capitalize()
-            merged_transcription = " ".join(partial_words)
-        
-        # If there are multiple dots in the merged transcription, replace them with a single dot.
-        while ".." in merged_transcription:
-            merged_transcription = merged_transcription.replace("..", ".")
-        
-        # If we have a comma and a dot together with no space, we just leave the dot.
-        merged_transcription = merged_transcription.replace(",.", ".").replace(".,", ".")
-        
-        # ---- Phase 4: Return the merged transcription and update the ongoing transcription with it -----
-        return merged_transcription
+        self._ongoing_transcription = merged.strip()
+        return self._ongoing_transcription
+    
+    def get_transcription(self) -> str:
+        """
+        This method just retrieves the transcription done per chunks.
+        """
+        # Ensure that we're exhausting the leftover chunks in the window, if any, before getting the transcription.
+        self._process_leftover_chunks()
+        return self._ongoing_transcription
     
     def recognize_all_queue_at_once(self) -> str:
         """
