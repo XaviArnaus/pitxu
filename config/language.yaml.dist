@@ -176,6 +176,17 @@ language:
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
       "Xavi": "Chabi"
+  
+  # Replacements at TTS only to improve pronunciation
+  tts_text_replacements:
+    ca:
+      "Xavi": "Txabi"
+    es:
+      "Xavi": "Chabi"
+    en-us:
+      "Xavi": "Chabee"
+    de:
+      "Xavi": "Chabi"
 
   # Reminders
   reminders:
