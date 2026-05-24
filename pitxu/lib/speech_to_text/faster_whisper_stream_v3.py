@@ -15,6 +15,7 @@ import numpy as np
 import difflib
 import logging
 import asyncio
+import re
 
 class FasterWhisperStreamV3(PyXavi):
     """
@@ -43,11 +44,21 @@ class FasterWhisperStreamV3(PyXavi):
     _overlap_size = 2000
     _chunks_window = 10
     _sleep_when_no_chunks = 0.1
+    _use_low_confidence_threshold = False
+    _low_confidence_threshold = -1
 
     _last_overlap = np.array([], dtype=np.float32)
     _ongoing_transcription = ""
     _ongoing_chunk_window = []
     _worker_thread: threading.Thread = None
+    _transcription_buffer = [] # Store the last few words of the previous transcription
+
+    # List of common hallucinated phrases. They usuallty come at the end of the transcription
+    phrases_to_remove = [
+        "thank you for watching",
+        "thanks for watching",
+        "subscribe for more",
+    ]
 
     VERBOSE_DEBUG: bool = True
 
@@ -172,6 +183,7 @@ class FasterWhisperStreamV3(PyXavi):
         self._last_overlap = np.array([], dtype=np.float32)
         self._ongoing_transcription = ""
         self._ongoing_chunk_window = []
+        self._transcription_buffer = []
     
     def _transcription_worker(self):
         """
@@ -295,6 +307,7 @@ class FasterWhisperStreamV3(PyXavi):
         segments, _ = self._model.transcribe(
             audio_to_process,
             beam_size=2,
+            temperature=0.0,
             language=self.language,
             initial_prompt=prompt
         )
@@ -304,9 +317,17 @@ class FasterWhisperStreamV3(PyXavi):
         texts = []
         for segment in segments:
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
-            texts.append(segment.text)
+            if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
+                self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
+            else:
+                texts.append(segment.text)
             # dd(segment)
         self.log_summary("Segments info", seg_infos)
+
+        # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
+        if len(texts) == 0:
+            self._log_debug("FasterWhisper Stream: No valid segments to process after transcription, returning empty result.")
+            return ""
 
         # Update state
         current_text = " ".join(texts).strip()
@@ -344,18 +365,74 @@ class FasterWhisperStreamV3(PyXavi):
         # After the previous we may end up with multiple spaces with dots, so we can remove them.
         partial_transcription = partial_transcription.replace(" .", ".").replace("  ", " ")
 
-        # 2. Use SequenceMatcher to find the overlap
-        # We look for the best match between the end of the ongoing transcription
-        # and the beginning of the new partial transcription.
-        matcher = difflib.SequenceMatcher(None, self._ongoing_transcription[-100:].lower(), partial_transcription[:100].lower())
-        match = matcher.find_longest_match(0, len(self._ongoing_transcription[-100:]), 0, len(partial_transcription[:100]))
+        # 2. Merging
+        merged = ""
 
-        if match.size > 10: # Threshold for a valid overlap
-            # Merge by taking the ongoing part + the new part after the overlap
-            merged = self._ongoing_transcription + partial_transcription[match.size:]
+        self._log_debug(f"> Partial: {partial_transcription}")
+        self._log_debug(f"> Transcription buffer before merging: {self._transcription_buffer}")
+        self._log_debug(f"> Ongoing transcription before merging: {self._ongoing_transcription}")
+
+        # --- Buffer and Wait Strategy --->
+        new_words = partial_transcription.split()
+
+        # If we have a buffer, try to find the first complete word match
+        if len(self._transcription_buffer) > 0 and len(new_words) > 0:
+            # CURRENT STATUS:
+            # It removes too much. most likely it finds the right word in the wrong position:
+            # > Partial: I am now troubleshooting the
+            # > Transcription buffer before merging: ['And', 'I', 'am', 'now', 'troubleshooting.']
+            # > Ongoing transcription before merging: the 22nd delay is implemented. And I am now troubleshooting.
+            # < Transcription buffer after merging: ['the']
+            # < Merged transcription after merging: the
+
+            for i, word in enumerate(new_words):
+                if word in self._transcription_buffer:
+                    # Found a match! The new transcription starts from here.
+                    # We discard everything before this word in the new chunk.
+
+                    # 1. Find the index of the word in the ongoing transcription, should be the same as in the buffer if we count from behind.
+                    word_position = self._ongoing_transcription.rfind(word)
+                    if word_position == -1:
+                        # This should not happen, so just continue.
+                        continue
+                    # 2. Remove everything after this word in the ongoing transcription, and everything before this word in the new transcription, and merge them.
+                    merged_words = self._ongoing_transcription[:word_position].split() + new_words[i:]
+
+                    # 3. Create the merged transcription.
+                    merged = " ".join(merged_words)
+
+                    # 4. Update buffer with the last few words
+                    self._transcription_buffer = merged_words[-5:]
+            
+            # If reaching this point there is no merged text, means that none of the new words matched with the buffer.
+            # This means that the new transcription is completely different from the ongoing one, most likely beause the  transcription buffer
+            #   was not cleaned in this transcription iteration, so we just append the new transcription to the ongoing one, without merging.
+            if not merged:
+                merged = self._ongoing_transcription + " " + partial_transcription
+                self._transcription_buffer = merged.split()[-5:]
+        # <---
         else:
-            # No significant overlap, just append
-            merged = self._ongoing_transcription + " " + partial_transcription
+
+            # Use SequenceMatcher to find the overlap
+            # We look for the best match between the end of the ongoing transcription
+            # and the beginning of the new partial transcription.
+            matcher = difflib.SequenceMatcher(None, self._ongoing_transcription[-100:].lower(), partial_transcription[:100].lower())
+            match = matcher.find_longest_match(0, len(self._ongoing_transcription[-100:]), 0, len(partial_transcription[:100]))
+
+            if match.size > 10: # Threshold for a valid overlap
+                # Merge by taking the ongoing part + the new part after the overlap
+                merged = self._ongoing_transcription + partial_transcription[match.size:]
+            else:
+                # No significant overlap, just append
+                merged = self._ongoing_transcription + " " + partial_transcription
+            
+            # Save some words for the next iteration.
+            self._transcription_buffer = merged.split()[-5:]
+        
+        self._log_debug(f"< Transcription buffer after merging: {self._transcription_buffer}")
+        self._log_debug(f"< Merged transcription after merging: {merged}")
+        
+        # 3. Cleaning.
         
         # If there are multiple dots in the merged transcription, replace them with a single dot.
         while ".." in merged:
@@ -368,13 +445,21 @@ class FasterWhisperStreamV3(PyXavi):
         self._ongoing_transcription = merged.strip()
         return self._ongoing_transcription
     
+    def _clean_transcription(self, text: str) -> str:
+        cleaned_text = text
+        # for phrase in self.phrases_to_remove:
+        #     # Use case-insensitive matching and remove the phrase
+        #     pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        #     cleaned_text = pattern.sub("", cleaned_text)
+
+        return cleaned_text.strip()
+    
     def get_transcription(self) -> str:
         """
         This method just retrieves the transcription done per chunks.
         """
         # Ensure that we're exhausting the leftover chunks in the window, if any, before getting the transcription.
-        # self._process_leftover_chunks()
-        return self._ongoing_transcription
+        return self._clean_transcription(self._ongoing_transcription)
     
     def recognize_all_queue_at_once(self) -> str:
         """
