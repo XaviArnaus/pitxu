@@ -44,7 +44,7 @@ speech-to-text:
     # [Float] Seconds before speech onset confirmed
     attack: 0.050
     # [Float] Seconds of silence before speech end
-    release: 3.0
+    release: 2.0
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
     # [Bool] Preprocessor is activated or not.

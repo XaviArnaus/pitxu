@@ -60,7 +60,9 @@ class FasterWhisperStreamV3(PyXavi):
     #   as they can be added by Faster Whisper and cause problems when merging.
     punctuations_to_add_to_words = [".", ",", "?", "!", "..."]
 
-    words_to_remove_from_partial_transcription = ["I", "you", "he", "she", "it", "we", "they", "to", "and"] # This is for English, we can add more languages later if needed.
+    # Avoid using the following words for the merging process, as they are too common and can cause more problems than benefits when merging,
+    # Remember that they need to be all lowercase!
+    words_to_remove_from_partial_transcription = ["i", "you", "he", "she", "it", "we", "they", "to", "and"] # This is for English, we can add more languages later if needed.
 
     # List of common hallucinated phrases. They usuallty come at the end of the transcription
     phrases_to_remove = [
@@ -228,7 +230,9 @@ class FasterWhisperStreamV3(PyXavi):
                     self._log_debug("FasterWhisper Stream: Received None data from the queue, It should be the end of the stream.")
 
                     # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
-                    _ = self._process_leftover_chunks()
+                    # COMMENTED: Feels like this is not needed, as the transcription appears complete until now in the logs and then, all of a sudden,
+                    #   a lot of garbage is added at the end
+                    # _ = self._process_leftover_chunks()
 
                     # Clean anything LOCAL that would accumulate or trigger.
                     chunk_list_to_process = []
@@ -318,20 +322,24 @@ class FasterWhisperStreamV3(PyXavi):
             beam_size=2,
             temperature=0.0,
             language=self.language,
-            initial_prompt=prompt
+            initial_prompt=prompt,
+            word_timestamps=True
         )
 
         # What's the info that the segments bring? I'm interested in the timestamps
         seg_infos = []
         texts = []
+        words_info = []
         for segment in segments:
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
             if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
             else:
                 texts.append(segment.text)
-            # dd(segment)
+            for word in segment.words:
+                words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
         self.log_summary("Segments info", seg_infos)
+        self.log_summary("Words info", words_info)
 
         # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
         if len(texts) == 0:
@@ -368,7 +376,7 @@ class FasterWhisperStreamV3(PyXavi):
         # Incomplete partial words are followed by an hyphen at the end of the word, at the end of the string. 
         #   If so, we need to remove the hyphen and the word completely.
         if partial_transcription.endswith("-"):
-            partial_transcription = re.sub(r'\b\w+-\b', '', partial_transcription).strip()
+            partial_transcription = re.sub(r'\w-$', '', partial_transcription).strip()
 
         # Remove the uhm, ahm, etc. from the partial transcription, as they are not useful for us, and they can cause problems when merging with the ongoing transcription.
         for expr in self.expressions_to_remove:
@@ -389,26 +397,29 @@ class FasterWhisperStreamV3(PyXavi):
 
         # The words in the new partial transcription.
         new_words = partial_transcription.split()
-        new_words = [w.strip().lower() if (w.strip() != "I" and self.language == "en") else w.strip() for w in new_words]
+        lowercased_new_words = [w.strip().lower() for w in new_words]
 
         # If we have a buffer, try to find the first complete word match
         if len(self._transcription_buffer) > 0 and len(new_words) > 0:
             found = False
-            for i, word in enumerate(new_words):
+            for i, word in enumerate(lowercased_new_words):
                 # We want to skip searching for this word because it's too common and can cause more problems than benefits when merging, 
                 # as it can be found in many places in the transcription buffer, and it doesn't add much value for the merging process.
                 if word in self.words_to_remove_from_partial_transcription:
                     continue
                 self._log_debug(f"* Searching for the word '{word}' in the transcription buffer")
                 words_with_punctuation = [word + p for p in self.punctuations_to_add_to_words] + [word]
+                lowercased_trascription_buffer = [w.strip().lower() for w in self._transcription_buffer]
                 for word_with_punctuation in words_with_punctuation:
-                    if word_with_punctuation in self._transcription_buffer:
+                    index_in_transcription_buffer = self.find_in_list_relative_from_behind(word_with_punctuation, lowercased_trascription_buffer)
+                    if index_in_transcription_buffer is not None:
                         # Found a match! The new transcription starts from here.
                         found = True
                         # We discard everything before this word in the new chunk.
-                        self._log_debug(f"* Found the word '{word_with_punctuation}' in the transcription buffer at position {self._transcription_buffer.index(word_with_punctuation)}")
-                        self._log_debug(f"* Merging '{new_words[i:]}' into '{self._ongoing_transcription[:-2]}'")
-                        merged_words = self._ongoing_transcription.split()[:-2] + new_words[i:]
+                        # Even we used the lowercased version for the search, we want to keep the original version, to avoid losing information.
+                        self._log_debug(f"* Found the word '{word_with_punctuation}' in the transcription buffer at position {index_in_transcription_buffer}")
+                        self._log_debug(f"* Merging '{new_words[i:]}' into '{self._ongoing_transcription.split()[:index_in_transcription_buffer]}'")
+                        merged_words = self._ongoing_transcription.split()[:index_in_transcription_buffer] + new_words[i:]
                         merged = " ".join(merged_words)
                         self._transcription_buffer = merged_words[-5:]
                         # Once found, we don't keep on searching for the same word with any punctuation.
@@ -579,6 +590,20 @@ class FasterWhisperStreamV3(PyXavi):
         self.is_active = False
 
         self._xlog.info("FasterWhisper Stream STT closed")
+    
+    def find_in_list_relative_from_behind(self, item, lst):
+        """
+        Find the first occurrence of an item in a list from the end, and return the index relative to the end.
+
+        For example, if the list is ["hello", "world", "test", "hello"] and the item is "hello", it will return -1, 
+        because the first occurrence of "hello" from the end is at index -1 (the last element). 
+        If the item is "test", it will return -2, because the first occurrence of "test" from the end is at index -2. 
+        If the item is not found, it will return None.
+        """
+        for i, element in enumerate(reversed(lst), 1):
+            if element == item:
+                return -i
+        return None
     
     def set_stt_busy(self):
         """
