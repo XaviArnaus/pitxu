@@ -53,6 +53,15 @@ class FasterWhisperStreamV3(PyXavi):
     _worker_thread: threading.Thread = None
     _transcription_buffer = [] # Store the last few words of the previous transcription
 
+    # List of human expressions that do not add any value, just noise.
+    expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+
+    # List of punctuations to add to the words when searching for them in the transcription buffer,
+    #   as they can be added by Faster Whisper and cause problems when merging.
+    punctuations_to_add_to_words = [".", ",", "?", "!", "..."]
+
+    words_to_remove_from_partial_transcription = ["I", "you", "he", "she", "it", "we", "they", "to", "and"] # This is for English, we can add more languages later if needed.
+
     # List of common hallucinated phrases. They usuallty come at the end of the transcription
     phrases_to_remove = [
         "thank you for watching",
@@ -74,11 +83,11 @@ class FasterWhisperStreamV3(PyXavi):
         self._xlog.info("Initializing Faster Whisper Stream STT")
         logging_parts = []
 
-        language = self._xparams.get("language", "en")
-        if language == "en-us":
+        self.language = self._xparams.get("language", "en")
+        if self.language == "en-us":
             # I need to correct this Vosk language stupidity that is populated all around the code!!!
-            language = "en"
-        logging_parts.append(("Language", language))
+            self.language = "en"
+        logging_parts.append(("Language", self.language))
 
         # Get the callback for when the user finishes speaking, or use defaults.
         if self._xparams.key_exists("on_transcription_finished_callback"):
@@ -95,7 +104,7 @@ class FasterWhisperStreamV3(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            model = self._xconfig.get("speech-to-text.faster_whisper_streaming.model." + language, None)
+            model = self._xconfig.get("speech-to-text.faster_whisper_streaming.model." + self.language, None)
             if model is not None:
                 # Control the internal Faster Whisper logging
                 logging_level = self._xconfig.get("libs_logger.faster_whisper.loglevel", logging.INFO)
@@ -136,7 +145,7 @@ class FasterWhisperStreamV3(PyXavi):
                                            compute_type=compute_type)
                 
             else:
-                raise SpeechToTextException(f"No model specified in config for language {language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
+                raise SpeechToTextException(f"No model specified in config for language {self.language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
@@ -354,11 +363,15 @@ class FasterWhisperStreamV3(PyXavi):
 
         # If there is a hyphen at the end of a word followed by a space, it means that the word is cut, so we remove the hyphen.
         # This should help the difflib to find a better overlap
-        partial_transcription = partial_transcription.replace("-", "") if partial_transcription.endswith("-") else partial_transcription
+        # partial_transcription = partial_transcription.replace("-", "") if partial_transcription.endswith("-") else partial_transcription
+
+        # Incomplete partial words are followed by an hyphen at the end of the word, at the end of the string. 
+        #   If so, we need to remove the hyphen and the word completely.
+        if partial_transcription.endswith("-"):
+            partial_transcription = re.sub(r'\b\w+-\b', '', partial_transcription).strip()
 
         # Remove the uhm, ahm, etc. from the partial transcription, as they are not useful for us, and they can cause problems when merging with the ongoing transcription.
-        expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
-        for expr in expressions_to_remove:
+        for expr in self.expressions_to_remove:
             partial_transcription = partial_transcription.replace(expr.capitalize(), "")
             partial_transcription = partial_transcription.replace(expr, "")
         
@@ -373,39 +386,39 @@ class FasterWhisperStreamV3(PyXavi):
         self._log_debug(f"> Ongoing transcription before merging: {self._ongoing_transcription}")
 
         # --- Buffer and Wait Strategy --->
+
+        # The words in the new partial transcription.
         new_words = partial_transcription.split()
+        new_words = [w.strip().lower() if (w.strip() != "I" and self.language == "en") else w.strip() for w in new_words]
 
         # If we have a buffer, try to find the first complete word match
         if len(self._transcription_buffer) > 0 and len(new_words) > 0:
-            # CURRENT STATUS:
-            # It removes too much. most likely it finds the right word in the wrong position:
-            # > Partial: I am now troubleshooting the
-            # > Transcription buffer before merging: ['And', 'I', 'am', 'now', 'troubleshooting.']
-            # > Ongoing transcription before merging: the 22nd delay is implemented. And I am now troubleshooting.
-            # < Transcription buffer after merging: ['the']
-            # < Merged transcription after merging: the
-
+            found = False
             for i, word in enumerate(new_words):
-                if word in self._transcription_buffer:
-                    # Found a match! The new transcription starts from here.
-                    # We discard everything before this word in the new chunk.
-
-                    # 1. Find the index of the word in the ongoing transcription, should be the same as in the buffer if we count from behind.
-                    word_position = self._ongoing_transcription.rfind(word)
-                    if word_position == -1:
-                        # This should not happen, so just continue.
-                        continue
-                    # 2. Remove everything after this word in the ongoing transcription, and everything before this word in the new transcription, and merge them.
-                    merged_words = self._ongoing_transcription[:word_position].split() + new_words[i:]
-
-                    # 3. Create the merged transcription.
-                    merged = " ".join(merged_words)
-
-                    # 4. Update buffer with the last few words
-                    self._transcription_buffer = merged_words[-5:]
+                # We want to skip searching for this word because it's too common and can cause more problems than benefits when merging, 
+                # as it can be found in many places in the transcription buffer, and it doesn't add much value for the merging process.
+                if word in self.words_to_remove_from_partial_transcription:
+                    continue
+                self._log_debug(f"* Searching for the word '{word}' in the transcription buffer")
+                words_with_punctuation = [word + p for p in self.punctuations_to_add_to_words] + [word]
+                for word_with_punctuation in words_with_punctuation:
+                    if word_with_punctuation in self._transcription_buffer:
+                        # Found a match! The new transcription starts from here.
+                        found = True
+                        # We discard everything before this word in the new chunk.
+                        self._log_debug(f"* Found the word '{word_with_punctuation}' in the transcription buffer at position {self._transcription_buffer.index(word_with_punctuation)}")
+                        self._log_debug(f"* Merging '{new_words[i:]}' into '{self._ongoing_transcription[:-2]}'")
+                        merged_words = self._ongoing_transcription.split()[:-2] + new_words[i:]
+                        merged = " ".join(merged_words)
+                        self._transcription_buffer = merged_words[-5:]
+                        # Once found, we don't keep on searching for the same word with any punctuation.
+                        break
+                # Why to keep on searching for the next words if we already found a match with the first one?
+                if found:
+                    break
             
             # If reaching this point there is no merged text, means that none of the new words matched with the buffer.
-            # This means that the new transcription is completely different from the ongoing one, most likely beause the  transcription buffer
+            # This means that the new transcription is completely different from the ongoing one, most likely because the transcription buffer
             #   was not cleaned in this transcription iteration, so we just append the new transcription to the ongoing one, without merging.
             if not merged:
                 merged = self._ongoing_transcription + " " + partial_transcription
