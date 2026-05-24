@@ -4,7 +4,7 @@ from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
+from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY
 
 import threading
 import queue
@@ -228,6 +228,15 @@ class FasterWhisperStreamV3(PyXavi):
                     self._log_debug(f"FasterWhisper Stream: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
                     _ = self._process_chunks(chunk_list_to_process)
                     chunk_list_to_process = []
+                
+                # At this point in time, if we have any ongoing transcription,
+                #  means that the STT identified a speech and is processing.
+                # If we're processing chunks but there is no transcription, it means that 
+                #   the chunks do not contain a speech.
+                if len(self._ongoing_transcription) > 0:
+                    self.set_stt_busy()
+                else:
+                    self.unset_stt_busy()
 
             except queue.Empty:
                 continue
@@ -273,8 +282,14 @@ class FasterWhisperStreamV3(PyXavi):
         preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
         audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
 
-        # Use the last 50 characters of the ongoing transcription as a prompt
-        prompt = self._ongoing_transcription[-50:] if self._ongoing_transcription else ""
+        # Use the last "n" characters of the ongoing transcription as a prompt
+        prompt_buffer_size_in_chars = 50
+        if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
+            prompt = self._ongoing_transcription
+        elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
+            prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
+        else:
+            prompt = ""
 
         self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
         segments, _ = self._model.transcribe(
@@ -284,8 +299,17 @@ class FasterWhisperStreamV3(PyXavi):
             initial_prompt=prompt
         )
 
+        # What's the info that the segments bring? I'm interested in the timestamps
+        seg_infos = []
+        texts = []
+        for segment in segments:
+            seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
+            texts.append(segment.text)
+            # dd(segment)
+        self.log_summary("Segments info", seg_infos)
+
         # Update state
-        current_text = " ".join([s.text for s in segments]).strip()
+        current_text = " ".join(texts).strip()
 
         # Keep the last defined samples as overlap
         self._last_overlap = audio_to_process[-self._overlap_size:]
@@ -309,10 +333,10 @@ class FasterWhisperStreamV3(PyXavi):
 
         # If there is a hyphen at the end of a word followed by a space, it means that the word is cut, so we remove the hyphen.
         # This should help the difflib to find a better overlap
-        partial_transcription = partial_transcription.replace("- ", " ")
+        partial_transcription = partial_transcription.replace("-", "") if partial_transcription.endswith("-") else partial_transcription
 
         # Remove the uhm, ahm, etc. from the partial transcription, as they are not useful for us, and they can cause problems when merging with the ongoing transcription.
-        expressions_to_remove = ["um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+        expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
         for expr in expressions_to_remove:
             partial_transcription = partial_transcription.replace(expr.capitalize(), "")
             partial_transcription = partial_transcription.replace(expr, "")
@@ -457,3 +481,21 @@ class FasterWhisperStreamV3(PyXavi):
         self.is_active = False
 
         self._xlog.info("FasterWhisper Stream STT closed")
+    
+    def set_stt_busy(self):
+        """
+        Sets the shared memory flag to indicate that the STT is busy processing audio, so that the Speaker can wait if needed.
+        """
+        self._shared_memory.write_shared_memory_flag(SHARED_STT_BUSY, True)
+
+    def unset_stt_busy(self):
+        """
+        Unsets the shared memory flag to indicate that the STT is not busy anymore, so that the Speaker can speak if needed.
+        """
+        self._shared_memory.write_shared_memory_flag(SHARED_STT_BUSY, False)
+    
+    def is_microphone_muted(self) -> bool:
+        return self._shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+    
+    def is_speaker_busy(self) -> bool:
+        return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)

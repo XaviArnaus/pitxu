@@ -751,6 +751,9 @@ class Interaction(PyXavi):
     
     def is_vad_detected(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
+    
+    def is_stt_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_STT_BUSY)
 
     # --------- Internal helper functions ---------
 

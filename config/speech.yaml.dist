@@ -160,7 +160,7 @@ speech-to-text:
     #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
     overlap_size: 8000
     # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
-    chunks_window: 50
+    chunks_window: 100
     # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
     sleep_when_no_chunks: 0.1
 

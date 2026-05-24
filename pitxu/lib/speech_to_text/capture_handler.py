@@ -196,7 +196,7 @@ class CaptureHandler(PyXavi):
     
     def should_skip_audio_input(self):
         '''
-        Checks if the microphone is muted by reading AND if the speaker is talking via the shared memory flags
+        Checks if the microphone is muted OR if the speaker is busy via the shared memory flags
         '''
 
         speaker_is_busy = False

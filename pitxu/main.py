@@ -1203,6 +1203,9 @@ class Main(PyXavi):
                         # Vad did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
                         self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+                    elif self._interaction.is_stt_busy():
+                        self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
+                        self._last_interaction_paused_seconds += 1
                     else:
                         self._xlog.debug("🎤 User may be speaking, pausing interaction holding time counter.")
                         self._last_interaction_paused_seconds += 1
