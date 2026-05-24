@@ -338,8 +338,8 @@ class FasterWhisperStreamV3(PyXavi):
                 texts.append(segment.text)
             for word in segment.words:
                 words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
-        self.log_summary("Segments info", seg_infos)
-        self.log_summary("Words info", words_info)
+        self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
+        self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
 
         # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
         if len(texts) == 0:
@@ -368,10 +368,6 @@ class FasterWhisperStreamV3(PyXavi):
         # but they are not useful for us, and they can cause problems when merging with the ongoing transcription.
         # This should help the difflib to find a better overlap
         partial_transcription = partial_transcription.replace("...", "")
-
-        # If there is a hyphen at the end of a word followed by a space, it means that the word is cut, so we remove the hyphen.
-        # This should help the difflib to find a better overlap
-        # partial_transcription = partial_transcription.replace("-", "") if partial_transcription.endswith("-") else partial_transcription
 
         # Incomplete partial words are followed by an hyphen at the end of the word, at the end of the string. 
         #   If so, we need to remove the hyphen and the word completely.
@@ -437,6 +433,12 @@ class FasterWhisperStreamV3(PyXavi):
         # <---
         else:
 
+            # Note: It feels like this is not needed:
+            #   If we don't have a buffer, it means that we don't have any reference point to merge the new transcription,
+            #       meaning, it's the first transcription we get, so we can just take it as it is. 
+            #   If so, all this difflib logic in the ELSE is not needed, just take the new transcription as it is, 
+            #       and save the last words in the buffer for the next iterations.
+
             # Use SequenceMatcher to find the overlap
             # We look for the best match between the end of the ongoing transcription
             # and the beginning of the new partial transcription.
@@ -471,10 +473,10 @@ class FasterWhisperStreamV3(PyXavi):
     
     def _clean_transcription(self, text: str) -> str:
         cleaned_text = text
-        # for phrase in self.phrases_to_remove:
-        #     # Use case-insensitive matching and remove the phrase
-        #     pattern = re.compile(re.escape(phrase), re.IGNORECASE)
-        #     cleaned_text = pattern.sub("", cleaned_text)
+        for phrase in self.phrases_to_remove:
+            # Use case-insensitive matching and remove the phrase
+            pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+            cleaned_text = pattern.sub("", cleaned_text)
 
         return cleaned_text.strip()
     
