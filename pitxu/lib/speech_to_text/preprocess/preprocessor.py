@@ -89,6 +89,7 @@ class Preprocessor(PyXavi):
         if self._xconfig.get("speech-to-text.preprocessor.enabled", True) == False:
             audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
             audio_data_np = Conversors.stereo_to_mono(audio_data_np)
+            # self._log_debug("❗️ Accummulating audio data into Support")
             self.support.accumulate_audio(audio_data_np)
 
             if return_in_numpy:
@@ -118,6 +119,7 @@ class Preprocessor(PyXavi):
         # Maintain the accummulators
         self.support.accumulate_audio(audio_data_np)
         self.support.accumulate_audio(filtered_audio_np, preprocessed=True)
+        self._log_debug("❗️ Accummulating audio data into Support")
 
         if return_in_numpy:
             return filtered_audio_np

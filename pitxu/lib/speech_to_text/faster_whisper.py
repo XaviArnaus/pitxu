@@ -108,6 +108,7 @@ class FasterWhisper(PyXavi):
 
         self._queue = queue.Queue()
         self._preprocessor = Preprocessor(config=self._xconfig, params=self._xparams)
+        self._support = self._xparams.get("support")
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
 

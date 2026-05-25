@@ -176,6 +176,7 @@ class FasterWhisperStreamV3(PyXavi):
                                   else "No"))
 
         self._queue = queue.Queue()
+        self._support = self._xparams.get("support")
         self._preprocessor = Preprocessor(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
@@ -238,6 +239,10 @@ class FasterWhisperStreamV3(PyXavi):
                     # COMMENTED: Feels like this is not needed, as the transcription appears complete until now in the logs and then, all of a sudden,
                     #   a lot of garbage is added at the end
                     # _ = self._process_leftover_chunks()
+
+                    # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
+                    self._support.dump_and_plot_all()
+                    self._support.clear_accumulated_audio()
 
                     # Clean anything LOCAL that would accumulate or trigger.
                     chunk_list_to_process = []
@@ -340,8 +345,8 @@ class FasterWhisperStreamV3(PyXavi):
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
             if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-            # else:
-            #     texts.append(segment.text)
+            else:
+                texts.append(segment.text)
             previous_start = -1
             previous_end = -1
             previous_prob = -100
@@ -548,6 +553,11 @@ class FasterWhisperStreamV3(PyXavi):
                 if len(audio_np) == 0:
                     self._log_debug("FasterWhisper Stream: No audio chunks to process after preprocessing, returning empty result.")
                     return ""
+                
+                # We finished processing all the chunks in the queue, now we dump and plot all audio data, and clean it for later.
+                self._support.dump_and_plot_all()
+                self._support.clear_accumulated_audio()
+
                 # Join the chunks and transcribe them with FasterWhisper.
                 #   Note: we don't want to join the chunks before preprocessing, because this could lead to memory issues if the user speaks for a long time, and also because the Preprocessor may do some operations that are better to do on smaller chunks (for example, VAD).
                 segments, info = self._model.transcribe(
@@ -586,7 +596,7 @@ class FasterWhisperStreamV3(PyXavi):
 
         if self._worker_thread is not None and self._worker_thread.is_alive():
             self._xlog.debug("Waiting for FasterWhisper Stream worker thread to finish...")
-            self._worker_thread.join(timeout=5)
+            self._worker_thread.join(timeout=2)
             if self._worker_thread.is_alive():
                 self._xlog.warning("FasterWhisper Stream worker thread did not finish in time, it may be stuck. Moving on with closing.")
             else:

@@ -269,6 +269,7 @@ class Main(PyXavi):
             if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
                 self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
                 self._dictate.reset_context()
+                self._interaction.set_stt_busy()
             
                 # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
                 # COMMENTED: We now have a thread that processes the chunks as they arrive.
@@ -344,7 +345,6 @@ class Main(PyXavi):
             
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
-            self._interaction.set_stt_busy()
             self._last_stt_processing_time = 0
 
             # If we are using a streaming engine, we don't want to process the audio, we just want to get the transcription.
@@ -800,7 +800,6 @@ class Main(PyXavi):
 
             from pitxu.lib.speech_to_text.faster_whisper_stream_v3 import FasterWhisperStreamV3
 
-            self._xparams.set("support", self._support)
             self._dictate = FasterWhisperStreamV3(config=self._xconfig, params=Dictionary({
                 "support": self._support,
                 "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
