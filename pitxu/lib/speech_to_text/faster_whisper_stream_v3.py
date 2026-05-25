@@ -41,6 +41,7 @@ class FasterWhisperStreamV3(PyXavi):
     is_active: bool = False
     language: str = "en"
 
+    _beam_size = 5
     _overlap_size = 2000
     _chunks_window = 10
     _sleep_when_no_chunks = 0.1
@@ -121,9 +122,11 @@ class FasterWhisperStreamV3(PyXavi):
                 device = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.device", "cpu"))
                 download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
                 compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
+                beam_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.beam_size", 5))
                 overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
                 chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
                 sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
+                self._beam_size = beam_size
                 self._overlap_size = overlap_size
                 self._chunks_window = chunks_window
                 self._sleep_when_no_chunks = sleep_when_no_chunks
@@ -132,6 +135,7 @@ class FasterWhisperStreamV3(PyXavi):
                 logging_parts.append(("Device for Faster Whisper", device))
                 logging_parts.append(("Download root", download_root))
                 logging_parts.append(("Compute type", compute_type))
+                logging_parts.append(("Beam size", beam_size))
                 logging_parts.append(("Overlap size", overlap_size))
                 logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
                 logging_parts.append(("Chunks window", chunks_window))
@@ -145,7 +149,8 @@ class FasterWhisperStreamV3(PyXavi):
                                            device=device,
                                            download_root=download_root,
                                            compute_type=compute_type)
-                
+                # Warm up the model by running a dummy transcription, to avoid the long loading time of the first transcription.
+                self.warm_up_model()
             else:
                 raise SpeechToTextException(f"No model specified in config for language {self.language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
 
@@ -319,7 +324,7 @@ class FasterWhisperStreamV3(PyXavi):
         self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
         segments, _ = self._model.transcribe(
             audio_to_process,
-            beam_size=2,
+            beam_size=self._beam_size,
             temperature=0.0,
             language=self.language,
             initial_prompt=prompt,
@@ -331,12 +336,23 @@ class FasterWhisperStreamV3(PyXavi):
         texts = []
         words_info = []
         for segment in segments:
+            text = ""
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
             if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-            else:
-                texts.append(segment.text)
+            # else:
+            #     texts.append(segment.text)
+            previous_start = -1
+            previous_end = -1
+            previous_prob = -100
             for word in segment.words:
+                # Sometimes the model goes crazy and repeats the exact same word un the segment.
+                # So we can check for the same timestamps and probability and say it's a repetition and discard it.
+                if word.start == previous_start and word.end == previous_end and word.probability == previous_prob:
+                    continue
+                previous_start = word.start
+                previous_end = word.end
+                previous_prob = word.probability
                 words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
         self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
         self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
@@ -536,7 +552,7 @@ class FasterWhisperStreamV3(PyXavi):
                 #   Note: we don't want to join the chunks before preprocessing, because this could lead to memory issues if the user speaks for a long time, and also because the Preprocessor may do some operations that are better to do on smaller chunks (for example, VAD).
                 segments, info = self._model.transcribe(
                     np.concatenate(audio_np).flatten().astype(np.float32) / 32768.0, 
-                    beam_size=5,
+                    beam_size=self._beam_size,
                     language=self.language)
                 
                 # The transcription actually is done per segment, it's a generator, so we could improve the code speed here.
@@ -606,6 +622,25 @@ class FasterWhisperStreamV3(PyXavi):
             if element == item:
                 return -i
         return None
+    
+    def warm_up_model(self):
+        """
+        Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
+        """
+        self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
+        silent_chunk = self._generate_silent_audio_chunk(sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
+        self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
+        self._log_debug("Faster Whisper model warmed up successfully.")
+
+    def _generate_silent_audio_chunk(self, duration_seconds: float = 1.0,
+                                 sample_rate: int = 16000,
+                                 dtype: type = np.float32) -> np.ndarray:
+        """
+        Generates a silent audio chunk using numpy, compatible with faster-whisper.
+        """
+        num_samples = int(duration_seconds * sample_rate)
+        silent_chunk = np.zeros(num_samples, dtype=dtype)
+        return silent_chunk
     
     def set_stt_busy(self):
         """
