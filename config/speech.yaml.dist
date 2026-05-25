@@ -11,6 +11,8 @@ speech-to-text:
   engine: "faster_whisper_streaming"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.
+  # bytes_per_chunk: 4000 # Working in Mac
+  # bytes_per_chunk: 2048 # Working in Rpi
   bytes_per_chunk: 4000
   # [Integer] Number of samples to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied in the main Input Stream setup (sounddevice.InputStream) and in the Capture Handler callback for VAD identification.
@@ -40,8 +42,12 @@ speech-to-text:
     enabled: True
     # [Float] Threshold for the VAD to consider that there is voice activity.
     # This is a value between 0 and 1, where 0 means that any sound is considered voice and 1 means that only very loud sounds are considered voice.
+    # threshold: 0.7 # Working in Mac
+    # threshold: 0.8 # Working in RPi
     threshold: 0.7
     # [Float] Seconds before speech onset confirmed
+    # attack: 0.050 # Working in Mac
+    # attack: 0.060 # Working in RPi
     attack: 0.050
     # [Float] Seconds of silence before speech end
     release: 2.0

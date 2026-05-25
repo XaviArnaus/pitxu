@@ -100,6 +100,13 @@ class Memory(PyXavi):
         found_partially = [entry for entry in found_partially if entry not in found_fully]
         return found_fully + found_partially
     
+    def get_by_exact_summary(self, summary: str) -> list[dict] | None:
+        entries = list(self.state.get("entries").values())
+        matching_entries = [entry for entry in entries if entry["summary"].lower() == summary.lower()]
+        if matching_entries:
+            return matching_entries
+        return None
+    
     def get_by_summary_like(self, summary: str) -> list[dict] | None:
         entries = list(self.state.get("entries").values())
 
@@ -202,3 +209,22 @@ class Memory(PyXavi):
             self._xlog.error(f"🛑 Error summarizing chatbot history as a memory entry: {e}")
             self._xlog.debug(full_stack())
             return None
+
+    def preload_memory(self):
+        """
+        Preloads the memory persistance based on the entries in the `memory_preload.yaml` config file.
+        This is useful to have some initial memory entries that can be used as context for the chatbot, without overloading the 
+        input prompt of the chatbot and keep some tokens.
+        """
+        if not self._xconfig.get("memory_preload.enabled", False):
+            self._xlog.info("Memory preloading is disabled. Skipping preload.")
+            return
+
+        preload_entries = self._xconfig.get("memory_preload.entries", [])
+        for entry in preload_entries:
+            # Avoid duplicates: if we already have an entry with the same title, we consider that we have already preloaded this entry, so we skip it. Otherwise, we write it in the memory.
+            if self.get_by_exact_summary(entry["title"]) is None:
+                self.write_entry(summary=entry["title"], content=entry["content"])
+                self._xlog.info(f"Preloaded memory entry with title '{entry['title']}'.")
+            else:
+                self._xlog.warning(f"Memory entry with title '{entry['title']}' already exists. Skipping preload of this entry.")
