@@ -36,7 +36,7 @@ class FasterWhisperStreamV4(PyXavi):
 
     transcriptor_input_queue: JoinableQueue = None
     transcriptor_output_queue: JoinableQueue = None
-    transcriptor_output_queue_sentinel: object = None
+    # transcriptor_output_queue_sentinel: object = None
 
     on_transcription_finished_callback: callable = None
 
@@ -110,7 +110,7 @@ class FasterWhisperStreamV4(PyXavi):
         
         self.transcriptor_input_queue = self.process_pool.get_queue(QUEUE_TRANSCRIBER)
         self.transcriptor_output_queue = initialized.get("output_queue")
-        self.transcriptor_output_queue_sentinel = initialized.get("sentinel_output_queue")
+        # self.transcriptor_output_queue_sentinel = initialized.get("sentinel_output_queue")
 
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
@@ -194,27 +194,7 @@ class FasterWhisperStreamV4(PyXavi):
             self._log_debug("Returning final transcription from cache.")
             return self.final_transcription
         else:
-            # First we request the transcription from the Process.
-            # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
-            # So we need a signal from the Main that tells us "now you can give me the transcription, because the user finished speaking and the Process finished processing all the chunks".
-            self.request_transcription()
-
-            # Now we get the transcription from the output queue, waiting for the sentinel to know when it is finished.
-            transcription = ""
-            if self.transcriptor_output_queue is not None and self.transcriptor_output_queue_sentinel is not None:
-                while True:
-                    result = self.transcriptor_output_queue.get(timeout=10) # We put a timeout here just in case, to avoid waiting indefinitely if something goes wrong in the Process and we never get the sentinel.
-                    if result == self.transcriptor_output_queue_sentinel:
-                        self._log_debug("Received sentinel from the Process, ending transcription retrieval.")
-                        break
-                    # This should not be needed, as we only get it once, but just in case...
-                    if isinstance(result, str) and len(result) > 0:
-                        transcription += result
-                self._log_debug("Received transcription result from the Process: " + transcription)
-                self.final_transcription = transcription
-            else:
-                self._xlog.warning("No output queue or sentinel available to retrieve transcription result from the Process")
-            return transcription
+            self._xlog.warning("No transcription result available yet, you should not call this method from V4.")
     
     def _transcription_worker(self):
         """
@@ -225,67 +205,91 @@ class FasterWhisperStreamV4(PyXavi):
         and process them together, with the context of the last overlap and the ongoing transcription.
         """
 
-        # Initializations
-        # partial_transcription = ""
+        # As the loop should consume the incoming chunks queue and the transcription result queue, we need a set of flags.
+        is_chunks_queue_empty = False
+        is_transcription_result_queue_empty = False
         chunk_list_to_process = []
-        
         while self.is_active:
             try:
                 # Get all current chunks on the queue. It should be only one,
                 #   but we could have the following cases:
                 #   - The user is speaking very fast and the VAD is sending chunks faster than we can process them.
                 #   - It is the start of the VAD detection, that VAD adds some previous chunks as a window before the detection.
-                # self._log_debug(f"FasterWhisper Stream: Processing audio chunks from the queue, current queue size: {self._queue.qsize()}")
+                #
+                # Also, we get the transcription result if available.
+                #   - When receiving a None chunk, we requuest the transcription result from the Process, and expect to receive it in the output queue. 
+                #
+                # So this loop is consuming 2 queues.
 
-                # If the queue is empty, we just wait for the next chunk to arrive, without doing anything.
+                # Work to be done if we have chunks in the chunks queue.
                 if self._queue.empty():
+                    is_chunks_queue_empty = True
+                else:
+                    is_chunks_queue_empty = False
+
+                    # Get the next chunk from the queue.
+                    data = self._queue.get()
+
+                    if data is None:
+                        self._log_debug("FasterWhisper Stream: Received None data from the queue, It should be the end of the stream.")
+
+                        # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
+                        # COMMENTED: Feels like this is not needed, as the transcription appears complete until now in the logs and then, all of a sudden,
+                        #   a lot of garbage is added at the end
+                        # _ = self._process_leftover_chunks()
+
+                        # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
+                        self._support.dump_and_plot_all()
+                        self._support.clear_accumulated_audio()
+
+                        # Clean anything LOCAL that would accumulate or trigger.
+                        chunk_list_to_process = []
+
+                        # Request the transcription result from the Process, and expect to receive it in the output queue.
+                        # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
+                        self.request_transcription()
+
+                    else:
+                        if len(self._ongoing_chunk_window) >= self._chunks_window:
+                            self._log_debug(f"FasterWhisper Stream: Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
+                            chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
+                            self._ongoing_chunk_window = []
+                        self._ongoing_chunk_window.append(data)
+
+                    if len(chunk_list_to_process) > 0:
+                        self._log_debug(f"FasterWhisper Stream: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
+                        self.process_chunks(chunk_list_to_process)
+                        chunk_list_to_process = []
+                
+                # Work to be done if we have a transcription result in the transcription result queue.
+                if self.transcriptor_output_queue.empty():
+                    is_transcription_result_queue_empty = True
+                else:
+                    is_transcription_result_queue_empty = False
+
+                    transcription_result = self.transcriptor_output_queue.get()
+
+                    if isinstance(transcription_result, str) and len(transcription_result) > 0:
+                        self._log_debug("FasterWhisper Stream: Got transcription result from the Process: " + transcription_result)
+                        # Oops! Why do we receive duplications?
+                        if transcription_result in self.final_transcription:
+                            self._log_debug("FasterWhisper Stream: Received transcription result is already in the final transcription, skipping to avoid duplication.")
+                        else:
+                            self.final_transcription += " " + transcription_result
+
+                    # elif transcription_result == self.transcriptor_output_queue_sentinel:
+                    #     # Now we now that the result sending is finished. 
+                    #     self._log_debug("Received sentinel from the Process.")
+                        
+                        # Trigger the callback to notify that the transcription is finished, if we have a transcription result, or if we received the sentinel, which means that the transcription is finished even if we don't have a result (it can happen if the user spoke but the Model couldn't transcribe anything, so it returns an empty string as a result, but it still sends the sentinel to indicate that it finished processing).
+                        if self.on_transcription_finished_callback is not None and (self.final_transcription is not None and len(self.final_transcription) > 0):
+                            self._log_debug("FasterWhisper Stream: Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
+                            # Be careful, it's part of asyncio loop.
+                            asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
+                
+                if is_chunks_queue_empty and is_transcription_result_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
                     time.sleep(self._sleep_when_no_chunks)
-                    continue
-
-                # Get the next chunk from the queue.
-                data = self._queue.get()
-
-                if data is None:
-                    self._log_debug("FasterWhisper Stream: Received None data from the queue, It should be the end of the stream.")
-
-                    # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
-                    # COMMENTED: Feels like this is not needed, as the transcription appears complete until now in the logs and then, all of a sudden,
-                    #   a lot of garbage is added at the end
-                    # _ = self._process_leftover_chunks()
-
-                    # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
-                    self._support.dump_and_plot_all()
-                    self._support.clear_accumulated_audio()
-
-                    # Clean anything LOCAL that would accumulate or trigger.
-                    chunk_list_to_process = []
-
-                    # Retrieve the transcription result from the Process, that should be ready by now.
-                    # We need to do it here, before triggering the callback, because the callback is in charge of getting the transcription and doing something with it, so we need to make sure that the transcription is ready before triggering the callback.
-                    final_transcription = self.get_transcription()
-
-                    if len(final_transcription) == 0:
-                        self._xlog.warning("FasterWhisper Stream: ⚠️ Final transcription is empty after processing all chunks.")
-                    else:
-                        self._log_debug("FasterWhisper Stream: Final transcription after processing all chunks: " + final_transcription)
-                    
-                    # Trigger the callback to notify that the transcription is finished.
-                    if self.on_transcription_finished_callback is not None:
-                        self._log_debug("FasterWhisper Stream: Triggering on_transcription_finished_callback callback after processing the leftover chunks.")
-                        # Be careful, it's part of asyncio loop.
-                        asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(final_transcription), self.main_event_loop)
-                else:
-                    if len(self._ongoing_chunk_window) >= self._chunks_window:
-                        self._log_debug(f"FasterWhisper Stream: Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
-                        chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
-                        self._ongoing_chunk_window = []
-                    self._ongoing_chunk_window.append(data)
-
-                if len(chunk_list_to_process) > 0:
-                    self._log_debug(f"FasterWhisper Stream: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
-                    self.process_chunks(chunk_list_to_process)
-                    chunk_list_to_process = []
                 
                 # At this point in time, if we have any ongoing transcription,
                 #  means that the STT identified a speech and is processing.

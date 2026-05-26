@@ -409,9 +409,10 @@ class FasterWhisperStreamProcess(Xprocess):
         final_transcription = self._clean_transcription(self._ongoing_transcription)
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
-        if self._output_queue is not None and self._output_queue_sentinel is not None:
+        # if self._output_queue is not None and self._output_queue_sentinel is not None:
+        if self._output_queue is not None:
             self._output_queue.put(final_transcription)
-            self._output_queue.put(self._output_queue_sentinel)
+            # self._output_queue.put(self._output_queue_sentinel)
             self._log_debug("Final transcription put in the output queue with the sentinel.")
         else:
             self._xlog.error("🛑 Output queue or sentinel not available, cannot put the final transcription in the output queue.")
