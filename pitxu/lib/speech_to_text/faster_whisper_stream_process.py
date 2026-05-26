@@ -3,8 +3,8 @@ import logging
 from pyxavi import Config, Dictionary, TerminalColor, full_stack
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
-from pitxu.lib.support_process.support import Support
-from pitxu.lib.support_process import support
+# from pitxu.lib.support_process.support import Support
+# from pitxu.lib.support_process import support
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
@@ -15,7 +15,7 @@ import queue
 from faster_whisper import WhisperModel
 import os
 import numpy as np
-import difflib
+# import difflib
 import logging
 import re
 
@@ -44,12 +44,13 @@ class FasterWhisperStreamProcess(Xprocess):
     _use_low_confidence_threshold = False
     _low_confidence_threshold = -1
 
+    _last_committed_timestamp = 0.0
+    _current_chunk_start_time = 0.0
+
     # The last "n" samples of the previous chunk, to be used as context for the next chunk, to help the transcription model.
     _last_overlap = np.array([], dtype=np.float32)
     # The current (or final) state of the transcription
     _ongoing_transcription = ""
-    # Store the last few words of the previous transcription
-    _transcription_buffer = [] 
 
     # List of human expressions that do not add any value, just noise.
     expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
@@ -195,21 +196,31 @@ class FasterWhisperStreamProcess(Xprocess):
     def reset_context(self):
         self._last_overlap = np.array([], dtype=np.float32)
         self._ongoing_transcription = ""
-        self._transcription_buffer = []
+        self._last_committed_timestamp = 0.0
+        self._current_chunk_start_time = 0.0
     
     def process_chunks(self, chunk_list: list[bytes]) -> str:
         result = ""
-        # Join together the chunks in the window and process them with the context of the last overlap and the ongoing transcription.
+
+        # 1. Preprocessing
         self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with the context of the last overlap and the ongoing transcription.")
         preprocessed_chunks = [self._preprocessor.preprocess_chunk(chunk, return_in_numpy=True) for chunk in chunk_list]
         preprocessed_chunks = list(filter(lambda x: x is not None and len(x) > 0, preprocessed_chunks))
+        
         if len(preprocessed_chunks) == 0:
             self._log_debug("FasterWhisper Stream: No valid audio chunks to process after preprocessing, returning empty result.")
             result = ""
+
+        # 2. Prepare audio for transcription
         preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
         audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
 
-        # Use the last "n" characters of the ongoing transcription as a prompt
+        # Calculate chunk duration for the offset
+        chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
+                            if len(preprocessed_chunks) > 0 else 0.0
+        
+        # 3. Transcription
+        # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
         prompt_buffer_size_in_chars = 50
         if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
             prompt = self._ongoing_transcription
@@ -228,165 +239,83 @@ class FasterWhisperStreamProcess(Xprocess):
             word_timestamps=True
         )
 
-        # What's the info that the segments bring? I'm interested in the timestamps
-        seg_infos = []
-        texts = []
-        words_info = []
+        # 4. Timestamp-based Merging
+        seg_infos = []  # This is just for logging.
+        words_info = [] # This is just for logging.
+        new_words = []  # Here will be the commited words after comparing via timestamp.
         for segment in segments:
-            text = ""
+
+            # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
             if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-            # else:
-            #     texts.append(segment.text)
+
+            # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
+            #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same), 
+            #   so we can check for that and discard it.
             previous_word = ""
             previous_start = -1
             previous_end = -1
-            previous_prob = -100
+
+            # Now, every word in this segment.
             for word in segment.words:
-                # Sometimes the model goes crazy and repeats the exact same word un the segment.
-                # So we can check for the same timestamps and probability and say it's a repetition and discard it.
-                if word.word == previous_word and word.start == previous_start and word.end == previous_end and word.probability == previous_prob:
+
+                # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
+                if word.word == previous_word and word.start == previous_start and word.end == previous_end:
                     continue
                 previous_word = word.word
                 previous_start = word.start
                 previous_end = word.end
-                previous_prob = word.probability
-                words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
-                text += word.word + " "
-            texts.append(text.strip())
+
+                # Calculate absolute time of the word
+                absolute_word_start = self._current_chunk_start_time + word.start
+
+                # Only commit words that appear after our last committed timestamp
+                if absolute_word_start > self._last_committed_timestamp:
+                    cleaned_word = self._clean_word(word.word)
+
+                    if cleaned_word: # Only add if it's not empty/filler
+                        new_words.append(cleaned_word)
+                        # Update last committed timestamp using absolute time
+                        self._last_committed_timestamp = self._current_chunk_start_time + word.end
+
+        # Just a logging to see the outcome of the analysis.    
         self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
         self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
 
         # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
-        if len(texts) == 0:
-            self._log_debug("FasterWhisper Stream: No valid segments to process after transcription, returning empty result.")
+        if len(new_words) == 0:
+            self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
             return ""
+        
+        # 5. Update state
+        self._ongoing_transcription += " " + " ".join(new_words)
 
-        # Update state
-        current_text = " ".join(texts).strip()
+        # Update the chunk start time for the next iteration
+        self._current_chunk_start_time += chunk_duration
 
         # Keep the last defined samples as overlap
         self._last_overlap = audio_to_process[-self._overlap_size:]
-        self._ongoing_transcription = self._merge_partial_transcription(current_text)
-        result = current_text
 
         self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{self._ongoing_transcription}{TerminalColor.END}\n\n")
         return result
     
-    def _merge_partial_transcription(self, partial_transcription: str) -> str:
+    def _clean_word(self, word: str) -> str:
+        """
+        Cleans a single word by removing filler expressions and punctuation.
+        """
+        cleaned_word = word.strip()
 
-        # 1. Clean the input
-        partial_transcription = partial_transcription.strip()
-        if not partial_transcription:
-            return self._ongoing_transcription
-        
-        # Remove triple dots at the end, as they are added by Faster Whisper when it detects that the transcription is not finished,
-        # but they are not useful for us, and they can cause problems when merging with the ongoing transcription.
-        # This should help the difflib to find a better overlap
-        partial_transcription = partial_transcription.replace("...", "")
-
-        # Incomplete partial words are followed by an hyphen at the end of the word, at the end of the string. 
-        #   If so, we need to remove the hyphen and the word completely.
-        if partial_transcription.endswith("-"):
-            partial_transcription = re.sub(r'\w-$', '', partial_transcription).strip()
-
-        # Remove the uhm, ahm, etc. from the partial transcription, as they are not useful for us, and they can cause problems when merging with the ongoing transcription.
+        # Remove filler expressions
         for expr in self.expressions_to_remove:
-            partial_transcription = partial_transcription.replace(expr.capitalize(), "")
-            partial_transcription = partial_transcription.replace(expr, "")
-        
-        # After the previous we may end up with multiple spaces with dots, so we can remove them.
-        partial_transcription = partial_transcription.replace(" .", ".").replace("  ", " ")
+            if cleaned_word.lower() == expr.lower():
+                return ""
 
-        # 2. Merging
-        merged = ""
+        # Remove trailing hyphens (common in partial words)
+        if cleaned_word.endswith("-"):
+            cleaned_word = re.sub(r'\w-$', '', cleaned_word).strip()
 
-        self._log_debug(f"> Partial: {partial_transcription}")
-        self._log_debug(f"> Transcription buffer before merging: {self._transcription_buffer}")
-        self._log_debug(f"> Ongoing transcription before merging: {self._ongoing_transcription}")
-
-        # --- Buffer and Wait Strategy --->
-
-        # The words in the new partial transcription.
-        new_words = partial_transcription.split()
-        lowercased_new_words = [w.strip().lower() for w in new_words]
-
-        # If we have a buffer, try to find the first complete word match
-        if len(self._transcription_buffer) > 0 and len(new_words) > 0:
-            found = False
-            for i, word in enumerate(lowercased_new_words):
-                # We want to skip searching for this word because it's too common and can cause more problems than benefits when merging, 
-                # as it can be found in many places in the transcription buffer, and it doesn't add much value for the merging process.
-                if word in self.words_to_remove_from_partial_transcription:
-                    continue
-                self._log_debug(f"* Searching for the word '{word}' in the transcription buffer")
-                words_with_punctuation = [word + p for p in self.punctuations_to_add_to_words] + [word]
-                lowercased_trascription_buffer = [w.strip().lower() for w in self._transcription_buffer]
-                for word_with_punctuation in words_with_punctuation:
-                    index_in_transcription_buffer = self.find_in_list_relative_from_behind(word_with_punctuation, lowercased_trascription_buffer)
-                    if index_in_transcription_buffer is not None:
-                        # Found a match! The new transcription starts from here.
-                        found = True
-                        # We discard everything before this word in the new chunk.
-                        # Even we used the lowercased version for the search, we want to keep the original version, to avoid losing information.
-                        self._log_debug(f"* Found the word '{word_with_punctuation}' in the transcription buffer at position {index_in_transcription_buffer}")
-                        self._log_debug(f"* Merging '{new_words[i:]}' into '{self._ongoing_transcription.split()[:index_in_transcription_buffer]}'")
-                        merged_words = self._ongoing_transcription.split()[:index_in_transcription_buffer] + new_words[i:]
-                        merged = " ".join(merged_words)
-                        self._transcription_buffer = merged_words[-5:]
-                        # Once found, we don't keep on searching for the same word with any punctuation.
-                        break
-                # Why to keep on searching for the next words if we already found a match with the first one?
-                if found:
-                    break
-            
-            # If reaching this point there is no merged text, means that none of the new words matched with the buffer.
-            # This means that the new transcription is completely different from the ongoing one, most likely because the transcription buffer
-            #   was not cleaned in this transcription iteration, so we just append the new transcription to the ongoing one, without merging.
-            if not merged:
-                merged = self._ongoing_transcription + " " + partial_transcription
-                self._transcription_buffer = merged.split()[-5:]
-        # <---
-        else:
-
-            # Note: It feels like this is not needed:
-            #   If we don't have a buffer, it means that we don't have any reference point to merge the new transcription,
-            #       meaning, it's the first transcription we get, so we can just take it as it is. 
-            #   If so, all this difflib logic in the ELSE is not needed, just take the new transcription as it is, 
-            #       and save the last words in the buffer for the next iterations.
-
-            # Use SequenceMatcher to find the overlap
-            # We look for the best match between the end of the ongoing transcription
-            # and the beginning of the new partial transcription.
-            matcher = difflib.SequenceMatcher(None, self._ongoing_transcription[-100:].lower(), partial_transcription[:100].lower())
-            match = matcher.find_longest_match(0, len(self._ongoing_transcription[-100:]), 0, len(partial_transcription[:100]))
-
-            if match.size > 10: # Threshold for a valid overlap
-                # Merge by taking the ongoing part + the new part after the overlap
-                merged = self._ongoing_transcription + partial_transcription[match.size:]
-            else:
-                # No significant overlap, just append
-                merged = self._ongoing_transcription + " " + partial_transcription
-            
-            # Save some words for the next iteration.
-            self._transcription_buffer = merged.split()[-5:]
-        
-        self._log_debug(f"< Transcription buffer after merging: {self._transcription_buffer}")
-        self._log_debug(f"< Merged transcription after merging: {merged}")
-        
-        # 3. Cleaning.
-        
-        # If there are multiple dots in the merged transcription, replace them with a single dot.
-        while ".." in merged:
-            merged = merged.replace("..", ".")
-        
-        # If there are multiple space & comas in the merged transcription, just remove them.
-        while " ," in merged:
-            merged = merged.replace(" ,", "")
-
-        self._ongoing_transcription = merged.strip()
-        return self._ongoing_transcription
+        return cleaned_word
     
     def _clean_transcription(self, text: str) -> str:
         cleaned_text = text
@@ -411,21 +340,7 @@ class FasterWhisperStreamProcess(Xprocess):
             # self._output_queue.put(self._output_queue_sentinel)
             self._log_debug("Final transcription put in the output queue with the sentinel.")
         else:
-            self._xlog.error("🛑 Output queue or sentinel not available, cannot put the final transcription in the output queue.")
-    
-    def find_in_list_relative_from_behind(self, item, lst):
-        """
-        Find the first occurrence of an item in a list from the end, and return the index relative to the end.
-
-        For example, if the list is ["hello", "world", "test", "hello"] and the item is "hello", it will return -1, 
-        because the first occurrence of "hello" from the end is at index -1 (the last element). 
-        If the item is "test", it will return -2, because the first occurrence of "test" from the end is at index -2. 
-        If the item is not found, it will return None.
-        """
-        for i, element in enumerate(reversed(lst), 1):
-            if element == item:
-                return -i
-        return None
+            self._xlog.error("🛑 Output queue not available, cannot put the final transcription in the output queue.")
     
     def warm_up_model(self):
         """
