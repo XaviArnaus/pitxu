@@ -84,6 +84,10 @@ class GeminiChatbot(PyXavi):
 
         if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
+        
+        if not self._xparams.key_exists("language"):
+            raise RuntimeError("Language is mandatory")
+
         self.initialize()
 
     def initialize(self):

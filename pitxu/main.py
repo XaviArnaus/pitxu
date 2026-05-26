@@ -266,10 +266,11 @@ class Main(PyXavi):
             # Attention: only for Streaming engines!
             # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
             # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
                 self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
                 self._dictate.reset_context()
-                self._interaction.set_stt_busy()
+                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
+                # self._interaction.set_stt_busy()
             
                 # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
                 # COMMENTED: We now have a thread that processes the chunks as they arrive.
@@ -291,7 +292,7 @@ class Main(PyXavi):
         try:
             # Attention: only for Streaming engines!
             # COMMENTED: We now have a thread that processes the chunks as they arrive.
-            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"``]:
             #     # So we have a new chunk in the queue. Process it.
             #     #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
             #     partial_transcription = self._dictate.recognize_chunks_from_queue()
@@ -316,7 +317,7 @@ class Main(PyXavi):
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
             self._xlog.error(full_stack())
     
-    async def main_execution_on_transcription_finished(self):
+    async def main_execution_on_transcription_finished(self, final_transcription: str = None):
         """
         This method is called when the Transcription is finished (receiving a None in the transcription).
         It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
@@ -348,11 +349,17 @@ class Main(PyXavi):
             self._last_stt_processing_time = 0
 
             # If we are using a streaming engine, we don't want to process the audio, we just want to get the transcription.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
-                self._log_debug("Getting transcription from Dictate after VAD detected speech finished, for streaming engine...")
-                question = self._dictate.get_transcription()
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
+                self._log_debug("Getting transcription from STT after VAD detected speech finished, for streaming engine...")
+                if final_transcription is not None:
+                    # Streaming V4 is meant to send the final transcription as an argument of the callback, 
+                    #   to avoid any possible race condition with the transcription thread and the state of the Dictate class.
+                    question = final_transcription
+                else:
+                    # Streaming V3 accummulates the transcription in the Dictate class, so we get it from there.
+                    question = self._dictate.get_transcription()
             else:
-                self._log_debug("Getting transcription from Dictate after VAD detected speech finished, for non-streaming engine...")
+                self._log_debug("Getting transcription from STT after VAD detected speech finished, for non-streaming engine...")
                 question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
@@ -366,7 +373,8 @@ class Main(PyXavi):
             # Still here? Then something got recognised.
             self._log_debug("💬 Recognised dictate: " + question)
 
-            self._interaction.unset_stt_busy()
+            # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
+            # self._interaction.unset_stt_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -806,6 +814,19 @@ class Main(PyXavi):
                 "main_event_loop": asyncio.get_event_loop(),
                 "language": self._xparams.get("language"),
                 "audio_parameters": self._audio_parameters,
+            }))
+        
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_process":
+
+            from pitxu.lib.speech_to_text.faster_whisper_stream_v4 import FasterWhisperStreamV4
+
+            self._dictate = FasterWhisperStreamV4(config=self._xconfig, params=Dictionary({
+                "support": self._support,
+                "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                "main_event_loop": asyncio.get_event_loop(),
+                "language": self._xparams.get("language"),
+                "audio_parameters": self._audio_parameters,
+                "process_pool": self._interaction.get_process_pool(),
             }))
 
         else:

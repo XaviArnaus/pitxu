@@ -11,6 +11,7 @@ QUEUE_MATRIX = "matrix_queue"
 QUEUE_LCD = "lcd_queue"
 QUEUE_DSI_LCD = "dsi_lcd_queue"
 QUEUE_SUPPORT = "support_queue"
+QUEUE_TRANSCRIBER = "transcriber_queue"
 
 # Shared memory flag positions
 SHARED_MEMORY_FLAGS = "pitxu_shared_memory_flags"

@@ -10,8 +10,8 @@ from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackgr
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
-from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, \
-                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT
+from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
+                        QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, QUEUE_TRANSCRIBER
 
 
 class XprocessPool(PyXavi):
@@ -29,6 +29,7 @@ class XprocessPool(PyXavi):
         "lcd_busy": SHARED_LCD_BUSY,
         "dsi_lcd_busy": SHARED_DSI_LCD_BUSY,
         "support_busy": SHARED_SUPPORT_BUSY,
+        "stt_busy": SHARED_STT_BUSY,
     }
     _shared_flags_per_queue: dict[str, str] = {
         QUEUE_EINK: SHARED_EINK_BUSY,
@@ -37,6 +38,7 @@ class XprocessPool(PyXavi):
         QUEUE_LCD: SHARED_LCD_BUSY,
         QUEUE_DSI_LCD: SHARED_DSI_LCD_BUSY,
         QUEUE_SUPPORT: SHARED_SUPPORT_BUSY,
+        QUEUE_TRANSCRIBER: SHARED_STT_BUSY,
     }
 
     def __init__(self, config: Config, params: Dictionary):
@@ -88,11 +90,18 @@ class XprocessPool(PyXavi):
             output_queue = self._manager.JoinableQueue()
             sentinel_output_queue = object()  # A unique value to signal the end of the output queue stream
         
+        # Apparently we have a bug in pyxavi.dictionary.merge(), that does not allow to pass the JoinedableQueue through the params.
+        # We do it oldschool, but we needto take a look at it!!
+        for key, value in self._xparams.get_all().items():
+            if not params.key_exists(key):
+                params.set(key, value)
+        
         queue = self._manager.JoinableQueue()
         self._queue[name] = queue
         self._process[name] = target(
             config=self._xconfig, 
-            params=self._xparams.merge(origin=params), 
+            # params=self._xparams.merge(origin=params),
+            params=params,
             queue=queue,
             output_queue=output_queue,
             sentinel_output_queue=sentinel_output_queue,

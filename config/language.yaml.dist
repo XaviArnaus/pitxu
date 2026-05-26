@@ -16,7 +16,7 @@ language:
   exit_words:
     ca: ["sortir", "adeu"]
     es: ["salir", "adios"]
-    en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
+    en-us: ["exit", "quit", "bye", "goodbye", "good bye", "goodb"]
     de: ["tschüss", "beenden", "ende"]
   # [String] Warm up question. Should be simple and without using external tools
   warmup_question: 

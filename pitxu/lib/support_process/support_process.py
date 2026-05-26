@@ -1,5 +1,4 @@
-import logging, time
-from piper.voice import PiperVoice
+import logging
 
 from pyxavi import Config
 
@@ -8,8 +7,6 @@ from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.support_process.dumper import Dumper
 from pitxu.lib.support_process.summarizer import Summarizer
-
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 import numpy as np
 

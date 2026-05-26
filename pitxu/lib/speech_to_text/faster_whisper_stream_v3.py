@@ -345,20 +345,25 @@ class FasterWhisperStreamV3(PyXavi):
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
             if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-            else:
-                texts.append(segment.text)
+            # else:
+            #     texts.append(segment.text)
+            previous_word = ""
             previous_start = -1
             previous_end = -1
             previous_prob = -100
             for word in segment.words:
                 # Sometimes the model goes crazy and repeats the exact same word un the segment.
                 # So we can check for the same timestamps and probability and say it's a repetition and discard it.
-                if word.start == previous_start and word.end == previous_end and word.probability == previous_prob:
+                if word.word == previous_word and word.start == previous_start and word.end == previous_end and word.probability == previous_prob:
                     continue
+                previous_word = word.word
                 previous_start = word.start
                 previous_end = word.end
                 previous_prob = word.probability
                 words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
+                text += word.word + " "
+            texts.append(text.strip())
+            
         self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
         self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
 
