@@ -135,22 +135,13 @@ class FasterWhisperStreamProcess(Xprocess):
         else:
             raise SpeechToTextException(f"No model specified in config for language {self.language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
 
-        # Forwarding the Support process queue to the Preprocessor via xparams,
-        #   here just checking that it's there, for the log summary.
+        # I can't pass the Support clas to the subprocess, as the Support class is already a subprocess.
+        #   therfore, I can only send the queue for the Support class and then put the elements there.  
+        #   Here I'm just checking that the queue is there, for the log summary.
         logging_parts.append(("Support Class Queue is present", "Yes" \
                                 if self._xparams.key_exists("support_class_queue") \
                                 and self._xparams.get("support_class_queue") is not None \
-                                else "No"))
-
-        # COMMENTED: I can't pass the Support clas to the subprocess, as the Support classis already a subprocess.
-        #   therfore, I can only send the queue for the Support class and then put the elements there.    
-        # self.process_pool = XprocessPool(config=self._xconfig, params=self._xparams)
-        # params = Dictionary({
-        #     "process_pool": self.process_pool,
-        #     "audio_parameters": self._xparams.get("audio_parameters"),
-        # })
-        # support = Support(config=self._xconfig, params=params)
-        # params.set("support", support)
+                                else "No"))  
         params = Dictionary({
             "support_class_queue": self._xparams.get("support_class_queue"),
             "audio_parameters": self._xparams.get("audio_parameters"),

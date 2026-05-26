@@ -271,13 +271,6 @@ class Main(PyXavi):
                 self._dictate.reset_context()
                 # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
                 # self._interaction.set_stt_busy()
-            
-                # Also, we receive from VAD a set of audio chunks, as a window BEFORE the VAD detected the start. We need to process them.
-                # COMMENTED: We now have a thread that processes the chunks as they arrive.
-                # self._log_debug("🗣️ Processing initial audio chunks received from VAD on speech start...")
-                # partial_transcription = self._dictate.recognize_chunks_from_queue()
-                # if partial_transcription is not None and partial_transcription.strip() != "":
-                #     self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -292,7 +285,7 @@ class Main(PyXavi):
         try:
             # Attention: only for Streaming engines!
             # COMMENTED: We now have a thread that processes the chunks as they arrive.
-            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"``]:
+            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
             #     # So we have a new chunk in the queue. Process it.
             #     #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
             #     partial_transcription = self._dictate.recognize_chunks_from_queue()
@@ -349,7 +342,7 @@ class Main(PyXavi):
             self._last_stt_processing_time = 0
 
             # If we are using a streaming engine, we don't want to process the audio, we just want to get the transcription.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
                 self._log_debug("Getting transcription from STT after VAD detected speech finished, for streaming engine...")
                 if final_transcription is not None:
                     # Streaming V4 is meant to send the final transcription as an argument of the callback, 
@@ -779,10 +772,14 @@ class Main(PyXavi):
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
                          f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
-        # COMMENTED: This way Vosk chooses between config or device.
-        # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
 
         if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+            # Use the Vosk engine. 
+            # It is a streaming approach.
+            # Has been in use the whole development until May 2026. Was fustrating but working.
+            # - Accuracy is VERY low
+            # - It's fast.
+            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
 
             from pitxu.lib.speech_to_text.vosk import Vosk
 
@@ -791,6 +788,13 @@ class Main(PyXavi):
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
 
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+            # Use the Whisper engine.
+            # It is a non-streaming approach
+            # Was barely used. Too slow in the RPi, good in the Mac.
+            # - Accuracy is good
+            # - It's VERY slow
+            # # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+
 
             from pitxu.lib.speech_to_text.whisper import Whisper
 
@@ -798,6 +802,15 @@ class Main(PyXavi):
             self._dictate = Whisper(config=self._xconfig, params=self._xparams)
 
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
+            # Use Faster Whisper engine.
+            # It is a non-streaming approach, 
+            # It was some time in use during May 2026. Transcription takes a bit of time, but holds a much better conversation quality.
+            # - Accuracy is EXCELLENT with the tiny model. 
+            # - It's slow, but way much faster than Whisper.
+            # The tradeoff is worth considering. 
+            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+            # TODO: What if we use the faster_whisper_process, that runs in a separate process? 
+            #   It may be a good option to keep the main loop more responsive and still keep the accuracy.
 
             from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
 
@@ -805,22 +818,19 @@ class Main(PyXavi):
             self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
         
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+            # Use Faster Whisper Streaming engine. 
+            # It's a streaming approach:
+            #   - A thread consumes the input queue and sends a window of chunks to a subprocess via another queue.
+            #   - The partial transcriptions are merged in the subprocess by word match (Good by now, may need improvements), 
+            #       accumulating an ongoing transcription.
+            #   - The thread receives a sentinel from the input queue and requests the transcription from the subprocess, through an output queue.
+            #   - The same first thread also consumes the output queue from the subprocess, 
+            #       and reacts on receiving a transcription calls the Main's callback with the received transcription.
+            # It's the current working implementation as of May 2026, and it is working pretty well, with a good accuracy and a decent speed.
 
-            from pitxu.lib.speech_to_text.faster_whisper_stream_v3 import FasterWhisperStreamV3
+            from pitxu.lib.speech_to_text.faster_whisper_stream import FasterWhisperStream
 
-            self._dictate = FasterWhisperStreamV3(config=self._xconfig, params=Dictionary({
-                "support": self._support,
-                "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
-                "main_event_loop": asyncio.get_event_loop(),
-                "language": self._xparams.get("language"),
-                "audio_parameters": self._audio_parameters,
-            }))
-        
-        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_process":
-
-            from pitxu.lib.speech_to_text.faster_whisper_stream_v4 import FasterWhisperStreamV4
-
-            self._dictate = FasterWhisperStreamV4(config=self._xconfig, params=Dictionary({
+            self._dictate = FasterWhisperStream(config=self._xconfig, params=Dictionary({
                 "support": self._support,
                 "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
                 "main_event_loop": asyncio.get_event_loop(),
@@ -1177,6 +1187,17 @@ class Main(PyXavi):
                         header="Idle",
                         font_header_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
                         show_for_seconds=15)
+                
+                    # If we're in a state of waiting for a transcription to happen,
+                    #   - Mic is off
+                    # then put the Mic on, and reset the transcription (if streaming), so at leat the user can try
+                    #   to trigger the interaction again.
+                    # ⚠️ Still... it shouldn't happen!
+                    if self._interaction.is_microphone_muted():
+                        self._log_debug("Microphone is muted while in idle mode, unmuting it to allow the user to trigger an interaction.")
+                        self._interaction.unmute_microphone(input_stream=input_stream)
+                        if self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+                            self._dictate.reset_context()
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))

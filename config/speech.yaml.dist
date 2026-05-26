@@ -6,9 +6,9 @@ speech-to-text:
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
   # [String] Engine to use for the Speech-to-Text.
-  # Options: "vosk", "whisper", "faster_whisper", "faster_whisper_streaming", "faster_whisper_process" as the string used for the key in the configuration.
-  # The "faster_whisper_process" option uses the config from the "faster_whisper_streaming" section, but it processes the audio in a separated process.
-  engine: "faster_whisper_process"
+  # Options: "vosk", "whisper", "faster_whisper", "faster_whisper_streaming" as the string used for the key in the configuration.
+  # The "faster_whisper_streaming" option uses the config from the "faster_whisper" section, but it processes the audio in streaming mode.
+  engine: "faster_whisper_streaming"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.
   # bytes_per_chunk: 4000 # Working in Mac
