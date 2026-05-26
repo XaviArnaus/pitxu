@@ -144,7 +144,8 @@ language:
       "etc.": "etcètera"
       "°C": "graus"
       "km/h": "quilòmetres per hora"
-      "Xavi": "Txabi"
+      "e.g.": "per exemple"
+      "vs.": "versus"
     es:
       "&amp;": "y"
       "&lt;": "menor que"
@@ -154,7 +155,8 @@ language:
       "etc.": "etcétera"
       "°C": "grados"
       "km/h": "kilómetros por hora"
-      "Xavi": "Chabi"
+      "e.g.": "por ejemplo"
+      "vs.": "versus"
     en-us:
       "&amp;": "and"
       "&lt;": "less than"
@@ -165,7 +167,8 @@ language:
       "°C": "degrees"
       "km/h": "kilometers per hour"
       "e.g.": "for example"
-      "Xavi": "Chabee"
+      "e.g.": "for example"
+      "vs.": "versus"
     de:
       "&amp;": "und"
       "&lt;": "kleiner als"
@@ -175,7 +178,8 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
-      "Xavi": "Chabi"
+      "e.g.": "zum Beispiel
+      "vs.": "gegen"
   
   # Replacements at TTS only to improve pronunciation
   tts_text_replacements:
