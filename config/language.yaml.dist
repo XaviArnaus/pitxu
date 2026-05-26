@@ -187,6 +187,28 @@ language:
       "Xavi": "Chabee"
     de:
       "Xavi": "Chabi"
+  
+  # Expressions to remove from transcription
+  transcription_remove_expressions:
+    ca: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    es: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    en-us: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    de: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+
+  # Punctuations to count on for the word-based partial transcriptions
+  word_based_partial_transcriptions_punctuations:
+    ca: [".", ",", "!", "?", ";", ":", "..."]
+    es: [".", ",", "!", "?", ";", ":", "..."]
+    en-us: [".", ",", "!", "?", ";", ":", "..."]
+    de: [".", ",", "!", "?", ";", ":", "..."]
+
+  # Sentences to remove by the end of the transcription
+  #   also understood as "hallucinations" of the STT engine.
+  transcription_hallucinations:
+    ca: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    es: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    en-us: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    de: ["thank you for watching", "thanks for watching", "subscribe for more
 
   # Reminders
   reminders:

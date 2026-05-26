@@ -36,19 +36,14 @@ class FasterWhisperStream(PyXavi):
 
     transcriptor_input_queue: JoinableQueue = None
     transcriptor_output_queue: JoinableQueue = None
-    # transcriptor_output_queue_sentinel: object = None
 
     on_transcription_finished_callback: callable = None
 
     is_active: bool = False
     language: str = "en"
 
-    # _beam_size = 5
-    # _overlap_size = 2000
     _chunks_window = 10
     _sleep_when_no_chunks = 0.1
-    # _use_low_confidence_threshold = False
-    # _low_confidence_threshold = -1
 
     _ongoing_chunk_window = []
     _worker_thread: threading.Thread = None
@@ -115,33 +110,14 @@ class FasterWhisperStream(PyXavi):
         if self._xconfig.get("speech-to-text.mock", True):
             self._xlog.info("Mocking Speech-to-Text by Config. Model not loaded.")
         else:
-            # model = self._xconfig.get("speech-to-text.faster_whisper_streaming.model." + self.language, None)
-            # if model is not None:
-            #     # I don't understand why device and download_root get read as tuples instead of strings.
-            #     device = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.device", "cpu"))
-            #     download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
-            #     compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
-            #     beam_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.beam_size", 5))
-            #     overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
-            #     self._beam_size = beam_size
-            #     self._overlap_size = overlap_size
+
             self._chunks_window = chunks_window
             self._sleep_when_no_chunks = sleep_when_no_chunks
 
-            #     logging_parts.append(("Model from config", model))
-            #     logging_parts.append(("Device for Faster Whisper", device))
-            #     logging_parts.append(("Download root", download_root))
-            #     logging_parts.append(("Compute type", compute_type))
-            #     logging_parts.append(("Beam size", beam_size))
-            #     logging_parts.append(("Overlap size", overlap_size))
-            #     logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
-            #     self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
-            # else:
-            #     raise SpeechToTextException(f"No model specified in config for language {self.language}, and mocking is disabled, cannot initialize Faster Whisper STT.")
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
@@ -155,14 +131,6 @@ class FasterWhisperStream(PyXavi):
             
             # self.device = self._xparams.get("audio_parameters.input_device", None)
             # logging_parts.append(("Input device", self.device))
-
-            # Forwarding the Support process to the Preprocessor via xparams,
-            #   here just checking that it's there, for the log summary.
-            # logging_parts.append(("Support class is present", "Yes" \
-            #                       if self._xparams.key_exists("support") \
-            #                         and self._xparams.get("support") is not None \
-            #                         and isinstance(self._xparams.get("support"), Support) \
-            #                       else "No"))
 
         self._queue = queue.Queue()
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
@@ -232,11 +200,6 @@ class FasterWhisperStream(PyXavi):
 
                     if data is None:
                         self._log_debug("FasterWhisper Stream: Received None data from the queue, It should be the end of the stream.")
-
-                        # Process the leftover chunks in the window, if any, with the context of the last overlap and the ongoing transcription.
-                        # COMMENTED: Feels like this is not needed, as the transcription appears complete until now in the logs and then, all of a sudden,
-                        #   a lot of garbage is added at the end
-                        # _ = self._process_leftover_chunks()
 
                         # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
                         self._support.dump_and_plot_all()

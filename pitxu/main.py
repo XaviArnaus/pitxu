@@ -858,7 +858,7 @@ class Main(PyXavi):
             # The callback that triggers while the user is speaking, detected by the VAD.
             "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
-            "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
+            "on_vad_detected_finished_callback": self.main_execution_on_transcription_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
             "main_event_loop": asyncio.get_event_loop()
         }))

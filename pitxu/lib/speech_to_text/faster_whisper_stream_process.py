@@ -87,6 +87,11 @@ class FasterWhisperStreamProcess(Xprocess):
         # Gathering the reference to the output queue, where to publish the results.
         self._output_queue = self.get_output_queue()
         self._output_queue_sentinel = self.get_sentinel_output_queue()
+
+        # Fill the replacing strings from the config
+        self.expressions_to_remove = self._xconfig.get("language.transcription_remove_expressions." + self._xparams.get("language"), self.expressions_to_remove)
+        self.punctuations_to_add_to_words = self._xconfig.get("language.word_based_partial_transcriptions_punctuations." + self._xparams.get("language"), self.punctuations_to_add_to_words)
+        self.phrases_to_remove = self._xconfig.get("language.transcription_hallucinations." + self._xparams.get("language"), self.phrases_to_remove)
         
         model = self._xconfig.get("speech-to-text.faster_whisper_streaming.model." + self.language, None)
         if model is not None:
