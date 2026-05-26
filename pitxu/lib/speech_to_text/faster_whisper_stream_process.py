@@ -206,7 +206,7 @@ class FasterWhisperStreamProcess(Xprocess):
         self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with the context of the last overlap and the ongoing transcription.")
         preprocessed_chunks = [self._preprocessor.preprocess_chunk(chunk, return_in_numpy=True) for chunk in chunk_list]
         preprocessed_chunks = list(filter(lambda x: x is not None and len(x) > 0, preprocessed_chunks))
-        
+
         if len(preprocessed_chunks) == 0:
             self._log_debug("FasterWhisper Stream: No valid audio chunks to process after preprocessing, returning empty result.")
             result = ""
@@ -218,7 +218,7 @@ class FasterWhisperStreamProcess(Xprocess):
         # Calculate chunk duration for the offset
         chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
                             if len(preprocessed_chunks) > 0 else 0.0
-        
+
         # 3. Transcription
         # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
         prompt_buffer_size_in_chars = 50
@@ -251,7 +251,7 @@ class FasterWhisperStreamProcess(Xprocess):
                 self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
 
             # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
-            #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same), 
+            #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
             #   so we can check for that and discard it.
             previous_word = ""
             previous_start = -1
@@ -261,6 +261,8 @@ class FasterWhisperStreamProcess(Xprocess):
             for word in segment.words:
 
                 # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
+                # ⚠️ still happens
+                #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
                 if word.word == previous_word and word.start == previous_start and word.end == previous_end:
                     continue
                 previous_word = word.word
@@ -269,17 +271,18 @@ class FasterWhisperStreamProcess(Xprocess):
 
                 # Calculate absolute time of the word
                 absolute_word_start = self._current_chunk_start_time + word.start
+                absolute_word_end = self._current_chunk_start_time + word.end
 
-                # Only commit words that appear after our last committed timestamp
-                if absolute_word_start > self._last_committed_timestamp:
+                # Only commit words that appear after or at our last committed timestamp
+                if absolute_word_start >= self._last_committed_timestamp:
                     cleaned_word = self._clean_word(word.word)
 
                     if cleaned_word: # Only add if it's not empty/filler
                         new_words.append(cleaned_word)
-                        # Update last committed timestamp using absolute time
-                        self._last_committed_timestamp = self._current_chunk_start_time + word.end
+                        # Update last committed timestamp using absolute time, ensuring we don't go backwards
+                        self._last_committed_timestamp = max(self._last_committed_timestamp, absolute_word_end)
 
-        # Just a logging to see the outcome of the analysis.    
+        # Just a logging to see the outcome of the analysis.   
         self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
         self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
 
@@ -287,7 +290,7 @@ class FasterWhisperStreamProcess(Xprocess):
         if len(new_words) == 0:
             self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
             return ""
-        
+
         # 5. Update state
         self._ongoing_transcription += " " + " ".join(new_words)
 
@@ -323,6 +326,9 @@ class FasterWhisperStreamProcess(Xprocess):
             # Use case-insensitive matching and remove the phrase
             pattern = re.compile(re.escape(phrase), re.IGNORECASE)
             cleaned_text = pattern.sub("", cleaned_text)
+        
+        cleaned_text = re.sub(r'\.{2,}', ' ', cleaned_text)
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
 
         return cleaned_text.strip()
     
