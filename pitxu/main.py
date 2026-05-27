@@ -271,6 +271,7 @@ class Main(PyXavi):
                 self._dictate.reset_context()
                 # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
                 # self._interaction.set_stt_busy()
+                self._interaction.set_transcriber_busy()
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -368,6 +369,7 @@ class Main(PyXavi):
 
             # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
             # self._interaction.unset_stt_busy()
+            self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -1245,7 +1247,7 @@ class Main(PyXavi):
                         # Vad did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
                         self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                    elif self._interaction.is_stt_busy():
+                    elif self._interaction.is_transcriber_busy():
                         self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                         self._last_interaction_paused_seconds += 1
                     else:
