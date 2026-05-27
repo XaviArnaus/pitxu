@@ -25,6 +25,7 @@ storage/audio/signals/*.png
 storage/audio/spectograms/*.png
 storage/tmp/*.png
 storage/tmp/*.html
+storage/db/*.db
 
 # No Wisper models
 storage/whisper/*.pt

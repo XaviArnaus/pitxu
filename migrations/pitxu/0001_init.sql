@@ -1,0 +1,21 @@
+PRAGMA user_version = 1;
+CREATE TABLE short_time_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    summary VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE long_time_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    summary VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE knowledge_base (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    summary VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
