@@ -86,12 +86,12 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
-    def update_memory_entry_by_id(self, entry_id: str, summary: str = None, content: str = None) -> dict | str:
+    def update_memory_entry_by_id(self, entry_id: int, summary: str = None, content: str = None) -> dict | str:
         '''
         Update a memory entry by its ID with the given summary and/or content.
 
         Args:
-            entry_id (str): The ID of the memory entry to update.
+            entry_id (int): The ID of the memory entry to update.
             summary (str, optional): The new summary for the memory entry. Defaults to None.
             content (str, optional): The new content for the memory entry. Defaults to None.
 
@@ -214,7 +214,7 @@ class StatefulMemory(PyXavi, Command):
             elif isinstance(value, list) and len(value) > 0:
                 summary = "\n".join([entry.get("summary", "") for entry in value if isinstance(entry, dict) and "summary" in entry])
             elif value is None:
-                log.error(f"🛑 Memory entry retrieval result is None.")
+                log.error(f"🟠 Memory entry retrieval result is None.")
                 interaction.show_error(text="Memory entry not found")
                 return
             else:

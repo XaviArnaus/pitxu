@@ -178,6 +178,8 @@ class Memory(PyXavi):
         self.db.cursor.execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
             (entry["summary"], entry["content"], entry_id))
         self.db.connection.commit()
+
+        return self.get_by_id(table_name, entry_id)
     
     def update_last_entry(self, table_name: str, summary: str = None, content: str = None) -> dict | None:
         last_entry = self.get_last_entry(table_name)
@@ -205,24 +207,31 @@ class Memory(PyXavi):
         Returns:
             dict | None: The summarized memory entry or None if summarization fails.
         '''
+        original_retries = retries
         try:
             chatbot_history_str = json.dumps(chatbot_history)
             prompt = self._xconfig.get("memory.summary_prompt." + self._xparams.get("language")) % chatbot_history_str
 
-            client = genai.Client(api_key=self._xparams.get("api_key"))
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                # config=types.GenerateContentConfig(
-                #     system_instruction=instructions[self._xparams.get('language')],
-                #     # system_instruction=instructions["en-us"],
-                #     tools=tools
-                # )
-            )
+            retries = -1
+            while retries < 1:
+                retries += 1
+                self._xlog.debug(f"Summarizing. Try #{retries} / {original_retries}")
 
-            response_as_dict = None
-            response_as_str = response.text.replace("```json", "").replace("```", "")
-            self._xlog.debug(f"Summarization response: \n{response_as_str}")
+                client = genai.Client(api_key=self._xparams.get("api_key"))
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                    # config=types.GenerateContentConfig(
+                    #     system_instruction=instructions[self._xparams.get('language')],
+                    #     # system_instruction=instructions["en-us"],
+                    #     tools=tools
+                    # )
+                )
+
+                response_as_dict = None
+                response_as_str = response.text.replace("```json", "").replace("```", "")
+                self._xlog.debug(f"Summarization response: \n{response_as_str}")
+
             try:
                 response_as_dict = json.loads(response_as_str)
             except json.JSONDecodeError:
