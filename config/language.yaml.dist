@@ -167,7 +167,6 @@ language:
       "°C": "degrees"
       "km/h": "kilometers per hour"
       "e.g.": "for example"
-      "e.g.": "for example"
       "vs.": "versus"
     de:
       "&amp;": "und"
@@ -178,7 +177,7 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
-      "e.g.": "zum Beispiel
+      "e.g.": "zum Beispiel"
       "vs.": "gegen"
   
   # Replacements at TTS only to improve pronunciation
