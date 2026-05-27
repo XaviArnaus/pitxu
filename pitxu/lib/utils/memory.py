@@ -16,6 +16,8 @@ class Memory(PyXavi):
     TABLE_LONG_TIME_MEMORY = "long_time_memory"
     TABLE_KNOWLEDGE_BASE = "knowledge_base"
 
+    RETRIES_ON_SUMMARIZATION_FAILURE = 3
+
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
@@ -207,7 +209,7 @@ class Memory(PyXavi):
         Returns:
             dict | None: The summarized memory entry or None if summarization fails.
         '''
-        original_retries = retries
+        original_retries = retries = self.RETRIES_ON_SUMMARIZATION_FAILURE
         try:
             chatbot_history_str = json.dumps(chatbot_history)
             prompt = self._xconfig.get("memory.summary_prompt." + self._xparams.get("language")) % chatbot_history_str
