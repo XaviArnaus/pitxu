@@ -1251,6 +1251,8 @@ class Main(PyXavi):
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
 
+                    # The is_vad_detected should manage the *non-streaming* Faster Whisper
+                    # The is_transcriber_busy should manage the *streaming* Faster Whisper
                     if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
                         # The transcriber still didn't finish inferring the speech.
                         self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
