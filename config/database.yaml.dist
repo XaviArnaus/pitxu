@@ -1,0 +1,10 @@
+# Database configuration
+database:
+  # At this point, this is only for SQLite.
+  sqlite:
+    # [String] The path to the database file. Starts from "storage.path". If the file does not exist, it will be created.
+    path: "db/"
+    # [String] The name of the database file. If the file does not exist, it will be created.
+    filename: "pitxu.db"
+    # [String] The path to the directory containing database migration scripts. Starts from the root path. If the directory does not exist, it will be created.
+    migrations_path: "migrations/pitxu/"

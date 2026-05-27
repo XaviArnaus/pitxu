@@ -32,7 +32,7 @@ class StatefulMemory(PyXavi, Command):
         '''
         try:
             self._xlog.info(f"Ⓜ️ Request for Creating a new memory entry: {summary}")
-            created_entry = self._memory.write_entry(summary, content)
+            created_entry = self._memory.create_short_memory_entry(summary, content)
             return created_entry
 
         except Exception as e:
@@ -53,7 +53,7 @@ class StatefulMemory(PyXavi, Command):
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{summary}]")
 
         try:
-            memory_entries = self._memory.get_by_summary_like(summary)
+            memory_entries = self._memory.get_short_memory_by_summary_like(summary)
             if memory_entries:
                 return memory_entries
             else:
@@ -76,7 +76,7 @@ class StatefulMemory(PyXavi, Command):
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{date}]")
 
         try:
-            memory_entries = self._memory.get_by_date(date)
+            memory_entries = self._memory.get_short_memory_by_date(date)
             if memory_entries:
                 return memory_entries
             else:
@@ -99,7 +99,7 @@ class StatefulMemory(PyXavi, Command):
             dict | str: The updated memory entry or an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Updating memory entry with ID [{entry_id}] with summary [{summary}] and content [{content}]")
-        entry = self._memory.get_by_id(entry_id)
+        entry = self._memory.get_short_memory_by_id(entry_id)
         if entry is None:
             error = f"🛑 Memory entry with ID [{entry_id}] not found."
             self._xlog.error(error)
@@ -109,7 +109,7 @@ class StatefulMemory(PyXavi, Command):
             error = f"⚠️ Memory entry with ID [{entry_id}] intended to be updated with summary [{summary}] and content [{content}]. One of the fields is None, so it will not be updated."
             self._xlog.warning(error)
             return error
-        return self._memory.update_entry_by_id(entry_id=entry_id, summary=summary, content=content)
+        return self._memory.update_short_memory_entry_by_id(entry_id=entry_id, summary=summary, content=content)
     
     def update_last_memory_entry(self, summary: str = None, content: str = None) -> dict | None:
         '''
@@ -125,7 +125,7 @@ class StatefulMemory(PyXavi, Command):
         '''
         self._xlog.info(f"Ⓜ️ Request for Updating the last memory entry with summary [{summary}] and content [{content}]")
         try:
-            updated_entry = self._memory.update_last_entry(summary, content)
+            updated_entry = self._memory.update_last_short_memory_entry(summary, content)
             if updated_entry:
                 return updated_entry
             else:
@@ -157,7 +157,7 @@ class StatefulMemory(PyXavi, Command):
                 content = response_as_dict.get("content", None)
 
                 if summary is not None and content is not None:
-                    created_entry = self._memory.write_entry(summary, content)
+                    created_entry = self._memory.create_short_memory_entry(summary, content)
                     return created_entry
                 else:
                     self._xlog.error(f"🛑 Error summarizing chatbot history into memory entry: The response JSON does not contain 'summary' or 'content' fields.")
