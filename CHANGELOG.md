@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0 - 2026-05-27
+
+### Changed
+
+- SQLite3-based memory approach, replacing file-based one [#40](https://github.com/XaviArnaus/pitxu/pull/40).
+
 ## v0.3.5 - 2026-05-22
 
 ### Added
