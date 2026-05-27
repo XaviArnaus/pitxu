@@ -183,6 +183,13 @@ class Dumper(PyXavi):
         preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
         self._log_debug(f"Plotting accumulated audio data")
 
+        if self.accumulated_signal is None or len(self.accumulated_signal) == 0:
+            self._log_debug("🛑 No raw audio data in memory to plot")
+            return
+        if preprocessor_enabled and (self.accumulated_filtered_signal is None or len(self.accumulated_filtered_signal) == 0):
+            self._log_debug("🛑 No preprocessed audio data in memory to plot")
+            return
+
         if self._xconfig.get("speech-to-text.generate_signal_plots", False):
             self.plot_signals(input_signal=np.concatenate(self.accumulated_signal),
                               filtered_signal=np.concatenate(self.accumulated_filtered_signal if preprocessor_enabled else self.accumulated_signal))
