@@ -1251,16 +1251,14 @@ class Main(PyXavi):
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
 
-                    if not self._interaction.is_vad_detected():
-                        # Vad did not detect anything, and we're in the time window to show the holding percentage
-                        # Calculate it.
-                        self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                    elif self._interaction.is_transcriber_busy():
+                    if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+                        # The transcriber still didn't finish inferring the speech.
                         self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                         self._last_interaction_paused_seconds += 1
                     else:
-                        self._xlog.debug("🎤 User may be speaking, pausing interaction holding time counter.")
-                        self._last_interaction_paused_seconds += 1
+                        # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
+                        # Calculate it.
+                        self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
                     
                     # Display it.
                     if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:

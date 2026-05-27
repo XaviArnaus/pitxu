@@ -67,3 +67,51 @@ class Github(PyXavi):
         except Exception as e:
             self._xlog.error(f"Error fetching PR files: {e}")
             return []
+    
+    def get_branch_related_to_pr(self, pr_url: str) -> str | bool:
+        """
+        Gets the branch name related to a PR, given the PR URL.
+
+        It uses the GitHub API to get the branch name related to the PR.
+
+        Args:
+            pr_url (str): The URL of the PR. 
+        Returns:
+            str | bool: The branch name related to the PR, or False if not found.
+        """
+        if self.GITHUB_TOKEN is None:
+            self._xlog.error("🛑 GITHUB_TOKEN is not set. Please set it in the .env file.")
+            return False
+
+        # Extract owner, repo and pr number from the URL
+        try:
+            parts = pr_url.split("/")
+            owner = parts[3]
+            repo = parts[4]
+            pr_number = parts[6]
+        except Exception as e:
+            self._xlog.error(f"Error parsing PR URL: {e}")
+            return False
+
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+        headers = {
+            "Authorization": f"Bearer {self.GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+        try:
+            request = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(request) as response:
+                data = response.read()
+                
+                pr_info = json.loads(data)
+                branch_name = pr_info.get("head", {}).get("ref", None)
+                if branch_name is not None:
+                    self._log_debug(f"Branch related to PR: {branch_name}")
+                    return branch_name
+                else:
+                    self._xlog.error("Branch name not found in PR info.")
+                    return False
+        except Exception as e:
+            self._xlog.error(f"Error fetching PR info: {e}")
+            return False

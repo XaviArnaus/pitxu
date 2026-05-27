@@ -243,11 +243,36 @@ class FasterWhisperStreamProcess(Xprocess):
             word_timestamps=True
         )
 
+        # If all segments are the same
+
         # 4. Timestamp-based Merging
         seg_infos = []  # This is just for logging.
         words_info = [] # This is just for logging.
         new_words = []  # Here will be the commited words after comparing via timestamp.
+
+        # These are the flags for the "previous segment", because in the RPi sometimes the model goes crazy
+        #   and repeats the exact same segment in the text, here we check it per words, not per timestamps.
+        #   according to the bugs seen.
+        previous_segments_in_text = []
+        previous_segment = {
+            "segment": "",
+            "start": -1,
+            "end": -1
+        }
         for segment in segments:
+
+            # Check if the segment is the same AND if the start time is within the tolerance
+            is_segment_duplicate = any(s["segment"] == segment.text for s in previous_segments_in_text)
+            # If so, skip it.
+            if is_segment_duplicate:
+                self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
+                continue
+            previous_segments_in_text.append({
+                "segment": segment.text,
+                "start": segment.start,
+                "end": segment.end
+            })
+
 
             # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
             seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
@@ -257,9 +282,12 @@ class FasterWhisperStreamProcess(Xprocess):
             # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
             #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
             #   so we can check for that and discard it.
-            previous_word = ""
-            previous_start = -1
-            previous_end = -1
+            previous_words_in_segment = []
+            previous_word = {
+                "word": "",
+                "start": -1,
+                "end": -1
+            }
 
             # Now, every word in this segment.
             for word in segment.words:
@@ -269,21 +297,24 @@ class FasterWhisperStreamProcess(Xprocess):
                 #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
                 # if word.word == previous_word and word.start == previous_start and word.end == previous_end:
                 #     continue
+
                 # Check if the word is the same AND if the start time is within the tolerance
-                # This is more permissive than exact matching and catches repetitions
-                # even if the model shifts the timestamp slightly.
-                is_duplicate = (
-                    word.word == previous_word and
-                    abs(word.start - previous_start) < self.TIME_TOLERANCE
+                is_word_duplicate = any(
+                    w["word"] == word.word and
+                    abs(w["start"] - word.start) < self.TIME_TOLERANCE and
+                    abs(w["end"] - word.end) < self.TIME_TOLERANCE
+                    for w in previous_words_in_segment
                 )
-
-                if is_duplicate:
-                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_start})")
+                # If so, skip it.
+                if is_word_duplicate:
+                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_word['start']})")
                     continue
-                previous_word = word.word
-                previous_start = word.start
-                previous_end = word.end
-
+                previous_words_in_segment.append({
+                    "word": word.word,
+                    "start": word.start,
+                    "end": word.end
+                })
+                # Still here? count on it.
                 words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
 
                 # Calculate absolute time of the word
