@@ -4,7 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage, \
                                 SystemJsonMetrics, SystemConversationFlow,\
-                                WorldPosition, WorldWeather, WorldWikipedia, WorldWget,\
+                                WorldPosition, WorldWeather, WorldWikipedia, WorldWget, WorldGithub,\
                                 GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
                                 StatefulReminders, StatefulLists, StatefulMemory,\
@@ -59,6 +59,7 @@ class ChatbotSessionManager(PyXavi):
             "system_network": SystemNetwork(config=self._xconfig, params=self._xparams),
             "system_conversation_flow": SystemConversationFlow(config=self._xconfig, params=self._xparams),
             "world_wget": WorldWget(config=self._xconfig, params=self._xparams),
+            "world_github": WorldGithub(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")

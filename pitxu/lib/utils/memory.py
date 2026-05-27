@@ -248,8 +248,8 @@ class Memory(PyXavi):
         preload_entries = self._xconfig.get("memory_preload.entries", [])
         for entry in preload_entries:
             # Avoid duplicates: if we already have an entry with the same title, we consider that we have already preloaded this entry, so we skip it. Otherwise, we write it in the memory.
-            if self.get_by_exact_summary(entry["title"]) is None:
-                self.write_short_memory_entry(summary=entry["title"], content=entry["content"])
+            if self.get_short_memory_by_exact_summary(entry["title"]) is None:
+                self.create_short_memory_entry(summary=entry["title"], content=entry["content"])
                 self._xlog.info(f"Preloaded memory entry with title '{entry['title']}'.")
             else:
                 self._xlog.warning(f"Memory entry with title '{entry['title']}' already exists. Skipping preload of this entry.")

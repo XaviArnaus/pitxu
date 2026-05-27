@@ -204,6 +204,7 @@ def initialize() -> tuple[Config, Logger, Dictionary]:
             "user_name": os.getenv("EMAIL_USERNAME", None),
             "password": os.getenv("EMAIL_PASSWORD", None),
         },
+        "github_token": os.getenv("GITHUB_TOKEN", None),
         "app_version": importlib.metadata.version('pitxu'),
         "arguments": parse_arguments()
     })
