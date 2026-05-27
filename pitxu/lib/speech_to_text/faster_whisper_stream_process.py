@@ -71,6 +71,9 @@ class FasterWhisperStreamProcess(Xprocess):
         "subscribe for more",
     ]
 
+    # Define a small tolerance window (e.g., 50ms) for word repetition
+    TIME_TOLERANCE = 0.05
+
     VERBOSE_DEBUG: bool = True
 
     def get_process_name(self) -> str:
@@ -264,7 +267,18 @@ class FasterWhisperStreamProcess(Xprocess):
                 # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
                 # ⚠️ still happens
                 #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
-                if word.word == previous_word and word.start == previous_start and word.end == previous_end:
+                # if word.word == previous_word and word.start == previous_start and word.end == previous_end:
+                #     continue
+                # Check if the word is the same AND if the start time is within the tolerance
+                # This is more permissive than exact matching and catches repetitions
+                # even if the model shifts the timestamp slightly.
+                is_duplicate = (
+                    word.word == previous_word and
+                    abs(word.start - previous_start) < self.TIME_TOLERANCE
+                )
+
+                if is_duplicate:
+                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_start})")
                     continue
                 previous_word = word.word
                 previous_start = word.start
