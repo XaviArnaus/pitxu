@@ -63,7 +63,7 @@ class DbSqlite(PyXavi):
         self._xlog.debug("🗄️ Running database migrations if needed")
 
         def get_script_version(path):
-            return int(path.split('_')[0].split('/')[1])
+            return int(path.split('_')[0].split('/')[-1])
 
         current_version = self.cursor.execute('pragma user_version').fetchone()[0]
         self._xlog.debug(f"🗄️ Current database version: {current_version}")
