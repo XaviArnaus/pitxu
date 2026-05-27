@@ -303,10 +303,14 @@ class Main(PyXavi):
         It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_end() method there.
         It WAS used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
         Now this work is done in the callback triggered when the transcription finishes. See main_execution_on_transcription_finished() method.
+        As we want to support non-streaming engines, here we check for a fitting engine and redirect to the transcription
+            callback to be able to continue the flow.
         """
 
         try:
-            pass
+            if self._xconfig.get("speech-to-text.engine") not in ["faster_whisper_streaming"]:
+                self._log_debug("Redirecting from VAD detected speech finished callback to Transcription finished callback, for non-streaming engines...")
+                await self.main_execution_on_transcription_finished()
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
             self._xlog.error(full_stack())
@@ -317,13 +321,8 @@ class Main(PyXavi):
         It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
         It is meant to be passed as a callback to the FasterWhisper Streaming Thread..
         """
-        """
-        This method is called when the user finishes speaking, detected by the VAD in CaptureHandler.
-        It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
-        It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_end() method there.
-        """
 
-        self._xlog.info("Main execution triggered by user finishing speaking, via VAD callback.")
+        self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
 
         # Mute microphone to avoid self-looping
         self._interaction.mute_microphone(input_stream=self._input_stream)
@@ -342,17 +341,15 @@ class Main(PyXavi):
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
             self._last_stt_processing_time = 0
 
-            # If we are using a streaming engine, we don't want to process the audio, we just want to get the transcription.
+            # If we are using a streaming engine, we don't want to process the audio, 
+            #   we just want to get the transcription from the transcription process.
             if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+                # For Faster Whisper Streaming, the final transcription is sent as an argument of the callback.
                 self._log_debug("Getting transcription from STT after VAD detected speech finished, for streaming engine...")
                 if final_transcription is not None:
-                    # Streaming V4 is meant to send the final transcription as an argument of the callback, 
-                    #   to avoid any possible race condition with the transcription thread and the state of the Dictate class.
                     question = final_transcription
-                else:
-                    # Streaming V3 accummulates the transcription in the Dictate class, so we get it from there.
-                    question = self._dictate.get_transcription()
             else:
+                # For non-streaming engines, we need to call the recognize_all_queue_at_once() method to process the audio in the queue and get the transcription.
                 self._log_debug("Getting transcription from STT after VAD detected speech finished, for non-streaming engine...")
                 question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
@@ -855,12 +852,23 @@ class Main(PyXavi):
             "capture_queue": input_audio_chunk_queue,
             "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
             "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
+
+            # For Faster Whisper Streaming:
+            # Even it's tempting, the callbacks here should be used solely for VAD purposes.
+            # Once the end of speech is detected, a sentinel is sent to the transcription thread
+            # and it's this one who triggers the main execution.
+
+            # For non-streaming engines:
+            # Yes, the callback for the end of VAD speech detection should redirect to the same
+            # transcription callback, that as it does not receive the transcription as an argument, 
+            # it will get it from the Dictate class, that in non-streaming engines is where the transcription is done.
+
             # The callback that triggers when the user starts speaking, detected by the VAD.
             "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
             # The callback that triggers while the user is speaking, detected by the VAD.
             "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
-            "on_vad_detected_finished_callback": self.main_execution_on_transcription_finished,
+            "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
             "main_event_loop": asyncio.get_event_loop()
         }))

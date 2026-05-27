@@ -245,6 +245,14 @@ class FasterWhisperStream(PyXavi):
                             self._log_debug("FasterWhisper Stream: Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
                             # Be careful, it's part of asyncio loop.
                             asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
+                            # At this point, we should have the transcription queue empty, but sometimes we receive the transcription result again.
+                            #   Then, the callback is called twice, making the whole chatbot & TTS to be repeated.
+                            if not self.transcriptor_output_queue.empty():
+                                self._xlog.warning(f"Transcription was called and the queue should be empty, but it's not. Current length: {self.transcriptor_output_queue.qsize()}.")
+                                while not self.transcriptor_output_queue.empty():
+                                    discarded_result = self.transcriptor_output_queue.get()
+                                    self._xlog.warning(f"Discarding transcription result from the queue to avoid duplication: {discarded_result}")
+                                self._xlog.debug("Transcription queue is now empty after discarding results to avoid duplication.")
                 
                 if is_chunks_queue_empty and is_transcription_result_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.

@@ -3,8 +3,6 @@ import logging
 from pyxavi import Config, Dictionary, TerminalColor, full_stack
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
-# from pitxu.lib.support_process.support import Support
-# from pitxu.lib.support_process import support
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
@@ -15,7 +13,6 @@ import queue
 from faster_whisper import WhisperModel
 import os
 import numpy as np
-# import difflib
 import logging
 import re
 
@@ -53,17 +50,21 @@ class FasterWhisperStreamProcess(Xprocess):
     _ongoing_transcription = ""
 
     # List of human expressions that do not add any value, just noise.
+    # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
     expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
 
     # List of punctuations to add to the words when searching for them in the transcription buffer,
     #   as they can be added by Faster Whisper and cause problems when merging.
+    # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
     punctuations_to_add_to_words = [".", ",", "?", "!", "..."]
 
     # Avoid using the following words for the merging process, as they are too common and can cause more problems than benefits when merging,
     # Remember that they need to be all lowercase!
-    words_to_remove_from_partial_transcription = ["i", "you", "he", "she", "it", "we", "they", "to", "and"] # This is for English, we can add more languages later if needed.
+    # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
+    words_to_remove_from_partial_transcription = ["i", "you", "he", "she", "it", "we", "they", "to", "and"]
 
     # List of common hallucinated phrases. They usuallty come at the end of the transcription
+    # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
     phrases_to_remove = [
         "thank you for watching",
         "thanks for watching",
@@ -268,6 +269,8 @@ class FasterWhisperStreamProcess(Xprocess):
                 previous_word = word.word
                 previous_start = word.start
                 previous_end = word.end
+
+                words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
 
                 # Calculate absolute time of the word
                 absolute_word_start = self._current_chunk_start_time + word.start
