@@ -1,7 +1,7 @@
-from pyxavi import Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.utils.string_similarity import StringSimilarity
+from pitxu.lib.database.db_sqlite import DbSqlite
 
 import os
 
@@ -10,139 +10,163 @@ import json
 
 class Memory(PyXavi):
 
-    filename = "memory.yaml"
-    # Not used, by now.
-    summary_similarity_threshold = 0.8
+    db: DbSqlite = None
 
-    ENTRY_TEMPLATE = {
-        "summary": "",
-        "content": "",
-        "created_at": ""
-    }
-
-    WORDS_TO_BAN_FROM_BUNCH_OF_WORDS_MATCHING = {"the", "a", "an", "this", "that", "these", "those", "it", "he", "she", "they", "we", "you"}
-
-    state: Storage = None
+    TABLE_SHORT_TIME_MEMORY = "short_time_memory"
+    TABLE_LONG_TIME_MEMORY = "long_time_memory"
+    TABLE_KNOWLEDGE_BASE = "knowledge_base"
 
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
 
-        self.filename = os.path.join(
-            self._xconfig.get("storage.path"),
-            self._xconfig.get("memory.filename", self.filename)
-        )
-        self.summary_similarity_threshold = self._xconfig.get("memory.summary_similarity_threshold", self.summary_similarity_threshold) 
-
-        self.reload_state()
+        self.db = DbSqlite(config=self._xconfig, params=self._xparams)
     
-    def reload_state(self):
-        self.state = Storage(filename=self.filename)
-        if not self.state.key_exists("entries"):
-            self.state.set("entries", {})
-            self.state.write_file()
+    # def reload_state(self):
+    #     self.state = Storage(filename=self.filename)
+    #     if not self.state.key_exists("entries"):
+    #         self.state.set("entries", {})
+    #         self.state.write_file()
+
+    # ----- Short Term Memory API -----
+
+    def create_short_memory_entry(self, summary: str, content: str, created_at: str = None) -> dict:
+        return self.create_memory_entry(table_name=self.TABLE_SHORT_TIME_MEMORY, summary=summary, content=content, created_at=created_at)
+    
+    def get_short_memory_by_date(self, date_str: str) -> list:
+        return self.get_by_date(table_name=self.TABLE_SHORT_TIME_MEMORY, date_str=date_str)
+    
+    def get_short_memory_by_datetime(self, datetime_str: str) -> list:
+        return self.get_by_datetime(table_name=self.TABLE_SHORT_TIME_MEMORY, datetime_str=datetime_str)
+    
+    def get_short_memory_by_id(self, entry_id: int) -> dict | None:
+        return self.get_by_id(table_name=self.TABLE_SHORT_TIME_MEMORY, entry_id=entry_id)
+    
+    def get_short_memory_by_exact_summary(self, summary: str) -> list[dict] | None:
+        return self.get_by_exact_summary(table_name=self.TABLE_SHORT_TIME_MEMORY, summary=summary)
+    
+    def get_short_memory_by_summary_like(self, summary: str) -> list[dict] | None:
+        return self.get_by_summary_like(table_name=self.TABLE_SHORT_TIME_MEMORY, summary=summary)
+    
+    def get_last_short_memory_entry(self) -> dict | None:
+        return self.get_last_entry(table_name=self.TABLE_SHORT_TIME_MEMORY)
+    
+    def update_short_memory_entry_by_id(self, entry_id: int, summary: str = None, content: str = None) -> dict | None:
+        return self.update_by_id(table_name=self.TABLE_SHORT_TIME_MEMORY, entry_id=entry_id, summary=summary, content=content)
         
-    def write_entry(self, summary: str, content: str) -> dict:
+    def update_last_short_memory_entry(self, summary: str = None, content: str = None) -> dict | None:
+        return self.update_last_entry(table_name=self.TABLE_SHORT_TIME_MEMORY, summary=summary, content=content)
+    
+    # ----- Real Memory API, requires to specify the table -----
+
+    def create_memory_entry(self, table_name: str, summary: str, content: str, created_at: str = None) -> dict:
 
         if summary is None or content is None:
             raise ValueError("Summary and content cannot be None")
+        
+        if created_at is None:
+            created_at = Xtime.now().isoformat()
+        
+        self.db.cursor.execute(f"INSERT INTO {table_name} (summary, content, created_at) VALUES (?, ?, ?)", 
+            (summary, content, created_at))
+        self.db.connection.commit()
 
-        entry = self.ENTRY_TEMPLATE.copy()
-        entry["summary"] = summary
-        entry["content"] = content
-        entry["created_at"] = Xtime.current_time_str()
-        entry["id"] = self._generate_memory_entry_id()
-
-        self.state.set(f"entries.{entry['id']}", entry)
-        self.state.write_file()
-
-        return entry
+        id = int(self.db.cursor.lastrowid)
+        return self.get_by_id(table_name, id)
     
-    def _generate_memory_entry_id(self) -> str:
-        return Xtime.now_key()
+    def get_by_date(self, table_name: str, date_str: str) -> list:
+        # Convert the date string into a datetime in isoformat, that is what SQLite wants.
+        date = Xtime.str_to_datetime(date_str, "%Y-%m-%d").date().isoformat()
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE DATE(created_at) = ?", (date,))
+        rows = self.db.cursor.fetchall()
+        entries = []
+        for row in rows:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
+            entries.append(entry)
+        return entries
     
-    def get_by_date(self, date_str: str) -> list:
-        entries = list(self.state.get("entries").values())
-        date = Xtime.str_to_datetime(date_str, "%Y-%m-%d").date()
-        return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]).date() == date]
+    def get_by_datetime(self, table_name: str, datetime_str: str) -> list:
+        target_datetime = Xtime.str_to_datetime(datetime_str).isoformat()
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE created_at = ?", (target_datetime,))
+        rows = self.db.cursor.fetchall()
+        entries = []
+        for row in rows:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
+            entries.append(entry)
+        return entries
     
-    def get_by_datetime(self, datetime_str: str) -> list:
-        entries = list(self.state.get("entries").values())
-        target_datetime = Xtime.str_to_datetime(datetime_str)
-        return [entry for entry in entries if Xtime.str_to_datetime(entry["created_at"]) == target_datetime]
-    
-    def get_by_id(self, entry_id: str) -> dict | None:
-        entry = self.state.get(f"entries.{entry_id}")
-        if entry:
+    def get_by_id(self, table_name: str, entry_id: int) -> dict | None:
+        
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE id = ?", (entry_id,))
+        row = self.db.cursor.fetchone()
+        if row:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
             return entry
         return None
     
-    def _match_bunch_of_words(self, summary: str, entries: list) -> list[dict]:
-        requested_words = set(summary.lower().split())
-        requested_words = requested_words - self.WORDS_TO_BAN_FROM_BUNCH_OF_WORDS_MATCHING
-        found_fully = []
-        found_partially = []
-        for entry in entries:
-            entry_words = set(entry["summary"].lower().split())
-            entry_words = entry_words - self.WORDS_TO_BAN_FROM_BUNCH_OF_WORDS_MATCHING
-
-            # First, check if all the words in the requested summary are present in the entry summary. No need to look further, then.
-            if requested_words.issubset(entry_words):
-                found_fully.append(entry)
-                continue
-
-            # Second, check if at least one of the words in the requested summary is present in the entry summary.
-            if requested_words & entry_words:
-                found_partially.append(entry)
-        
-        # Now return these lists, merging them discarding duplicated entries (those that are in found_fully should not be in found_partially, even if they match partially too).
-        found_partially = [entry for entry in found_partially if entry not in found_fully]
-        return found_fully + found_partially
-    
-    def get_by_exact_summary(self, summary: str) -> list[dict] | None:
-        entries = list(self.state.get("entries").values())
-        matching_entries = [entry for entry in entries if entry["summary"].lower() == summary.lower()]
-        if matching_entries:
-            return matching_entries
-        return None
-    
-    def get_by_summary_like(self, summary: str) -> list[dict] | None:
-        entries = list(self.state.get("entries").values())
-
-        # 1st, get all summaries that contain the words in the requested summary, either fully (all the words) or partially (at least one of the words).
-        # This is to reduce the number of comparisons we need to do with the string similarity, which is more expensive and also may not work well with long summaries.
-        entries = self._match_bunch_of_words(summary, entries)
-        self._log_debug(f"Found {len(entries)} entries that match the words in the requested summary '{summary}'.")
-
-        # 2nd, rate the similarity of the summaries of these entries with the requested summary.
-        rated_entries = StringSimilarity.compareAllAgainstOne(
-            mainString=summary.lower(),
-            targetStrings=[entry["summary"].lower() for entry in entries],
-            targetTokens=[entry["id"] for entry in entries])
-        self._log_debug(f"Rated the similarity of the summaries of the {len(entries)} entries with the requested summary '{summary}'. Ratings: {[f'{rated_entry.target}: {rated_entry.rating}' for rated_entry in rated_entries]}")
-
-        # 3rd, sort the entries by similarity rating in descending order.
-        rated_entries.sort(key=lambda x: x.rating, reverse=True)
-        self._log_debug(f"Filtered and sorted the rated entries. Remaining entries: {[f'{rated_entry.target}: {rated_entry.rating}' for rated_entry in rated_entries]}")
-
-        # 4th, Return the full entries that correspond to the rated entries already sorted by similarity.
-        if rated_entries:
-            return [self.get_by_id(rated_entry.target) for rated_entry in rated_entries]
-        
-        # Still here, no match found.
-        self._log_debug(f"No memory entries found with summary similar to '{summary}' or that contains the words in '{summary}'. Returning None.")
-        return None
-    
-    def get_last_entry(self) -> dict | None:
-        entries = list(self.state.get("entries").values())
+    def get_by_exact_summary(self, table_name: str, summary: str) -> list[dict] | None:
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) = ?", (summary.lower(),))
+        rows = self.db.cursor.fetchall()
+        entries = []
+        for row in rows:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
+            entries.append(entry)
         if entries:
-            return entries[-1]
-        else:
-            return None
+            return entries
+        return None
     
-    def update_entry_by_id(self, entry_id: str, summary: str = None, content: str = None) -> dict | None:
-        entry = self.get_by_id(entry_id)
+    def get_by_summary_like(self, table_name: str, summary: str) -> list[dict] | None:
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) LIKE ?", ('%' + summary.lower() + '%',))
+        rows = self.db.cursor.fetchall()
+        entries = []
+        for row in rows:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
+            entries.append(entry)
+        if entries:
+            return entries
+        return None
+    
+    def get_last_entry(self, table_name: str) -> dict | None:
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} ORDER BY created_at DESC LIMIT 1")
+        row = self.db.cursor.fetchone()
+        if row:
+            entry = {
+                "id": row["id"],
+                "summary": row["summary"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            }
+            return entry
+        return None
+    
+    def update_by_id(self, table_name: str, entry_id: int, summary: str = None, content: str = None) -> dict | None:
+        entry = self.get_by_id(table_name, entry_id)
         if not entry:
             return None
         
@@ -151,25 +175,26 @@ class Memory(PyXavi):
         if content is not None:
             entry["content"] = content
         
-        self.state.set(f"entries.{entry_id}", entry)
-        self.state.write_file()
+        self.db.cursor.execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
+            (entry["summary"], entry["content"], entry_id))
+        self.db.connection.commit()
     
-    def update_last_entry(self, summary: str = None, content: str = None) -> dict | None:
-        entries = list(self.state.get("entries").values())
-        if not entries:
+    def update_last_entry(self, table_name: str, summary: str = None, content: str = None) -> dict | None:
+        last_entry = self.get_last_entry(table_name)
+        if not last_entry:
             return None
         
-        last_entry = entries[-1]
         if summary is not None:
             last_entry["summary"] = summary
         if content is not None:
             last_entry["content"] = content
         
-        self.state.set(f"entries.{last_entry['id']}", last_entry)
-        self.state.write_file()
+        self.db.cursor.execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
+            (last_entry["summary"], last_entry["content"], last_entry["id"]))
+        self.db.connection.commit()
 
-        return last_entry
-    
+        return self.get_by_id(table_name, last_entry["id"])
+
     def summarize_chatbot_history_as_memory_entry(self, chatbot_history: list[dict]) -> dict | None:
         '''
         Summarizes the given chatbot history and returns a memory entry with the summary as the content.
@@ -224,7 +249,7 @@ class Memory(PyXavi):
         for entry in preload_entries:
             # Avoid duplicates: if we already have an entry with the same title, we consider that we have already preloaded this entry, so we skip it. Otherwise, we write it in the memory.
             if self.get_by_exact_summary(entry["title"]) is None:
-                self.write_entry(summary=entry["title"], content=entry["content"])
+                self.write_short_memory_entry(summary=entry["title"], content=entry["content"])
                 self._xlog.info(f"Preloaded memory entry with title '{entry['title']}'.")
             else:
                 self._xlog.warning(f"Memory entry with title '{entry['title']}' already exists. Skipping preload of this entry.")

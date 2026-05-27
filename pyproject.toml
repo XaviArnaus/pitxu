@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pitxu"
-version = "0.3.5"
+version = "0.4.0"
 description = "Chatbot for the Raspberry Pi 5"
 authors = ["Xavi <xavi@arnaus.net>"]
 readme = "README.md"
