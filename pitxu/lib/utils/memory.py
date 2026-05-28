@@ -1,12 +1,14 @@
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, dd, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.database.db_sqlite import DbSqlite
 
-import os
-
 from google import genai
+from google.genai.errors import ServerError
+
+import os
 import json
+import logging
 
 class Memory(PyXavi):
 
@@ -18,10 +20,21 @@ class Memory(PyXavi):
 
     RETRIES_ON_SUMMARIZATION_FAILURE = 3
 
+    GENAI_LIB_LOG_LEVEL: int = logging.INFO
+    HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
+
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
+
+        # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
+        self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
+        self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)
+        self._log_debug("Setting Gemini API client log level to: " + str(self.GENAI_LIB_LOG_LEVEL))
+        logging.getLogger("google_genai").setLevel(self.GENAI_LIB_LOG_LEVEL)
+        self._log_debug("Setting Httpcore client log level to: " + str(self.HTTPCORE_LIB_LOG_LEVEL))
+        logging.getLogger("httpcore").setLevel(self.HTTPCORE_LIB_LOG_LEVEL)
 
         self.db = DbSqlite(config=self._xconfig, params=self._xparams)
     
@@ -214,25 +227,38 @@ class Memory(PyXavi):
             chatbot_history_str = json.dumps(chatbot_history)
             prompt = self._xconfig.get("memory.summary_prompt." + self._xparams.get("language")) % chatbot_history_str
 
-            retries = -1
-            while retries < 1:
-                retries += 1
+            retries = 1
+            while retries <= original_retries:
                 self._xlog.debug(f"Summarizing. Try #{retries} / {original_retries}")
+                retries += 1
 
-                client = genai.Client(api_key=self._xparams.get("api_key"))
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt,
-                    # config=types.GenerateContentConfig(
-                    #     system_instruction=instructions[self._xparams.get('language')],
-                    #     # system_instruction=instructions["en-us"],
-                    #     tools=tools
-                    # )
-                )
+                try:
+                    client = genai.Client(api_key=self._xparams.get("api_key"))
+                    model = self._xconfig.get("memory.summarization_model", "gemini-2.5-flash")
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        # config=types.GenerateContentConfig(
+                        #     system_instruction=instructions[self._xparams.get('language')],
+                        #     # system_instruction=instructions["en-us"],
+                        #     tools=tools
+                        # )
+                    )
+                except ServerError as e:
+                    self._xlog.error(f"🛑 Gemini Server error using [{model}] during summarization: [{e.code}] {e.message}")
+                    response = None
 
-                response_as_dict = None
+                if response is not None:
+                    self._log_debug("Summarization successful.")
+                    break
+
+            response_as_dict = None
+            if response is not None:
                 response_as_str = response.text.replace("```json", "").replace("```", "")
                 self._xlog.debug(f"Summarization response: \n{response_as_str}")
+            else:
+                self._xlog.error("🛑 Summarization failed after " + str(original_retries) + " retries.")
+                return None
 
             try:
                 response_as_dict = json.loads(response_as_str)

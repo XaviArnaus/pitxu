@@ -76,7 +76,7 @@ class GeminiChatbot(PyXavi):
     DEFAULT_CHATBOT_NAME = "Pitxu"
 
     VERBOSE_DEBUG: bool = False
-    GENAI_LIB_LOG_LEVEL: int = logging.WARNING
+    GENAI_LIB_LOG_LEVEL: int = logging.INFO
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config = None, params: Dictionary = None):

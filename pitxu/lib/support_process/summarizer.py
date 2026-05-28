@@ -24,7 +24,7 @@ class Summarizer(PyXavi):
         memory_entry = self.memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
         self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
         if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
-            self.memory.create_memory_entry(summary=memory_entry["summary"], content=memory_entry["content"])
+            self.memory.create_short_memory_entry(summary=memory_entry["summary"], content=memory_entry["content"])
             self._xlog.info("Chatbot history summarized and written into memory at exit.")
         else:
             self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
