@@ -163,6 +163,11 @@ speech-to-text:
     compute_type: int8
     # [Integer] The beam size for the inference. The bigger the more accurate, but also the slower.
     beam_size: 2
+    # [Integer] The number of threads to use for the inference. Defaults to 4,
+    #   but we should leave it lower than the actual CPU cores to allow the system to run smoothly and avoid overload.
+    #   The main idea is to leave space for the Input Stream to provide chunks to the queue smoothly,
+    #   and the rest of the system to keep itself responsive while the STT engine is processing the audio.
+    num_threads: 3
     # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
     #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
     #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.

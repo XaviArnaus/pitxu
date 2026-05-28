@@ -18,7 +18,23 @@ import re
 
 class FasterWhisperStreamProcess(Xprocess):
     """
-    Class to transcribe audio chunks in a separate process, to avoid blocking the Main thread, after trying a separate thread in V3.
+    Class to transcribe audio chunks in a separate process, 
+    to avoid blocking the Main thread, after trying a separate thread in a previous version.
+
+    The idea is to send the audio chunks to this process, and then retrieve the transcription results from it, 
+    in a streaming way, to be able to have mostly all transcription done by the time the user finishes talking,
+    to improve user experience.
+
+    We don't want to react on partials, that's why the transcription gets accumulated until requested.
+
+    Improvements ideas:
+    - Add a timeout for the transcription, to avoid getting stuck in case of problems with the model.
+    - Some comment that we should not keep a "previous chunks window" because it conditions current chunk's outcome,
+        so if the previous chunk has any issue, current chunk's transcription may be an hallucination. That could be the 
+        source of our lack of accuracy in the RPi, as it is more prone to have issues due to lack of resources.
+    - Limit the amount of threads / processes used by the model to avoid overloading the CPU, especially in the RPi.
+        This can be done by setting the OMP_NUM_THREADS environment variable, 
+        and also by controlling the number of threads used by the model itself if it has that option.
     """
 
     _model: WhisperModel = None
@@ -114,9 +130,11 @@ class FasterWhisperStreamProcess(Xprocess):
             download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
             compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
             beam_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.beam_size", 5))
+            cpu_threads = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.num_threads", 3))
             overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
+
             self._beam_size = beam_size
             self._overlap_size = overlap_size
             self._chunks_window = chunks_window
@@ -127,6 +145,7 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("Download root", download_root))
             logging_parts.append(("Compute type", compute_type))
             logging_parts.append(("Beam size", beam_size))
+            logging_parts.append(("CPU threads", cpu_threads))
             logging_parts.append(("Overlap size", overlap_size))
             logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
             logging_parts.append(("Chunks window", chunks_window))
@@ -139,7 +158,8 @@ class FasterWhisperStreamProcess(Xprocess):
             self._model = WhisperModel(model,
                                         device=device,
                                         download_root=download_root,
-                                        compute_type=compute_type)
+                                        compute_type=compute_type,
+                                        cpu_threads=cpu_threads)
             # Warm up the model by running a dummy transcription, to avoid the long loading time of the first transcription.
             self.warm_up_model()
         else:
@@ -162,6 +182,8 @@ class FasterWhisperStreamProcess(Xprocess):
 
         # Keeping track that Whisper is active
         self.is_active = True
+
+        self.log_summary("FasterWhisperStream Worker Initialization", logging_parts)
         
     def finish(self):
         self._log_debug("Done finishing FasterWhisperStream Worker")
