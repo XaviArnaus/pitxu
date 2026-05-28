@@ -205,6 +205,12 @@ class FasterWhisperStream(PyXavi):
                         self._support.dump_and_plot_all()
                         self._support.clear_accumulated_audio()
 
+                        # It is very possible that we have chunks without process at this point.
+                        if len(self._ongoing_chunk_window) > 0:
+                            self._log_debug(f"FasterWhisper Stream: Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
+                            self.process_chunks(self._ongoing_chunk_window)
+                            self._ongoing_chunk_window = []
+                        
                         # Clean anything LOCAL that would accumulate or trigger.
                         chunk_list_to_process = []
 
