@@ -72,12 +72,12 @@ class Main(PyXavi):
     _fan_control: FanControl = None
 
     _stopwatch: Stopwatch = None
-    _supported_languages: list = []
+    _supported_languages: list[str] = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
     _trigger_answers: list[str] = []
-    _exit_words: list = []
-    _trigger_words: list = []
+    _exit_words: list[str] = []
+    _trigger_words: list[str] = []
     _tokens_counter: int = 0
 
     _dictate_count: int = 0
@@ -543,7 +543,8 @@ class Main(PyXavi):
         self._last_interaction_paused_seconds = 0
 
     def _text_has_exit_intention(self, text: str) -> bool:
-        return text.replace(".", "").lower() in self._exit_words
+        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{text.replace(".", "").lower().strip()}': {text.replace(".", "").lower().strip() in self._exit_words}")
+        return text.replace(".", "").lower().strip() in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
@@ -559,7 +560,7 @@ class Main(PyXavi):
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
         first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower() in first_words:
+            if trigger_word.replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
@@ -567,9 +568,11 @@ class Main(PyXavi):
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
         # Let's consider that from what the user said, all words need to be one of the trigger words
-        all_user_input = Text.remove_accents(question.lower().strip())
+        all_user_input = Text.remove_accents(question.replace(".", "").lower().strip())
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower() in all_user_input:
+            cleaned_trigger_word = trigger_word.replace(".", "").lower().strip()
+            all_user_input = all_user_input.replace(cleaned_trigger_word, "")
+            if len(all_user_input.strip()) == 0:
                 return True
         
         # No trigger word found
