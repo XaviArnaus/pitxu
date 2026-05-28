@@ -295,6 +295,7 @@ class FasterWhisperStream(PyXavi):
 
         if self._worker_thread is not None and self._worker_thread.is_alive():
             self._xlog.debug("Waiting for FasterWhisper Stream worker thread to finish...")
+            self.is_active = False
             self._worker_thread.join(timeout=2)
             if self._worker_thread.is_alive():
                 self._xlog.warning("FasterWhisper Stream worker thread did not finish in time, it may be stuck. Moving on with closing.")
@@ -303,6 +304,10 @@ class FasterWhisperStream(PyXavi):
         
         if self._faster_whisper_stream_process is not None:
             self._xlog.debug("Closing FasterWhisper Stream process and deleting it")
+            self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.FINISH)
+            self.process_pool.wait_for_queue_to_empty(QUEUE_TRANSCRIBER)
+            self._shared_memory.wait_for_busy_process_to_idle(SHARED_STT_BUSY)
+
             self._faster_whisper_stream_process.join(timeout=2)
             if self._faster_whisper_stream_process.is_alive():
                 self._xlog.warning("FasterWhisper Stream process did not finish in time, it may be stuck. Moving on with closing.")

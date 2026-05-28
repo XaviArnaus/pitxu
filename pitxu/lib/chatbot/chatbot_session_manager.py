@@ -138,3 +138,13 @@ class ChatbotSessionManager(PyXavi):
                         # Get the related callable for the given function name
                         clients_by_function_name[function_name] = client.get_callback_by_given_function_name(function_name)
         return clients_by_function_name
+    
+    def close(self):
+        self._xlog.debug("ChatbotSessionManager: Closing clients.")
+        for client_name, client in self.clients.items():
+            if hasattr(client, "close") and callable(getattr(client, "close")):
+                self._xlog.debug(f"ChatbotSessionManager: Closing client [{client_name}].")
+                try:
+                    client.close()
+                except Exception as e:
+                    self._xlog.error(f"🛑 ChatbotSessionManager: Error closing client [{client_name}]: {e}")

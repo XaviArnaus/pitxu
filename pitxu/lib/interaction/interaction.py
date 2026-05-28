@@ -200,7 +200,7 @@ class Interaction(PyXavi):
         """
         self._xlog.debug("Closing Interaction.")
 
-        self.process_pool.get_memory_manager().force_all_flags_to_idle()
+        self.process_pool.get_memory_manager().force_all_flags_to_idle(is_closing=True)
     
     # --------- (Proxy) Functions to trigger interactions ---------
     

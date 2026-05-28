@@ -104,6 +104,18 @@ class GeminiChatbot(PyXavi):
 
         # define which is the main model (the one initially preferred, if available, and the one we want to use the most)
         self.MODEL_MAIN = self._xconfig.get("chatbot.model", self.MODEL_MAIN)
+    
+    def close(self):
+        self._xlog.info("Closing GeminiChatbot")
+
+        if (self._xconfig.get("chatbot.mock", True)):
+            self._xlog.warning("Chatbot is mocked, Not closing it.")
+            return
+
+        if self._session_manager is not None:
+            self._session_manager.close()
+
+        self._xlog.info("GeminiChatbot closed")
 
     def get_session_manager(self):
         return self._session_manager

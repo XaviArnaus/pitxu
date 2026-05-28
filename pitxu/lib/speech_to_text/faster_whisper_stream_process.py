@@ -159,7 +159,8 @@ class FasterWhisperStreamProcess(Xprocess):
                                         device=device,
                                         download_root=download_root,
                                         compute_type=compute_type,
-                                        cpu_threads=cpu_threads)
+                                        cpu_threads=cpu_threads
+                                        )
             # Warm up the model by running a dummy transcription, to avoid the long loading time of the first transcription.
             self.warm_up_model()
         else:

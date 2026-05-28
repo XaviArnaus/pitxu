@@ -290,3 +290,9 @@ class Memory(PyXavi):
                 self._xlog.info(f"Preloaded memory entry with title '{entry['title']}'.")
             else:
                 self._xlog.warning(f"Memory entry with title '{entry['title']}' already exists. Skipping preload of this entry.")
+    
+    def close(self):
+        self._xlog.info("Closing Memory")
+        if self.db is not None:
+            self.db.close()
+        self._xlog.info("Memory closed")

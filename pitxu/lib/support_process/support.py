@@ -45,8 +45,9 @@ class Support(PyXavi):
     def close(self):
         self._xlog.info("Closing Support class")
 
-        # Close the Support process in the pool.
-        self.process_pool.force_queue_to_empty(self.input_queue)
+        self._log_debug("Sending finish action to Support process")
+        self.process_pool.send(QUEUE_SUPPORT, XprocAction.FINISH)
+        self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
 
         self._xlog.info("Support class closed")
     

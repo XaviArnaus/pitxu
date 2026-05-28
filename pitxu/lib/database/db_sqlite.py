@@ -57,6 +57,14 @@ class DbSqlite(PyXavi):
         else:
             self._xlog.debug(f"🗄️ Database file {db_filepath} already exists. Using it.")
     
+    def close(self):
+        self._xlog.debug("🗄️ Closing SQLite database connection")
+        if self.connection is not None:
+            self.connection.close()
+            self._xlog.debug("🗄️ SQLite database connection closed")
+        else:
+            self._xlog.warning("🗄️ No SQLite database connection to close")
+    
     def migrate_db(self):
         """Run database migrations."""
 

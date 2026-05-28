@@ -226,6 +226,10 @@ class Main(PyXavi):
         self.close_nicely()
 
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
+
+        if self._xconfig.get("memory.summarize_at_end_conversation", True) is False:
+            return
+
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
         
         # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
@@ -323,6 +327,10 @@ class Main(PyXavi):
         """
 
         self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
+
+        # As we want to try to recover from any error, we need to control a possible error state we fall into.
+        #   This will be set to True when an exception is caught.
+        we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
         self._interaction.mute_microphone(input_stream=self._input_stream)
@@ -502,21 +510,72 @@ class Main(PyXavi):
 
             # Unmute microphone to continue listening
             self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+            # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
+            we_are_in_error_state = False
         
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
+            we_are_in_error_state = True
         except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
+                self._xlog.warning("🛑 SpeechToTextException detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
                 self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 SpeechToTextException detected in Main run callback: " + str(stte))
+            we_are_in_error_state = True
+        except FileNotFoundError as fnfe:
+            if not self._is_pitxu_active:
+                if "pitxu_shared_memory_flags" in str(fnfe.filename):
+                    # It's normal, because when Pitxu is closing, it removes the shared memory that holds the busy flags,
+                    #   so if any callback tries to access it while it's closing, it may raise this FileNotFoundError. 
+                    # We can just ignore it in this case, as it means that we are already in the process of closing 
+                    #   and we don't want to do anything else.
+                    pass
+            else:
+                self._xlog.error("🛑 FileNotFoundError detected in Main run callback: " + str(fnfe))
+                self._xlog.error(full_stack())
+                we_are_in_error_state = True
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
                 self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 Error in Main run callback: " + str(e))
+            self._xlog.error(full_stack())
+            we_are_in_error_state = True
+
+        # At this point, the whole interaction is done.
+        # But we may have arrived here from within an exception, that leaves the app unusable.
+        # So because we don't want to close the app we don't use the close_nicely() method, as it finishes the app, 
+        #   but we want to try to recover a clean state to allow further interactions, we do some cleaning here.
+        try:
+            if we_are_in_error_state:
+                self._xlog.warning("🟠 We are in an error state. Trying now to recover a clean state to allow further interactions.")
+
+                # Stop any interaction effects that may be still active, like the busy flags not related to subprocess (as they are handled by XProcess)
+                #   to allow the user to see them properly in the next interaction.
+                self._interaction.unset_chatbot_busy()
+                self._interaction.unset_transcriber_busy()
+
+                # Same for the queues, just clean them all.
+                self._interaction.get_process_pool().force_all_queues_to_empty()
+
+                # Now we clean the displays, to remove any possible stuck display that may be still there from the previous interaction.
+                self.clear_displays()
+
+                # And tell the app that this is the end of an interaction, to allow the interaction mecanisms.
+                self.reset_last_interaction_event_mark()
+
+                # Turn on the microphone again, just in case, to allow the user to try again.
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+        except Exception as e:
+            if not self._is_pitxu_active:
+                self._xlog.warning("🛑 Exception detected while recovering from an error state, but pitxu is inactive, so ignoring it: " + str(e))
+                self._xlog.error(full_stack())
+                return
+            self._xlog.error("🛑 Error in Main run callback, when recovering from an error state: " + str(e))
             self._xlog.error(full_stack())
 
 
@@ -647,7 +706,7 @@ class Main(PyXavi):
         if self._server is not None:
             self._server.close()
 
-        # Close Vosk
+        # Close STT
         if self._dictate is not None:
             self._dictate.close()
 

@@ -18,6 +18,11 @@ class StatefulMemory(PyXavi, Command):
         super(StatefulMemory, self).init_pyxavi(config=config, params=params)
 
         self._memory = Memory(config=config, params=params)
+    
+    def close(self):
+        if self._memory is not None:
+            self._memory.close()
+        return super().close()
 
     def create_memory_entry(self, summary: str, content: str) -> dict | str:
         '''

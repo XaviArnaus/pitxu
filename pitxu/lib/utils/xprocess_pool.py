@@ -242,38 +242,51 @@ class XprocessPool(PyXavi):
         # We can't join() child processes unless all queues get totally consumed.
 
         # 1. Send a "finish" to the children. Needs the queue.
-        # TODO: I believe that the issue is due to not waiting for this 'finish' to be read by the children
-        #    from the queues. Maybe the main thread empties it before being read. 
         self._xlog.debug("Send 'finish' to children")
         self.broadcast(XprocAction.FINISH)
         # ...so they can close dependencies.
+        self._xlog.debug("Waiting for all queues to empty before finishing")
+        self.wait_for_all_queues_to_empty()
 
         # 2. Clean and close the queues, apparently better from the one that put().
         self._xlog.debug("Empty and close queues")
-        for name, queue in self._queue.items():
-            if queue is not None:
-                self.force_queue_to_empty(queue)
+        self.force_all_queues_to_empty()
         # At this point the queues should be closed.
 
         # 3. Joining the queues to the main thread.
         self._xlog.debug("Joining queues")
-        for name, queue in self._queue.items():
-            if queue is not None:
-                try:
-                    queue.join()
-                except BrokenPipeError:  # in case of closed
-                    pass
+        self.join_all_queues()
 
         # 4. Terminate any leftover processes
-        for name, process in self._process.items():
-            self._xlog.debug("Is the subprocess [" + name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
-            if process.is_alive():
-                self._xlog.debug("Terminating Process [" + name + "]")
-                process.terminate()
+        self._xlog.debug("Terminating leftover processes")
+        self.terminate_all_processes()
         
         # Close the Shared Memory Manager
         self._xlog.debug("Closing Shared Memory Manager")
         self._shared_memory.close()
+    
+    def terminate_all_processes(self):
+        for name, process in self._process.items():
+            cleaned_process_name = name.replace("_queue", "")
+            self._xlog.debug("Subprocess [" + cleaned_process_name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
+            if process.is_alive():
+                self._xlog.debug("Terminating Process [" + cleaned_process_name + "]")
+                process.terminate()
+    
+    def join_all_queues(self):
+        for name, queue in self._queue.items():
+            if queue is not None:
+                try:
+                    self._xlog.debug("Joining queue [" + name + "]")
+                    queue.join()
+                except BrokenPipeError:  # in case of closed
+                    pass
+    
+    def force_all_queues_to_empty(self):
+        for name, queue in self._queue.items():
+            if queue is not None:
+                self._xlog.debug(f"Forcing queue [{name}] to empty")
+                self.force_queue_to_empty(queue)
     
     def force_queue_to_empty(self, queue: JoinableQueue):
         '''

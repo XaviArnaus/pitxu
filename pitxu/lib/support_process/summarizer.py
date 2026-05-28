@@ -17,6 +17,12 @@ class Summarizer(PyXavi):
         
         self._log_debug("🎤 Done Initializing Audio Summarizer for Chatbot Memory")
     
+    def close(self):
+        self._xlog.info("🎤 Closing Audio Summarizer for Chatbot Memory")
+        if self.memory is not None:
+            self.memory.close()
+        self._xlog.info("🎤 Audio Summarizer for Chatbot Memory closed")
+    
     def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
 
         self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")

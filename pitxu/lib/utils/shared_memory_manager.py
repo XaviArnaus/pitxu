@@ -1,7 +1,7 @@
 from multiprocessing import shared_memory
 import time
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 
 from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, \
     SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
@@ -162,7 +162,7 @@ class SharedMemoryManager(PyXavi):
             time.sleep(self.WAITING_SLEEP_SECONDS)
         self._xlog.debug(f"The process {memory_position_name} is busy now. I've slept " + str(round(total_sleeping, 2)) + "s.")
     
-    def force_all_flags_to_idle(self):
+    def force_all_flags_to_idle(self, is_closing=False):
         self._xlog.debug("Forcing all flags to idle.")
         for name, flag in self._shared_flags.items():
             try:
@@ -170,10 +170,12 @@ class SharedMemoryManager(PyXavi):
                     self._xlog.debug(f"Flag {name} was busy, setting it to idle")
                     self.write_shared_memory_flag(flag, False)
             except TypeError as e:
-                # Can be that at the moment of closing, the shared memory is also getting closed in parallel.
-                # That's actually not nice, but I need to iterate the closing order, so by now
-                # We just fail silently and move on to the next one.
-                self._xlog.error(f"🛑 Failed to read/write flag {name} at index {flag}: " + str(e))
+                if not is_closing:
+                    # Can be that at the moment of closing, the shared memory is also getting closed in parallel.
+                    # That's actually not nice, but I need to iterate the closing order, so by now
+                    # We just fail silently and move on to the next one.
+                    self._xlog.error(f"🛑 Failed to read/write flag {name} at index {flag}: " + str(e))
+                    self._xlog.debug(full_stack())
 
     def close(self):
         if self._shared_memory_flags is not None:

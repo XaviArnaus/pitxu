@@ -14,7 +14,7 @@ class SupportProcess(Xprocess):
     """
     Class to execute some support actions outside the common processes, to avoid blocking basically the Main thread
     and the audio capturing.
-    The idea is to use this process with tasks done via threading, to allow having multiple support tasks running at the same time if needed.
+    The idea is to use this process with tasks done via multiprocess, to allow having multiple support tasks running at the same time if needed.
     """
 
     dumper: Dumper = None
@@ -37,9 +37,9 @@ class SupportProcess(Xprocess):
         self.summarizer = Summarizer(config=self._xconfig, params=self._xparams)
         
     def finish(self):
-        # self._xlog.debug("Closing Dumper in Support Worker")
-        # self._xlog.debug("Done finishing Support Worker")
-        pass
+        self._xlog.debug("Closing Summarizer in Support Worker")
+        self.summarizer.close()
+        self._xlog.debug("Done finishing Support Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
         

@@ -42,3 +42,11 @@ class Command:
 
     def default_empty_callback(self, log, interaction, value: any = None, args: dict = None):
         pass
+
+    def close(self):
+        """
+        Closes any resources used by this command.
+
+        It is called when the command is unregistered from the system, or when the system is shutting down.
+        """
+        pass
