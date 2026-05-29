@@ -51,6 +51,13 @@ class Text:
         '''
         nfkd_form = unicodedata.normalize('NFKD', text)
         return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+    
+    @staticmethod
+    def remove_punctuation(text: str) -> str:
+        '''
+        Removes punctuation from the text.
+        '''
+        return re.sub(r'[^\w\s]', '', text)
 
 
 class Code:

@@ -626,11 +626,26 @@ class Main(PyXavi):
         return False
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
-        # Let's consider that from what the user said, all words need to be one of the trigger words
-        all_user_input = Text.remove_accents(question.replace(".", "").lower().strip())
+        """
+        Everything what the user said i one or more trigger words, and nothing else.
+        """
+
+        # Clean minimally the user input
+        all_user_input = Text.remove_accents(question)
+        all_user_input = Text.remove_punctuation(all_user_input)
+        all_user_input = all_user_input.lower().strip()
+        # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
+        if all_user_input == "":
+            return False
+        # Now check the trigger words we have
         for trigger_word in self._trigger_words:
-            cleaned_trigger_word = trigger_word.replace(".", "").lower().strip()
+            # Same cleaning for same comparison.
+            cleaned_trigger_word = Text.remove_accents(trigger_word)
+            cleaned_trigger_word = Text.remove_punctuation(cleaned_trigger_word)
+            cleaned_trigger_word = cleaned_trigger_word.lower().strip()
+            # If the cleaned trigger word is in the cleaned user input, we remove it from the user input and keep checking.
             all_user_input = all_user_input.replace(cleaned_trigger_word, "")
+            # If after removing the trigger words we don't have any text, then the user only said trigger words.
             if len(all_user_input.strip()) == 0:
                 return True
         
