@@ -41,7 +41,7 @@ class Text:
         Replaces known text patterns with their corresponding characters.
         '''
         for old, new in replacements.items():
-            text = text.replace(old, new)
+            text = text.replace(old.strip(), new.strip())
         return text
 
     @staticmethod
