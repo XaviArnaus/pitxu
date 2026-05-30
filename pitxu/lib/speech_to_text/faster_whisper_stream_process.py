@@ -53,9 +53,14 @@ class FasterWhisperStreamProcess(Xprocess):
     _beam_size = 5
     _overlap_size = 2000
     _chunks_window = 10
+    _temperature = 0.2
     _sleep_when_no_chunks = 0.1
-    _use_low_confidence_threshold = False
-    _low_confidence_threshold = -1
+    _use_segment_low_confidence_threshold = True
+    _segment_low_confidence_threshold = -1
+    _use_word_low_confidence_threshold = True
+    _word_low_confidence_threshold = 0.2
+    _hallucination_silence_threshold = 1.0
+    _max_prompt_buffer_size_in_chars = 100
 
     _last_committed_timestamp = 0.0
     _current_chunk_start_time = 0.0
@@ -86,6 +91,8 @@ class FasterWhisperStreamProcess(Xprocess):
         "thanks for watching",
         "subscribe for more",
     ]
+
+    _hot_words = []
 
     # Define a small tolerance window (e.g., 50ms) for word repetition
     TIME_TOLERANCE = 0.05
@@ -130,36 +137,47 @@ class FasterWhisperStreamProcess(Xprocess):
             download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
             compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
             beam_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.beam_size", 5))
+            temperature = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.temperature", 0.2))
             cpu_threads = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.num_threads", 3))
             overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
+            max_prompt_buffer_size_in_chars = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.max_prompt_buffer_size_in_chars", 100))
+            hallucination_silence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_silence_threshold", 1.0))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
             self._chunks_window = chunks_window
             self._sleep_when_no_chunks = sleep_when_no_chunks
+            self._hallucination_silence_threshold = hallucination_silence_threshold
+            self._max_prompt_buffer_size_in_chars = max_prompt_buffer_size_in_chars
+            self._temperature = temperature
+            self._hot_words = self._load_hot_words()
 
             logging_parts.append(("Model from config", model))
             logging_parts.append(("Device for Faster Whisper", device))
             logging_parts.append(("Download root", download_root))
             logging_parts.append(("Compute type", compute_type))
             logging_parts.append(("Beam size", beam_size))
+            logging_parts.append(("Temperature", temperature))
             logging_parts.append(("CPU threads", cpu_threads))
             logging_parts.append(("Overlap size", overlap_size))
             logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
+            logging_parts.append(("Hallucination silence threshold", hallucination_silence_threshold))
+            logging_parts.append(("Max prompt buffer size in chars", max_prompt_buffer_size_in_chars))
             logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
             logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
             logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
+            logging_parts.append(("Hot words count", len(self._hot_words)))
             self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
 
             self._model = WhisperModel(model,
                                         device=device,
                                         download_root=download_root,
                                         compute_type=compute_type,
-                                        cpu_threads=cpu_threads
+                                        cpu_threads=cpu_threads,
                                         )
             # Warm up the model by running a dummy transcription, to avoid the long loading time of the first transcription.
             self.warm_up_model()
@@ -185,6 +203,15 @@ class FasterWhisperStreamProcess(Xprocess):
         self.is_active = True
 
         self.log_summary("FasterWhisperStream Worker Initialization", logging_parts)
+    
+    def _load_hot_words(self) -> list[str]:
+        """
+        Loads the hot words from the config and adds them to the model.
+        """
+        hot_words = []
+        hot_words = self._xconfig.get("speech-to-text.faster_whisper_streaming.hot_words." + self.language, [])
+        # hot_words.extend([self._xconfig.get("chatbot.name")] + self._xconfig.get("chatbot.name_variations", []))
+        return hot_words
         
     def finish(self):
         self._log_debug("Done finishing FasterWhisperStream Worker")
@@ -235,141 +262,157 @@ class FasterWhisperStreamProcess(Xprocess):
         preprocessed_chunks = list(filter(lambda x: x is not None and len(x) > 0, preprocessed_chunks))
 
         if len(preprocessed_chunks) == 0:
+            # No chunks, no work.
             self._log_debug("FasterWhisper Stream: No valid audio chunks to process after preprocessing, returning empty result.")
             result = ""
 
-        # 2. Prepare audio for transcription
-        preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
-        audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
-
-        # Calculate chunk duration for the offset
-        chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
-                            if len(preprocessed_chunks) > 0 else 0.0
-
-        # 3. Transcription
-        # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
-        prompt_buffer_size_in_chars = 50
-        if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
-            prompt = self._ongoing_transcription
-        elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
-            prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
         else:
-            prompt = ""
+            # 2. Prepare audio for transcription
+            preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
+            audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
 
-        self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
-        segments, _ = self._model.transcribe(
-            audio_to_process,
-            beam_size=self._beam_size,
-            temperature=0.0,
-            language=self.language,
-            initial_prompt=prompt,
-            word_timestamps=True
-        )
+            # Calculate chunk duration for the offset
+            chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
+                                if len(preprocessed_chunks) > 0 else 0.0
 
-        # If all segments are the same
+            # 3. Transcription
+            # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
+            prompt_buffer_size_in_chars = self._max_prompt_buffer_size_in_chars
+            if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
+                prompt = self._ongoing_transcription
+            elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
+                prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
+            elif len(self._ongoing_transcription) == 0:
+                # It's the first audio to process, so we use the prompt to give some instructions.
+                prompt = "Please transcribe the following audio. Do not repeat phrases or invent text."
+            else:
+                prompt = ""
 
-        # 4. Timestamp-based Merging
-        seg_infos = []  # This is just for logging.
-        words_info = [] # This is just for logging.
-        new_words = []  # Here will be the commited words after comparing via timestamp.
+            self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
+            segments, _ = self._model.transcribe(
+                audio_to_process,
+                beam_size=self._beam_size,
+                temperature=self._temperature,
+                language=self.language,
+                initial_prompt=prompt,
+                word_timestamps=True,
+                vad_filter=False,
+                hallucination_silence_threshold=self._hallucination_silence_threshold,
+                hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None
+            )
 
-        # These are the flags for the "previous segment", because in the RPi sometimes the model goes crazy
-        #   and repeats the exact same segment in the text, here we check it per words, not per timestamps.
-        #   according to the bugs seen.
-        previous_segments_in_text = []
-        previous_segment = {
-            "segment": "",
-            "start": -1,
-            "end": -1
-        }
-        for segment in segments:
+            # 4. Timestamp-based Merging
+            seg_infos = []  # This is just for logging.
+            words_info = [] # This is just for logging.
+            new_words = []  # Here will be the commited words after comparing via timestamp.
 
-            # Check if the segment is the same AND if the start time is within the tolerance
-            is_segment_duplicate = any(s["segment"] == segment.text for s in previous_segments_in_text)
-            # If so, skip it.
-            if is_segment_duplicate:
-                self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
-                continue
-            previous_segments_in_text.append({
-                "segment": segment.text,
-                "start": segment.start,
-                "end": segment.end
-            })
-
-
-            # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
-            seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
-            if self._use_low_confidence_threshold and segment.avg_logprob < self._low_confidence_threshold:
-                self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-
-            # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
-            #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
-            #   so we can check for that and discard it.
-            previous_words_in_segment = []
-            previous_word = {
-                "word": "",
+            # These are the flags for the "previous segment", because in the RPi sometimes the model goes crazy
+            #   and repeats the exact same segment in the text, here we check it per words, not per timestamps.
+            #   according to the bugs seen.
+            previous_segments_in_text = []
+            previous_segment = {
+                "segment": "",
                 "start": -1,
                 "end": -1
             }
+            for segment in segments:
 
-            # Now, every word in this segment.
-            for word in segment.words:
-
-                # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
-                # ⚠️ still happens
-                #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
-                # if word.word == previous_word and word.start == previous_start and word.end == previous_end:
-                #     continue
-
-                # Check if the word is the same AND if the start time is within the tolerance
-                is_word_duplicate = any(
-                    w["word"] == word.word and
-                    abs(w["start"] - word.start) < self.TIME_TOLERANCE and
-                    abs(w["end"] - word.end) < self.TIME_TOLERANCE
-                    for w in previous_words_in_segment
-                )
+                # Check if the segment is the same AND if the start time is within the tolerance
+                is_segment_duplicate = any(s["segment"] == segment.text for s in previous_segments_in_text)
                 # If so, skip it.
-                if is_word_duplicate:
-                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_word['start']})")
+                if is_segment_duplicate:
+                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
                     continue
-                previous_words_in_segment.append({
-                    "word": word.word,
-                    "start": word.start,
-                    "end": word.end
+                previous_segments_in_text.append({
+                    "segment": segment.text,
+                    "start": segment.start,
+                    "end": segment.end
                 })
-                # Still here? count on it.
-                words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
 
-                # Calculate absolute time of the word
-                absolute_word_start = self._current_chunk_start_time + word.start
-                absolute_word_end = self._current_chunk_start_time + word.end
 
-                # Only commit words that appear after or at our last committed timestamp
-                if absolute_word_start >= self._last_committed_timestamp:
-                    cleaned_word = self._clean_word(word.word)
+                # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
+                if self._use_segment_low_confidence_threshold and segment.avg_logprob < self._segment_low_confidence_threshold:
+                    self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
+                    continue
 
-                    if cleaned_word: # Only add if it's not empty/filler
-                        new_words.append(cleaned_word)
-                        # Update last committed timestamp using absolute time, ensuring we don't go backwards
-                        self._last_committed_timestamp = max(self._last_committed_timestamp, absolute_word_end)
+                seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
 
-        # Just a logging to see the outcome of the analysis.   
-        self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
-        self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
+                # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
+                #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
+                #   so we can check for that and discard it.
+                previous_words_in_segment = []
+                previous_word = {
+                    "word": "",
+                    "start": -1,
+                    "end": -1
+                }
 
-        # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
-        if len(new_words) == 0:
-            self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
-            return ""
+                # Now, every word in this segment.
+                for word in segment.words:
 
-        # 5. Update state
-        self._ongoing_transcription += " " + " ".join(new_words)
+                    # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
+                    # ⚠️ still happens
+                    #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
+                    # if word.word == previous_word and word.start == previous_start and word.end == previous_end:
+                    #     continue
 
-        # Update the chunk start time for the next iteration
-        self._current_chunk_start_time += chunk_duration
+                    # Check if the word is the same AND if the start time is within the tolerance
+                    is_word_duplicate = any(
+                        w["word"] == word.word and
+                        abs(w["start"] - word.start) < self.TIME_TOLERANCE and
+                        abs(w["end"] - word.end) < self.TIME_TOLERANCE
+                        for w in previous_words_in_segment
+                    )
+                    # If so, skip it.
+                    if is_word_duplicate:
+                        self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_word['start']})")
+                        continue
+                    previous_words_in_segment.append({
+                        "word": word.word,
+                        "start": word.start,
+                        "end": word.end
+                    })
 
-        # Keep the last defined samples as overlap
-        self._last_overlap = audio_to_process[-self._overlap_size:]
+                    # If the 
+                    if self._use_word_low_confidence_threshold and word.probability < self._word_low_confidence_threshold:
+                        self._log_debug(f"FasterWhisper Stream: Word with low confidence detected, probability: {word.probability}, word: {word.word}")
+                        continue
+
+                    # Still here? count on it.
+                    words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
+
+                    # Calculate absolute time of the word
+                    absolute_word_start = self._current_chunk_start_time + word.start
+                    absolute_word_end = self._current_chunk_start_time + word.end
+
+                    # Only commit words that appear after or at our last committed timestamp
+                    if absolute_word_start >= self._last_committed_timestamp:
+                        cleaned_word = self._clean_word(word.word)
+
+                        if cleaned_word: # Only add if it's not empty/filler
+                            new_words.append(cleaned_word)
+                            # Update last committed timestamp using absolute time, ensuring we don't go backwards
+                            self._last_committed_timestamp = max(self._last_committed_timestamp, absolute_word_end)
+
+            # Just a logging to see the outcome of the analysis.   
+            self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
+            self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
+
+            # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
+            if len(new_words) == 0:
+                self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
+                result = ""
+            else:
+                result = " ".join(new_words)
+
+            # 5. Update state
+            self._ongoing_transcription += " " + result if self._ongoing_transcription else result
+
+            # Update the chunk start time for the next iteration
+            self._current_chunk_start_time += chunk_duration
+
+            # Keep the last defined samples as overlap
+            self._last_overlap = audio_to_process[-self._overlap_size:]
 
         self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{self._ongoing_transcription}{TerminalColor.END}\n\n")
         return result

@@ -31,6 +31,8 @@ class CaptureHandler(PyXavi):
 
     local_vad_detected: bool = False
 
+    is_active: bool = True
+
     VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
@@ -118,6 +120,16 @@ class CaptureHandler(PyXavi):
 
         self._log_debug("🗣️ Done Initializing Capture Handler for Speech-to-Text")
     
+    def close(self):
+        self._xlog.info("🗣️ Closing Capture Handler for Speech-to-Text")
+        self.is_active = False
+        if self.vad is not None:
+            self.vad.reset()
+            del self.vad
+        if self.resampler is not None:
+            del self.resampler
+        self._log_debug("🗣️ Done Closing Capture Handler for Speech-to-Text")
+    
     def callback(self, indata, frames, time, status):
         """
         This is called (from a separate thread) for each audio block by the sounddevice library.
@@ -127,7 +139,7 @@ class CaptureHandler(PyXavi):
             self._xlog.debug(f"🗣️ Audio input status: {status}")
             print(status, file=sys.stderr)
 
-        if not self.should_skip_audio_input() and self.queue is not None:
+        if not self.should_skip_audio_input() and self.queue is not None and self.is_active:
             # self._xlog.debug(f"Input audio callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
 
             # Whatever comes as input, resample it to the working samplerate.
@@ -157,6 +169,10 @@ class CaptureHandler(PyXavi):
         #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
     
     def vad_on_speech_start(self, pre_buffer: list[bytes]):
+        if not self.is_active:
+            self._xlog.debug("🗣️ VAD detected speech start, but CaptureHandler is not active, ignoring.")
+            return
+
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_vad_detected()
         for frame in pre_buffer:
@@ -169,6 +185,10 @@ class CaptureHandler(PyXavi):
             self._xlog.warning("🗣️ No callback provided for when the user starts speaking, but VAD detected speech start. Please provide an 'on_vad_detected_started_callback' in the params of CaptureHandler to handle this event.")
     
     def vad_on_speech_chunk(self, chunk: bytes):
+        if not self.is_active:
+            self._xlog.debug("🗣️ VAD detected speech chunk, but CaptureHandler is not active, ignoring.")
+            return
+
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
         self.queue.put(bytes(chunk))
 
@@ -179,6 +199,10 @@ class CaptureHandler(PyXavi):
             self._xlog.warning("🗣️ No callback provided for when the user is speaking, but VAD detected speech chunk. Please provide an 'on_vad_detected_ongoing_callback' in the params of CaptureHandler to handle this event.")
     
     def vad_on_speech_end(self):
+        if not self.is_active:
+            self._xlog.debug("🗣️ VAD detected speech end, but CaptureHandler is not active, ignoring.")
+            return
+
         self._xlog.debug("🗣️ VAD detected speech end")
         self.unset_vad_detected()
 

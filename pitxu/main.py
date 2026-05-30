@@ -722,6 +722,10 @@ class Main(PyXavi):
         # Close the server
         if self._server is not None:
             self._server.close()
+        
+        # Close the CaptureHandler, that also closes the VAD and the microphone stream.
+        if self._capture_handler is not None:
+            self._capture_handler.close()
 
         # Close STT
         if self._dictate is not None:

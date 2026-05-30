@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.signal_tools import SignalTools
+# from pitxu.lib.utils.signal_tools import SignalTools
 from pitxu.lib.speech_to_text.preprocess.filters import Filters
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.support_process.support import Support
@@ -10,8 +10,8 @@ from pitxu.lib.objects.xproc_action import XprocAction
 import numpy as np
 from multiprocessing import JoinableQueue
 from datetime import datetime
-from rms_vad import RmsVAD, VADConfig, compute_energy_db
-import logging
+# from rms_vad import RmsVAD, VADConfig, compute_energy_db
+# import logging
 
 class Preprocessor(PyXavi):
 
@@ -21,19 +21,20 @@ class Preprocessor(PyXavi):
     filter_order = 7   # Order of the filter (higher order means steeper rolloff)
 
     samplerate = 16000  # Sampling rate
+    meaningful_audio_rms_threshold = 0.5
 
     support: Support = None
     filters: Filters = None
-    vad: RmsVAD = None
+    # vad: RmsVAD = None
 
     support_queue: JoinableQueue = None
 
     last_human_speaking_datetime: datetime = None
     
-    ENERGY_RATIO_THRESHOLD = 0.9
+    # ENERGY_RATIO_THRESHOLD = 0.9
 
     # How long to wait after the last detected human speaking before considering that the user has stopped speaking (in seconds)
-    SPEAKING_SILENCE_TIMEOUT_SECONDS = 1
+    # SPEAKING_SILENCE_TIMEOUT_SECONDS = 1
 
     # Control if we're currently in a "speaking" state, which can help to avoid false positives when the user is speaking continuously.
     user_is_speaking: bool = False
@@ -60,16 +61,19 @@ class Preprocessor(PyXavi):
             raise ValueError("Support Class or Support Class Queue must be provided in params with key 'support' or 'support_class_queue' to Preprocessor")
         
         # Initialize the VAD with the provided configuration
-        threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
-        attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
-        release = self._xconfig.get("speech-to-text.vad.release", 1.5)
-        self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
+        # threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
+        # attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
+        # release = self._xconfig.get("speech-to-text.vad.release", 1.5)
+        # threshold = 0.1
+        # attack = 0.050
+        # release = 0
+        # self.vad = RmsVAD(VADConfig(threshold=threshold, attack=attack, release=release, sample_rate=self.samplerate))
         
         self.lowcut_freq = params.get("audio_parameters.filter_lowcut_freq")
         self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
         self.filter_order = params.get("audio_parameters.filter_order")
         self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
-        self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
+        # self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
         self.filters = Filters(config=config, params=params)
 
@@ -79,10 +83,11 @@ class Preprocessor(PyXavi):
             ("High cut freq", f"{self.highcut_freq} Hz"),
             ("Filter order", f"{self.filter_order}"),
             ("Samplerate", f"{self.samplerate} Hz"),
-            ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
-            ("VAD Threshold", threshold),
-            ("VAD Attack", f"{attack} seconds"),
-            ("VAD Release", f"{release} seconds")
+            ("Meaningful Audio RMS Threshold", f"{self.meaningful_audio_rms_threshold}"),
+            # ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
+            # ("VAD Threshold", threshold),
+            # ("VAD Attack", f"{attack} seconds"),
+            # ("VAD Release", f"{release} seconds")
         ])
 
         self._log_debug("🎤 Done Initializing Preprocess for Speech-to-Text")
@@ -119,6 +124,15 @@ class Preprocessor(PyXavi):
         filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
         # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.lowcut_freq, 1.5 *self.highcut_freq, fs=self.samplerate)
 
+        # Check if the audio chunk contains speech using VAD.
+        # Even it feels so, it's not stupid:
+        #   1. The VAD from CaptureHandler is sending chunks to the queue.
+        #   2. It has parameters like wait 2 seconds to ensure the end of speech.
+        #   3. But these 2 seconds are actually silent or noise, and the the Transcriber gets crazy.
+        #  So we can use the VAD here as an additional check to avoid sending non-speech chunks to the Transcriber.
+        if not self.is_audio_meaningful(filtered_audio_np):
+            return None
+    
         # Maintain the accummulators
         # self._log_debug("❗️ Accummulating audio data into Support (Preprocessor is enabled)")
         self.accumulate_audio(audio_data_np)
@@ -199,12 +213,17 @@ class Preprocessor(PyXavi):
         self.clear_accumulated_audio()
 
         self._log_debug(f"🗣️ End speaking 🏁")
+    
+    def is_audio_meaningful(self, audio_data_np: np.ndarray):
+        # Convert audio to numpy array if it isn't already
+        audio_array = audio_data_np.astype(np.float32)
+        # Calculate RMS
+        rms = np.sqrt(np.mean(audio_array**2))
+        return rms >= self.meaningful_audio_rms_threshold
 
     # def is_vad_speech(self, chunk: bytes) -> bool:
     #     # This is a simple wrapper around the VAD to check if the chunk contains speech.
     #     # It can be used as an additional check before doing more expensive calculations like energy analysis.
-
-    #     # NOT USED
 
     #     events = self.vad.feed(chunk)
     #     dd(events)
