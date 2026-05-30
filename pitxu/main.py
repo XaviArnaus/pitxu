@@ -340,6 +340,7 @@ class Main(PyXavi):
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
+                self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -367,6 +368,7 @@ class Main(PyXavi):
                 self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
+                self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
