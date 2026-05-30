@@ -282,9 +282,10 @@ class FasterWhisperStreamProcess(Xprocess):
                 prompt = self._ongoing_transcription
             elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
                 prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
-            elif len(self._ongoing_transcription) == 0:
-                # It's the first audio to process, so we use the prompt to give some instructions.
-                prompt = "Please transcribe the following audio. Do not repeat phrases or invent text."
+            # COMMENTED: The model appears to hallucinate with an initial prompt that is not text.
+            # elif len(self._ongoing_transcription) == 0:
+            #     # It's the first audio to process, so we use the prompt to give some instructions.
+            #     prompt = "Please transcribe the following audio. Do not repeat phrases or invent text."
             else:
                 prompt = ""
 
