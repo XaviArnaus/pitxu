@@ -414,7 +414,9 @@ class FasterWhisperStreamProcess(Xprocess):
                         "end": word.end
                     })
 
-                    # If the 
+                    # If the confidence of the word is too low, skip it. 
+                    # This is to avoid hallucinations and wrong merging. Works but not well fine tuned:
+                    #   ⚠️ now it does not recognize the exit word "Goodbye" as correct.
                     if self._use_word_low_confidence_threshold and word.probability < self._word_low_confidence_threshold:
                         self._log_debug(f"FasterWhisper Stream: Word with low confidence detected, probability: {word.probability}, word: {word.word}")
                         continue

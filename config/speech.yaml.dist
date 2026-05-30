@@ -202,8 +202,13 @@ speech-to-text:
     segment_low_confidence_threshold: -0.8
     # [Float] The confidence threshold to consider that a word is low confidence
     word_low_confidence_threshold: 0.2
-    
-
+    # [Float] The threshold of confidence over the segments to consider that the model is hallucinating.
+    hallucination_low_confidence_segments_threshold: -0.8
+    # [Float] The threshold of confidence to reset the hallucination counter.
+    #   If the average confidence of the segments is above this threshold, the counter will be reset.
+    hallucination_low_confidence_reset_threshold: -1
+    # [Integer] The maximum number of occurrences of low confidence segments before considering the transcription ashallucination.
+    hallucination_low_confidence_segments_max_occurrences: 3
 
 # Configurations for the Text-to-Speech
 text-to-speech:
