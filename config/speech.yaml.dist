@@ -197,6 +197,12 @@ speech-to-text:
     max_prompt_buffer_size_in_chars: 100
     # [Float] The temperature to use for the inference. The higher, the more creative (and less accurate) the transcription will be.
     temperature: 0.2
+    # [Float] The confidence threshold to consider that a segment is low confidence
+    #   (should be reprocessed with a lower temperature?)
+    segment_low_confidence_threshold: -0.8
+    # [Float] The confidence threshold to consider that a word is low confidence
+    word_low_confidence_threshold: 0.2
+    
 
 
 # Configurations for the Text-to-Speech

@@ -56,11 +56,20 @@ class FasterWhisperStreamProcess(Xprocess):
     _temperature = 0.2
     _sleep_when_no_chunks = 0.1
     _use_segment_low_confidence_threshold = True
-    _segment_low_confidence_threshold = -1
+    _segment_low_confidence_threshold = -0.8
     _use_word_low_confidence_threshold = True
     _word_low_confidence_threshold = 0.2
     _hallucination_silence_threshold = 1.0
     _max_prompt_buffer_size_in_chars = 100
+    _hallucination_low_confidence_segments_threshold = -0.8
+    _hallucination_low_confidence_reset_threshold = -1
+    _hallucination_low_confidence_segments_max_occurrences = 3
+
+    # Identify and correct hallucinations: If we have "n" consecutive segments with low confidence,
+    #   we can consider that the model is hallucinating and reset the context.
+    _consecutive_low_confidence_segments = 0
+    _should_disable_next_prompt = False # Flag to disable the prompt for the next transcribe call
+    _last_segment_text_for_repetition = "" # Stores text of last segment for basic repetition check
 
     _last_committed_timestamp = 0.0
     _current_chunk_start_time = 0.0
@@ -144,6 +153,11 @@ class FasterWhisperStreamProcess(Xprocess):
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
             max_prompt_buffer_size_in_chars = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.max_prompt_buffer_size_in_chars", 100))
             hallucination_silence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_silence_threshold", 1.0))
+            segment_low_confidence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.segment_low_confidence_threshold", -0.8))
+            word_low_confidence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.word_low_confidence_threshold", 0.2))
+            hallucination_low_confidence_segments_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_threshold", -0.8))
+            hallucination_low_confidence_reset_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_reset_threshold", -1))
+            hallucination_low_confidence_segments_max_occurrences = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_max_occurrences", 3))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
@@ -152,6 +166,11 @@ class FasterWhisperStreamProcess(Xprocess):
             self._hallucination_silence_threshold = hallucination_silence_threshold
             self._max_prompt_buffer_size_in_chars = max_prompt_buffer_size_in_chars
             self._temperature = temperature
+            self._segment_low_confidence_threshold = segment_low_confidence_threshold
+            self._word_low_confidence_threshold = word_low_confidence_threshold
+            self._hallucination_low_confidence_segments_threshold = hallucination_low_confidence_segments_threshold
+            self._hallucination_low_confidence_reset_threshold = hallucination_low_confidence_reset_threshold
+            self._hallucination_low_confidence_segments_max_occurrences = hallucination_low_confidence_segments_max_occurrences
             self._hot_words = self._load_hot_words()
 
             logging_parts.append(("Model from config", model))
@@ -160,12 +179,17 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("Compute type", compute_type))
             logging_parts.append(("Beam size", beam_size))
             logging_parts.append(("Temperature", temperature))
+            logging_parts.append(("Segment low confidence threshold", segment_low_confidence_threshold))
+            logging_parts.append(("Word low confidence threshold", word_low_confidence_threshold))
             logging_parts.append(("CPU threads", cpu_threads))
             logging_parts.append(("Overlap size", overlap_size))
             logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
             logging_parts.append(("Hallucination silence threshold", hallucination_silence_threshold))
+            logging_parts.append(("Hallucination low confidence segments threshold", hallucination_low_confidence_segments_threshold))
+            logging_parts.append(("Hallucination low confidence reset threshold", hallucination_low_confidence_reset_threshold))
+            logging_parts.append(("Hallucination low confidence segments max occurrences", hallucination_low_confidence_segments_max_occurrences))
             logging_parts.append(("Max prompt buffer size in chars", max_prompt_buffer_size_in_chars))
             logging_parts.append(("Faster Whisper logging level", logging.getLevelName(logging_level)))
             logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
@@ -276,18 +300,26 @@ class FasterWhisperStreamProcess(Xprocess):
                                 if len(preprocessed_chunks) > 0 else 0.0
 
             # 3. Transcription
-            # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
-            prompt_buffer_size_in_chars = self._max_prompt_buffer_size_in_chars
-            if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
-                prompt = self._ongoing_transcription
-            elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
-                prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
-            # COMMENTED: The model appears to hallucinate with an initial prompt that is not text.
-            # elif len(self._ongoing_transcription) == 0:
-            #     # It's the first audio to process, so we use the prompt to give some instructions.
-            #     prompt = "Please transcribe the following audio. Do not repeat phrases or invent text."
-            else:
+            if self._should_disable_next_prompt:
+                # The analysis of the confidence after transcription tells us that the model is hallucinating,
+                # so we disable the prompt for the next transcription call, to avoid conditioning it with a wrong prompt, 
+                # and we reset the flag.
+                # The boolean flag is set in the _validate_last_segment_confidence_to_avoid_hallucination method().
                 prompt = ""
+                self._should_disable_next_prompt = False
+            else:
+                # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
+                prompt_buffer_size_in_chars = self._max_prompt_buffer_size_in_chars
+                if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
+                    prompt = self._ongoing_transcription
+                elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
+                    prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
+                # COMMENTED: The model appears to hallucinate with an initial prompt that is not text.
+                # elif len(self._ongoing_transcription) == 0:
+                #     # It's the first audio to process, so we use the prompt to give some instructions.
+                #     prompt = "Please transcribe the following audio. Do not repeat phrases or invent text."
+                else:
+                    prompt = ""
 
             self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
             segments, _ = self._model.transcribe(
@@ -297,10 +329,18 @@ class FasterWhisperStreamProcess(Xprocess):
                 language=self.language,
                 initial_prompt=prompt,
                 word_timestamps=True,
-                vad_filter=False,
+                # vad_filter=False,
                 hallucination_silence_threshold=self._hallucination_silence_threshold,
                 hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None
             )
+
+            # The transcription is returned as a generator. Get the segments themselves.
+            segments = list(segments)
+
+            # Trying to identify hallucinations by looking at the confidence of the segments,
+            # and if we have "n" consecutive low confidence segments, we consider that the model is hallucinating 
+            # and we reset the context.
+            self._validate_last_segment_confidence_to_avoid_hallucination(segments)
 
             # 4. Timestamp-based Merging
             seg_infos = []  # This is just for logging.
@@ -446,6 +486,46 @@ class FasterWhisperStreamProcess(Xprocess):
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
 
         return cleaned_text.strip()
+
+    def _validate_last_segment_confidence_to_avoid_hallucination(self, segments: list) -> bool:
+        """
+        Analyses the last segment's confidence, calculates an average for the batch,
+        and if it detects a low confidence segment, it sets a flag to disable the prompt for the next transcription call, 
+        to avoid conditioning it with a wrong prompt, which can lead to a cascade of hallucinations. 
+        It also has a reset mechanism that if we have "n" consecutive low confidence segments, 
+        we consider that the model is hallucinating and we reset the context.
+        """
+        if segments:
+                last_segment = segments[-1]
+                segment_confidences = [s.avg_logprob for s in segments]
+                avg_batch_confidence = np.mean(segment_confidences) if segment_confidences else 0.0
+
+                is_hallucinating = False
+                if last_segment.avg_logprob < self._hallucination_low_confidence_segments_threshold:
+                    is_hallucinating = True
+
+                if len(last_segment.text.strip()) > 0 and \
+                len(last_segment.text.strip()) < 6 and \
+                last_segment.text.strip().lower() == self._last_segment_text_for_repetition.lower() and \
+                last_segment.avg_logprob < (self._hallucination_low_confidence_segments_threshold * 1.5):
+                    is_hallucinating = True
+
+                if is_hallucinating:
+                    self._should_disable_next_prompt = True
+
+                self._last_segment_text_for_repetition = last_segment.text.strip()
+
+                # --- 2. Reset Mechanism for Consecutive Low Confidence ---
+                if avg_batch_confidence < self._hallucination_low_confidence_reset_threshold:
+                    self._consecutive_low_confidence_segments += 1
+                else:
+                    self._consecutive_low_confidence_segments = 0
+
+                if self._consecutive_low_confidence_segments >= self._hallucination_low_confidence_segments_max_occurrences:
+                    self._ongoing_transcription = ""
+                    self._last_overlap = np.array([], dtype=np.float32) # Reset to empty numpy array
+                    self._consecutive_low_confidence_segments = 0
+                    self._should_disable_next_prompt = True
     
     def get_transcription(self) -> str:
         """
