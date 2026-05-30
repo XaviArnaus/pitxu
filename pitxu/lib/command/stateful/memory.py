@@ -91,6 +91,49 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
+    def get_memory_entry_by_id(self, entry_id: int) -> dict | str:
+        '''
+        Retrieve a memory entry by its ID.
+
+        Args:
+            entry_id (int): The ID of the memory entry to retrieve.
+
+        Returns:
+            dict | str: If successful, returns the memory entry; otherwise, an error message.
+        '''
+        self._xlog.info(f"Ⓜ️ Request for Retrieving memory entry with ID [{entry_id}]")
+
+        try:
+            memory_entry = self._memory.get_short_memory_by_id(entry_id)
+            if memory_entry:
+                return memory_entry
+            else:
+                return self._xconfig.get("language.memory.entry_not_found." + self._xparams.get("language")) % entry_id
+        except Exception as e:
+            self._xlog.error(f"🛑 Error retrieving memory entry with ID [{entry_id}]: {e}")
+            self._xlog.debug(full_stack())
+            return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
+    
+    def get_last_five_memory_entries(self) -> list[dict] | str:
+        '''
+        Retrieve the last five memory entries.
+
+        Returns:
+            list[dict] | str: If successful, returns a list of the last five memory entries; otherwise, an error message.
+        '''
+        self._xlog.info(f"Ⓜ️ Request for Retrieving the last five memory entries")
+
+        try:
+            memory_entries = self._memory.get_last_short_memory_entries(limit=5)
+            if memory_entries:
+                return memory_entries
+            else:
+                return self._xconfig.get("language.memory.entries_not_found." + self._xparams.get("language")) % "last five entries"
+        except Exception as e:
+            self._xlog.error(f"🛑 Error retrieving the last five memory entries: {e}")
+            self._xlog.debug(full_stack())
+            return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
+    
     def update_memory_entry_by_id(self, entry_id: int, summary: str = None, content: str = None) -> dict | str:
         '''
         Update a memory entry by its ID with the given summary and/or content.
@@ -217,7 +260,14 @@ class StatefulMemory(PyXavi, Command):
             if isinstance(value, dict) and "summary" in value:
                 summary = value["summary"]
             elif isinstance(value, list) and len(value) > 0:
-                summary = "\n".join([entry.get("summary", "") for entry in value if isinstance(entry, dict) and "summary" in entry])
+                summary_pieces = []
+                counter = 1
+                for entry in value:
+                    if isinstance(entry, dict) and "summary" in entry and "created_at" in entry:
+                        date = entry.get("created_at", "").split("T")[0]  # Get only the date part
+                        summary_pieces.append(f"{counter}. [{date}] {entry.get("summary", "")}")
+                        counter += 1
+                summary = "\n".join(summary_pieces)
             elif value is None:
                 log.error(f"🟠 Memory entry retrieval result is None.")
                 interaction.show_error(text="Memory entry not found")
@@ -227,10 +277,7 @@ class StatefulMemory(PyXavi, Command):
                 interaction.show_error(text=value if isinstance(value, str) else "Unknown error")
                 return
 
-            interaction.show_arbitrary_text_on_foreground_while_speaking(
-                        icon="Ⓜ️ ",
-                        text=summary,
-                        font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+            interaction.show_text_block_on_foreground_while_speaking(text=summary)
             
         except Exception as e:
             log.error(f"🛑 Error showing the retrieved memory entry: {e}")
@@ -245,6 +292,8 @@ class StatefulMemory(PyXavi, Command):
         return [self.create_memory_entry,
                 self.get_memory_entries_by_summary,
                 self.get_memory_entries_by_date,
+                self.get_memory_entry_by_id,
+                self.get_last_five_memory_entries,
                 self.update_last_memory_entry,
                 self.update_memory_entry_by_id,
                 self.summarize_chatbot_history_into_new_memory_entry]
@@ -260,6 +309,6 @@ class StatefulMemory(PyXavi, Command):
         """
         if function_name == "summarize_chatbot_history_into_new_memory_entry":
             return self.callback_summarize_chatbot_history_into_new_memory_entry
-        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id"]:
+        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback

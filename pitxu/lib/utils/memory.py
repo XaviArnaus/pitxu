@@ -65,7 +65,10 @@ class Memory(PyXavi):
         return self.get_by_summary_like(table_name=self.TABLE_SHORT_TIME_MEMORY, summary=summary)
     
     def get_last_short_memory_entry(self) -> dict | None:
-        return self.get_last_entry(table_name=self.TABLE_SHORT_TIME_MEMORY)
+        return self.get_last_entries(table_name=self.TABLE_SHORT_TIME_MEMORY, limit=1)[0]
+    
+    def get_last_short_memory_entries(self, limit: int = 5) -> list[dict] | None:
+        return self.get_last_entries(table_name=self.TABLE_SHORT_TIME_MEMORY, limit=limit)
     
     def update_short_memory_entry_by_id(self, entry_id: int, summary: str = None, content: str = None) -> dict | None:
         return self.update_by_id(table_name=self.TABLE_SHORT_TIME_MEMORY, entry_id=entry_id, summary=summary, content=content)
@@ -167,17 +170,20 @@ class Memory(PyXavi):
             return entries
         return None
     
-    def get_last_entry(self, table_name: str) -> dict | None:
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} ORDER BY created_at DESC LIMIT 1")
-        row = self.db.cursor.fetchone()
-        if row:
+    def get_last_entries(self, table_name: str, limit: int = 1) -> list[dict] | None:
+        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} ORDER BY created_at DESC LIMIT ?", (limit,))
+        rows = self.db.cursor.fetchall()
+        entries = []
+        for row in rows:
             entry = {
                 "id": row["id"],
                 "summary": row["summary"],
                 "content": row["content"],
                 "created_at": row["created_at"]
             }
-            return entry
+            entries.append(entry)
+        if entries:
+            return entries
         return None
     
     def update_by_id(self, table_name: str, entry_id: int, summary: str = None, content: str = None) -> dict | None:
@@ -197,10 +203,11 @@ class Memory(PyXavi):
         return self.get_by_id(table_name, entry_id)
     
     def update_last_entry(self, table_name: str, summary: str = None, content: str = None) -> dict | None:
-        last_entry = self.get_last_entry(table_name)
-        if not last_entry:
+        last_entries = self.get_last_entries(table_name, limit=1)
+        if not last_entries:
             return None
         
+        last_entry = last_entries[0]
         if summary is not None:
             last_entry["summary"] = summary
         if content is not None:
