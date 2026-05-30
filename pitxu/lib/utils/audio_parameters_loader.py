@@ -11,6 +11,7 @@ class AudioParametersLoader(PyXavi):
     DEFAULT_RESAMPLE_TARGET_SAMPLERATE: int = 16000
     DEFAULT_PREPROCESSING_SAMPLERATE: int = 16000
     DEFAULT_SERVER_SAMPLERATE: int = 16000
+    DEFAULT_MEANINGFUL_AUDIO_RMS_THRESHOLD: float = 0.5
 
     input_device: int = None
     stt_engine: str = None
@@ -22,6 +23,7 @@ class AudioParametersLoader(PyXavi):
     filter_lowcut_freq: int = 300
     filter_highcut_freq: int = 3400
     filter_order: int = 3
+    meaningful_audio_rms_threshold: float = 0.5
 
     full_audio_parameters: dict = {}
 
@@ -39,6 +41,7 @@ class AudioParametersLoader(PyXavi):
         self.preprocessing_samplerate = self.get_preprocessing_samplerate()
         self.server_samplerate = self.get_server_instance_input_samplerate()
         self.resample_target_samplerate = self.get_resample_target_samplerate()
+        self.meaningful_audio_rms_threshold = self.get_meaningful_audio_rms_threshold()
 
         self.filter_lowcut_freq = self.get_filter_lowcut_freq()
         self.filter_highcut_freq = self.get_filter_highcut_freq()
@@ -53,7 +56,8 @@ class AudioParametersLoader(PyXavi):
             "server_samplerate": self.server_samplerate,
             "filter_lowcut_freq": self.filter_lowcut_freq,
             "filter_highcut_freq": self.filter_highcut_freq,
-            "filter_order": self.filter_order
+            "filter_order": self.filter_order,
+            "meaningful_audio_rms_threshold": self.meaningful_audio_rms_threshold
         }
     
     def get_audio_parameters(self) -> dict:
@@ -159,3 +163,12 @@ class AudioParametersLoader(PyXavi):
 
     def get_filter_order(self) -> int:
         return self._xconfig.get("speech-to-text.preprocessor.filter_order", self.filter_order)
+
+    def get_meaningful_audio_rms_threshold(self) -> float:
+        if self._xconfig.key_exists("speech-to-text.preprocessor.meaningful_audio_rms_threshold"):
+            threshold = self._xconfig.get("speech-to-text.preprocessor.meaningful_audio_rms_threshold")
+            self._log_debug(f"Using meaningful audio RMS threshold from config: {threshold}")
+            return threshold
+        else:
+            self._xlog.debug(f"No meaningful audio RMS threshold provided in config, using default of {self.DEFAULT_MEANINGFUL_AUDIO_RMS_THRESHOLD}")
+            return self.DEFAULT_MEANINGFUL_AUDIO_RMS_THRESHOLD
