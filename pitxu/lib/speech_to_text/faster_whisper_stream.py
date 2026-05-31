@@ -352,8 +352,7 @@ class FasterWhisperStream(PyXavi):
                         if self.current_transcription_state in [TrascriptionState.START_CONTEXT]:
                             self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
                             self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to ONGOING_PROCESS_CHUNK, About to process chunks.")
-                        else:
-                            self._log_debug(f"✏️ 👁️‍🗨️ Not allowed transcription state transitioning from {previous_state} to {self.current_transcription_state}.")
+                        # We don't log the ELSE here, because it's the normal behaviour when we receive such an amount of chunks to process.
 
                         # Prepare the set of chunks to process
                         if len(self._ongoing_chunk_window) >= self._chunks_window:
