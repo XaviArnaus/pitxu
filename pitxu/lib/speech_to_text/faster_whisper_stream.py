@@ -347,8 +347,9 @@ class FasterWhisperStream(PyXavi):
                             continue
 
                         # Update the current state of the transcription
-                        self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
-                        self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to ONGOING_PROCESS_CHUNK, About to process chunks.")
+                        if self.current_transcription_state != TrascriptionState.ONGOING_PROCESS_CHUNK:
+                            self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
+                            self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to ONGOING_PROCESS_CHUNK, About to process chunks.")
 
                         if len(self._ongoing_chunk_window) >= self._chunks_window:
                             self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
