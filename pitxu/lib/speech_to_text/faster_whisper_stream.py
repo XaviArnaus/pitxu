@@ -216,7 +216,7 @@ class FasterWhisperStream(PyXavi):
         # This only can happen if the previous one already finished.
         # So we don't allow to reset the contect if we are not in IDLE or DONE state, to avoid breaking the current transcription.
         if self.current_transcription_state not in [TrascriptionState.IDLE, TrascriptionState.DONE]:
-            self._xlog.warning(f"🟠 Trying to reset context while the transcription is not in IDLE or DONE state. Current state: {self.current_transcription_state.upper()}.")
+            self._xlog.warning(f"🟠 Reset Context invalid: Can't transition from {self.current_transcription_state.upper()}. Only IDLE or DONE states are allowed.")
             # Also, raise a flag to avoid consuming the chunks in the queue while we are in
             #   ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, to avoid breaking the current transcription.
             self.allow_chunk_consumption = False
@@ -299,7 +299,7 @@ class FasterWhisperStream(PyXavi):
                         #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
                         #   to avoid breaking the current transcription.
                         if not self.allow_chunk_consumption:
-                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
+                            self._xlog.warning(f"🟠 Received audio chunk [None] while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
                             self._queue.task_done()
                             continue
 
@@ -310,8 +310,9 @@ class FasterWhisperStream(PyXavi):
                         self._support.clear_accumulated_audio()
 
                         # Update the current state of the transcription
+                        previous_state = self.current_transcription_state
                         self.current_transcription_state = TrascriptionState.LEFTOVER_CHUNK_PROCESSING
-                        self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to LEFTOVER_CHUNK_PROCESSING, Process the leftover chunks.")
+                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to LEFTOVER_CHUNK_PROCESSING, Process the leftover chunks.")
 
                         # It is very possible that we have chunks without process at this point.
                         # COMMENTED: Feels like the duplication at the end of the transcription can come from here.
@@ -347,16 +348,21 @@ class FasterWhisperStream(PyXavi):
                             continue
 
                         # Update the current state of the transcription
-                        if self.current_transcription_state != TrascriptionState.ONGOING_PROCESS_CHUNK:
+                        previous_state = self.current_transcription_state
+                        if self.current_transcription_state in [TrascriptionState.START_CONTEXT]:
                             self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
-                            self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to ONGOING_PROCESS_CHUNK, About to process chunks.")
+                            self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to ONGOING_PROCESS_CHUNK, About to process chunks.")
+                        else:
+                            self._log_debug(f"✏️ 👁️‍🗨️ Not allowed transcription state transitioning from {previous_state} to {self.current_transcription_state}.")
 
+                        # Prepare the set of chunks to process
                         if len(self._ongoing_chunk_window) >= self._chunks_window:
                             self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
                             chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
                             self._ongoing_chunk_window = []
                         self._ongoing_chunk_window.append(data)
 
+                        # Process the prepared set of chunks
                         if len(chunk_list_to_process) > 0:
                             self._log_debug(f"✏️ Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
                             self.process_chunks(chunk_list_to_process)
@@ -387,8 +393,9 @@ class FasterWhisperStream(PyXavi):
                             self.final_transcription = transcription_result
                         
                         # Update the current state of the transcription
+                        previous_state = self.current_transcription_state
                         self.current_transcription_state = TrascriptionState.DONE
-                        self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to DONE, Triggering Main callback.")
+                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to DONE, Triggering Main callback.")
                         
                         # Trigger the callback to notify that the transcription is finished, if we have a transcription result, or if we received the sentinel, which means that the transcription is finished even if we don't have a result (it can happen if the user spoke but the Model couldn't transcribe anything, so it returns an empty string as a result, but it still sends the sentinel to indicate that it finished processing).
                         if self.on_transcription_finished_callback is not None and (self.final_transcription is not None and len(self.final_transcription) > 0):
@@ -408,8 +415,9 @@ class FasterWhisperStream(PyXavi):
                         self._log_debug("✏️  Got empty transcription result from the Process, skipping and bringing to IDLE.")
                     
                     # Update the current state of the transcription
+                    previous_state = self.current_transcription_state
                     self.current_transcription_state = TrascriptionState.IDLE
-                    self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to IDLE, ready for next transcription.")
+                    self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to IDLE, ready for next transcription.")
 
                     # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
                     self.allow_chunk_consumption = True
