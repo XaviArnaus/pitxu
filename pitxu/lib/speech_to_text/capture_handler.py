@@ -6,7 +6,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
-    SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED
+    SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED, SHARED_TRANSCRIBER_BUSY
 
 import sys
 import queue as Queue
@@ -275,22 +275,14 @@ class CaptureHandler(PyXavi):
         Checks if the microphone is muted OR if the speaker is busy via the shared memory flags
         '''
 
-        speaker_is_busy = False
-        mic_is_muted = False
+        if self.shared_memory is not None:
+            mic_is_muted = self.shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+            speaker_is_busy = self.shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
 
-        if self.shared_memory is None:
-            self._xlog.error("🗣️ Shared Memory is None, cannot read 'SHARED_MICROPHONE_MUTED' flag")
-            return False
-        if (not isinstance(self.shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED), bool)):
-            self._xlog.error("🗣️ Shared Memory flag 3 should be 'SHARED_MICROPHONE_MUTED' but is not a boolean" + str(self.shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)))
-            return False
-        if (not isinstance(self.shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY), bool)):
-            self._xlog.error("🗣️ Shared Memory flag 4 should be 'SHARED_SPEAKER_BUSY' but is not a boolean" + str(self.shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)))
-            return False
-        mic_is_muted = self.shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
-        speaker_is_busy = self.shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
-
-        return mic_is_muted or speaker_is_busy
+            return any([mic_is_muted, speaker_is_busy])
+        else:
+            # no shared memory, avoid putting any chunk in any queue, to avoid triggering any process.
+            return True
     
     def set_vad_detected(self):
         """
