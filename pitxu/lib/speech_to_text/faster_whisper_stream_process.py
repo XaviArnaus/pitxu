@@ -378,7 +378,7 @@ class FasterWhisperStreamProcess(Xprocess):
             for segment in segments:
 
                 # Check if the segment is the same AND if the start time is within the tolerance
-                is_segment_duplicate = any(s["segment"] == segment.text for s in previous_segments_in_text)
+                is_segment_duplicate = any(s["segment"].lower().strip() == segment.text.lower().strip() for s in previous_segments_in_text)
                 # If so, skip it.
                 if is_segment_duplicate:
                     self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
@@ -564,7 +564,6 @@ class FasterWhisperStreamProcess(Xprocess):
         """
         # We get the final transcription and use the moment to clean it.
         final_transcription = self._clean_transcription(self._ongoing_transcription)
-        dd(final_transcription)
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
         # if self._output_queue is not None and self._output_queue_sentinel is not None:
