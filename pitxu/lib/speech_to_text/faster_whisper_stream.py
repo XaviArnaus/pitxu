@@ -7,7 +7,7 @@ from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisper
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
+from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_TRANSCRIBER_BUSY
 
 import threading
 import numpy as np
@@ -420,6 +420,7 @@ class FasterWhisperStream(PyXavi):
 
                     # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
                     self.allow_chunk_consumption = True
+                    self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
 
                     self.transcriptor_output_queue.task_done()
                 
