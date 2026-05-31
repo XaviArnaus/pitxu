@@ -396,16 +396,14 @@ class FasterWhisperStream(PyXavi):
                                     self._xlog.warning(f"Discarding transcription result from the queue to avoid duplication: {discarded_result}")
                                 self._xlog.debug("Transcription queue is now empty after discarding results to avoid duplication.")
 
-                        # Update the current state of the transcription
-                        self.current_transcription_state = TrascriptionState.IDLE
-
-                        # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
-                        self.allow_chunk_consumption = True
                     else:
-                        self._log_debug("✏️ Got empty transcription result from the Process, skipping and bringing to IDLE.")
+                        self._log_debug("✏️  Got empty transcription result from the Process, skipping and bringing to IDLE.")
+                    
+                    # Update the current state of the transcription
+                    self.current_transcription_state = TrascriptionState.IDLE
 
-                        # Update the current state of the transcription
-                        self.current_transcription_state = TrascriptionState.IDLE
+                    # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
+                    self.allow_chunk_consumption = True
 
                     self.transcriptor_output_queue.task_done()
                 

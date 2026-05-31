@@ -73,38 +73,42 @@ class FasterWhisperStreamProcess(Xprocess):
 
     _last_committed_timestamp = 0.0
     _current_chunk_start_time = 0.0
+    # _current_transcription_start_time = 0.0
 
     # The last "n" samples of the previous chunk, to be used as context for the next chunk, to help the transcription model.
     _last_overlap = np.array([], dtype=np.float32)
-    # The current (or final) state of the transcription
-    _ongoing_transcription = ""
+    # The current (or final) transcription
+    # CHANGED: We try to store also timestamps and correct previous partials with newer partials
+    # _ongoing_transcription = ""
+    _ongoing_transcription:list[dict] = [] # List of dict with "text", "start" and "end" of the transcription, to be able to correct previous partials with newer partials, and to have timestamps for the merging process.
+    _final_transcription = ""
 
     # List of human expressions that do not add any value, just noise.
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
-    expressions_to_remove = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    expressions_to_remove: list = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
 
     # List of punctuations to add to the words when searching for them in the transcription buffer,
     #   as they can be added by Faster Whisper and cause problems when merging.
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
-    punctuations_to_add_to_words = [".", ",", "?", "!", "..."]
+    punctuations_to_add_to_words: list = [".", ",", "?", "!", "..."]
 
     # Avoid using the following words for the merging process, as they are too common and can cause more problems than benefits when merging,
     # Remember that they need to be all lowercase!
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
-    words_to_remove_from_partial_transcription = ["i", "you", "he", "she", "it", "we", "they", "to", "and"]
+    words_to_remove_from_partial_transcription: list = ["i", "you", "he", "she", "it", "we", "they", "to", "and"]
 
-    # List of common hallucinated phrases. They usuallty come at the end of the transcription
+    # List of common hallucinated phrases. They usually come at the end of the transcription
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
-    phrases_to_remove = [
+    phrases_to_remove: list = [
         "thank you for watching",
         "thanks for watching",
         "subscribe for more",
     ]
 
-    _hot_words = []
+    _hot_words: list = []
 
     # Define a small tolerance window (e.g., 50ms) for word repetition
-    TIME_TOLERANCE = 0.05
+    TIME_TOLERANCE: float = 0.05
 
     VERBOSE_DEBUG: bool = True
 
@@ -279,6 +283,8 @@ class FasterWhisperStreamProcess(Xprocess):
         
         if action == XprocAction.TRANSCRIBE_CHUNK_WINDOW:
             if isinstance(param, list) and all(isinstance(chunk, bytes) for chunk in param):
+                # ⚠️ What is this return? If it puts partials into the queue... whouldn't be this
+                # the repetitions that I see? I don't expect elements in the queue but the very final one!
                 return self.process_chunks(param)
             else:
                 raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
@@ -288,9 +294,11 @@ class FasterWhisperStreamProcess(Xprocess):
     
     def reset_context(self):
         self._last_overlap = np.array([], dtype=np.float32)
-        self._ongoing_transcription = ""
+        self._ongoing_transcription = []
+        self._final_transcription = ""
         self._last_committed_timestamp = 0.0
         self._current_chunk_start_time = 0.0
+        self._current_transcription_start_time = 0.0
         self._should_disable_next_prompt = False
     
     def process_chunks(self, chunk_list: list[bytes]) -> str:
@@ -315,7 +323,7 @@ class FasterWhisperStreamProcess(Xprocess):
             chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
                                 if len(preprocessed_chunks) > 0 else 0.0
 
-            # 3. Transcription
+            # 3. Prepare prompt for the thranscription
             condition_on_previous_text = self._should_disable_next_prompt
             if self._should_disable_next_prompt:
                 # The analysis of the confidence after transcription tells us that the model is hallucinating,
@@ -326,11 +334,12 @@ class FasterWhisperStreamProcess(Xprocess):
                 self._should_disable_next_prompt = False
             else:
                 # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
-                prompt_buffer_size_in_chars = self._max_prompt_buffer_size_in_chars
-                if len(self._ongoing_transcription) > 0 and len(self._ongoing_transcription) < prompt_buffer_size_in_chars:
-                    prompt = self._ongoing_transcription
-                elif len(self._ongoing_transcription) >= prompt_buffer_size_in_chars:
-                    prompt = self._ongoing_transcription[-prompt_buffer_size_in_chars:]
+                if len(self._ongoing_transcription) > 0:
+                    text_in_ongoing_transcription = " ".join([t["word"] for t in self._ongoing_transcription])
+                    if len(text_in_ongoing_transcription) < self._max_prompt_buffer_size_in_chars:
+                        prompt = text_in_ongoing_transcription
+                    elif len(text_in_ongoing_transcription) >= self._max_prompt_buffer_size_in_chars:
+                        prompt = text_in_ongoing_transcription[-self._max_prompt_buffer_size_in_chars:]
                 # COMMENTED: The model appears to hallucinate with an initial prompt that is not text.
                 # elif len(self._ongoing_transcription) == 0:
                 #     # It's the first audio to process, so we use the prompt to give some instructions.
@@ -338,6 +347,7 @@ class FasterWhisperStreamProcess(Xprocess):
                 else:
                     prompt = ""
 
+            # 4. Transcription
             self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
             segments, _ = self._model.transcribe(
                 audio_to_process,
@@ -364,122 +374,186 @@ class FasterWhisperStreamProcess(Xprocess):
             # 4. Timestamp-based Merging
             seg_infos = []  # This is just for logging.
             words_info = [] # This is just for logging.
-            new_words = []  # Here will be the commited words after comparing via timestamp.
+            # new_words = []  # Here will be the commited words after comparing via timestamp.
+            new_transcribed_words = []
+            # The offsets of the word are from the segment, not the chunk.
+            # we need to add the segment offset to the word time.
+            current_segment_starting_time = self._last_committed_timestamp
+            current_segment_ending_time = self._last_committed_timestamp
 
-            # These are the flags for the "previous segment", because in the RPi sometimes the model goes crazy
-            #   and repeats the exact same segment in the text, here we check it per words, not per timestamps.
-            #   according to the bugs seen.
-            previous_segments_in_text = []
-            previous_segment = {
-                "segment": "",
-                "start": -1,
-                "end": -1
-            }
+            # # These are the flags for the "previous segment", because in the RPi sometimes the model goes crazy
+            # #   and repeats the exact same segment in the text, here we check it per words, not per timestamps.
+            # #   according to the bugs seen.
+            # previous_segments_in_text = []
+            # previous_segment = {
+            #     "segment": "",
+            #     "start": -1,
+            #     "end": -1
+            # }
             for segment in segments:
 
-                # Check if the segment is the same AND if the start time is within the tolerance
-                is_segment_duplicate = any(s["segment"].lower().strip() == segment.text.lower().strip() for s in previous_segments_in_text)
-                # If so, skip it.
-                if is_segment_duplicate:
-                    self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
-                    continue
-                previous_segments_in_text.append({
-                    "segment": segment.text,
-                    "start": segment.start,
-                    "end": segment.end
-                })
+                # # Check if the segment is the same AND if the start time is within the tolerance
+                # is_segment_duplicate = any(s["segment"].lower().strip() == segment.text.lower().strip() for s in previous_segments_in_text)
+                # # If so, skip it.
+                # if is_segment_duplicate:
+                #     self._log_debug(f"FasterWhisper Stream: Skipping duplicate segment '{segment.text}' (start: {segment.start}, prev_start: {previous_segment['start']})")
+                #     continue
+                # previous_segments_in_text.append({
+                #     "segment": segment.text,
+                #     "start": segment.start,
+                #     "end": segment.end
+                # })
 
 
-                # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
-                if self._use_segment_low_confidence_threshold and segment.avg_logprob < self._segment_low_confidence_threshold:
-                    self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
-                    continue
+                # # The idea here is to avoid low confidence segments... but it's not fine tunned and then, deactivated by config
+                # if self._use_segment_low_confidence_threshold and segment.avg_logprob < self._segment_low_confidence_threshold:
+                #     self._log_debug(f"FasterWhisper Stream: Segment with low confidence detected, avg_logprob: {segment.avg_logprob}, text: {segment.text}")
+                #     continue
 
-                seg_infos.append((segment.text, f"start: {round(segment.start, 2)}, end: {round(segment.end, 2)}, prob: {round(segment.avg_logprob, 2)}"))
+                current_segment_starting_time = current_segment_starting_time + segment.start
+                current_segment_ending_time = current_segment_ending_time + segment.end
+                seg_infos.append((segment.text, f"start: {round(segment.start, 2)} ({round(current_segment_starting_time, 2)}), end: {round(segment.end, 2)} ({round(current_segment_ending_time, 2)}), prob: {round(segment.avg_logprob, 2)}"))
 
-                # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
-                #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
-                #   so we can check for that and discard it.
-                previous_words_in_segment = []
-                previous_word = {
-                    "word": "",
-                    "start": -1,
-                    "end": -1
-                }
+                # # These are the flags for the "previous word", because in the RPi sometimes the model goes crazy
+                # #   and repeats the exact same word un the segment, with the same timestamps (probability is very similar, but not the same),
+                # #   so we can check for that and discard it.
+                # previous_words_in_segment = []
+                # previous_word = {
+                #     "word": "",
+                #     "start": -1,
+                #     "end": -1
+                # }
 
                 # Now, every word in this segment.
                 for word in segment.words:
 
                     # This is the logic for the protection about the model going crazy and repeating the exact same word in the segment
                     # ⚠️ still happens
+                    # ✅ Fixed: Chunks out of context (next speech) were bein merged into the chunks to be processed, which caused the model to repeat the same segment and words again and again, as it was confused with the previous chunk. Now, the chunk merging process is more accurate, so it does not cause this problem anymore.
                     #   "First I'm going to go out outside for a cigarette. And then I will keep on trying. this is like. window merging. gg. strategy. time. gg. gg. gg. gg. gg. g gg. gg. gg. gg. g gg. gg. gg. gg. gg. gg. gg. g gg. g"
                     # if word.word == previous_word and word.start == previous_start and word.end == previous_end:
                     #     continue
 
-                    # Check if the word is the same AND if the start time is within the tolerance
-                    is_word_duplicate = any(
-                        w["word"] == word.word and
-                        abs(w["start"] - word.start) < self.TIME_TOLERANCE and
-                        abs(w["end"] - word.end) < self.TIME_TOLERANCE
-                        for w in previous_words_in_segment
-                    )
-                    # If so, skip it.
-                    if is_word_duplicate:
-                        self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_word['start']})")
-                        continue
-                    previous_words_in_segment.append({
-                        "word": word.word,
-                        "start": word.start,
-                        "end": word.end
-                    })
+                    # # Check if the word is the same AND if the start time is within the tolerance
+                    # is_word_duplicate = any(
+                    #     w["word"] == word.word and
+                    #     abs(w["start"] - word.start) < self.TIME_TOLERANCE and
+                    #     abs(w["end"] - word.end) < self.TIME_TOLERANCE
+                    #     for w in previous_words_in_segment
+                    # )
+                    # # If so, skip it.
+                    # if is_word_duplicate:
+                    #     self._log_debug(f"FasterWhisper Stream: Skipping duplicate word '{word.word}' (start: {word.start}, prev_start: {previous_word['start']})")
+                    #     continue
+                    # previous_words_in_segment.append({
+                    #     "word": word.word,
+                    #     "start": word.start,
+                    #     "end": word.end
+                    # })
 
-                    # If the confidence of the word is too low, skip it. 
-                    # This is to avoid hallucinations and wrong merging. Works but not well fine tuned:
-                    #   ⚠️ now it does not recognize the exit word "Goodbye" as correct.
-                    if self._use_word_low_confidence_threshold and word.probability < self._word_low_confidence_threshold:
-                        self._log_debug(f"FasterWhisper Stream: Word with low confidence detected, probability: {word.probability}, word: {word.word}")
-                        continue
+                    # # If the confidence of the word is too low, skip it. 
+                    # # This is to avoid hallucinations and wrong merging. Works but not well fine tuned:
+                    # #   ⚠️ now it does not recognize the exit word "Goodbye" as correct.
+                    # #   ✅ Fixed: Chunks out of context (next speech) were bein merged into the chunks to be processed.
+                    # if self._use_word_low_confidence_threshold and word.probability < self._word_low_confidence_threshold:
+                    #     self._log_debug(f"FasterWhisper Stream: Word with low confidence detected, probability: {word.probability}, word: {word.word}")
+                    #     continue
 
                     # Still here? count on it.
-                    words_info.append((word.word, f"start: {round(word.start, 2)}, end: {round(word.end, 2)}, prob: {round(word.probability, 2)}"))
+                    # Prepare the real offsets for the words.
+                    word_real_start = current_segment_starting_time + word.start
+                    word_real_end = current_segment_starting_time + word.end
+                    words_info.append((word.word, f"start: {round(word.start, 2)} ({round(word_real_start, 2)}), end: {round(word.end, 2)} ({round(word_real_end, 2)}), prob: {round(word.probability, 2)}"))
 
-                    # Calculate absolute time of the word
-                    absolute_word_start = self._current_chunk_start_time + word.start
-                    absolute_word_end = self._current_chunk_start_time + word.end
+                    # Keep track of the new transcribed words, to be able to use them in the merging process, as they are more accurate than the previous ongoing transcription.
+                    new_transcribed_words.append({
+                        'word': self._clean_word(word.word),
+                        'start': word_real_start,
+                        'end': word_real_end,
+                        'confidence': word.probability
+                    })
 
-                    # Only commit words that appear after or at our last committed timestamp
-                    # ⚠️ This part prevents that the new partial fixes the issues at the end of the previous segment.
-                    #   but it's secondary, as the main goal is to avoid hallucinations and wrong merging, which it does.
-                    if absolute_word_start >= self._last_committed_timestamp:
-                        cleaned_word = self._clean_word(word.word)
+                    # COMMENTED: I believe it messes up with the new merging method.
+                    # # Calculate absolute time of the word
+                    # absolute_word_start = self._current_chunk_start_time + word.start
+                    # absolute_word_end = self._current_chunk_start_time + word.end
 
-                        if cleaned_word: # Only add if it's not empty/filler
-                            new_words.append(cleaned_word)
-                            # Update last committed timestamp using absolute time, ensuring we don't go backwards
-                            self._last_committed_timestamp = max(self._last_committed_timestamp, absolute_word_end)
+                    # # Only commit words that appear after or at our last committed timestamp
+                    # # ⚠️ This part prevents that the new partial fixes the issues at the end of the previous segment.
+                    # #   but it's secondary, as the main goal is to avoid hallucinations and wrong merging, which it does.
+                    # if absolute_word_start >= self._last_committed_timestamp:
+                    #     cleaned_word = self._clean_word(word.word)
+
+                    #     if cleaned_word: # Only add if it's not empty/filler
+                    #         new_words.append(cleaned_word)
+                    #         # Update last committed timestamp using absolute time, ensuring we don't go backwards
+                    #         self._last_committed_timestamp = max(self._last_committed_timestamp, absolute_word_end)
 
             # Just a logging to see the outcome of the analysis.   
             self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
             self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
 
-            # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
-            if len(new_words) == 0:
-                self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
-                result = ""
-            else:
-                result = " ".join(new_words)
+            # # Some protection in case that low confidence segments are the only ones we have, to avoid hallucinations and wrong merging.
+            # if len(new_words) == 0:
+            #     self._log_debug("FasterWhisper Stream: No valid words to process after transcription, returning empty result.")
+            #     result = ""
+            # else:
+            #     result = " ".join(new_words)
 
             # 5. Update state
-            self._ongoing_transcription += " " + result if self._ongoing_transcription else result
+            # self._ongoing_transcription += " " + result if self._ongoing_transcription else result
+            self._ongoing_transcription = self._merge_and_correct_transcription(
+                self._ongoing_transcription,
+                new_transcribed_words
+            )
+
+            # 6. Commit logic: Only emit words that are older than the stability threshold
+            #    (e.g., 2 seconds old relative to the latest processed audio)
+            stability_threshold = 2.0
+            self._last_committed_timestamp = word_real_end if len(new_transcribed_words) > 0 else self._last_committed_timestamp
+
+            committed_words = [w for w in self._ongoing_transcription if w['end'] < (self._last_committed_timestamp - stability_threshold)]
+            self._ongoing_transcription = [w for w in self._ongoing_transcription if w['end'] >= (self._last_committed_timestamp - stability_threshold)]
+
+            if committed_words:
+                # Emit the committed words (e.g., put them in the output queue)
+                self._final_transcription += " " + " ".join([w['word'] for w in committed_words])
+                result = self._final_transcription
+                # COMMENTED: We don't want to publish partials. Just to accummulate the final transcription.
+                # self._output_queue.put(self._final_transcription)
+                # COMMENTED: We already set it above, before the split of the commited words.
+                # self._last_committed_timestamp = committed_words[-1]['end']
 
             # Update the chunk start time for the next iteration
-            self._current_chunk_start_time += chunk_duration
+            # COMMENTED: The chunk start time is updated based on the actual audio processed, not on the chunk duration,
+            # to be more accurate and to avoid losing time in case of silence or non transcribed audio.
+            # self._current_chunk_start_time += chunk_duration
 
             # Keep the last defined samples as overlap
             self._last_overlap = audio_to_process[-self._overlap_size:]
 
-        self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{self._ongoing_transcription}{TerminalColor.END}\n\n")
+        # self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{' '.join([w['word'] for w in self._ongoing_transcription])}{TerminalColor.END}\n\n")
+        self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{self._final_transcription}{TerminalColor.END}\n\n")
         return result
+    
+    def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
+        """
+        Merges new words into the buffer. If a new word overlaps with the end of the
+        current buffer, it replaces the old word (assuming the new one is a correction).
+        """
+        if not new_words:
+            return current_buffer
+
+        # 1. Find the cut-off point: where the new words start
+        first_new_word_start = new_words[0]['start']
+
+        # 2. Keep words from the buffer that end BEFORE the new words start
+        #    These are "stable" and won't be corrected.
+        stable_words = [w for w in current_buffer if w['end'] <= first_new_word_start]
+
+        # 3. The new words effectively replace everything in the buffer
+        #    that started after the cut-off point.
+        return stable_words + new_words
     
     def _clean_word(self, word: str) -> str:
         """
@@ -514,7 +588,7 @@ class FasterWhisperStreamProcess(Xprocess):
         cleaned_text = cleaned_text.replace("_", " ")
         # If the last 2 sentences already appear in the transcription, 
         # remove them as the model hallucinated
-        cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', r'\1', cleaned_text).strip()
+        # cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', r'\1', cleaned_text).strip()
 
         return cleaned_text.strip()
 
@@ -553,17 +627,32 @@ class FasterWhisperStreamProcess(Xprocess):
                     self._consecutive_low_confidence_segments = 0
 
                 if self._consecutive_low_confidence_segments >= self._hallucination_low_confidence_segments_max_occurrences:
-                    self._ongoing_transcription = ""
+                    self._xlog.warning(f"✏️ Detected {self._consecutive_low_confidence_segments} consecutive low confidence segments with avg batch confidence {avg_batch_confidence:.2f}. Resetting transcription context to avoid hallucinations.")
+                    # We specifically don't reset the final transcription, as it is already committed and we want to keep it,
+                    # but we reset the ongoing transcription and the overlap, which are the context for the next transcriptions, 
+                    # to avoid that the hallucination cascade continues.
+                    self._ongoing_transcription = [] # Reset to empty list for the ongoing transcription
                     self._last_overlap = np.array([], dtype=np.float32) # Reset to empty numpy array
                     self._consecutive_low_confidence_segments = 0
                     self._should_disable_next_prompt = True
+
     
     def get_transcription(self) -> str:
         """
         This method just retrieves the transcription done per chunks.
         """
+
+        # This is just here for reference in the leftover merging below.
+        # self._final_transcription += " " + " ".join([w['word'] for w in committed_words])
+
+        # We may still have some ongoing transcription that is not yet committed, so we add them to the final transcription,
+        # As we don't expect more partials to correct it.
+        leftover_transcription = " ".join([w['word'] for w in self._ongoing_transcription])
+        if leftover_transcription:
+            self._final_transcription += " " + leftover_transcription if self._final_transcription else leftover_transcription
+
         # We get the final transcription and use the moment to clean it.
-        final_transcription = self._clean_transcription(self._ongoing_transcription)
+        final_transcription = self._clean_transcription(self._final_transcription)
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
         # if self._output_queue is not None and self._output_queue_sentinel is not None:
@@ -595,4 +684,104 @@ class FasterWhisperStreamProcess(Xprocess):
         silent_chunk = np.zeros(num_samples, dtype=dtype)
         return silent_chunk
 
-    
+# At the very end of the conversation, I expected to be able to say GoodBye and close the app, but
+# apparently the callback "user_intends_to_end_conversation" may have anything to do for the wronf state of the STT. 
+
+# 2026-05-31 22:09:55,283 [FasterWhisperStream MainThread            ] DEBUG    pitxu        Xprocess [FasterWhisperStream] run() received a [RETRIEVE_TRANSCRIPTION_RESULT]
+# 2026-05-31 22:09:55,284 [FasterWhisperStream MainThread            ] DEBUG    pitxu        Final transcription put in the output queue with the sentinel.
+# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got transcription result from the Process: This is the end for tonight. Thank you very much.
+# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Merging transcription result with the final transcription.
+# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.
+# 2026-05-31 22:09:55,388 [MainProcess MainThread            ] INFO     pitxu        Main execution triggered by user finishing speaking, via Transcription callback.
+# 2026-05-31 22:09:55,388 [MainProcess MainThread            ] DEBUG    pitxu        🔇 Stopping the input stream as microphone is muting.
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        🔇 Muting the microphone. Now mute is [True]
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Getting transcription from STT after VAD detected speech finished, for streaming engine...
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        💬 Recognised dictate: This is the end for tonight. Thank you very much.
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        ⏱️  Dictate 10: 0.0001
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Checking if text has exit intention: 'This is the end for tonight. Thank you very much.' -> 'this is the end for tonight thank you very much': False
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Detection: Text intends to trigger or continue an interaction.
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        💤  Setting idle mode off.
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Triggering thinking interaction on background display.
+# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 1 elements.
+# 2026-05-31 22:09:55,506 [DsiLcd      MainThread            ] INFO     pitxu        🤖 Showing KITT thinking on DSI LCD.
+# 2026-05-31 22:09:55,518 [DsiLcd      MainThread            ] INFO     pitxu        👀 Showing arbitrary text on DSI LCD while thinking.
+# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0.5s.
+# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Setting Chatbot as busy.
+# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] INFO     pitxu        ❓ Question: 
+
+# >> This is the end for tonight. Thank you very much.
+
+# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] INFO     google_genai.models AFC is enabled with max remote calls: 10.
+# 2026-05-31 22:09:57,632 [MainProcess MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent "HTTP/1.1 200 OK"
+# 2026-05-31 22:09:57,634 [MainProcess asyncio_0             ] INFO     pitxu        User intends to end the conversation.
+# 2026-05-31 22:10:00,071 [MainProcess MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent "HTTP/1.1 200 OK"
+# 2026-05-31 22:10:00,072 [MainProcess MainThread            ] INFO     pitxu        🗣️  Answer: 
+
+# >> You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
+
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Unsetting Chatbot as busy.
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] INFO     pitxu        Reacting to a Chatbot answer: 
+#         - Text: You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
+#         - Function Calls: ['user_intends_to_end_conversation']
+#         - Code blocks: 0
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        ⚡️ Reacting to function call: user_intends_to_end_conversation
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        🏁 Handling end of conversation request...
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] INFO     pitxu        🏁 End of conversation request handled successfully.
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 0 elements.
+# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0s.
+# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Triggering speech interaction: You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
+# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Background display
+# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Speaker
+# 2026-05-31 22:10:00,078 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Waiting for Speaker and Display to start and finish speaking
+# 2026-05-31 22:10:00,078 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to be busy. It's now: IDLE.
+# 2026-05-31 22:10:00,078 [DsiLcd      MainThread            ] INFO     pitxu        👄 Showing KITT mouth on DSI LCD.
+# 2026-05-31 22:10:00,078 [Piper       MainThread            ] DEBUG    pitxu        Saying [You're very welcome, Chabee. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.]
+# 2026-05-31 22:10:00,088 [MainProcess MainThread            ] DEBUG    pitxu        The process speaker_busy is busy now. I've slept 0.01s.
+# 2026-05-31 22:10:00,088 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to idle. It's now: BUSY.
+# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        The process speaker_busy is idle now. I've slept 5.9s.
+# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process dsi_lcd_busy to idle. It's now: IDLE.
+# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        The process dsi_lcd_busy is idle now. I've slept 0s.
+# 2026-05-31 22:10:06,976 [MainProcess MainThread            ] DEBUG    pitxu        ⏱️  Answer 10: 6.8983
+# 2026-05-31 22:10:06,976 [MainProcess MainThread            ] DEBUG    pitxu        🔊 Starting the input stream as microphone is unmuting.
+# 2026-05-31 22:10:07,027 [MainProcess MainThread            ] DEBUG    pitxu        🔊 Unmuting the microphone. Now mute is [False]
+# 2026-05-31 22:10:07,844 [MainProcess ThreadPoolExecutor-0_1] DEBUG    pitxu        ⏳ Waiting for an user interaction. 94% (paused 0s) time left.
+# 2026-05-31 22:10:07,844 [MainProcess ThreadPoolExecutor-0_1] DEBUG    pitxu        🚥 Showing interaction holding percentage 94% on background display
+# 2026-05-31 22:10:07,850 [DsiLcd      MainThread            ] INFO     pitxu        🚥 Showing interaction holding percentage 94% on DSI LCD
+# 2026-05-31 22:10:08,180 [MainProcess Dummy-17              ] DEBUG    pitxu        🗣️ VAD detected speech start
+# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] INFO     pitxu        VAD detected speech, via VAD callback.
+# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Resetting Dictate context on VAD detected speech start.
+# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] WARNING  pitxu        🟠 Trying to reset context while the transcription is not in IDLE or DONE state. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,284 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,702 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,807 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
+# 2026-05-31 22:10:08,807 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
