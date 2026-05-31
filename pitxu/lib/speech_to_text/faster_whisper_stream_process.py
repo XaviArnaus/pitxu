@@ -514,7 +514,7 @@ class FasterWhisperStreamProcess(Xprocess):
         cleaned_text = cleaned_text.replace("_", " ")
         # If the last 2 sentences already appear in the transcription, 
         # remove them as the model hallucinated
-        cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', '', cleaned_text).strip()
+        cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', r'\1', cleaned_text).strip()
 
         return cleaned_text.strip()
 
