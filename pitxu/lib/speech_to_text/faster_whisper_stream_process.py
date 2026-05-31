@@ -510,10 +510,11 @@ class FasterWhisperStreamProcess(Xprocess):
         cleaned_text = re.sub(r'\.{2,}', ' ', cleaned_text)
         # Remove all punctuations.
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+        # Remove underscores
+        cleaned_text = cleaned_text.replace("_", " ")
         # If the last 2 sentences already appear in the transcription, 
         # remove them as the model hallucinated
-        # COMMENTED: The error helps to debug the receiving of the transcription in the Main process's FasterWhisperStream class.
-        # cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', '', cleaned_text).strip()
+        cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', '', cleaned_text).strip()
 
         return cleaned_text.strip()
 

@@ -224,3 +224,8 @@ class AudioGraph(PyXavi):
         plt.savefig(os.path.join(filepath, filename))
         if also_latest:
             plt.savefig(os.path.join(filepath, "_latest.png"))
+    
+    def close(self):
+        self._xlog.debug("Closing Audio Graph")
+        plt.close('all')
+        self._xlog.debug("Audio Graph closed")

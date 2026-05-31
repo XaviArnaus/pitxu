@@ -1223,6 +1223,12 @@ class Main(PyXavi):
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
             self._log_debug("🕐 New minute detected: " + str(current_minute) + ".")
+
+            # Import something for the FasterWhisperStream.
+            # TODO: Should be in a more generic way, look at this when we refactor STT to be really multimodel.
+            # COMMENTED: Idea unfinished.
+            # from pitxu.lib.speech_to_text.faster_whisper_stream import TrascriptionState
+
             # Get the possible reminder for the current date and time
             date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
             time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
@@ -1299,6 +1305,14 @@ class Main(PyXavi):
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
             
+            # COMMENTED: Idea unfinished.
+            # # If we're in idle mode and the dictation is in a weird state, force a reset.
+            # if self._interaction.is_idle_mode_on() and not self._interaction.is_transcriber_busy():
+            #     self._log_debug("Dictation is in progress while in idle mode, resetting it to avoid being stuck in a weird state.")
+            #     self._dictate.reset_context()
+
+                
+
             # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
             # COMMENTED: Not that interesting... Unless we're debugging the VAD.
             # if self._xconfig.get("speech-to-text.vad.enabled", False):

@@ -188,6 +188,10 @@ class FasterWhisperStream(PyXavi):
 
         # Keeping track that Whisper is active
         self.is_active = True
+        self.current_transcription_state = TrascriptionState.IDLE
+        self.allow_chunk_consumption = False
+        logging_parts.append(("Initial transcription state", self.current_transcription_state.upper()))
+        logging_parts.append(("Initial allow_chunk_consumption", self.allow_chunk_consumption))
 
         # We process all incoming chunks in a separate thread that continuously reads from the queue.
         self._worker_thread = threading.Thread(
@@ -211,7 +215,7 @@ class FasterWhisperStream(PyXavi):
         # This only can happen if the previous one already finished.
         # So we don't allow to reset the contect if we are not in IDLE or DONE state, to avoid breaking the current transcription.
         if self.current_transcription_state not in [TrascriptionState.IDLE, TrascriptionState.DONE]:
-            self._xlog.warning(f"🟠 Trying to reset context while the transcription is not in IDLE or DONE state. Current state: {self.current_transcription_state}.")
+            self._xlog.warning(f"🟠 Trying to reset context while the transcription is not in IDLE or DONE state. Current state: {self.current_transcription_state.upper()}.")
             # Also, raise a flag to avoid consuming the chunks in the queue while we are in
             #   ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, to avoid breaking the current transcription.
             self.allow_chunk_consumption = False
@@ -223,9 +227,17 @@ class FasterWhisperStream(PyXavi):
         # Update the current state of the transcription
         self.current_transcription_state = TrascriptionState.START_CONTEXT
 
+        # Other vars
         self._ongoing_chunk_window = []
         self.final_transcription = ""
         self.request_reset_context()
+    
+    def reset_context_and_state_in_transcription_thread(self):
+        self._log_debug("Resetting transcription context and state in the transcription thread.")
+        self.current_transcription_state = TrascriptionState.IDLE
+        self.allow_chunk_consumption = True
+        self._ongoing_chunk_window = []
+        self.final_transcription = ""
     
     def get_transcription(self) -> str:
 
@@ -285,7 +297,7 @@ class FasterWhisperStream(PyXavi):
                         #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
                         #   to avoid breaking the current transcription.
                         if not self.allow_chunk_consumption:
-                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state}.")
+                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
                             self._queue.task_done()
                             continue
 
@@ -326,7 +338,7 @@ class FasterWhisperStream(PyXavi):
                         #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
                         #   to avoid breaking the current transcription.
                         if not self.allow_chunk_consumption:
-                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state}.")
+                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
                             self._queue.task_done()
                             continue
 
@@ -390,7 +402,10 @@ class FasterWhisperStream(PyXavi):
                         # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
                         self.allow_chunk_consumption = True
                     else:
-                        self._log_debug("✏️ Got empty transcription result from the Process, skipping.")
+                        self._log_debug("✏️ Got empty transcription result from the Process, skipping and bringing to IDLE.")
+
+                        # Update the current state of the transcription
+                        self.current_transcription_state = TrascriptionState.IDLE
 
                     self.transcriptor_output_queue.task_done()
                 

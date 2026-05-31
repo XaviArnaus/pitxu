@@ -38,7 +38,11 @@ class SupportProcess(Xprocess):
         
     def finish(self):
         self._xlog.debug("Closing Summarizer in Support Worker")
-        self.summarizer.close()
+        if self.summarizer is not None:
+            self.summarizer.close()
+        self._xlog.debug("Closing Dumper in Support Worker")
+        if self.dumper is not None:
+            self.dumper.close()
         self._xlog.debug("Done finishing Support Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):

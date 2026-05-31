@@ -143,13 +143,13 @@ class AudioParametersLoader(PyXavi):
             self._log_debug(f"Using preprocessing forced samplerate from params: {samplerate}")
             return samplerate
         # Most likely we have it defined in the Config.
-        elif self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) is not None and \
-             self._xconfig.get("speech-to-text.preprocessor.input_samplerate", None) > 0:
-            samplerate = self._xconfig.get("speech-to-text.preprocessor.input_samplerate")
+        elif self._xconfig.get("speech-to-text.preprocessor.samplerate", None) is not None and \
+             self._xconfig.get("speech-to-text.preprocessor.samplerate", None) > 0:
+            samplerate = self._xconfig.get("speech-to-text.preprocessor.samplerate")
             self._log_debug(f"Using preprocessing samplerate from config: {samplerate}")
             return samplerate
         else:
-            self._xlog.warning(f"No samplerate provided in params to Preprocess, using default of {self.DEFAULT_PREPROCESSING_SAMPLERATE} Hz")
+            self._xlog.warning(f"No samplerate provided in params nor config to Preprocess, using default of {self.DEFAULT_PREPROCESSING_SAMPLERATE} Hz")
             return self.DEFAULT_PREPROCESSING_SAMPLERATE
     
     def get_filter_lowcut_freq(self) -> int:
