@@ -7,12 +7,15 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_MICROPHONE_MUTED,\
     SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_IDLE_MODE, SHARED_LCD_IDLE_MODE, \
     SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
-    SHARED_TRANSCRIBER_BUSY
+    SHARED_TRANSCRIBER_BUSY, \
+    SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
 
     _shared_memory_flags: shared_memory.ShareableList = None
+    _shared_memory_values: shared_memory.ShareableList = None
+
     _shared_flags: dict[str, int] = {
         "eink_busy": SHARED_EINK_BUSY,
         "matrix_busy": SHARED_MATRIX_BUSY,
@@ -47,6 +50,13 @@ class SharedMemoryManager(PyXavi):
         SHARED_STT_BUSY: "stt_busy",
         SHARED_TRANSCRIBER_BUSY: "transcriber_busy"
     }
+    _shared_values: dict[str, int] = {
+        "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
+    }
+    # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
+    _map_index_to_value: dict[int, str] = {
+        SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold"
+    }
 
     WAITING_SLEEP_SECONDS = 0.01
 
@@ -56,6 +66,8 @@ class SharedMemoryManager(PyXavi):
         self._xlog.debug("Initializing SharedMemoryManager")
 
         super(SharedMemoryManager, self).__init__()
+    
+    # --- START INIT SHARED MEM FLAGS ---
     
     def initialize_new_shared_memory_flags(self):
         # First of all, try to initialize new shared memory, in case it does not exist yet
@@ -113,8 +125,56 @@ class SharedMemoryManager(PyXavi):
         self._shared_memory_flags = shared_memory.ShareableList(name=SHARED_MEMORY_FLAGS)
         if self._shared_memory_flags is None:
             self._xlog.error("Shared Memory is None, cannot read flags")
+    
+    # --- END INIT SHARED MEM FLAGS ---
 
-    def read_shared_memory_flag(self, index: int) -> bool:
+    # --- START INIT SHARED MEM VALUES ---
+    
+    def initialize_new_shared_memory_values(self):
+        # First of all, try to initialize new shared memory, in case it does not exist yet
+        if self._shared_memory_values is not None:
+            self._xlog.debug("Shared Memory Values already initialized")
+            return
+        self._initialize_new_shared_memory_values()
+
+        # Now, if the shared memory was not created, try to load existing one
+        if self._shared_memory_values is None:
+            self._xlog.error("Shared Memory Values is None, will try to clean previous state and retry")
+            self._shared_memory_values = shared_memory.SharedMemory(name=SHARED_MEMORY_VALUES, create=False)
+            self._xlog.debug("Cleaning previous Shared Memory Values")
+            self._shared_memory_values.unlink()
+            time.sleep(1)
+            self._xlog.debug("Retrying to initialize new Shared Memory Values")
+            self._initialize_new_shared_memory_values()
+        
+        # Final check
+        if self._shared_memory_values is None:
+            self._xlog.error("Shared Memory Values is None, cannot write values, bubbling up the error")
+            raise Exception("Shared Memory Values is None, cannot write values")
+
+    def _initialize_new_shared_memory_values(self):
+        '''
+        Initializes the shared memory for inter-process communication.
+        '''
+        try:
+            self._xlog.debug("Initializing shared memory: " + SHARED_MEMORY_VALUES)
+            # Initialisating Shared Memory to handle execution flags between processes
+            # TODO: consider using a more compact representation (bitmask) if performance/memory becomes an issue
+            self._shared_memory_values = shared_memory.ShareableList([
+                0.0,    # dynamic RMS silence threshold
+            ], name=SHARED_MEMORY_VALUES)
+        except Exception as e:
+            self._xlog.error("Failed to initialize shared memory: " + str(e))
+    
+    def initialize_existing_shared_memory_values(self):
+        self._xlog.info("Loading values from Shared Memory")
+        self._shared_memory_values = shared_memory.ShareableList(name=SHARED_MEMORY_VALUES)
+        if self._shared_memory_values is None:
+            self._xlog.error("Shared Memory is None, cannot read values")
+    
+    # --- END INIT SHARED MEM VALUES ---
+
+    def read_shared_memory_flag(self, index: int) -> bool | None:
         '''
         Reads a flag from shared memory at the given index
         '''
@@ -131,6 +191,24 @@ class SharedMemoryManager(PyXavi):
             self._xlog.error("Shared Memory is None, cannot write flag at index " + str(index))
             return
         self._shared_memory_flags[index] = value
+    
+    def read_shared_memory_value(self, index: int) -> float | None:
+        '''
+        Reads a value from shared memory at the given index
+        '''
+        if self._shared_memory_values is None:
+            self._xlog.error("Shared Memory is None, cannot read value at index " + str(index))
+            return None
+        return float(self._shared_memory_values[index])
+    
+    def write_shared_memory_value(self, index: int, value: float):
+        '''
+        Writes a value to shared memory at the given index
+        '''
+        if self._shared_memory_values is None:
+            self._xlog.error("Shared Memory is None, cannot write value at index " + str(index))
+            return
+        self._shared_memory_values[index] = value
     
     def wait_for_all_busy_process_to_idle(self):
         # Now wait until the displays finish being busy
@@ -180,8 +258,17 @@ class SharedMemoryManager(PyXavi):
     def close(self):
         if self._shared_memory_flags is not None:
             self._xlog.debug("Closing Shared Memory Flags")
-            self._shared_memory_flags.shm.close()
-            self._shared_memory_flags.shm.unlink()
-    
+            try:
+                self._shared_memory_flags.shm.close()
+                self._shared_memory_flags.shm.unlink()
+            except FileNotFoundError as e:
+                self._xlog.info("Shared Memory Flags already unlinked: " + str(e))
+        if self._shared_memory_values is not None:
+            self._xlog.debug("Closing Shared Memory Values")
+            try:
+                self._shared_memory_values.shm.close()
+                self._shared_memory_values.shm.unlink()
+            except FileNotFoundError as e:
+                self._xlog.info("Shared Memory Values already unlinked: " + str(e))
     
 

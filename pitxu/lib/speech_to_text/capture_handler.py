@@ -4,12 +4,14 @@ from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.conversors import Conversors
+from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED
 
 import sys
 import queue as Queue
 from rms_vad import RmsVAD, VADConfig
+from rms_vad.events import VADEventType, VADEvent
 import numpy as np
 import logging
 import samplerate
@@ -29,9 +31,10 @@ class CaptureHandler(PyXavi):
     on_vad_detected_finished_callback: callable = None
     main_event_loop: asyncio.AbstractEventLoop = None
 
-    local_vad_detected: bool = False
-
     is_active: bool = True
+
+    # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
+    add_timestamps_to_chunks: bool = False
 
     VERBOSE_DEBUG: bool = True
 
@@ -45,6 +48,12 @@ class CaptureHandler(PyXavi):
             self.queue = params.get("capture_queue")
         else:
             raise ValueError("No capture queue provided in params to CaptureHandler")
+        
+        # Get the silence input queue from params, or simply deactivate the dynamic RMS silence threshold if not provided.
+        if params.key_exists("silence_input_queue"):
+            self.silence_input_queue = params.get("silence_input_queue")
+        else:
+            self._xlog.warning("No silence input queue provided in params to CaptureHandler, Dynamic RMS Silence threshold deactivated")
         
         # Get the microphone samplerate from params, or use defaults.
         if params.key_exists("microphone_samplerate"):
@@ -108,7 +117,8 @@ class CaptureHandler(PyXavi):
             ("Attack", f"{attack} seconds"),
             ("Release", f"{release} seconds"),
             ("Sample Rate", f"{self.target_samplerate} Hz"),
-            ("Chunk Size", f"{chunksize} samples")
+            ("Chunk Size", f"{chunksize} samples"),
+            ("Dynamic RMS Silence Detection Active", f"{"Yes" if self._is_silence_dynamic_rms_active() else "No"}")
         ])
 
         self.resampler = samplerate.Resampler(converter_type='sinc_best')
@@ -123,12 +133,23 @@ class CaptureHandler(PyXavi):
     def close(self):
         self._xlog.info("🗣️ Closing Capture Handler for Speech-to-Text")
         self.is_active = False
+
         if self.vad is not None:
             self.vad.reset()
             del self.vad
+
         if self.resampler is not None:
             del self.resampler
+
+        if self.shared_memory is not None:
+            self._xlog.debug("Closing Shared Memory from Capture Handler")
+            self.shared_memory.close()
+            del self.shared_memory
+
         self._log_debug("🗣️ Done Closing Capture Handler for Speech-to-Text")
+    
+    def _is_silence_dynamic_rms_active(self) -> bool:
+        return self.silence_input_queue is not None
     
     def callback(self, indata, frames, time, status):
         """
@@ -157,17 +178,36 @@ class CaptureHandler(PyXavi):
                     self._xlog.warning("🗣️ Resampled audio is None or empty, skipping this block")
                     return
 
-
+            vad_returned_events = []
             if self._xconfig.get("speech-to-text.vad.enabled", False):
                 # Feed the VAD, it will decide if has a speech,
                 # and put the chunk into the queue via callbacks.
-                self.vad.feed(indata)
+                vad_returned_events = self.vad.feed(indata)
             else:
-                self.queue.put(bytes(indata))
+                if self.add_timestamps_to_chunks:
+                    queue_data = (Xtime.now_as_milliseconds(), bytes(indata))
+                else:
+                    queue_data = bytes(indata)
+                self.queue.put(queue_data)
+            
+            # Now, depending on what the VAD returned, we can identify if that was a speech or not.
+            if self._is_silence_dynamic_rms_active() and not self._vad_event_is_speech_chunk(vad_returned_events):
+                # VAD did not detect that this chunk is part of a speech,
+                # we put it in the silence input queue for the Preprocessor to analyze its RMS.
+                # self._xlog.debug("🗣️ VAD did not detect speech in this chunk, putting it in the silence input queue for dynamic RMS calculation")
+                self.silence_input_queue.put(bytes(indata))
     
         # else:
         #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
     
+    def _vad_event_is_speech_chunk(self, events: list[VADEvent]) -> bool:
+        if len(events) == 0 or events is None:
+            return False
+        for event in events:
+            if event.type in [VADEventType.SPEECH_START, VADEventType.AUDIO]:
+                return True
+        return False
+
     def vad_on_speech_start(self, pre_buffer: list[bytes]):
         if not self.is_active:
             self._xlog.debug("🗣️ VAD detected speech start, but CaptureHandler is not active, ignoring.")
@@ -176,7 +216,11 @@ class CaptureHandler(PyXavi):
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_vad_detected()
         for frame in pre_buffer:
-            self.queue.put(bytes(frame))
+            if self.add_timestamps_to_chunks:
+                queue_data = (Xtime.now_as_milliseconds(), bytes(frame))
+            else:
+                queue_data = bytes(frame)
+            self.queue.put(queue_data)
         
         # Now we can trigger the main execution, as the user has started speaking.
         if self.on_vad_detected_started_callback is not None:
@@ -190,7 +234,11 @@ class CaptureHandler(PyXavi):
             return
 
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
-        self.queue.put(bytes(chunk))
+        if self.add_timestamps_to_chunks:
+            queue_data = (Xtime.now_as_milliseconds(), bytes(chunk))
+        else:
+            queue_data = bytes(chunk)
+        self.queue.put(queue_data)
 
         # Now we can trigger the main execution, as the user is speaking.
         if self.on_vad_detected_ongoing_callback is not None:
@@ -207,7 +255,11 @@ class CaptureHandler(PyXavi):
         self.unset_vad_detected()
 
         # Sending None as a marker for end of speech, so the recognizer can trigger an END step.
-        self.queue.put(None)
+        if self.add_timestamps_to_chunks:
+            queue_data = (Xtime.now_as_milliseconds(), None)
+        else:
+            queue_data = None
+        self.queue.put(queue_data)
 
         # Now we can trigger the main execution, as the user has finished speaking.
         if self.on_vad_detected_finished_callback is not None:

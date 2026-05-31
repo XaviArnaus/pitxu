@@ -1,6 +1,6 @@
 import logging
 
-from pyxavi import Config, Dictionary, TerminalColor, full_stack
+from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.utils.xprocess_pool import XprocessPool
@@ -55,9 +55,9 @@ class FasterWhisperStreamProcess(Xprocess):
     _chunks_window = 10
     _temperature = 0.2
     _sleep_when_no_chunks = 0.1
-    _use_segment_low_confidence_threshold = True
+    _use_segment_low_confidence_threshold = False
     _segment_low_confidence_threshold = -0.8
-    _use_word_low_confidence_threshold = True
+    _use_word_low_confidence_threshold = False
     _word_low_confidence_threshold = 0.2
     _hallucination_silence_threshold = 1.0
     _max_prompt_buffer_size_in_chars = 100
@@ -215,9 +215,14 @@ class FasterWhisperStreamProcess(Xprocess):
                                 if self._xparams.key_exists("support_class_queue") \
                                 and self._xparams.get("support_class_queue") is not None \
                                 else "No"))  
+        logging_parts.append(("Silence Input Queue is present", "Yes" \
+                                if self._xparams.key_exists("silence_input_queue") \
+                                and self._xparams.get("silence_input_queue") is not None \
+                                else "No"))  
         params = Dictionary({
             "support_class_queue": self._xparams.get("support_class_queue"),
             "audio_parameters": self._xparams.get("audio_parameters"),
+            "silence_input_queue": self._xparams.get("silence_input_queue")
         })
         self._preprocessor = Preprocessor(config=self._xconfig, params=params)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
@@ -252,6 +257,16 @@ class FasterWhisperStreamProcess(Xprocess):
             self._xlog.debug("Deleting FasterWhisper Stream sentinel output queue")
             del self._sentinel_output_queue
         
+        if self._preprocessor is not None:
+            self._xlog.debug("Deleting STT preprocessor")
+            self._preprocessor.close()
+            del self._preprocessor
+        
+        if self._shared_memory is not None:
+            self._xlog.debug("Closing Shared Memory from FasterWhisper Stream")
+            self._shared_memory.close()
+            del self._shared_memory
+
         # Remember that FasterWhisper Stream is not active anymore
         self.is_active = False
 
@@ -276,6 +291,7 @@ class FasterWhisperStreamProcess(Xprocess):
         self._ongoing_transcription = ""
         self._last_committed_timestamp = 0.0
         self._current_chunk_start_time = 0.0
+        self._should_disable_next_prompt = False
     
     def process_chunks(self, chunk_list: list[bytes]) -> str:
         result = ""
@@ -300,6 +316,7 @@ class FasterWhisperStreamProcess(Xprocess):
                                 if len(preprocessed_chunks) > 0 else 0.0
 
             # 3. Transcription
+            condition_on_previous_text = self._should_disable_next_prompt
             if self._should_disable_next_prompt:
                 # The analysis of the confidence after transcription tells us that the model is hallucinating,
                 # so we disable the prompt for the next transcription call, to avoid conditioning it with a wrong prompt, 
@@ -329,7 +346,9 @@ class FasterWhisperStreamProcess(Xprocess):
                 language=self.language,
                 initial_prompt=prompt,
                 word_timestamps=True,
-                # vad_filter=False,
+                repetition_penalty=1.5,
+                chunk_length=audio_to_process.shape[0], # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, to avoid losing context and to let the model decide how to split it.
+                condition_on_previous_text=condition_on_previous_text,
                 hallucination_silence_threshold=self._hallucination_silence_threshold,
                 hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None
             )
@@ -429,6 +448,8 @@ class FasterWhisperStreamProcess(Xprocess):
                     absolute_word_end = self._current_chunk_start_time + word.end
 
                     # Only commit words that appear after or at our last committed timestamp
+                    # ⚠️ This part prevents that the new partial fixes the issues at the end of the previous segment.
+                    #   but it's secondary, as the main goal is to avoid hallucinations and wrong merging, which it does.
                     if absolute_word_start >= self._last_committed_timestamp:
                         cleaned_word = self._clean_word(word.word)
 
@@ -484,8 +505,15 @@ class FasterWhisperStreamProcess(Xprocess):
             pattern = re.compile(re.escape(phrase), re.IGNORECASE)
             cleaned_text = pattern.sub("", cleaned_text)
         
+        # Remove multiple consecutive dots that can appear at the end of the transcription, 
+        # as they do not add value and can cause problems in the post-processing.
         cleaned_text = re.sub(r'\.{2,}', ' ', cleaned_text)
+        # Remove all punctuations.
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+        # If the last 2 sentences already appear in the transcription, 
+        # remove them as the model hallucinated
+        # COMMENTED: The error helps to debug the receiving of the transcription in the Main process's FasterWhisperStream class.
+        # cleaned_text = re.sub(r'([^.]*\.\s*){1,2}$', '', cleaned_text).strip()
 
         return cleaned_text.strip()
 
@@ -535,6 +563,7 @@ class FasterWhisperStreamProcess(Xprocess):
         """
         # We get the final transcription and use the moment to clean it.
         final_transcription = self._clean_transcription(self._ongoing_transcription)
+        dd(final_transcription)
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
         # if self._output_queue is not None and self._output_queue_sentinel is not None:
@@ -542,6 +571,8 @@ class FasterWhisperStreamProcess(Xprocess):
             self._output_queue.put(final_transcription)
             # self._output_queue.put(self._output_queue_sentinel)
             self._log_debug("Final transcription put in the output queue with the sentinel.")
+            # Reset the context to avoid issues if the start does not trigger well
+            self.reset_context()
         else:
             self._xlog.error("🛑 Output queue not available, cannot put the final transcription in the output queue.")
     

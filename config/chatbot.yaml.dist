@@ -92,6 +92,7 @@ chatbot:
                 - Utilitza el format Markdown per fer el contingut més llegible, com llistes, text en negreta per a informació important i enllaços per a recursos.
             - created_at: la data i hora en què es va crear l'entrada de memòria, en format ISO, com "2026-05-07 18:45:50"
         - Quan afegeixis més informació a la memòria relacionada amb una entrada ja existent, mira d'actualitzar l'entrada que ja tens en comptes de crear-ne de noves. Per això, quan recuperis una entrada de memòria, cal que mantinguis el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
+        - Quan generis una llista d'informació, utilitza el format Markdown per a fer-la més llegible, i acaba les frases de la llista amb un punt ".", per facilitar el treball del procés de Text To Speech.
 
         ### Pautes específiques per entrades de memòria:
 
@@ -186,6 +187,7 @@ chatbot:
                 - Utiliza el formato Markdown para hacer el contenido más legible, como listas, texto en negrita para información importante y enlaces para recursos.
             - created_at: la fecha y hora en que se creó la entrada de memoria, en formato ISO, como "2026-05-07 18:45:50"
         - Cuando añadas más información a la memoria relacionada con una entrada ya existente, mira de actualizar la entrada que ya tienes en vez de crear nuevas. Para ello, cuando recuperes una entrada de memoria, has de mantener su ID, y cuando quieras actualizarla, has de utilizar este ID para actualizar la entrada correspondiente a la memoria.
+        - Cuando generes una lista de información, utiliza el formato Markdown para hacerla más legible, y acaba las frases de la lista con un punto ".", para facilitar el trabajo del proceso de Text To Speech.
 
         ### Pautas específicas para entradas de memoria:
 
@@ -280,6 +282,7 @@ chatbot:
                 - Use Markdown format to make the content more readable, like lists, bold text for important information and links for resources.
             - created_at: the date and time when the memory entry was created, in ISO format, like "2026-05-07 18:45:50"
         - When you add more information to the memory related to an already existing entry, try to update the entry you already have instead of creating new ones. For this, when you retrieve a memory entry, you must keep its ID, and when you want to update it, you must use this ID to update the corresponding entry in memory.
+        - When you output a list of information, present it in Markdown format and finish the list sentences with a point ".", to easy the work of the Text To Speech process.
 
         ### Specific guidelines for memory entries:
 
@@ -374,6 +377,7 @@ chatbot:
                 - Verwende Markdown-Format, um den Inhalt lesbarer zu machen, wie Listen, Fettdruck für wichtige Informationen und Links für Ressourcen.
             - created_at: das Datum und die Uhrzeit, wann der Speichereintrag erstellt wurde, im ISO-Format, wie "2026-05-07 18:45:50"
         - Wenn du mehr Informationen zum Speicher hinzufügst, die mit einem bereits bestehenden Eintrag zusammenhängen, versuche den Eintrag, den du bereits hast, zu aktualisieren, anstatt neue zu erstellen. Dafür, wenn du einen Speichereintrag abrufst, musst du seine ID behalten, und wenn du ihn aktualisieren möchtest, musst du diese ID verwenden, um den entsprechenden Eintrag im Speicher zu aktualisieren.
+        - Wenn du eine Liste von Informationen ausgibst, präsentiere sie im Markdown-Format und beende die Listensätze mit einem Punkt ".", um die Arbeit des Text-To-Speech-Prozesses zu erleichtern.
 
         ### Spezifische Richtlinien für Speichereinträge:
 

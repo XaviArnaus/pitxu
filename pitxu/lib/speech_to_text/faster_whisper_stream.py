@@ -1,18 +1,37 @@
 from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.support_process.support import Support
+from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisperStreamProcess
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER
+from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
 import threading
+import numpy as np
 import queue
 import time
 import asyncio
 from multiprocessing import JoinableQueue
+
+try:
+    import audioop
+except ModuleNotFoundError:
+    import audioop_lts as audioop
+
+class TrascriptionState:
+    """
+    This class is used to keep track of the current state of the transcription, to be able to apply some logic based on it.
+    """
+    IDLE = "idle"
+    START_CONTEXT = "start_context"
+    ONGOING_PROCESS_CHUNK = "ongoing_process_chunk"
+    LEFTOVER_CHUNK_PROCESSING = "leftover_chunk_processing"
+    REQUESTED_TRANSCRIPTION = "requested_transcription"
+    FINAL_TRANSCRIPTION = "final_transcription"
+    DONE = "done"
 
 class FasterWhisperStream(PyXavi):
     """
@@ -36,8 +55,17 @@ class FasterWhisperStream(PyXavi):
 
     transcriptor_input_queue: JoinableQueue = None
     transcriptor_output_queue: JoinableQueue = None
-
     on_transcription_finished_callback: callable = None
+
+    # Queue used by the PreProcessor to calculate the dynamic RMS threshold for silence detection, based on the background noise level.
+    silence_input_queue: JoinableQueue = None
+    dynamic_rms: float = 0.0
+    dynamic_rms_history: list[float] = []
+    dynamic_rms_max_level: int = 32768  # maximum possible RMS for int16 audio (which is 32768)
+    hysteresis_multiply: float = 1.05  # Multiplier for history percentage. Default 1.05.
+    hysteresis_offset: float = 0.02  # Offset added to history percentage. Default 0.02.
+    adapt_up_rate: float = 0.0025  # Threshold upward adaptation rate. Default 0.0025.
+    adapt_down_rate: float = 1.0  # Threshold downward adaptation rate. Default 1.0.
 
     is_active: bool = False
     language: str = "en"
@@ -48,6 +76,15 @@ class FasterWhisperStream(PyXavi):
     _ongoing_chunk_window = []
     _worker_thread: threading.Thread = None
     final_transcription: str = ""
+    current_transcription_state: str = TrascriptionState.IDLE
+
+    # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
+    # It only relates to what CaptureHandler does. Other chunk queues do not use it by now.
+    add_timestamps_to_chunks: bool = False
+    # Be careful, it's not tuned and very aggressive. 
+    # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
+    # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
+    use_dynamic_rms_silence: bool = False
 
     VERBOSE_DEBUG: bool = True
 
@@ -93,12 +130,17 @@ class FasterWhisperStream(PyXavi):
         else:
             raise ValueError("No XprocessPool provided in params to Support class")
         
+        # The Silence Input Queue is created here, passed to the Transcriber Process (so it's forwarded to the PreProcessor)
+        # and kept available here for the Main to retreive it and pass it to the CaptureHandler.
+        self.silence_input_queue = self.process_pool.get_queue_manager().JoinableQueue()
+        
         # Initialize the Faster Whisper Stream process in the pool, with the appropriate queues.
         initialized = self.process_pool.new_and_start(QUEUE_TRANSCRIBER, FasterWhisperStreamProcess, params=Dictionary({
             "initialize_from_main": False,
             "use_output_queue": True,
             "language": self.language,
             "support_class_queue": self._support.input_queue,
+            "silence_input_queue": self.silence_input_queue
         }))
         if not initialized:
             raise RuntimeError("Failed to initialize FasterWhisperStreamProcess in the XprocessPool")
@@ -118,6 +160,12 @@ class FasterWhisperStream(PyXavi):
 
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
+            logging_parts.append(("Dynamic RMS silence active", self.is_dynamic_rms_silence_active()))
+            logging_parts.append(("Dynamic RMS max level", self.dynamic_rms_max_level))
+            logging_parts.append(("Dynamic RMS hysteresis multiply", self.hysteresis_multiply))
+            logging_parts.append(("Dynamic RMS hysteresis offset", self.hysteresis_offset))
+            logging_parts.append(("Dynamic RMS adapt up rate", self.adapt_up_rate))
+            logging_parts.append(("Dynamic RMS adapt down rate", self.adapt_down_rate))
 
             # We need to be able to receive a samplerate param so that the Server instance can operate a lower samplerate if needed,
             #   otherwise it will be forced to use the one from the microphone input, that has nothing to do with the external clients.
@@ -135,6 +183,7 @@ class FasterWhisperStream(PyXavi):
         self._queue = queue.Queue()
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
+        self._shared_memory.initialize_existing_shared_memory_values()
 
         # Keeping track that Whisper is active
         self.is_active = True
@@ -151,7 +200,14 @@ class FasterWhisperStream(PyXavi):
     def get_queue(self) -> queue.Queue:
         return self._queue
     
+    def get_silence_input_queue(self) -> JoinableQueue:
+        return self.silence_input_queue
+    
     def reset_context(self):
+
+        # Update the current state of the transcription
+        self.current_transcription_state = TrascriptionState.START_CONTEXT
+
         self._ongoing_chunk_window = []
         self.final_transcription = ""
         self.request_reset_context()
@@ -164,6 +220,9 @@ class FasterWhisperStream(PyXavi):
         else:
             self._xlog.warning("No transcription result available yet, you should not call this method from V4.")
     
+    def get_transcription_status(self) -> str:
+        return self.current_transcription_state
+    
     def _transcription_worker(self):
         """
         This is a worker that runs in a separate thread, that continuously processes the audio chunks in the queue 
@@ -173,10 +232,12 @@ class FasterWhisperStream(PyXavi):
         and process them together, with the context of the last overlap and the ongoing transcription.
         """
 
-        # As the loop should consume the incoming chunks queue and the transcription result queue, we need a set of flags.
-        is_chunks_queue_empty = False
-        is_transcription_result_queue_empty = False
-        chunk_list_to_process = []
+        # As the loop should consume the incoming chunks queue, the transcription result queue, and the silence input queue, 
+        #   we need a set of flags.
+        is_chunks_queue_empty: bool = False
+        is_transcription_result_queue_empty: bool = False
+        is_silence_input_queue_empty: bool = True
+        chunk_list_to_process: list = []
         while self.is_active:
             try:
                 # Get all current chunks on the queue. It should be only one,
@@ -196,18 +257,26 @@ class FasterWhisperStream(PyXavi):
                     is_chunks_queue_empty = False
 
                     # Get the next chunk from the queue.
-                    data = self._queue.get()
+                    if self.add_timestamps_to_chunks:
+                        nanoseconds, data = self._queue.get()
+                    else:
+                        nanoseconds = None
+                        data = self._queue.get()
 
                     if data is None:
-                        self._log_debug("FasterWhisper Stream: Received None data from the queue, It should be the end of the stream.")
+                        self._log_debug("✏️ Received None data from the queue, It should be the end of the stream.")
 
                         # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
                         self._support.dump_and_plot_all()
                         self._support.clear_accumulated_audio()
 
+                        # Update the current state of the transcription
+                        self.current_transcription_state = TrascriptionState.LEFTOVER_CHUNK_PROCESSING
+
                         # It is very possible that we have chunks without process at this point.
+                        # COMMENTED: Feels like the duplication at the end of the transcription can come from here.
                         if len(self._ongoing_chunk_window) > 0:
-                            self._log_debug(f"FasterWhisper Stream: Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
+                            self._log_debug(f"✏️ Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
                             self.process_chunks(self._ongoing_chunk_window)
                             self._ongoing_chunk_window = []
                         
@@ -218,17 +287,29 @@ class FasterWhisperStream(PyXavi):
                         # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
                         self.request_transcription()
 
+                        # Update the transcription state
+                        self.current_transcription_state = TrascriptionState.REQUESTED_TRANSCRIPTION
+
+                        # Reset the context in the Process, to be sure that the next transcription is not affected by the previous one.
+                        self._ongoing_chunk_window = []
+                        self.final_transcription = ""
+
                     else:
+                        # Update the current state of the transcription
+                        self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
+
                         if len(self._ongoing_chunk_window) >= self._chunks_window:
-                            self._log_debug(f"FasterWhisper Stream: Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
+                            self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
                             chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
                             self._ongoing_chunk_window = []
                         self._ongoing_chunk_window.append(data)
 
-                    if len(chunk_list_to_process) > 0:
-                        self._log_debug(f"FasterWhisper Stream: Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
-                        self.process_chunks(chunk_list_to_process)
-                        chunk_list_to_process = []
+                        if len(chunk_list_to_process) > 0:
+                            self._log_debug(f"✏️ Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
+                            self.process_chunks(chunk_list_to_process)
+                            chunk_list_to_process = []
+                    
+                    self._queue.task_done()
                 
                 # Work to be done if we have a transcription result in the transcription result queue.
                 if self.transcriptor_output_queue.empty():
@@ -238,17 +319,25 @@ class FasterWhisperStream(PyXavi):
 
                     transcription_result = self.transcriptor_output_queue.get()
 
+                    # Update the current state of the transcription
+                    self.current_transcription_state = TrascriptionState.FINAL_TRANSCRIPTION
+
                     if isinstance(transcription_result, str) and len(transcription_result) > 0:
-                        self._log_debug("FasterWhisper Stream: Got transcription result from the Process: " + transcription_result)
+                        self._log_debug("✏️ Got transcription result from the Process: " + transcription_result)
                         # Oops! Why do we receive duplications?
                         if transcription_result in self.final_transcription:
-                            self._log_debug("FasterWhisper Stream: Received transcription result is already in the final transcription, skipping to avoid duplication.")
+                            self._log_debug("✏️ Received transcription result is already in the final transcription, skipping to avoid duplication.")
                         else:
-                            self.final_transcription += " " + transcription_result
+                            self._log_debug("✏️ Merging transcription result with the final transcription.")
+                            # self.final_transcription += " " + transcription_result
+                            self.final_transcription = transcription_result
+                        
+                        # Update the current state of the transcription
+                        self.current_transcription_state = TrascriptionState.DONE
                         
                         # Trigger the callback to notify that the transcription is finished, if we have a transcription result, or if we received the sentinel, which means that the transcription is finished even if we don't have a result (it can happen if the user spoke but the Model couldn't transcribe anything, so it returns an empty string as a result, but it still sends the sentinel to indicate that it finished processing).
                         if self.on_transcription_finished_callback is not None and (self.final_transcription is not None and len(self.final_transcription) > 0):
-                            self._log_debug("FasterWhisper Stream: Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
+                            self._log_debug("✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
                             # Be careful, it's part of asyncio loop.
                             asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
                             # At this point, we should have the transcription queue empty, but sometimes we receive the transcription result again.
@@ -259,20 +348,29 @@ class FasterWhisperStream(PyXavi):
                                     discarded_result = self.transcriptor_output_queue.get()
                                     self._xlog.warning(f"Discarding transcription result from the queue to avoid duplication: {discarded_result}")
                                 self._xlog.debug("Transcription queue is now empty after discarding results to avoid duplication.")
+
+                        # Update the current state of the transcription
+                        self.current_transcription_state = TrascriptionState.IDLE
+
+                    self.transcriptor_output_queue.task_done()
                 
-                if is_chunks_queue_empty and is_transcription_result_queue_empty:
+                # Work to be done if we have chunks in the Silence Input Queue, to calculate the dynamic RMS threshold for silence detection.
+                if self.is_dynamic_rms_silence_active():
+                    # Be careful, it's not tuned and very aggressive. 
+                    # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
+                    # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
+                    if self.silence_input_queue.empty():
+                        is_silence_input_queue_empty = True
+                    else:
+                        is_silence_input_queue_empty = False
+
+                        silence_chunk = self.silence_input_queue.get()
+                        self.process_silence_chunk(silence_chunk)
+                        self.silence_input_queue.task_done()
+                
+                if is_chunks_queue_empty and is_transcription_result_queue_empty and is_silence_input_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
                     time.sleep(self._sleep_when_no_chunks)
-                
-                # At this point in time, if we have any ongoing transcription,
-                #  means that the STT identified a speech and is processing.
-                # If we're processing chunks but there is no transcription, it means that 
-                #   the chunks do not contain a speech.
-                # COMMENTED: The ongoing transcription happens in the separate process.
-                # if len(self._ongoing_transcription) > 0:
-                #     self.set_stt_busy()
-                # else:
-                #     self.unset_stt_busy()
 
             except queue.Empty:
                 continue
@@ -295,6 +393,57 @@ class FasterWhisperStream(PyXavi):
                 self._xlog.error(full_stack())
                 self.close()
                 return None
+    
+    def process_silence_chunk(self, chunk: bytes):
+        """
+        Once we know (from the VAD in CaptureHandler) that the chunk is not coming from human speaking,
+        we can feed it to this function that will maintain the level of background noise, so the preprocess_chunk() can use it
+        to remove silences.
+        This comes from the issue on the silence at the end of the speech, that needs to be silence to be detected as the end of the speech,
+        but makes the Transcriptor crazy, provoking hallucinations.
+        """
+
+        # The conversion to mono is done with Numnpy arrays for performance reasons, so convert it first.
+        audio_data_np = Conversors.byte_chunk_to_numpy_array(chunk)
+        audio_data_np = Conversors.stereo_to_mono(audio_data_np)
+
+        # Calculates and merged the value into the dynamic RMS threshold for silence detection.
+        # What is sample_width = 2? # 16 bits = 2 bytes
+        rms = audioop.rms(audio_data_np.tobytes(), 2)
+
+        # Maintain a history of RMS values for the last "n" silence chunks.
+        self.dynamic_rms_history.append(rms)
+        if len(self.dynamic_rms_history) > 100:
+            self.dynamic_rms_history.pop(0)
+
+        # Calculate the percentage through history
+        history_average = (sum(self.dynamic_rms_history) / (len(self.dynamic_rms_history)))
+        history_percentage = (history_average / self.dynamic_rms_max_level) * self.hysteresis_multiply + self.hysteresis_offset
+
+        # Merging the current RMS with the previous dynamic RMS in the percentage defined in self.dynamic_rms_percent_to_apply_on_new_chunks,
+        # to have a more stable value that is not changing so much with each chunk.
+        if self.dynamic_rms <= 0:
+            self.dynamic_rms = history_percentage
+            return
+        if history_percentage > self.dynamic_rms:
+            # Slow rise - avoids false positives from transient noise
+            self.dynamic_rms += (
+                (history_percentage - self.dynamic_rms) * self.adapt_up_rate
+            )
+        elif history_percentage < self.dynamic_rms:
+            # Fast drop - quickly adapts to quieter environments
+            self.dynamic_rms += (
+                (history_percentage - self.dynamic_rms) * self.adapt_down_rate
+            )
+        
+        # Now we have to update the shared memory value with the new dynamic RMS threshold for silence detection,
+        # so the Preprocessor can use it in the preprocess_chunk() function to decide if a chunk is considered as silence or not.
+        self._shared_memory.write_shared_memory_value(SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, self.dynamic_rms)
+    
+    def is_dynamic_rms_silence_active(self) -> bool:
+        # Be careful, it's not tuned and very aggressive. 
+        # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
+        return self.use_dynamic_rms_silence and self.silence_input_queue is not None
     
     def close(self):
         self._xlog.info("Closing FasterWhisper Stream STT")
@@ -323,9 +472,25 @@ class FasterWhisperStream(PyXavi):
             self._xlog.debug("Deleting FasterWhisper Stream queue")
             del self._queue
         
+        if self.silence_input_queue is not None:
+            # Joining queue to make sure that all tasks are done before closing.
+            self._xlog.debug("Joining FasterWhisper Stream silence input queue to make sure all tasks are done before closing.")
+            if not self.silence_input_queue.empty():
+                while not self.silence_input_queue.empty():
+                    discarded_chunk = self.silence_input_queue.get()
+                    self.silence_input_queue.task_done()
+                self.silence_input_queue.join()
+            self._xlog.debug("Deleting FasterWhisper Stream silence input queue")
+            del self.silence_input_queue
+        
         if self._support is not None:
             self._xlog.debug("Closing Support process from FasterWhisper Stream and deleting it")
             del self._support
+        
+        if self._shared_memory is not None:
+            self._xlog.debug("Closing Shared Memory from FasterWhisper Stream")
+            self._shared_memory.close()
+            del self._shared_memory
         
         # Remember that FasterWhisper Stream is not active anymore
         self.is_active = False
@@ -366,3 +531,19 @@ class FasterWhisperStream(PyXavi):
         self._log_debug("Requesting context reset in the process")
         self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.RESET_TRANSCRIPTION)
     
+# 2. Dynamic Threshold Logic
+# Instead of a static value, calculate it based on the background noise floor:
+#    Formula: Threshold = NoiseFloor + (SensitivityFactor  NoiseVariance)
+#    Implementation: Keep a running average of the RMS during "silent" periods. The SensitivityFactor is your "tuning knob"—if it's too aggressive, increase it slightly.
+
+# 3. Hangover (Hold Time) Logic
+# This prevents the "chopping" effect at the end of words:
+#    State Machine:
+#        If CurrentRMS > Threshold: Set IsSpeaking = True, reset HangoverTimer.
+#        If CurrentRMS < Threshold:
+#            If IsSpeaking is True: Start HangoverTimer.
+#            If HangoverTimer exceeds your limit (for example, 300ms): Set IsSpeaking = False.
+#    Why this works: It keeps the "gate" open during natural pauses between words or syllables, preventing the transcription model from thinking the sentence has ended prematurely.
+
+# A quick tip for debugging:
+# If you are still getting hallucinations, it might be because the "Hangover" is too long, and it's including too much background noise after you finish speaking. Try starting with a 250ms hold time and adjust from there.

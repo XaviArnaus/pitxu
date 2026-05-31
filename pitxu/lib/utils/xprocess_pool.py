@@ -1,4 +1,5 @@
 from multiprocessing import set_start_method, JoinableQueue, Manager
+from multiprocessing.managers import SyncManager
 from queue import Empty
 import time
 
@@ -53,6 +54,7 @@ class XprocessPool(PyXavi):
         # Initialize shared memory
         self._shared_memory = SharedMemoryManager(config=config, params=params)
         self._shared_memory.initialize_new_shared_memory_flags()
+        self._shared_memory.initialize_new_shared_memory_values()
 
         # Initialise the manager that will create the queues
         self._manager = Manager()
@@ -183,6 +185,9 @@ class XprocessPool(PyXavi):
 
     def get_memory_manager(self) -> SharedMemoryManager:
         return self._shared_memory
+    
+    def get_queue_manager(self) -> SyncManager:
+        return self._manager
     
     def wait_for_all_queues_to_empty(self):
         # Now wait until the displays finish being busy

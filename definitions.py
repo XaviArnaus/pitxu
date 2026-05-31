@@ -32,6 +32,10 @@ SHARED_SUPPORT_BUSY = 13
 SHARED_STT_BUSY = 14
 SHARED_TRANSCRIBER_BUSY = 15
 
+# Shared Memory Values
+SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
+SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
+
 # Painter
 LOOP_START: str = "start"
 LOOP_END: str = "end"

@@ -930,11 +930,13 @@ class Main(PyXavi):
             sys.exit(1)
 
         input_audio_chunk_queue = self._dictate.get_queue()
+        silence_input_queue = self._dictate.get_silence_input_queue()
 
         # Initialise the Capture Handler, that captures the audio from the microphone.
         # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
         self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
             "capture_queue": input_audio_chunk_queue,
+            "silence_input_queue": silence_input_queue,
             "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
             "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
 

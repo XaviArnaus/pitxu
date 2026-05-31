@@ -1,3 +1,4 @@
+from audioop import rms
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -6,12 +7,19 @@ from pitxu.lib.speech_to_text.preprocess.filters import Filters
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.objects.xproc_action import XprocAction
+from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from definitions import SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
 import numpy as np
 from multiprocessing import JoinableQueue
 from datetime import datetime
 # from rms_vad import RmsVAD, VADConfig, compute_energy_db
 # import logging
+
+try:
+    import audioop
+except ModuleNotFoundError:
+    import audioop_lts as audioop
 
 class Preprocessor(PyXavi):
 
@@ -21,11 +29,11 @@ class Preprocessor(PyXavi):
     filter_order = 7   # Order of the filter (higher order means steeper rolloff)
 
     samplerate = 16000  # Sampling rate
-    meaningful_audio_rms_threshold = 0.5
 
     support: Support = None
     filters: Filters = None
     # vad: RmsVAD = None
+    shared_memory: SharedMemoryManager = None
 
     support_queue: JoinableQueue = None
 
@@ -42,8 +50,11 @@ class Preprocessor(PyXavi):
     accummulated_signal: list = []
     accummulated_filtered_signal: list = []
 
+    dyanamic_rms_correction_percentage: float = 2.5
+    apply_dynamic_rms_silence: bool = False
+
     VERBOSE_DEBUG: bool = True
-    DEBUG_ENERGY_FACTOR = 1
+    DEBUG_RMS: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(Preprocessor, self).init_pyxavi(config=config, params=params)
@@ -60,6 +71,9 @@ class Preprocessor(PyXavi):
         else:
             raise ValueError("Support Class or Support Class Queue must be provided in params with key 'support' or 'support_class_queue' to Preprocessor")
         
+        self.shared_memory = SharedMemoryManager(config=config, params=params)
+        self.shared_memory.initialize_existing_shared_memory_values()
+        
         # Initialize the VAD with the provided configuration
         # threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
         # attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
@@ -73,7 +87,6 @@ class Preprocessor(PyXavi):
         self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
         self.filter_order = params.get("audio_parameters.filter_order")
         self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
-        self.meaningful_audio_rms_threshold = params.get("audio_parameters.meaningful_audio_rms_threshold", self.meaningful_audio_rms_threshold)
         # self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
 
         self.filters = Filters(config=config, params=params)
@@ -84,7 +97,7 @@ class Preprocessor(PyXavi):
             ("High cut freq", f"{self.highcut_freq} Hz"),
             ("Filter order", f"{self.filter_order}"),
             ("Samplerate", f"{self.samplerate} Hz"),
-            ("Meaningful Audio RMS Threshold", f"{self.meaningful_audio_rms_threshold}"),
+            # ("Dynamic RMS Silence Detection Active", f"{"Yes" if self.is_dynamic_rms_silence_active() else "No"}"),
             # ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
             # ("VAD Threshold", threshold),
             # ("VAD Attack", f"{attack} seconds"),
@@ -121,19 +134,23 @@ class Preprocessor(PyXavi):
         # We want to work with mono audio. If comes as stereo, convert it to mono.
         audio_data_np = Conversors.stereo_to_mono(audio_data_np)
 
-        # Apply bandpass filter to isolate human voice frequencies
-        filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
-        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.lowcut_freq, 1.5 *self.highcut_freq, fs=self.samplerate)
-
         # Check if the audio chunk contains speech using VAD.
         # Even it feels so, it's not stupid:
         #   1. The VAD from CaptureHandler is sending chunks to the queue.
         #   2. It has parameters like wait 2 seconds to ensure the end of speech.
         #   3. But these 2 seconds are actually silent or noise, and the the Transcriber gets crazy.
-        #  So we can use the VAD here as an additional check to avoid sending non-speech chunks to the Transcriber.
-        if not self.is_audio_meaningful(filtered_audio_np):
-            return None
-    
+        # Has to happen before the filter, to avoid extra work and because it converts to float32 and we need the original int16 for the VAD.
+        if self.apply_dynamic_rms_silence:
+            is_meaningful, rms, dynamic_rms = self.is_audio_meaningful(audio_data_np)
+            if not is_meaningful:
+                if self.DEBUG_RMS:
+                    self._log_debug(f"🎤 Audio chunk is not meaningful. RMS: {rms:.4f} < Dynamic RMS: {dynamic_rms:.4f}")
+                return None
+
+        # Apply bandpass filter to isolate human voice frequencies
+        filtered_audio_np = self.filters.bandpass_filter(audio_data_np, normalize_filtered_outcome=False)
+        # filtered_audio_np = self.filters.fftBandpass(filtered_audio_np, 0.5*self.lowcut_freq, 1.5 *self.highcut_freq, fs=self.samplerate)
+
         # Maintain the accummulators
         # self._log_debug("❗️ Accummulating audio data into Support (Preprocessor is enabled)")
         self.accumulate_audio(audio_data_np)
@@ -216,11 +233,20 @@ class Preprocessor(PyXavi):
         self._log_debug(f"🗣️ End speaking 🏁")
     
     def is_audio_meaningful(self, audio_data_np: np.ndarray):
-        # Convert audio to numpy array if it isn't already
-        audio_array = audio_data_np.astype(np.float32)
-        # Calculate RMS
-        rms = np.sqrt(np.mean(audio_array**2))
-        return rms >= self.meaningful_audio_rms_threshold
+        # 1. Get the current Dynamic RMS threshold from shared memory.
+        dynamic_rms = self.shared_memory.read_shared_memory_value(SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD) or 0.0
+        # 2. Apply a correction percentage to the Dynamic RMS to make it more or less aggressive.
+        #   This is because the Dynamic RMS is calculated based on the recent audio, 
+        #   so it can be too high or too low depending on the environment and the user's voice.
+        dynamic_rms /= self.dyanamic_rms_correction_percentage
+        # 3. Calculate the RMS of the current audio chunk
+        rms = audioop.rms(audio_data_np.tobytes(), 2)
+        # 4. Normalize it to a 0-1 scale based on the maximum possible RMS for int16 audio (which is 32768)
+        rms /= 32768.0
+        # 5. Compare the RMS of the current audio chunk with the Dynamic RMS threshold to decide if it's meaningful or not.
+        if self.DEBUG_RMS:
+            self._log_debug(f"🎤 Audio chunk RMS: {rms:.4f}, Dynamic RMS Threshold: {dynamic_rms:.4f}")
+        return (rms >= dynamic_rms, rms, dynamic_rms)
 
     # def is_vad_speech(self, chunk: bytes) -> bool:
     #     # This is a simple wrapper around the VAD to check if the chunk contains speech.
@@ -270,6 +296,26 @@ class Preprocessor(PyXavi):
     #         if time_since_last_speaking > silence_timeout_seconds:
     #             return True
     #     return False
+
+    def close(self):
+        self._xlog.info("🎤 Closing Preprocess for Speech-to-Text")
+
+        if self.support is not None:
+            self._xlog.debug("Closing Support process from Preprocessor and deleting it")
+            # Does not belong to us, it got passed to us.
+            del self.support
+        
+        if self.support_queue is not None:
+            self._xlog.debug("Closing Support queue from Preprocessor and deleting it")
+            # Does not belong to us, it got passed to us.
+            del self.support_queue
+        
+        if self.shared_memory is not None:
+            self._xlog.debug("Closing Shared Memory from Preprocessor")
+            self.shared_memory.close()
+            del self.shared_memory
+        
+        self._log_debug("🎤 Done Closing Preprocess for Speech-to-Text")
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
         if self.support is not None:
@@ -315,6 +361,9 @@ class Preprocessor(PyXavi):
             self.support_queue.put((XprocAction.DUMP_ALL, None))
         else:
             self._xlog.warning("No Support class or Support queue available to dump and plot accumulated audio data")
+    
+    # def is_dynamic_rms_silence_active(self) -> bool:
+    #     return self.silence_chunk_queue is not None
         
     
     # Bandpass is filtering too much the sibilance ("s" sounds)? Here's how to fix it:

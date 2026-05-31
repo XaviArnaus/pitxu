@@ -45,6 +45,7 @@ samplerate = "^0.2.4"
 matplotlib = "^3.10.8"
 openai-whisper = "^20250625"
 faster-whisper = "^1.2.1"
+audioop-lts = { version = "^0.2.2", python = "^3.13" }
 
 [tool.poetry.scripts]
 main = "runner:run"
