@@ -312,7 +312,7 @@ class FasterWhisperStream(PyXavi):
                         # Update the current state of the transcription
                         previous_state = self.current_transcription_state
                         self.current_transcription_state = TrascriptionState.LEFTOVER_CHUNK_PROCESSING
-                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to LEFTOVER_CHUNK_PROCESSING, Process the leftover chunks.")
+                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state.upper()} to LEFTOVER_CHUNK_PROCESSING, Process the leftover chunks.")
 
                         # It is very possible that we have chunks without process at this point.
                         # COMMENTED: Feels like the duplication at the end of the transcription can come from here.

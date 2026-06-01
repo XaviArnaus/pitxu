@@ -693,6 +693,12 @@ class FasterWhisperStreamProcess(Xprocess):
 # The transcription was correct, but anyhow leftover chunks were processed that gave the SAME outcome and got added to the transcription.
 # Could be that the timestamps of these leftover chunks are wrong (like not getting the right offset) and they are 
 # simply merged afterwards.
+#
+# Also could be that because we're adding the overlap in front of the chunk, we should:
+#   1. Calculate how much time we're regressing from the previous processed timestamp (processed_timestamp - overlap_duration)
+#   2. Add this time to the timestamps of the segments and words returned by the model, to have the real offsets for the merging and the commiting.
+#   3. The merging will then find the correct timestamp to write into, that then should identify which word to overwrite, and cancel the duplication.
+#
 # 2026-06-01 08:22:48,934 [MainProcess MainThread            ] DEBUG    pitxu        ✏️ 👁️‍🗨️ Transcription state updated to START_CONTEXT, welcoming chunks to process.
 # 2026-06-01 08:22:48,934 [MainProcess MainThread            ] DEBUG    pitxu        Requesting context reset in the process
 # 2026-06-01 08:22:48,934 [FasterWhisperStream MainThread            ] DEBUG    pitxu        Xprocess [FasterWhisperStream] run() received a [RESET_TRANSCRIPTION]
