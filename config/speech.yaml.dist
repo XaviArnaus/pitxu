@@ -68,10 +68,6 @@ speech-to-text:
     samplerate: 16000
     # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
     save_preprocessed_audio: True
-    # [float] The RMS threshold to consider that the audio contains meaningful sound (speech or not).
-    # This is used to filter out silent or very low volume chunks before sending them to the STT engine,
-    # as they can cause issues with the transcription.
-    meaningful_audio_rms_threshold: 0.5
   # Specific configuration for Vosk, when applicable.
   vosk:
     # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
@@ -199,11 +195,11 @@ speech-to-text:
     temperature: 0.2
     # [Float] The confidence threshold to consider that a segment is low confidence
     #   (should be reprocessed with a lower temperature?)
-    segment_low_confidence_threshold: -0.8
+    segment_low_confidence_threshold: -1
     # [Float] The confidence threshold to consider that a word is low confidence
-    word_low_confidence_threshold: 0.2
+    word_low_confidence_threshold: 0.1
     # [Float] The threshold of confidence over the segments to consider that the model is hallucinating.
-    hallucination_low_confidence_segments_threshold: -0.8
+    hallucination_low_confidence_segments_threshold: -1
     # [Float] The threshold of confidence to reset the hallucination counter.
     #   If the average confidence of the segments is above this threshold, the counter will be reset.
     hallucination_low_confidence_reset_threshold: -1

@@ -465,7 +465,8 @@ class FasterWhisperStreamProcess(Xprocess):
                     word_real_end = current_segment_starting_time + word.end
                     words_info.append((word.word, f"start: {round(word.start, 2)} ({round(word_real_start, 2)}), end: {round(word.end, 2)} ({round(word_real_end, 2)}), prob: {round(word.probability, 2)}"))
 
-                    # Keep track of the new transcribed words, to be able to use them in the merging process, as they are more accurate than the previous ongoing transcription.
+                    # Keep track of the new transcribed words, to be able to use them in the merging process,
+                    # as they may be more accurate than the previous ongoing transcription.
                     new_transcribed_words.append({
                         'word': self._clean_word(word.word),
                         'start': word_real_start,
@@ -507,6 +508,8 @@ class FasterWhisperStreamProcess(Xprocess):
                 new_transcribed_words
             )
 
+            self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{" ".join([w['word'] for w in self._ongoing_transcription])}{TerminalColor.END}\n")
+
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
             stability_threshold = 2.0
@@ -532,8 +535,7 @@ class FasterWhisperStreamProcess(Xprocess):
             # Keep the last defined samples as overlap
             self._last_overlap = audio_to_process[-self._overlap_size:]
 
-        # self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{' '.join([w['word'] for w in self._ongoing_transcription])}{TerminalColor.END}\n\n")
-        self._xlog.debug(f"Current ongoing transcription: \n\n{TerminalColor.ORANGE}{self._final_transcription}{TerminalColor.END}\n\n")
+        self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
     
     def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
@@ -654,12 +656,14 @@ class FasterWhisperStreamProcess(Xprocess):
         # We get the final transcription and use the moment to clean it.
         final_transcription = self._clean_transcription(self._final_transcription)
 
+        self._xlog.debug(f"✏️ Final transcription: \n\n{TerminalColor.RED}{final_transcription}{TerminalColor.END}\n")
+
         # We put the transcription in the output queue, to be retrieved by the Main process.
         # if self._output_queue is not None and self._output_queue_sentinel is not None:
         if self._output_queue is not None:
             self._output_queue.put(final_transcription)
             # self._output_queue.put(self._output_queue_sentinel)
-            self._log_debug("Final transcription put in the output queue with the sentinel.")
+            self._log_debug("Final transcription put in the output queue.")
             # Reset the context to avoid issues if the start does not trigger well
             self.reset_context()
         else:

@@ -220,7 +220,7 @@ class GeminiChatbot(PyXavi):
     
     async def ask_async(self, question: str) -> ChatbotResponse:
 
-            self._xlog.info("❓ Question: \n\n>> " + TerminalColor.RED_BRIGHT + question + TerminalColor.END + "\n")
+            self._xlog.info("❓ Question in Chatbot: \n\n>> " + TerminalColor.RED_BRIGHT + question + TerminalColor.END + "\n")
 
             if (self._xconfig.get("chatbot.mock", True)):
                 return ChatbotResponse(text="Chatbot is Mocked. Check the config.\nQuestion: " + question)
