@@ -408,10 +408,13 @@ class FasterWhisperStreamProcess(Xprocess):
                         'confidence': word.probability
                     })
 
-            # Just a logging to see the outcome of the analysis.   
-            self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
-            self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
-            self.log_summary(f"Low confidence words ({self._word_low_confidence_threshold})", low_probability_words, attend_verbose_debug_flag=True)
+            # Just a logging to see the outcome of the analysis.
+            if seg_infos:
+                self.log_summary("Segments info", seg_infos, attend_verbose_debug_flag=True)
+            if words_info:
+                self.log_summary("Words info", words_info, attend_verbose_debug_flag=True)
+            if low_probability_words:
+                self.log_summary(f"Low confidence words ({self._word_low_confidence_threshold})", low_probability_words, attend_verbose_debug_flag=True)
 
             # 5. Update state
             self._ongoing_transcription = self._merge_and_correct_transcription(
