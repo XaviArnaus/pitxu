@@ -211,7 +211,7 @@ class SharedMemoryManager(PyXavi):
             return
         self._shared_memory_values[index] = value
     
-    def wait_for_all_busy_process_to_idle(self):
+    def wait_for_all_busy_process_to_idle(self, wait_forever: bool = True):
         # Now wait until the displays finish being busy
         self._xlog.debug("Waiting for all processes to get idle")
         self.log_summary(
@@ -221,7 +221,7 @@ class SharedMemoryManager(PyXavi):
         start_time = time.time()
         forced_break = False
         while any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()):
-            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
                 self._xlog.error("Timeout reached while waiting for all processes to idle.")
                 forced_break = True
                 break
@@ -232,14 +232,14 @@ class SharedMemoryManager(PyXavi):
         else:
             self._xlog.debug("Forced break after sleeping for " + str(round(total_sleeping, 2)) + "s while waiting for all processes to idle.")
     
-    def wait_for_busy_process_to_idle(self, memory_position: int):
+    def wait_for_busy_process_to_idle(self, memory_position: int, wait_forever: bool = True):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
         self._xlog.debug(f"Waiting for the process {memory_position_name} to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
         total_sleeping = 0
         start_time = time.time()
         forced_break = False
         while self.read_shared_memory_flag(memory_position):
-            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
                 self._xlog.error(f"Timeout reached while waiting for process {memory_position_name} to idle.")
                 forced_break = True
                 break

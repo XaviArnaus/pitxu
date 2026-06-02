@@ -202,7 +202,7 @@ class XprocessPool(PyXavi):
     def get_queue_manager(self) -> SyncManager:
         return self._manager
     
-    def wait_for_all_queues_to_empty(self, except_queue_names: list[str] = None):
+    def wait_for_all_queues_to_empty(self, except_queue_names: list[str] = None, wait_forever: bool = True):
         # Now wait until the displays finish being busy
         self._xlog.debug("Waiting for all queues to get empty")
         logging_queue_sizes = []
@@ -224,7 +224,7 @@ class XprocessPool(PyXavi):
         start_time = time.time()
         forced_break = False
         while any(queue.qsize() > 0 for queue in queues_to_wait_for):
-            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
                 self._xlog.error("Timeout reached while waiting for queues to empty.")
                 forced_break = True
                 break
@@ -235,7 +235,7 @@ class XprocessPool(PyXavi):
         else:
             self._xlog.debug("Forced break after timeout. I've sleept " + str(total_sleeping) + "s.")
     
-    def wait_for_queue_to_empty(self, queue_name: str):
+    def wait_for_queue_to_empty(self, queue_name: str, wait_forever: bool = True):
         if self.get_queue(queue_name) is None:
             self._xlog.error("Queue " + queue_name + " does not exist. Cannot wait for it to empty. I'll continue.")
             return
@@ -250,7 +250,7 @@ class XprocessPool(PyXavi):
         start_time = time.time()
         forced_break = False
         while self.get_queue(queue_name).qsize() > 0:
-            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
                 self._xlog.error("Timeout reached while waiting for queue " + queue_name + " to empty.")
                 forced_break = True
                 break
@@ -283,8 +283,8 @@ class XprocessPool(PyXavi):
         self.broadcast(XprocAction.FINISH, except_queue_names=except_queue_names)
         # ...so they can close dependencies.
         self._xlog.debug("Waiting for all queues to empty before finishing")
-        self.wait_for_all_queues_to_empty(except_queue_names=except_queue_names)
-        self.get_memory_manager().wait_for_all_busy_process_to_idle()
+        self.wait_for_all_queues_to_empty(except_queue_names=except_queue_names, wait_forever=False)
+        self.get_memory_manager().wait_for_all_busy_process_to_idle(wait_forever=False)
 
         # 2. Clean and close the queues, apparently better from the one that put().
         self._xlog.debug("Empty and close queues")
