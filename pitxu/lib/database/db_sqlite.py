@@ -98,3 +98,12 @@ class DbSqlite(PyXavi):
                     self._xlog.debug("🗄️ Database now at version {0}".format(migration_version))
             else:
                 self._xlog.debug("🗄️ Migration {0} already applied. Skipped.".format(migration_version))
+    
+# ISSUE:
+#
+# Apparently there is a memory leak when we interact with the STT and then close it.
+# If we don't interact with the STT the leak is not present.
+# It smells like when we plot the audio, some resources are not released. Also, interesting the name of the semaphore leaked:
+#
+# /Users/xarnaus/.pyenv/versions/3.13.11/lib/python3.13/multiprocessing/resource_tracker.py:400: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-p4q984wz'}
+#  warnings.warn(
