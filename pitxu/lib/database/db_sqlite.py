@@ -10,7 +10,7 @@ class DbSqlite(PyXavi):
     connection: sqlite3.Connection = None
     # Cursor for executing SQL commands. 
     # This is not thread-safe, so it should be created and used within the same thread.
-    # cursor: sqlite3.Cursor = None
+    cursor: sqlite3.Cursor = None
 
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_DB_PATH = "db/"
@@ -44,7 +44,7 @@ class DbSqlite(PyXavi):
         # Now place the connection and the cursor, and define the Row factory to have dict-like rows.
         self.connection = sqlite3.connect(db_filepath, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        # self.cursor = self.connection.cursor()
+        self.cursor = self.connection.cursor()
         self._xlog.debug(f"🗄️ Connected to SQLite database at {db_filepath}, and ready to hold queries.")
 
         self._log_debug("🗄️ SQLite initialization complete")
@@ -62,9 +62,9 @@ class DbSqlite(PyXavi):
 
         try:
 
-            # if self.cursor is not None:
-            #     self.cursor.close()
-            #     self._xlog.debug("🗄️ SQLite database cursor closed")
+            if self.cursor is not None:
+                self.cursor.close()
+                self._xlog.debug("🗄️ SQLite database cursor closed")
 
             if self.connection is not None:
                 self.connection.close()
@@ -82,7 +82,7 @@ class DbSqlite(PyXavi):
         def get_script_version(path):
             return int(path.split('_')[0].split('/')[-1])
 
-        current_version = self.connection.cursor().execute('pragma user_version').fetchone()[0]
+        current_version = self.cursor.execute('pragma user_version').fetchone()[0]
         self._xlog.debug(f"🗄️ Current database version: {current_version}")
 
         migrations_path = os.path.join("", self._xconfig.get("database.sqlite.migrations_path", self.DEFAULT_DB_MIGRATIONS_PATH))
@@ -94,7 +94,7 @@ class DbSqlite(PyXavi):
             if migration_version > current_version:
                 self._xlog.debug("🗄️ Applying migration {0}".format(migration_version))
                 with open(path, mode='r') as f:
-                    self.connection.cursor().executescript(f.read())
+                    self.cursor.executescript(f.read())
                     self._xlog.debug("🗄️ Database now at version {0}".format(migration_version))
             else:
                 self._xlog.debug("🗄️ Migration {0} already applied. Skipped.".format(migration_version))
