@@ -1,9 +1,23 @@
 # Changelog
 
-## v0.4.0 - 2026-05-27
+
+## v0.4.0 - 2026-06-02
+
+### Added
+
+- Implement Streaming / Sliding Window into FasterWhisper [#36](https://github.com/XaviArnaus/pitxu/pull/36)
+- Improve Github tool capabilities
+- Add retries into the summarizer
+- Added a Shared Memory Values space like the Flags.
 
 ### Changed
 
+- Iterate the chatbot prompt to avoid using so many tokens
+- Fix memory update not returning the entry
+- Fix memory migration util
+- Big iteration on closing instances / processes to try to smooth the app ending
+- Fix trigger words identification
+- Some visual improvements, like in tool callbacks.
 - SQLite3-based memory approach, replacing file-based one [#40](https://github.com/XaviArnaus/pitxu/pull/40).
 
 ## v0.3.5 - 2026-05-22

@@ -4,7 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage, \
                                 SystemJsonMetrics, SystemConversationFlow,\
-                                WorldPosition, WorldWeather, WorldWikipedia, WorldWget,\
+                                WorldPosition, WorldWeather, WorldWikipedia, WorldWget, WorldGithub,\
                                 GoogleMaps, GoogleSearch, GoogleCode,\
                                 TrivagoMCPAccommodationSearch,\
                                 StatefulReminders, StatefulLists, StatefulMemory,\
@@ -59,6 +59,7 @@ class ChatbotSessionManager(PyXavi):
             "system_network": SystemNetwork(config=self._xconfig, params=self._xparams),
             "system_conversation_flow": SystemConversationFlow(config=self._xconfig, params=self._xparams),
             "world_wget": WorldWget(config=self._xconfig, params=self._xparams),
+            "world_github": WorldGithub(config=self._xconfig, params=self._xparams),
         }
         
         self._xlog.debug("ChatbotSessionManager: Registering MCP clients.")
@@ -122,6 +123,9 @@ class ChatbotSessionManager(PyXavi):
         for key in list(self.session_handlers.keys()):
             del self.session_handlers[key]
         
+        self._xlog.debug("ChatbotSessionManager: Closing ChatbotSessionManager itself.")
+        await self.close()
+        
         self._xlog.debug("ChatbotSessionManager: Closed.")
     
     def get_client_callbacks_by_function_name(self) -> dict[str, callable]:
@@ -137,3 +141,13 @@ class ChatbotSessionManager(PyXavi):
                         # Get the related callable for the given function name
                         clients_by_function_name[function_name] = client.get_callback_by_given_function_name(function_name)
         return clients_by_function_name
+    
+    def close(self):
+        self._xlog.debug("ChatbotSessionManager: Closing clients.")
+        for client_name, client in self.clients.items():
+            if hasattr(client, "close") and callable(getattr(client, "close")):
+                self._xlog.debug(f"ChatbotSessionManager: Closing client [{client_name}].")
+                try:
+                    client.close()
+                except Exception as e:
+                    self._xlog.error(f"🛑 ChatbotSessionManager: Error closing client [{client_name}]: {e}")

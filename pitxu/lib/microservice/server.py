@@ -116,8 +116,8 @@ class Server(PyXavi, MicroserviceBase):
     def close(self):
         self._xlog.info("Closing Server")
 
-        self._log_debug("Closing Vosk instance in the server context")
         if 'stt' in self.server.config and self.server.config['stt'] is not None:
+            self._log_debug("Closing Vosk instance in the server context")
             self.server.config['stt'].close()
 
         self._log_debug("Shutting down Server")

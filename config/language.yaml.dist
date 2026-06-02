@@ -16,14 +16,14 @@ language:
   exit_words:
     ca: ["sortir", "adeu"]
     es: ["salir", "adios"]
-    en-us: ["exit", "quit", "bye", "goodbye", "good bye"]
+    en-us: ["exit", "quit", "bye", "goodbye", "good bye", "goodb"]
     de: ["tschüss", "beenden", "ende"]
   # [String] Warm up question. Should be simple and without using external tools
   warmup_question: 
-    ca: "Reconeix que estàs llest."
-    es: "Reconoce que estás listo."
-    en-us: "Acknowledge that you are ready."
-    de: "Bestätige, dass du bereit bist."
+    ca: "Reconeix que estàs llest, i consulta la hora del sistema."
+    es: "Reconoce que estás listo, y consulta la hora del sistema."
+    en-us: "Acknowledge that you are ready, and check the system time."
+    de: "Bestätige, dass du bereit bist, und überprüfe die Systemzeit."
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"
@@ -144,7 +144,8 @@ language:
       "etc.": "etcètera"
       "°C": "graus"
       "km/h": "quilòmetres per hora"
-      "Xavi": "Txabi"
+      "e.g.": "per exemple"
+      "vs.": "versus"
     es:
       "&amp;": "y"
       "&lt;": "menor que"
@@ -154,7 +155,8 @@ language:
       "etc.": "etcétera"
       "°C": "grados"
       "km/h": "kilómetros por hora"
-      "Xavi": "Chabi"
+      "e.g.": "por ejemplo"
+      "vs.": "versus"
     en-us:
       "&amp;": "and"
       "&lt;": "less than"
@@ -165,7 +167,7 @@ language:
       "°C": "degrees"
       "km/h": "kilometers per hour"
       "e.g.": "for example"
-      "Xavi": "Chabee"
+      "vs.": "versus"
     de:
       "&amp;": "und"
       "&lt;": "kleiner als"
@@ -175,7 +177,8 @@ language:
       "etc.": "etcetera."
       "°C": "Grad"
       "km/h": "Kilometer pro Stunde"
-      "Xavi": "Chabi"
+      "e.g.": "zum Beispiel"
+      "vs.": "gegen"
   
   # Replacements at TTS only to improve pronunciation
   tts_text_replacements:
@@ -187,6 +190,28 @@ language:
       "Xavi": "Chabee"
     de:
       "Xavi": "Chabi"
+  
+  # Expressions to remove from transcription
+  transcription_remove_expressions:
+    ca: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    es: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    en-us: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    de: ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+
+  # Punctuations to count on for the word-based partial transcriptions
+  word_based_partial_transcriptions_punctuations:
+    ca: [".", ",", "!", "?", ";", ":", "..."]
+    es: [".", ",", "!", "?", ";", ":", "..."]
+    en-us: [".", ",", "!", "?", ";", ":", "..."]
+    de: [".", ",", "!", "?", ";", ":", "..."]
+
+  # Sentences to remove by the end of the transcription
+  #   also understood as "hallucinations" of the STT engine.
+  transcription_hallucinations:
+    ca: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    es: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    en-us: ["thank you for watching", "thanks for watching", "subscribe for more"]
+    de: ["thank you for watching", "thanks for watching", "subscribe for more
 
   # Reminders
   reminders:

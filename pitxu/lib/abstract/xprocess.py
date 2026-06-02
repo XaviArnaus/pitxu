@@ -48,7 +48,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a busy_flag index, got None.")
         self._busy_flag = busy_flag
 
-        super(Xprocess, self).__init__()
+        super(Xprocess, self).__init__(daemon=True)
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
@@ -94,9 +94,6 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 except NotImplementedError as e:
                     self._xlog.warning(f"🟠 NotImplementedError in Xprocess {self._PROCESS_NAME} run(). Will discard: {e}")
 
-                # We're not busy anymore
-                self.unset_busy()
-
                 # Executes the own do() passing the context.
                 if action == XprocAction.DO:
                     self.do(self._xconfig, self._xlog, param)
@@ -111,17 +108,17 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
                 if action == XprocAction.FINISH:
+                    self._log_debug("Performing the finish() for process [" + self._PROCESS_NAME + "] from the SubProcess")
                     self.finish()
                 
                 # Removing the current action
                 self._current_action = None
                 
                 # Finally, we mark this task as done
-                try:
-                    # In the queue
-                    self._queue.task_done()
-                except ValueError:
-                    pass
+                self.mark_input_queue_task_as_done()
+
+                # We're not busy anymore
+                self.unset_busy()
 
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
@@ -130,7 +127,13 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.error("🛑 EOFError detected in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
         except Exception as e:
             self._xlog.error("🛑 Unexpected Error in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
-            self._xlog.error(full_stack())
+            self._xlog.debug(full_stack())
+    
+    def mark_input_queue_task_as_done(self):
+        try:
+            self._queue.task_done()
+        except ValueError:
+            pass
     
     def ensure_nice_string(self, value: any) -> str:
         try:
@@ -171,19 +174,3 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
     # Display busy control: unset as busy
     def unset_busy(self):
         self.write_shared_memory_flag(self._busy_flag, False)
-
-# Feb 09 18:51:55 pitxu3 pitxu[10061]: 2026-02-09 18:51:55,939 [DsiLcd-3    ] INFO     pitxu        🚥 Showing init phase 1 on DSI LCD
-# Feb 09 18:51:55 pitxu3 pitxu[10061]: 2026-02-09 18:51:55,958 [DsiLcd-3    ] INFO     pitxu        👀 Showing startup splash screen
-# Feb 09 18:51:55 pitxu3 pitxu[10061]: 2026-02-09 18:51:55,961 [DsiLcd-3    ] INFO     pitxu        🚥 Showing init phase 2 on DSI LCD
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,262 [Piper-2     ] DEBUG    pitxu        Initializing SharedMemoryManager
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,263 [Piper-2     ] INFO     pitxu        Loading flags from Shared Memory
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,263 [Piper-2     ] DEBUG    pitxu        Xprocess [Piper] run()
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,264 [Piper-2     ] INFO     pitxu        Initializing Piper Worker
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,264 [Piper-2     ] INFO     pitxu        Loading TTS model from: /home/xavier/pitxu/storage/tts_models/ca_ES-upc_pau-x_low.onnx
-# Feb 09 18:51:56 pitxu3 pitxu[10056]: 2026-02-09 18:51:56,264 [Piper-2     ] DEBUG    piper.voice  Guessing voice config path: /home/xavier/pitxu/storage/tts_models/ca_ES-upc_pau-x_low.onnx.json
-# Feb 09 18:51:56 pitxu3 pitxu[10029]: 2026-02-09 18:51:56,329 [MainProcess ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 2.0s.
-# Feb 09 18:51:56 pitxu3 pitxu[10029]: 2026-02-09 18:51:56,329 [MainProcess ] DEBUG    pitxu        Initialising the Speech-to-Text with language [ca]
-# Feb 09 18:51:56 pitxu3 pitxu[10029]: 2026-02-09 18:51:56,330 [MainProcess ] INFO     pitxu        Initializing Vosk STT
-# Feb 09 18:51:56 pitxu3 pitxu[10061]: 2026-02-09 18:51:56,333 [DsiLcd-3    ] INFO     pitxu        🚥 Showing init phase 3 on DSI LCD
-# Feb 09 18:51:56 pitxu3 pitxu[10061]: 2026-02-09 18:51:56,343 [DsiLcd-3    ] ERROR    pitxu        🛑 EOFError detected in Xprocess DSI_LCD run():
-# Feb 09 18:51:59 pitxu3 pitxu[10056]: 2026-02-09 18:51:59,044 [Piper-2     ] ERROR    pitxu        🛑 Unexpected Error in Xprocess Piper run(): [Errno 32] Broken pipe

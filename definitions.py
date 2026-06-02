@@ -11,6 +11,7 @@ QUEUE_MATRIX = "matrix_queue"
 QUEUE_LCD = "lcd_queue"
 QUEUE_DSI_LCD = "dsi_lcd_queue"
 QUEUE_SUPPORT = "support_queue"
+QUEUE_TRANSCRIBER = "transcriber_queue"
 
 # Shared memory flag positions
 SHARED_MEMORY_FLAGS = "pitxu_shared_memory_flags"
@@ -29,6 +30,11 @@ SHARED_NETWORK_BUSY = 11
 SHARED_VAD_DETECTED = 12
 SHARED_SUPPORT_BUSY = 13
 SHARED_STT_BUSY = 14
+SHARED_TRANSCRIBER_BUSY = 15
+
+# Shared Memory Values
+SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
+SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
 
 # Painter
 LOOP_START: str = "start"

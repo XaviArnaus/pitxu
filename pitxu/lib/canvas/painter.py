@@ -169,8 +169,7 @@ class Painter(PyXavi, Thread):
         # This finishes the thread
         self.should_finish = True
 
-        # We should not call join() from within the thread.
-        # self.join()
+        self._xlog.debug("PainterLoop closed.")
     
     def flush_drawing(self):
         self.macros.get_device().display(self.macros.get_canvas().get_image())

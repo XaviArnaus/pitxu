@@ -18,7 +18,7 @@ from multiprocessing import JoinableQueue
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY
+                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
 
 class Interaction(PyXavi):
     """
@@ -200,7 +200,7 @@ class Interaction(PyXavi):
         """
         self._xlog.debug("Closing Interaction.")
 
-        self.process_pool.get_memory_manager().force_all_flags_to_idle()
+        self.process_pool.get_memory_manager().force_all_flags_to_idle(is_closing=True)
     
     # --------- (Proxy) Functions to trigger interactions ---------
     
@@ -751,6 +751,18 @@ class Interaction(PyXavi):
     
     def is_vad_detected(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
+    
+    def is_stt_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_STT_BUSY)
+    
+    def set_transcriber_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, True)
+    
+    def unset_transcriber_busy(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
+    
+    def is_transcriber_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
 
     # --------- Internal helper functions ---------
 

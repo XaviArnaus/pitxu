@@ -76,7 +76,7 @@ class GeminiChatbot(PyXavi):
     DEFAULT_CHATBOT_NAME = "Pitxu"
 
     VERBOSE_DEBUG: bool = False
-    GENAI_LIB_LOG_LEVEL: int = logging.WARNING
+    GENAI_LIB_LOG_LEVEL: int = logging.INFO
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config = None, params: Dictionary = None):
@@ -84,6 +84,10 @@ class GeminiChatbot(PyXavi):
 
         if not self._xparams.key_exists("api_key") or self._xparams.get("api_key", None) is None:
             raise RuntimeError("API Key is mandatory")
+        
+        if not self._xparams.key_exists("language"):
+            raise RuntimeError("Language is mandatory")
+
         self.initialize()
 
     def initialize(self):
@@ -100,6 +104,18 @@ class GeminiChatbot(PyXavi):
 
         # define which is the main model (the one initially preferred, if available, and the one we want to use the most)
         self.MODEL_MAIN = self._xconfig.get("chatbot.model", self.MODEL_MAIN)
+    
+    def close(self):
+        self._xlog.info("Closing GeminiChatbot")
+
+        if (self._xconfig.get("chatbot.mock", True)):
+            self._xlog.warning("Chatbot is mocked, Not closing it.")
+            return
+
+        if self._session_manager is not None:
+            self._session_manager.close()
+
+        self._xlog.info("GeminiChatbot closed")
 
     def get_session_manager(self):
         return self._session_manager
@@ -204,7 +220,7 @@ class GeminiChatbot(PyXavi):
     
     async def ask_async(self, question: str) -> ChatbotResponse:
 
-            self._xlog.info("❓ Question: \n\n>> " + TerminalColor.RED_BRIGHT + question + TerminalColor.END + "\n")
+            self._xlog.info("❓ Question in Chatbot: \n\n>> " + TerminalColor.RED_BRIGHT + question + TerminalColor.END + "\n")
 
             if (self._xconfig.get("chatbot.mock", True)):
                 return ChatbotResponse(text="Chatbot is Mocked. Check the config.\nQuestion: " + question)

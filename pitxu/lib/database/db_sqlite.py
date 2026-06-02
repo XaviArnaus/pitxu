@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 import sqlite3
@@ -10,7 +10,7 @@ class DbSqlite(PyXavi):
     connection: sqlite3.Connection = None
     # Cursor for executing SQL commands. 
     # This is not thread-safe, so it should be created and used within the same thread.
-    cursor: sqlite3.Cursor = None
+    # cursor: sqlite3.Cursor = None
 
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_DB_PATH = "db/"
@@ -44,7 +44,7 @@ class DbSqlite(PyXavi):
         # Now place the connection and the cursor, and define the Row factory to have dict-like rows.
         self.connection = sqlite3.connect(db_filepath, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        self.cursor = self.connection.cursor()
+        # self.cursor = self.connection.cursor()
         self._xlog.debug(f"🗄️ Connected to SQLite database at {db_filepath}, and ready to hold queries.")
 
         self._log_debug("🗄️ SQLite initialization complete")
@@ -57,15 +57,32 @@ class DbSqlite(PyXavi):
         else:
             self._xlog.debug(f"🗄️ Database file {db_filepath} already exists. Using it.")
     
+    def close(self):
+        self._xlog.debug("🗄️ Closing SQLite database connection")
+
+        try:
+
+            # if self.cursor is not None:
+            #     self.cursor.close()
+            #     self._xlog.debug("🗄️ SQLite database cursor closed")
+
+            if self.connection is not None:
+                self.connection.close()
+                self._xlog.debug("🗄️ SQLite database connection closed")
+
+        except Exception as e:
+            self._xlog.error("🛑 Error while closing SQLite database connection: " + str(e))
+            self._xlog.debug(full_stack())
+    
     def migrate_db(self):
         """Run database migrations."""
 
         self._xlog.debug("🗄️ Running database migrations if needed")
 
         def get_script_version(path):
-            return int(path.split('_')[0].split('/')[1])
+            return int(path.split('_')[0].split('/')[-1])
 
-        current_version = self.cursor.execute('pragma user_version').fetchone()[0]
+        current_version = self.connection.cursor().execute('pragma user_version').fetchone()[0]
         self._xlog.debug(f"🗄️ Current database version: {current_version}")
 
         migrations_path = os.path.join("", self._xconfig.get("database.sqlite.migrations_path", self.DEFAULT_DB_MIGRATIONS_PATH))
@@ -77,7 +94,16 @@ class DbSqlite(PyXavi):
             if migration_version > current_version:
                 self._xlog.debug("🗄️ Applying migration {0}".format(migration_version))
                 with open(path, mode='r') as f:
-                    self.cursor.executescript(f.read())
+                    self.connection.cursor().executescript(f.read())
                     self._xlog.debug("🗄️ Database now at version {0}".format(migration_version))
             else:
                 self._xlog.debug("🗄️ Migration {0} already applied. Skipped.".format(migration_version))
+    
+# ISSUE:
+#
+# Apparently there is a memory leak when we interact with the STT and then close it.
+# If we don't interact with the STT the leak is not present.
+# It smells like when we plot the audio, some resources are not released. Also, interesting the name of the semaphore leaked:
+#
+# /Users/xarnaus/.pyenv/versions/3.13.11/lib/python3.13/multiprocessing/resource_tracker.py:400: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-p4q984wz'}
+#  warnings.warn(

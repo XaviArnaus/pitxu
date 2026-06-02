@@ -7,7 +7,7 @@ libs_logger:
     # GeminiChatbot, defaults to WARN
     gemini_chatbot:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
-        loglevel: 30
+        loglevel: 20
     # Flask, defaults to INFO
     flask:
         # [Integer] Log level: NOTSET=0 | DEBUG=10 | INFO=20 | WARN=30 | ERROR=40 | CRITICAL=50
@@ -97,12 +97,13 @@ logger:
         by_process:
             MainProcess: GREEN_BRIGHT
             Display: CYAN_BRIGHT
-            MatrixLed: MAGENTA_BRIGHT
+            MatrixLed: CYAN_BRIGHT
             Piper: YELLOW_BRIGHT
             TextToSpeech: YELLOW_BRIGHT
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
             Support: BLUE_BRIGHT
+            FWhisperStr: MAGENTA_BRIGHT
         by_thread:
             MainThread: GREEN_BRIGHT
             Thread-1: CYAN_BRIGHT

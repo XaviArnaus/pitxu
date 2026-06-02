@@ -41,7 +41,7 @@ class Text:
         Replaces known text patterns with their corresponding characters.
         '''
         for old, new in replacements.items():
-            text = text.replace(old, new)
+            text = text.replace(old.strip(), new.strip())
         return text
 
     @staticmethod
@@ -51,6 +51,13 @@ class Text:
         '''
         nfkd_form = unicodedata.normalize('NFKD', text)
         return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+    
+    @staticmethod
+    def remove_punctuation(text: str) -> str:
+        '''
+        Removes punctuation from the text.
+        '''
+        return re.sub(r'[^\w\s]', '', text)
 
 
 class Code:
