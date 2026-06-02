@@ -141,10 +141,12 @@ class CaptureHandler(PyXavi):
         if self.resampler is not None:
             del self.resampler
 
-        if self.shared_memory is not None:
-            self._xlog.debug("Closing Shared Memory from Capture Handler")
-            self.shared_memory.close()
-            del self.shared_memory
+        # COMMENTED: Shared memory should only be closed from XProcessPool.close() (so, by the Interaction.close()),
+        #   otherwise the memory is tried to be closed several times.
+        # if self.shared_memory is not None:
+        #     self._xlog.debug("Closing Shared Memory from Capture Handler")
+        #     self.shared_memory.close()
+        #     del self.shared_memory
 
         self._log_debug("🗣️ Done Closing Capture Handler for Speech-to-Text")
     

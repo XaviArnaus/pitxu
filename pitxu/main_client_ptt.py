@@ -806,7 +806,7 @@ class MainClientPTT(PyXavi):
             self._dictate.close()
 
         # Finish all related multiprocess stuff
-        self._interaction.get_process_pool().finish_leftover_processes()
+        self._interaction.get_process_pool().finish_processes_queues_and_shared_memory()
 
         # ------ Final logs ------
 

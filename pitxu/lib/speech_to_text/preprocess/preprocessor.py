@@ -310,10 +310,12 @@ class Preprocessor(PyXavi):
             # Does not belong to us, it got passed to us.
             del self.support_queue
         
-        if self.shared_memory is not None:
-            self._xlog.debug("Closing Shared Memory from Preprocessor")
-            self.shared_memory.close()
-            del self.shared_memory
+        # COMMENTED: Shared memory should only be closed from XProcessPool.close() (so, by the Interaction.close()),
+        #   otherwise the memory is tried to be closed several times.
+        # if self.shared_memory is not None:
+        #     self._xlog.debug("Closing Shared Memory from Preprocessor")
+        #     self.shared_memory.close()
+        #     del self.shared_memory
         
         self._log_debug("🎤 Done Closing Preprocess for Speech-to-Text")
     

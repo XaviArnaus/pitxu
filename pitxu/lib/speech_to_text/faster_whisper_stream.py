@@ -557,10 +557,12 @@ class FasterWhisperStream(PyXavi):
             self._xlog.debug("Closing Support process from FasterWhisper Stream and deleting it")
             del self._support
         
-        if self._shared_memory is not None:
-            self._xlog.debug("Closing Shared Memory from FasterWhisper Stream")
-            self._shared_memory.close()
-            del self._shared_memory
+        # COMMENTED: Shared memory should only be closed from XProcessPool.close() (so, by the Interaction.close()),
+        #   otherwise the memory is tried to be closed several times.
+        # if self._shared_memory is not None:
+        #     self._xlog.debug("Closing Shared Memory from FasterWhisper Stream")
+        #     self._shared_memory.close()
+        #     del self._shared_memory
         
         # Remember that FasterWhisper Stream is not active anymore
         self.is_active = False

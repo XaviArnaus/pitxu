@@ -256,6 +256,12 @@ class SharedMemoryManager(PyXavi):
                     self._xlog.debug(full_stack())
 
     def close(self):
+        """
+        Close the Shared Memory spaces by unlinking the shared memory objects.
+        This should be called when the application is closing to clean up resources.
+        Please call this ONLY FROM the XProcessPool.close() (so, by the Interaction.close()),
+        otherwise the memory is tried to be closed several times.
+        """
         if self._shared_memory_flags is not None:
             self._xlog.debug("Closing Shared Memory Flags")
             try:

@@ -553,34 +553,34 @@ class Main(PyXavi):
         # But we may have arrived here from within an exception, that leaves the app unusable.
         # So because we don't want to close the app we don't use the close_nicely() method, as it finishes the app, 
         #   but we want to try to recover a clean state to allow further interactions, we do some cleaning here.
-        try:
-            if we_are_in_error_state:
-                self._xlog.warning("🟠 We are in an error state. Trying now to recover a clean state to allow further interactions.")
+        # try:
+        #     if we_are_in_error_state:
+        #         self._xlog.warning("🟠 We are in an error state. Trying now to recover a clean state to allow further interactions.")
 
-                # Stop any interaction effects that may be still active, like the busy flags not related to subprocess (as they are handled by XProcess)
-                #   to allow the user to see them properly in the next interaction.
-                self._interaction.unset_chatbot_busy()
-                self._interaction.unset_transcriber_busy()
+        #         # Stop any interaction effects that may be still active, like the busy flags not related to subprocess (as they are handled by XProcess)
+        #         #   to allow the user to see them properly in the next interaction.
+        #         self._interaction.unset_chatbot_busy()
+        #         self._interaction.unset_transcriber_busy()
 
-                # Same for the queues, just clean them all.
-                self._interaction.get_process_pool().force_all_queues_to_empty()
+        #         # Same for the queues, just clean them all.
+        #         self._interaction.get_process_pool().force_all_queues_to_empty()
 
-                # Now we clean the displays, to remove any possible stuck display that may be still there from the previous interaction.
-                self.clear_displays()
+        #         # Now we clean the displays, to remove any possible stuck display that may be still there from the previous interaction.
+        #         self.clear_displays()
 
-                # And tell the app that this is the end of an interaction, to allow the interaction mecanisms.
-                self.reset_last_interaction_event_mark()
+        #         # And tell the app that this is the end of an interaction, to allow the interaction mecanisms.
+        #         self.reset_last_interaction_event_mark()
 
-                # Turn on the microphone again, just in case, to allow the user to try again.
-                self._interaction.unmute_microphone(input_stream=self._input_stream)
+        #         # Turn on the microphone again, just in case, to allow the user to try again.
+        #         self._interaction.unmute_microphone(input_stream=self._input_stream)
 
-        except Exception as e:
-            if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected while recovering from an error state, but pitxu is inactive, so ignoring it: " + str(e))
-                self._xlog.error(full_stack())
-                return
-            self._xlog.error("🛑 Error in Main run callback, when recovering from an error state: " + str(e))
-            self._xlog.error(full_stack())
+        # except Exception as e:
+        #     if not self._is_pitxu_active:
+        #         self._xlog.warning("🛑 Exception detected while recovering from an error state, but pitxu is inactive, so ignoring it: " + str(e))
+        #         self._xlog.error(full_stack())
+        #         return
+        #     self._xlog.error("🛑 Error in Main run callback, when recovering from an error state: " + str(e))
+        #     self._xlog.error(full_stack())
 
 
     # ------------- End of the main method run() -------------
@@ -697,16 +697,26 @@ class Main(PyXavi):
             self._interaction.set_idle_mode_off()
 
         # Clear the displays
+        # ⚠️ It does nothing
         self.clear_displays()
+        self._interaction.wait_for_background_display_queue_to_empty()
+        self._interaction.wait_for_foreground_display_queue_to_empty()
+        self._interaction.wait_for_busy_background_display_to_idle()
+        self._interaction.wait_for_busy_foreground_display_to_idle()
 
         # Close the Support class, which empties the queue discarding all actions there
+        # Support is used by:
+        #   - STT -> STT Process -> Preprocessor -> Support (independent instance)
+        #   - Main -> Chatbot Session Manager -> tool callback -> Memory Util -> Support
+        #   - Main -> Support
         if self._support is not None:
             self._support.close()
 
         # Wait for all the queues and processes to get empty
-        self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
-        self._interaction.wait_for_all_queues_to_empty()
-        self._interaction.wait_for_all_busy_processes_to_idle()
+        # COMMENTED: We do it anywaus at the end by closing the interaction.
+        # self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
+        # self._interaction.wait_for_all_queues_to_empty()
+        # self._interaction.wait_for_all_busy_processes_to_idle()
 
         # Stop the Chatbot Session Manager.
         if self._chatbot_session_manager is not None:
@@ -734,7 +744,15 @@ class Main(PyXavi):
             self._dictate.close()
 
         # Finish all related multiprocess stuff
-        self._interaction.get_process_pool().finish_leftover_processes()
+        # Take in account that a Control + C may have killed some of the processes already,
+        #   so check somehow if any of the following is still alive before sending a FINISH to a queue that does not exist anymore.
+        except_queue_names = []
+        for name in self._interaction.get_process_pool().list_of_processes():
+            process = self._interaction.get_process_pool().get_process(name)
+            if process is None or not process.is_alive():
+                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
+                except_queue_names.append(name)
+        self._interaction.get_process_pool().finish_processes_queues_and_shared_memory(except_queue_names=except_queue_names)
 
         # Finish interactions and related processes
         self._interaction.close()
