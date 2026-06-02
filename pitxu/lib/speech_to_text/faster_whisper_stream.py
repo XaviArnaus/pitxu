@@ -519,13 +519,13 @@ class FasterWhisperStream(PyXavi):
         self._xlog.info("Closing FasterWhisper Stream STT")
 
         if self._worker_thread is not None and self._worker_thread.is_alive():
-            self._xlog.debug("Waiting for FasterWhisper Stream worker thread to finish...")
+            self._xlog.debug("Waiting for FasterWhisper Stream thread to finish...")
             self.is_active = False
             self._worker_thread.join(timeout=2)
             if self._worker_thread.is_alive():
-                self._xlog.warning("FasterWhisper Stream worker thread did not finish in time, it may be stuck. Moving on with closing.")
+                self._xlog.warning("FasterWhisper Stream thread did not finish in time, it may be stuck. Moving on with closing.")
             else:
-                self._xlog.debug("FasterWhisper Stream worker thread finished successfully.")
+                self._xlog.debug("FasterWhisper Stream thread finished successfully.")
         
         if self._faster_whisper_stream_process is not None:
             self._xlog.debug("Closing FasterWhisper Stream process and deleting it")
@@ -553,9 +553,11 @@ class FasterWhisperStream(PyXavi):
             self._xlog.debug("Deleting FasterWhisper Stream silence input queue")
             del self.silence_input_queue
         
-        if self._support is not None:
-            self._xlog.debug("Closing Support process from FasterWhisper Stream and deleting it")
-            del self._support
+        # COMMENTED: The Support class is passed through params, so it does not belong to the FasterWhisperStream,
+        # and it should be closed and deleted from the Main, as it's shared between several components.
+        # if self._support is not None:
+        #     self._xlog.debug("Closing Support process from FasterWhisper Stream and deleting it")
+        #     del self._support
         
         # COMMENTED: Shared memory should only be closed from XProcessPool.close() (so, by the Interaction.close()),
         #   otherwise the memory is tried to be closed several times.

@@ -704,14 +704,6 @@ class Main(PyXavi):
         self._interaction.wait_for_busy_background_display_to_idle()
         self._interaction.wait_for_busy_foreground_display_to_idle()
 
-        # Close the Support class, which empties the queue discarding all actions there
-        # Support is used by:
-        #   - STT -> STT Process -> Preprocessor -> Support (independent instance)
-        #   - Main -> Chatbot Session Manager -> tool callback -> Memory Util -> Support
-        #   - Main -> Support
-        if self._support is not None:
-            self._support.close()
-
         # Wait for all the queues and processes to get empty
         # COMMENTED: We do it anywaus at the end by closing the interaction.
         # self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
@@ -742,7 +734,7 @@ class Main(PyXavi):
         # Close STT
         if self._dictate is not None:
             self._dictate.close()
-
+        
         # Finish all related multiprocess stuff
         # Take in account that a Control + C may have killed some of the processes already,
         #   so check somehow if any of the following is still alive before sending a FINISH to a queue that does not exist anymore.
@@ -752,7 +744,21 @@ class Main(PyXavi):
             if process is None or not process.is_alive():
                 self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
                 except_queue_names.append(name)
-        self._interaction.get_process_pool().finish_processes_queues_and_shared_memory(except_queue_names=except_queue_names)
+        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+
+        # Close the Support class.
+        # Support is used by:
+        #   1. Main -> Support (main instance)
+        #   2. STT -> Support (main instance, passed via params)
+        #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
+        # How are they closed?
+        #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
+        #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
+        if self._support is not None:
+            self._support.close()
+        
+        self._xlog.debug("Closing Shared Memory Manager")
+        self._interaction.get_process_pool().get_memory_manager().close()
 
         # Finish interactions and related processes
         self._interaction.close()

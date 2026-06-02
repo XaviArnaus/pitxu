@@ -460,7 +460,7 @@ class Main(PyXavi):
             self._dictate.close()
 
         # Finish all related multiprocess stuff
-        self._interaction.get_process_pool().finish_processes_queues_and_shared_memory()
+        self._interaction.get_process_pool().finish_processes_and_queues()
 
         # Finish interactions and related processes
         self._interaction.close()

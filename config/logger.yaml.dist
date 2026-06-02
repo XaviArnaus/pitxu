@@ -103,7 +103,7 @@ logger:
             Lcd: ORANGE_BRIGHT
             DsiLcd: ORANGE_BRIGHT
             Support: BLUE_BRIGHT
-            FasterWhisperStream: MAGENTA_BRIGHT
+            FWhisperStr: MAGENTA_BRIGHT
         by_thread:
             MainThread: GREEN_BRIGHT
             Thread-1: CYAN_BRIGHT

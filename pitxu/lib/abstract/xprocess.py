@@ -108,17 +108,14 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 #   is done or when we call join() from main.
                 # Still, we leave it so we have the tool for whatever other reason.
                 if action == XprocAction.FINISH:
+                    self._log_debug("Performing the finish() for process [" + self._PROCESS_NAME + "] from the SubProcess")
                     self.finish()
                 
                 # Removing the current action
                 self._current_action = None
                 
                 # Finally, we mark this task as done
-                try:
-                    # In the queue
-                    self._queue.task_done()
-                except ValueError:
-                    pass
+                self.mark_input_queue_task_as_done()
 
                 # We're not busy anymore
                 self.unset_busy()
@@ -130,7 +127,13 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             self._xlog.error("🛑 EOFError detected in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
         except Exception as e:
             self._xlog.error("🛑 Unexpected Error in Xprocess " + self._PROCESS_NAME + " run(): " + str(e))
-            self._xlog.error(full_stack())
+            self._xlog.debug(full_stack())
+    
+    def mark_input_queue_task_as_done(self):
+        try:
+            self._queue.task_done()
+        except ValueError:
+            pass
     
     def ensure_nice_string(self, value: any) -> str:
         try:

@@ -267,7 +267,7 @@ class XprocessPool(PyXavi):
             return -1
         return self._shared_flags_per_queue[queue]
     
-    def finish_processes_queues_and_shared_memory(self, except_queue_names: list[str] = None):
+    def finish_processes_and_queues(self, except_queue_names: list[str] = None):
         # We can't join() child processes unless all queues get totally consumed.
 
         # 1. Send a "finish" to the children. Needs the queue.
@@ -276,6 +276,7 @@ class XprocessPool(PyXavi):
         # ...so they can close dependencies.
         self._xlog.debug("Waiting for all queues to empty before finishing")
         self.wait_for_all_queues_to_empty(except_queue_names=except_queue_names)
+        self.get_memory_manager().wait_for_all_busy_process_to_idle()
 
         # 2. Clean and close the queues, apparently better from the one that put().
         self._xlog.debug("Empty and close queues")
@@ -291,8 +292,10 @@ class XprocessPool(PyXavi):
         self.terminate_all_processes()
         
         # Close the Shared Memory Manager
-        self._xlog.debug("Closing Shared Memory Manager")
-        self._shared_memory.close()
+        # COMMENTED: The Shared memory needs to be closed independently from Main, nearly the last thing to do.
+        #   We have other Sub Process to close, that also rely on Shared Memory, but do not depend in the XProcessPool.
+        # self._xlog.debug("Closing Shared Memory Manager")
+        # self._shared_memory.close()
     
     def terminate_all_processes(self):
         for name, process in self._process.items():

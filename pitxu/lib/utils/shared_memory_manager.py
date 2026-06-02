@@ -58,7 +58,8 @@ class SharedMemoryManager(PyXavi):
         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold"
     }
 
-    WAITING_SLEEP_SECONDS = 0.01
+    WAITING_SLEEP_SECONDS: float = 0.01
+    WAITING_FOR_QUEUES_TIMEOUT_SECONDS: int = 5
 
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
@@ -217,19 +218,37 @@ class SharedMemoryManager(PyXavi):
             "Current processes busy flags", 
             [(name, "BUSY" if self.read_shared_memory_flag(flag) else "IDLE") for name, flag in self._shared_flags.items()])
         total_sleeping = 0
+        start_time = time.time()
+        forced_break = False
         while any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()):
+            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+                self._xlog.error("Timeout reached while waiting for all processes to idle.")
+                forced_break = True
+                break
             total_sleeping += self.WAITING_SLEEP_SECONDS
             time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug("All processes are idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        if not forced_break:
+            self._xlog.debug("All processes are idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        else:
+            self._xlog.debug("Forced break after sleeping for " + str(round(total_sleeping, 2)) + "s while waiting for all processes to idle.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
         self._xlog.debug(f"Waiting for the process {memory_position_name} to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
         total_sleeping = 0
+        start_time = time.time()
+        forced_break = False
         while self.read_shared_memory_flag(memory_position):
+            if time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
+                self._xlog.error(f"Timeout reached while waiting for process {memory_position_name} to idle.")
+                forced_break = True
+                break
             total_sleeping += self.WAITING_SLEEP_SECONDS
             time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug(f"The process {memory_position_name} is idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        if not forced_break:
+            self._xlog.debug(f"The process {memory_position_name} is idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        else:
+            self._xlog.debug(f"Forced break after sleeping for " + str(round(total_sleeping, 2)) + f"s while waiting for process {memory_position_name} to idle.")
     
     def wait_for_busy_process_to_be_busy(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")

@@ -123,6 +123,9 @@ class ChatbotSessionManager(PyXavi):
         for key in list(self.session_handlers.keys()):
             del self.session_handlers[key]
         
+        self._xlog.debug("ChatbotSessionManager: Closing ChatbotSessionManager itself.")
+        await self.close()
+        
         self._xlog.debug("ChatbotSessionManager: Closed.")
     
     def get_client_callbacks_by_function_name(self) -> dict[str, callable]:

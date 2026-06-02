@@ -107,7 +107,7 @@ class FasterWhisperStreamProcess(Xprocess):
     VERBOSE_DEBUG: bool = True
 
     def get_process_name(self) -> str:
-        return "FasterWhisperStream"
+        return "FWhisperStr"
 
     def initialize(self):
         self._xlog.info("Initializing FasterWhisperStream Worker")
@@ -239,12 +239,16 @@ class FasterWhisperStreamProcess(Xprocess):
         return hot_words
         
     def finish(self):
-        self._log_debug("Done finishing FasterWhisperStream Worker")
+        self._log_debug("Finishing FasterWhisperStream Worker")
 
-        if self._model is not None:
-            self._xlog.debug("Deleting FasterWhisper Stream model")
-            del self._model
-        
+        # Remember that FasterWhisper Stream is not active anymore
+        self.is_active = False
+
+        if self._preprocessor is not None:
+            self._xlog.debug("Deleting STT preprocessor")
+            self._preprocessor.close()
+            del self._preprocessor
+
         if self._output_queue is not None:
             self._xlog.debug("Deleting FasterWhisper Stream output queue")
             del self._output_queue
@@ -252,11 +256,10 @@ class FasterWhisperStreamProcess(Xprocess):
         if self._sentinel_output_queue is not None:
             self._xlog.debug("Deleting FasterWhisper Stream sentinel output queue")
             del self._sentinel_output_queue
-        
-        if self._preprocessor is not None:
-            self._xlog.debug("Deleting STT preprocessor")
-            self._preprocessor.close()
-            del self._preprocessor
+
+        if self._model is not None:
+            self._xlog.debug("Deleting FasterWhisper Stream model")
+            del self._model
         
         # COMMENTED: Shared memory should only be closed from XProcessPool.close() (so, by the Interaction.close()),
         #   otherwise the memory is tried to be closed several times.
@@ -265,9 +268,7 @@ class FasterWhisperStreamProcess(Xprocess):
         #     self._shared_memory.close()
         #     del self._shared_memory
 
-        # Remember that FasterWhisper Stream is not active anymore
-        self.is_active = False
-
+        
         self._xlog.debug("Done finishing FasterWhisperStream Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):

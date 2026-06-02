@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 import sqlite3
@@ -59,11 +59,20 @@ class DbSqlite(PyXavi):
     
     def close(self):
         self._xlog.debug("🗄️ Closing SQLite database connection")
-        if self.connection is not None:
-            self.connection.close()
-            self._xlog.debug("🗄️ SQLite database connection closed")
-        else:
-            self._xlog.warning("🗄️ No SQLite database connection to close")
+
+        try:
+
+            if self.cursor is not None:
+                self.cursor.close()
+                self._xlog.debug("🗄️ SQLite database cursor closed")
+
+            if self.connection is not None:
+                self.connection.close()
+                self._xlog.debug("🗄️ SQLite database connection closed")
+
+        except Exception as e:
+            self._xlog.error("🛑 Error while closing SQLite database connection: " + str(e))
+            self._xlog.debug(full_stack())
     
     def migrate_db(self):
         """Run database migrations."""

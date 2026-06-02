@@ -310,5 +310,6 @@ class Maintenance(PyXavi):
             memory = Memory(config=self._xconfig, params=self._xparams)
             memory.preload_memory()
             self._xlog.info("⚙️  Memory preloaded successfully.")
+            memory.close()
         except Exception as e:
             self._xlog.error(f"⚙️  Error preloading Memory: {e}")

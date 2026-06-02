@@ -94,6 +94,7 @@ class Util(PyXavi):
         from pitxu.lib.utils.memory import Memory
         memory = Memory(config=self._xconfig, params=self._xparams)
         memory.db.migrate_db()
+        memory.close()
     
     def util_import_old_memory(self):
         """
@@ -139,3 +140,5 @@ class Util(PyXavi):
         except Exception as e:
             self._xlog.error(f"Unexpected error during old memory import: {str(e)}")
             self._xlog.debug(full_stack())
+        finally:
+            memory.close()
