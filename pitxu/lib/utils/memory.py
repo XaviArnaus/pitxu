@@ -86,18 +86,18 @@ class Memory(PyXavi):
         if created_at is None:
             created_at = Xtime.now().isoformat()
         
-        self.db.cursor.execute(f"INSERT INTO {table_name} (summary, content, created_at) VALUES (?, ?, ?)", 
+        self.db.connection.cursor().execute(f"INSERT INTO {table_name} (summary, content, created_at) VALUES (?, ?, ?)", 
             (summary, content, created_at))
         self.db.connection.commit()
 
-        id = int(self.db.cursor.lastrowid)
+        id = int(self.db.connection.cursor().lastrowid)
         return self.get_by_id(table_name, id)
     
     def get_by_date(self, table_name: str, date_str: str) -> list:
         # Convert the date string into a datetime in isoformat, that is what SQLite wants.
         date = Xtime.str_to_datetime(date_str, "%Y-%m-%d").date().isoformat()
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE DATE(created_at) = ?", (date,))
-        rows = self.db.cursor.fetchall()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE DATE(created_at) = ?", (date,))
+        rows = self.db.connection.cursor().fetchall()
         entries = []
         for row in rows:
             entry = {
@@ -111,8 +111,8 @@ class Memory(PyXavi):
     
     def get_by_datetime(self, table_name: str, datetime_str: str) -> list:
         target_datetime = Xtime.str_to_datetime(datetime_str).isoformat()
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE created_at = ?", (target_datetime,))
-        rows = self.db.cursor.fetchall()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE created_at = ?", (target_datetime,))
+        rows = self.db.connection.cursor().fetchall()
         entries = []
         for row in rows:
             entry = {
@@ -126,8 +126,8 @@ class Memory(PyXavi):
     
     def get_by_id(self, table_name: str, entry_id: int) -> dict | None:
         
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE id = ?", (entry_id,))
-        row = self.db.cursor.fetchone()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE id = ?", (entry_id,))
+        row = self.db.connection.cursor().fetchone()
         if row:
             entry = {
                 "id": row["id"],
@@ -139,8 +139,8 @@ class Memory(PyXavi):
         return None
     
     def get_by_exact_summary(self, table_name: str, summary: str) -> list[dict] | None:
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) = ?", (summary.lower(),))
-        rows = self.db.cursor.fetchall()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) = ?", (summary.lower(),))
+        rows = self.db.connection.cursor().fetchall()
         entries = []
         for row in rows:
             entry = {
@@ -155,8 +155,8 @@ class Memory(PyXavi):
         return None
     
     def get_by_summary_like(self, table_name: str, summary: str) -> list[dict] | None:
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) LIKE ?", ('%' + summary.lower() + '%',))
-        rows = self.db.cursor.fetchall()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} WHERE LOWER(summary) LIKE ?", ('%' + summary.lower() + '%',))
+        rows = self.db.connection.cursor().fetchall()
         entries = []
         for row in rows:
             entry = {
@@ -171,8 +171,8 @@ class Memory(PyXavi):
         return None
     
     def get_last_entries(self, table_name: str, limit: int = 1) -> list[dict] | None:
-        self.db.cursor.execute(f"SELECT id, summary, content, created_at FROM {table_name} ORDER BY created_at DESC LIMIT ?", (limit,))
-        rows = self.db.cursor.fetchall()
+        self.db.connection.cursor().execute(f"SELECT id, summary, content, created_at FROM {table_name} ORDER BY created_at DESC LIMIT ?", (limit,))
+        rows = self.db.connection.cursor().fetchall()
         entries = []
         for row in rows:
             entry = {
@@ -196,7 +196,7 @@ class Memory(PyXavi):
         if content is not None:
             entry["content"] = content
         
-        self.db.cursor.execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
+        self.db.connection.cursor().execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
             (entry["summary"], entry["content"], entry_id))
         self.db.connection.commit()
 
@@ -213,7 +213,7 @@ class Memory(PyXavi):
         if content is not None:
             last_entry["content"] = content
         
-        self.db.cursor.execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
+        self.db.connection.cursor().execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?", 
             (last_entry["summary"], last_entry["content"], last_entry["id"]))
         self.db.connection.commit()
 

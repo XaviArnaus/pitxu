@@ -45,11 +45,15 @@ class Support(PyXavi):
     def close(self):
         self._xlog.info("Closing Support class")
 
-        # COMMENTED: Hey! the Support Process is included in the Process Pool!
-        # self._log_debug("Sending finish action to Support process")
-        # self.process_pool.send(QUEUE_SUPPORT, XprocAction.FINISH)
-        # self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
-        # self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
+        if self.input_queue is not None:
+            self._log_debug("Joining Support input queue")
+            self.input_queue.join()
+            del self.input_queue
+        
+        if self.output_queue is not None:
+            self._log_debug("Joining Support output queue")
+            self.output_queue.join()
+            del self.output_queue
 
         self._xlog.info("Support class closed")
     

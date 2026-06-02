@@ -251,6 +251,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
         if self._output_queue is not None:
             self._xlog.debug("Deleting FasterWhisper Stream output queue")
+            self._output_queue.join()
             del self._output_queue
         
         if self._sentinel_output_queue is not None:

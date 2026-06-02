@@ -65,6 +65,14 @@ class XprocessPool(PyXavi):
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
         # available in Mac.
         set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility. Works in RPi5
+    
+    def close(self):
+        self._xlog.debug("Closing XprocessPool")
+
+        self._log_debug("Close the Manager that creates the queues")
+        self._manager.shutdown()
+
+        self._xlog.info("XprocessPool closed")
 
     def add(self, name: str, process: Xprocess):
         self._xlog.debug("Adding process [" + name + "] to the pool")
@@ -302,23 +310,46 @@ class XprocessPool(PyXavi):
             cleaned_process_name = name.replace("_queue", "")
             self._xlog.debug("Subprocess [" + cleaned_process_name + "] still alive? " + ("Yes" if process.is_alive() else "No"))
             if process.is_alive():
-                self._xlog.debug("Terminating Process [" + cleaned_process_name + "]")
+                self._xlog.debug("Terminating and Joining Process [" + cleaned_process_name + "]")
                 process.terminate()
+                process.join(timeout=5)
+                process.close()
     
     def join_all_queues(self):
+        # Input queues
         for name, queue in self._queue.items():
             if queue is not None:
                 try:
-                    self._xlog.debug("Joining queue [" + name + "]")
+                    self._xlog.debug("Joining input queue [" + name + "]")
                     queue.join()
+                except ValueError:  # in case of closed
+                    pass
+                except BrokenPipeError:  # in case of closed
+                    pass
+        # Output queues
+        for name, process in self._process.items():
+            if hasattr(process, "_output_queue") and process._output_queue is not None:
+                try:
+                    cleaned_process_name = name.replace("_queue", "")
+                    self._xlog.debug("Joining output queue of process [" + cleaned_process_name + "]")
+                    process._output_queue.join()
+                except ValueError:  # in case of closed
+                    pass
                 except BrokenPipeError:  # in case of closed
                     pass
     
     def force_all_queues_to_empty(self):
+        # Input queues
         for name, queue in self._queue.items():
             if queue is not None:
-                self._xlog.debug(f"Forcing queue [{name}] to empty")
+                self._xlog.debug(f"Forcing input queue [{name}] to empty")
                 self.force_queue_to_empty(queue)
+        # Output queues
+        for name, process in self._process.items():
+            if hasattr(process, "_output_queue") and process._output_queue is not None:
+                cleaned_process_name = name.replace("_queue", "")
+                self._xlog.debug(f"Forcing output queue of process [{cleaned_process_name}] to empty")
+                self.force_queue_to_empty(process._output_queue)
     
     def force_queue_to_empty(self, queue: JoinableQueue):
         '''

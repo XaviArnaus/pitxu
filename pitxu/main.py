@@ -704,24 +704,9 @@ class Main(PyXavi):
         self._interaction.wait_for_busy_background_display_to_idle()
         self._interaction.wait_for_busy_foreground_display_to_idle()
 
-        # Wait for all the queues and processes to get empty
-        # COMMENTED: We do it anywaus at the end by closing the interaction.
-        # self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
-        # self._interaction.wait_for_all_queues_to_empty()
-        # self._interaction.wait_for_all_busy_processes_to_idle()
-
         # Stop the Chatbot Session Manager.
         if self._chatbot_session_manager is not None:
             asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            # future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            # try:
-            #     if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
-            #         self._xlog.info("Chatbot Session Manager closed successfully.")
-            #     else:
-            #         self._xlog.warning("Chatbot Session Manager did not close successfully.")
-            # except Exception as e:
-            #     self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
-            #     self._xlog.error("🛑 " + full_stack())
 
         # Close the server
         if self._server is not None:

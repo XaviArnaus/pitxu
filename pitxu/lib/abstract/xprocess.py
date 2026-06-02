@@ -48,7 +48,7 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
             raise ValueError("Xprocess [" + self._PROCESS_NAME + "] requires a busy_flag index, got None.")
         self._busy_flag = busy_flag
 
-        super(Xprocess, self).__init__()
+        super(Xprocess, self).__init__(daemon=True)
 
     def get_queue(self) -> JoinableQueue:
         return self._queue
