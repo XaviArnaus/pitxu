@@ -3,6 +3,7 @@ from functools import partial
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
@@ -30,6 +31,7 @@ class CaptureHandler(PyXavi):
     on_vad_detected_ongoing_callback: callable = None
     on_vad_detected_finished_callback: callable = None
     main_event_loop: asyncio.AbstractEventLoop = None
+    stt_state_machine: SttStateMachine = None
 
     is_active: bool = True
 
@@ -42,6 +44,12 @@ class CaptureHandler(PyXavi):
         super(CaptureHandler, self).init_pyxavi(config=config, params=params)
     
         self._xlog.info("🗣️ Initializing Capture Handler for Speech-to-Text")
+
+        # Get the STT State Machine from params, fail otherwise.
+        if self._xparams.key_exists("stt_state_machine"):
+            self.stt_state_machine = self._xparams.get("stt_state_machine")
+        else:
+            raise ValueError("No STT State Machine provided in params to FasterWhisperStream class")
 
         # Get the capture queue from params, fail otherwise.
         if params.key_exists("capture_queue"):
@@ -214,6 +222,10 @@ class CaptureHandler(PyXavi):
         if not self.is_active:
             self._xlog.debug("🗣️ VAD detected speech start, but CaptureHandler is not active, ignoring.")
             return
+        
+        if not self.stt_state_machine.is_valid_expected_current_state(TrascriptionState.IDLE):
+            self._xlog.warning(f"🟠 VAD detected speech start but the current state is not IDLE: {self.stt_state_machine.get_transcription_state()}")
+            return
 
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_vad_detected()
@@ -234,6 +246,10 @@ class CaptureHandler(PyXavi):
         if not self.is_active:
             self._xlog.debug("🗣️ VAD detected speech chunk, but CaptureHandler is not active, ignoring.")
             return
+        
+        if not self.stt_state_machine.is_valid_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+            self._xlog.warning(f"🟠 VAD detected speech chunk but current state is {self.stt_state_machine.get_transcription_state()}. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}. Ignoring this chunk.")
+            return
 
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
         if self.add_timestamps_to_chunks:
@@ -251,6 +267,10 @@ class CaptureHandler(PyXavi):
     def vad_on_speech_end(self):
         if not self.is_active:
             self._xlog.debug("🗣️ VAD detected speech end, but CaptureHandler is not active, ignoring.")
+            return
+        
+        if not self.stt_state_machine.is_valid_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+            self._xlog.warning(f"🟠 VAD detected speech end but current state is {self.stt_state_machine.get_transcription_state()}. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}. Ignoring this event.")
             return
 
         self._xlog.debug("🗣️ VAD detected speech end")

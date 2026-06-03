@@ -15,6 +15,7 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse
@@ -55,6 +56,8 @@ class Main(PyXavi):
     _dictate = None
     _raw_input_stream: sounddevice.RawInputStream = None
     _capture_handler: CaptureHandler = None
+    _stt_state_machine: SttStateMachine = None
+
 
     _is_pitxu_active: bool = True
     _current_start_timestamp: str = None
@@ -865,6 +868,9 @@ class Main(PyXavi):
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
                          f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
+        
+        # Initialise the STT State Machine
+        self._stt_state_machine = SttStateMachine(config=self._xconfig, params=Dictionary())
 
         if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
             # Use the Vosk engine. 
@@ -925,6 +931,7 @@ class Main(PyXavi):
 
             self._dictate = FasterWhisperStream(config=self._xconfig, params=Dictionary({
                 "support": self._support,
+                "stt_state_machine": self._stt_state_machine,
                 "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
                 "main_event_loop": asyncio.get_event_loop(),
                 "language": self._xparams.get("language"),
@@ -966,7 +973,10 @@ class Main(PyXavi):
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
             "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
-            "main_event_loop": asyncio.get_event_loop()
+            "main_event_loop": asyncio.get_event_loop(),
+
+            # The STT State Machine that controls transcription state transitions.
+            "stt_state_machine": self._stt_state_machine,
         }))
 
         # # Initialise the Raw Input Stream for microphone
