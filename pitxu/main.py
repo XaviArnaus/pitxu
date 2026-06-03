@@ -1368,6 +1368,7 @@ class Main(PyXavi):
                 seconds_since_last_interaction = self.get_seconds_since_last_interaction()
                 # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
             
+                transcriber_is_busy = False
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
 
@@ -1377,17 +1378,23 @@ class Main(PyXavi):
                         # The transcriber still didn't finish inferring the speech.
                         self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                         self._last_interaction_paused_seconds += 1
+                        transcriber_is_busy = True
                     else:
                         # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
                         self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
                     
-                    # Display it.
-                    if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
-                        self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
-                        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                    if not transcriber_is_busy:
+                        # Display it.
+                        if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
+                            self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
+                            self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                        else:
+                            self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     else:
-                        self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                        # If the transcriber is busy, we don't show the percentage.
+                        # TODO: Show here anything instead.
+                        pass
 
                 elif self._last_processed_interaction_percentage >= 0:
                     # We are meant to clean the display.
