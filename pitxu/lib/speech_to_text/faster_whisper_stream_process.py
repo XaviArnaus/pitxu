@@ -594,7 +594,7 @@ class FasterWhisperStreamProcess(Xprocess):
         Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
         """
         self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
-        silent_chunk = self._generate_silent_audio_chunk(sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
+        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
         self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
         self._log_debug("Faster Whisper model warmed up successfully.")
 

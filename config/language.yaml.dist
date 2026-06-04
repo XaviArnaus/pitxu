@@ -20,10 +20,10 @@ language:
     de: ["tschüss", "beenden", "ende"]
   # [String] Warm up question. Should be simple and without using external tools
   warmup_question: 
-    ca: "Reconeix que estàs llest, i consulta la hora del sistema."
-    es: "Reconoce que estás listo, y consulta la hora del sistema."
-    en-us: "Acknowledge that you are ready, and check the system time."
-    de: "Bestätige, dass du bereit bist, und überprüfe die Systemzeit."
+    ca: "Reconeix que estàs llest, i recupera les últimes 5 entrades de memòria per agafar context."
+    es: "Reconoce que estás listo, y recupera las últimas 5 entradas de memoria para obtener contexto."
+    en-us: "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context."
+    de: "Bestätige, dass du bereit bist, und rufe die letzten 5 Speicher-Einträge ab, um Kontext zu erhalten."
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"
