@@ -55,17 +55,14 @@ class Main(PyXavi):
     _chatbot: GeminiChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate = None
-    # _raw_input_stream: sounddevice.RawInputStream = None
     _capture_handler: CaptureHandler = None
     _stt_state_machine: SttStateMachine = None
-
 
     _is_pitxu_active: bool = True
     _current_start_timestamp: str = None
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
-    _input_stream: sounddevice.RawInputStream = None
     _threaded_input_stream: ThreadedInputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
@@ -160,7 +157,6 @@ class Main(PyXavi):
 
             # Initialize the Reactions class
             self._interaction.show_init_phases(8, text="⚡️ Reactions")
-            # self._initialize_reactions(input_stream=self._input_stream)
             self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
@@ -184,7 +180,6 @@ class Main(PyXavi):
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
             self.reset_last_interaction_event_mark()
-            # self._interaction.unmute_microphone(input_stream=self._input_stream)
             self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
             # At this point, all initialisations are done.
@@ -341,7 +336,6 @@ class Main(PyXavi):
         we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
-        # self._interaction.mute_microphone(input_stream=self._input_stream)
         self._interaction.mute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
         try:
@@ -374,7 +368,6 @@ class Main(PyXavi):
                 # Nothing recognized, nothing to process.
 
                 # We unmute the microphone to let the user try again.
-                # self._interaction.unmute_microphone(input_stream=self._input_stream)
                 self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
@@ -523,7 +516,6 @@ class Main(PyXavi):
                 self.reset_last_interaction_event_mark()
 
             # Unmute microphone to continue listening
-            # self._interaction.unmute_microphone(input_stream=self._input_stream)
             self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
@@ -991,23 +983,6 @@ class Main(PyXavi):
             "stt_state_machine": self._stt_state_machine,
         }))
 
-        # # Initialise the Raw Input Stream for microphone
-        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
-        # if self._xconfig.get("speech_to_text.mock", True) is False:
-        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
-        #     # Correct format for Vosk is PCM 16khz 16bit mono
-        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
-        #                     blocksize = 0, 
-        #                     device=self._dictate.device,
-        #                     dtype="int16", 
-        #                     channels=1,
-        #                     callback=self._dictate.callback)
-        # else:
-        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
-
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
         self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
@@ -1056,50 +1031,13 @@ class Main(PyXavi):
     def _instantiate_input_stream(self):
         """
         Initialization of the Raw Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
+        It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
         """
 
-        use_threading = True
-
-        if use_threading:
-
-            self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
-                "audio_parameters": self._audio_parameters,
-                "capture_handler_callback": self._capture_handler.callback,
-            }))
-
-        else:
-            # This is the samplerate that generates the chunks received in CaptureHandler.callback().
-            #   In MacOS the microphone can't be set to an arbitrary samplerate that fits on us, so
-            #   the config value for it must be -1 so that it gets inferred by de library.
-            # Then the CaptureHeader will resample it to 16 kHz, and that's why the rest of components work
-            #   under 16 kHz.
-            # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
-            # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
-            samplerate = self._audio_parameters.get("input_samplerate")
-            blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
-            device = self._xparams.get("audio_parameters.input_device", None)
-
-            self._xlog.debug("Initialising the Raw Input Stream for microphone")
-            self._input_stream = sounddevice.RawInputStream(
-                                #samplerate=self._dictate.samplerate,
-                                # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
-                                samplerate=samplerate,
-                                # blocksize=0, 
-                                blocksize=blocksize,
-                                device=device,
-                                dtype="int16", 
-                                channels=1,
-                                # callback=self._dictate.callback) as input_stream:
-                                callback=self._capture_handler.callback)
-            
-            self.log_summary("Raw Input Stream (Mic) initialized", [
-                        ("Device", device),
-                        ("Sample Rate", samplerate),
-                        ("Block Size", blocksize if blocksize > 0 else "0 (automatic by pyAudio)"),
-                        ("Channels", 1),
-                        ("Data Type", "int16"),
-                        ("Callback", "CaptureHandler.callback")
-                    ])
+        self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
+            "audio_parameters": self._audio_parameters,
+            "capture_handler_callback": self._capture_handler.callback,
+        }))
     
     async def _initialize_chatbot(self):
         """
@@ -1173,7 +1111,8 @@ class Main(PyXavi):
         self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
         # EVERY MINUTE
-        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
+        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args={
+            "input_stream": self._threaded_input_stream.get_input_stream()})
 
         # EVERY SECOND
         self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
