@@ -76,7 +76,7 @@ class Interaction(PyXavi):
         XprocAction.SAY: 0.05,
     }
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Interaction, self).init_pyxavi(config=config, params=params)

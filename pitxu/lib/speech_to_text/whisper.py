@@ -23,7 +23,7 @@ class Whisper(PyXavi):
     language: str = "en"
 
     VERBOSE_WHISPER_LIB: bool = False
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Whisper, self).init_pyxavi(config=config, params=params)

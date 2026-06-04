@@ -1,13 +1,15 @@
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, TerminalColor, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.conversors import Conversors
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisperStreamProcess
 from pitxu.lib.utils.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_TRANSCRIBER_BUSY
+from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_TRANSCRIBER_BUSY, \
+                        SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
 import threading
 import numpy as np
@@ -20,18 +22,6 @@ try:
     import audioop
 except ModuleNotFoundError:
     import audioop_lts as audioop
-
-class TrascriptionState:
-    """
-    This class is used to keep track of the current state of the transcription, to be able to apply some logic based on it.
-    """
-    IDLE = "idle"
-    START_CONTEXT = "start_context"
-    ONGOING_PROCESS_CHUNK = "ongoing_process_chunk"
-    LEFTOVER_CHUNK_PROCESSING = "leftover_chunk_processing"
-    REQUESTED_TRANSCRIPTION = "requested_transcription"
-    FINAL_TRANSCRIPTION = "final_transcription"
-    DONE = "done"
 
 class FasterWhisperStream(PyXavi):
     """
@@ -50,6 +40,7 @@ class FasterWhisperStream(PyXavi):
     _support: Support = None
     _faster_whisper_stream_process: FasterWhisperStreamProcess = None
     _shared_memory: SharedMemoryManager = None
+    _stt_state_machine: SttStateMachine = None
 
     process_pool: XprocessPool = None
 
@@ -76,6 +67,7 @@ class FasterWhisperStream(PyXavi):
     _ongoing_chunk_window = []
     _worker_thread: threading.Thread = None
     final_transcription: str = ""
+    ongoing_transcription: str = ""
     current_transcription_state: str = TrascriptionState.IDLE
     allow_chunk_consumption: bool = True
 
@@ -106,6 +98,12 @@ class FasterWhisperStream(PyXavi):
         # if self.language == "en-us":
         #     self.language = "en"
         logging_parts.append(("Language", self.language if self.language != "en-us" else "en"))
+
+        # Get the STT State Machine from params, fail otherwise.
+        if self._xparams.key_exists("stt_state_machine"):
+            self._stt_state_machine = self._xparams.get("stt_state_machine")
+        else:
+            raise ValueError("No STT State Machine provided in params to FasterWhisperStream class")
 
         # Get the callback for when the user finishes speaking, or use defaults.
         if self._xparams.key_exists("on_transcription_finished_callback"):
@@ -211,32 +209,26 @@ class FasterWhisperStream(PyXavi):
     
     def reset_context(self):
 
-        # TODO: This should be abstracted in a StateMachine class that handles states and allow transitions.
-        # We intend to start a new VAD recognition.
-        # This only can happen if the previous one already finished.
-        # So we don't allow to reset the contect if we are not in IDLE or DONE state, to avoid breaking the current transcription.
-        if self.current_transcription_state not in [TrascriptionState.IDLE, TrascriptionState.DONE]:
-            self._xlog.warning(f"🟠 Reset Context invalid: Can't transition from {self.current_transcription_state.upper()}. Only IDLE or DONE states are allowed.")
-            # Also, raise a flag to avoid consuming the chunks in the queue while we are in
-            #   ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, to avoid breaking the current transcription.
-            self.allow_chunk_consumption = False
-            return
-        else:
-            # The previous state is allowed to move on... and unblocks the chunk consumption if it was blocked.
+        # With this we:
+        #   - Validate that we're in IDLE. Otherwise the transition will fail.
+        #   - Validate that we want to go to START_CONTEXT. Otherwise the transition will fail.
+        #   - If the transition is valid, it will update the state and return True. Otherwise, it will return False and not update the state.
+        if self._stt_state_machine.transition_to(TrascriptionState.START_CONTEXT, expected_current_states=[TrascriptionState.IDLE]):
             self.allow_chunk_consumption = True
-
-        # Update the current state of the transcription
-        self.current_transcription_state = TrascriptionState.START_CONTEXT
-        self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to START_CONTEXT, welcoming chunks to process.")
+        else:
+            current_state = self._stt_state_machine.get_transcription_state()
+            self._xlog.warning(f"🟠 Reset Context invalid: Can't transition from {current_state}. Only IDLE state is allowed.")
+            self.allow_chunk_consumption = False
 
         # Other vars
         self._ongoing_chunk_window = []
         self.final_transcription = ""
+        self.ongoing_transcription = ""
         self.request_reset_context()
     
     def reset_context_and_state_in_transcription_thread(self):
         self._log_debug("Resetting transcription context and state in the transcription thread.")
-        self.current_transcription_state = TrascriptionState.IDLE
+        self._stt_state_machine.reset()
         self.allow_chunk_consumption = True
         self._ongoing_chunk_window = []
         self.final_transcription = ""
@@ -250,7 +242,7 @@ class FasterWhisperStream(PyXavi):
             self._xlog.warning("No transcription result available yet, you should not call this method from V4.")
     
     def get_transcription_status(self) -> str:
-        return self.current_transcription_state
+        return self._stt_state_machine.get_transcription_state()
     
     def _transcription_worker(self):
         """
@@ -309,14 +301,14 @@ class FasterWhisperStream(PyXavi):
                         self._support.dump_and_plot_all()
                         self._support.clear_accumulated_audio()
 
-                        # Update the current state of the transcription
-                        previous_state = self.current_transcription_state
-                        self.current_transcription_state = TrascriptionState.LEFTOVER_CHUNK_PROCESSING
-                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state.upper()} to LEFTOVER_CHUNK_PROCESSING, Process the leftover chunks.")
-
                         # It is very possible that we have chunks without process at this point.
-                        # COMMENTED: Feels like the duplication at the end of the transcription can come from here.
                         if len(self._ongoing_chunk_window) > 0:
+
+                            # Update the current state of the transcription
+                            if not self._stt_state_machine.transition_to(TrascriptionState.LEFTOVER_CHUNK_PROCESSING, expected_current_states=[TrascriptionState.ONGOING_PROCESS_CHUNK]):
+                                current_state = self._stt_state_machine.get_transcription_state()
+                                self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state}to LEFTOVER_CHUNK_PROCESSING. Expected state was ONGOING_PROCESS_CHUNK.")
+
                             self._log_debug(f"✏️ Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
                             self.process_chunks(self._ongoing_chunk_window)
                             self._ongoing_chunk_window = []
@@ -329,8 +321,9 @@ class FasterWhisperStream(PyXavi):
                         self.request_transcription()
 
                         # Update the transcription state
-                        self.current_transcription_state = TrascriptionState.REQUESTED_TRANSCRIPTION
-                        self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to REQUESTED_TRANSCRIPTION, Now waiting for the Process to answer.")
+                        if not self._stt_state_machine.transition_to(TrascriptionState.REQUESTED_TRANSCRIPTION, expected_current_states=[TrascriptionState.LEFTOVER_CHUNK_PROCESSING, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+                            current_state = self._stt_state_machine.get_transcription_state()
+                            self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state} to REQUESTED_TRANSCRIPTION. Expected state was LEFTOVER_CHUNK_PROCESSING or ONGOING_PROCESS_CHUNK.")
 
                         # Reset the context in the Process, to be sure that the next transcription is not affected by the previous one.
                         self._ongoing_chunk_window = []
@@ -343,16 +336,19 @@ class FasterWhisperStream(PyXavi):
                         #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
                         #   to avoid breaking the current transcription.
                         if not self.allow_chunk_consumption:
-                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
+                            current_state = self._stt_state_machine.get_transcription_state()
+                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
                             self._queue.task_done()
                             continue
 
                         # Update the current state of the transcription
-                        previous_state = self.current_transcription_state
-                        if self.current_transcription_state in [TrascriptionState.START_CONTEXT]:
-                            self.current_transcription_state = TrascriptionState.ONGOING_PROCESS_CHUNK
-                            self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to ONGOING_PROCESS_CHUNK, About to process chunks.")
-                        # We don't log the ELSE here, because it's the normal behaviour when we receive such an amount of chunks to process.
+                        if self._stt_state_machine.get_transcription_state() == TrascriptionState.ONGOING_PROCESS_CHUNK:
+                            # We are already processing chunks, we just keep accumulating in the window.
+                            pass
+                        elif not self._stt_state_machine.transition_to(TrascriptionState.ONGOING_PROCESS_CHUNK, expected_current_states=[TrascriptionState.START_CONTEXT]):
+                            # Try the transition and, if fails, dump a log.
+                            current_state = self._stt_state_machine.get_transcription_state()
+                            self._xlog.warning(f"🟠 Failed to transition to ONGOING_PROCESS_CHUNK. Current state: {current_state}.")
 
                         # Prepare the set of chunks to process
                         if len(self._ongoing_chunk_window) >= self._chunks_window:
@@ -375,52 +371,72 @@ class FasterWhisperStream(PyXavi):
                 else:
                     is_transcription_result_queue_empty = False
 
-                    transcription_result = self.transcriptor_output_queue.get()
+                    # transcription_result = self.transcriptor_output_queue.get()
 
-                    # Update the current state of the transcription
-                    self.current_transcription_state = TrascriptionState.FINAL_TRANSCRIPTION
-                    self._log_debug("✏️ 👁️‍🗨️ Transcription state updated to FINAL_TRANSCRIPTION, it arribed through the transcription result queue.")
+                    # partial_transcription = transcription_result.get("partial_transcription", None) if isinstance(transcription_result, dict) else None
+                    # final_transcription = transcription_result.get("final_transcription", None) if isinstance(transcription_result, dict) else None
 
-                    if isinstance(transcription_result, str) and len(transcription_result) > 0:
-                        self._log_debug("✏️ Got transcription result from the Process: " + transcription_result)
-                        # Oops! Why do we receive duplications?
-                        if transcription_result in self.final_transcription:
-                            self._log_debug("✏️ Received transcription result is already in the final transcription, skipping to avoid duplication.")
-                        else:
-                            self._log_debug("✏️ Merging transcription result with the final transcription.")
-                            # self.final_transcription += " " + transcription_result
-                            self.final_transcription = transcription_result
-                        
-                        # Update the current state of the transcription
-                        previous_state = self.current_transcription_state
-                        self.current_transcription_state = TrascriptionState.DONE
-                        self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to DONE, Triggering Main callback.")
-                        
-                        # Trigger the callback to notify that the transcription is finished, if we have a transcription result, or if we received the sentinel, which means that the transcription is finished even if we don't have a result (it can happen if the user spoke but the Model couldn't transcribe anything, so it returns an empty string as a result, but it still sends the sentinel to indicate that it finished processing).
-                        if self.on_transcription_finished_callback is not None and (self.final_transcription is not None and len(self.final_transcription) > 0):
-                            self._log_debug("✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
-                            # Be careful, it's part of asyncio loop.
-                            asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
-                            # At this point, we should have the transcription queue empty, but sometimes we receive the transcription result again.
-                            #   Then, the callback is called twice, making the whole chatbot & TTS to be repeated.
-                            if not self.transcriptor_output_queue.empty():
-                                self._xlog.warning(f"Transcription was called and the queue should be empty, but it's not. Current length: {self.transcriptor_output_queue.qsize()}.")
-                                while not self.transcriptor_output_queue.empty():
-                                    discarded_result = self.transcriptor_output_queue.get()
-                                    self._xlog.warning(f"Discarding transcription result from the queue to avoid duplication: {discarded_result}")
-                                self._xlog.debug("Transcription queue is now empty after discarding results to avoid duplication.")
+                    # It's a tuple: (partial, final).
+                    # Both may be None.
+                    partial_transcription, final_transcription = self.transcriptor_output_queue.get()
 
-                    else:
-                        self._log_debug("✏️  Got empty transcription result from the Process, skipping and bringing to IDLE.")
+                    # If we have a partial, share it in the values to be caught by whoever wants it.
+                    if partial_transcription is not None and len(partial_transcription) > 0:
+                        self.ongoing_transcription = partial_transcription
                     
-                    # Update the current state of the transcription
-                    previous_state = self.current_transcription_state
-                    self.current_transcription_state = TrascriptionState.IDLE
-                    self._log_debug(f"✏️ 👁️‍🗨️ Transcription state updated from {previous_state} to IDLE, ready for next transcription.")
+                    # If we don't receive a final transcription, means that we're still transcribing.
+                    # There is no point on continuing the flow through the closing path.
+                    if final_transcription is not None: 
 
-                    # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
-                    self.allow_chunk_consumption = True
-                    self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
+                        # Update the current state of the transcription
+                        if not self._stt_state_machine.transition_to(TrascriptionState.FINAL_TRANSCRIPTION, expected_current_states=[TrascriptionState.REQUESTED_TRANSCRIPTION]):
+                            current_state = self._stt_state_machine.get_transcription_state()
+                            self._xlog.warning(f"🟠 Received transcription result but can't transition from {current_state} to FINAL_TRANSCRIPTION. Expected state was REQUESTED_TRANSCRIPTION.")
+
+                        if isinstance(final_transcription, str) and len(final_transcription) > 0:
+                            self._log_debug(f"✏️ Got transcription result from the Process: {TerminalColor.RED}{final_transcription}{TerminalColor.END}")
+                            # Oops! Why do we receive duplications?
+                            if final_transcription in self.final_transcription:
+                                self._log_debug("✏️ Received transcription result is already in the final transcription, skipping to avoid duplication.")
+                            else:
+                                self._log_debug("✏️ Merging transcription result with the final transcription.")
+                                # self.final_transcription += " " + transcription_result
+                                self.final_transcription = final_transcription
+                            
+                            # Update the current state of the transcription
+                            if not self._stt_state_machine.transition_to(TrascriptionState.DONE, expected_current_states=[TrascriptionState.FINAL_TRANSCRIPTION]):
+                                current_state = self._stt_state_machine.get_transcription_state()
+                                self._xlog.warning(f"🟠 Received transcription result but can't transition from {current_state} to DONE. Expected state was FINAL_TRANSCRIPTION.")
+                            
+                            # Trigger the callback to notify that the transcription is finished, if we have a transcription result, or if we received the sentinel, which means that the transcription is finished even if we don't have a result (it can happen if the user spoke but the Model couldn't transcribe anything, so it returns an empty string as a result, but it still sends the sentinel to indicate that it finished processing).
+                            if self.on_transcription_finished_callback is not None and (self.final_transcription is not None and len(self.final_transcription) > 0):
+                                self._log_debug("✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
+                                # Be careful, it's part of asyncio loop.
+                                asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
+                                # At this point, we should have the transcription queue empty, but sometimes we receive the transcription result again.
+                                #   Then, the callback is called twice, making the whole chatbot & TTS to be repeated.
+                                if not self.transcriptor_output_queue.empty():
+                                    self._xlog.warning(f"Transcription was called and the queue should be empty, but it's not. Current length: {self.transcriptor_output_queue.qsize()}.")
+                                    while not self.transcriptor_output_queue.empty():
+                                        discarded_result = self.transcriptor_output_queue.get()
+                                        self._xlog.warning(f"Discarding transcription result from the queue to avoid duplication: {discarded_result}")
+                                    self._xlog.debug("Transcription queue is now empty after discarding results to avoid duplication.")
+
+                        else:
+                            self._log_debug("✏️  Got empty final transcription from the Process, skipping and bringing to IDLE.")
+                    
+                        # Update the current state of the transcription
+                        # We expect here that the state comes from:
+                        #   - FINAL_TRANSCRIPTION, if we received a transcription result, but it's empty, so no DONE state in between.
+                        #   - DONE, if we received a transcription result with content, so we triggered the callback.
+                        if not self._stt_state_machine.transition_to(TrascriptionState.IDLE, expected_current_states=[TrascriptionState.FINAL_TRANSCRIPTION, TrascriptionState.DONE]):
+                            current_state = self._stt_state_machine.get_transcription_state()
+                            self._xlog.warning(f"🟠 Received transcription result but can't transition to IDLE. Current state: {current_state}. Expected one of: {[TrascriptionState.FINAL_TRANSCRIPTION, TrascriptionState.DONE]}")
+
+
+                        # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
+                        self.allow_chunk_consumption = True
+                        self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
 
                     self.transcriptor_output_queue.task_done()
                 
@@ -514,6 +530,9 @@ class FasterWhisperStream(PyXavi):
         # Be careful, it's not tuned and very aggressive. 
         # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
         return self.use_dynamic_rms_silence and self.silence_input_queue is not None
+    
+    def get_ongoing_transcription(self) -> str:
+        return self.ongoing_transcription
     
     def close(self):
         self._xlog.info("Closing FasterWhisper Stream STT")

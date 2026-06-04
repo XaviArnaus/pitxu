@@ -17,7 +17,7 @@ class DbSqlite(PyXavi):
     DEFAULT_DB_FILENAME = "pitxu.db"
     DEFAULT_DB_MIGRATIONS_PATH = "migrations/"
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(DbSqlite, self).init_pyxavi(config=config, params=params)

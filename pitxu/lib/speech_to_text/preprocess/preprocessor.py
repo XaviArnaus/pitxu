@@ -53,7 +53,7 @@ class Preprocessor(PyXavi):
     dyanamic_rms_correction_percentage: float = 2.5
     apply_dynamic_rms_silence: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     DEBUG_RMS: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
@@ -234,7 +234,7 @@ class Preprocessor(PyXavi):
     
     def is_audio_meaningful(self, audio_data_np: np.ndarray):
         # 1. Get the current Dynamic RMS threshold from shared memory.
-        dynamic_rms = self.shared_memory.read_shared_memory_value(SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD) or 0.0
+        dynamic_rms = float(self.shared_memory.read_shared_memory_value(SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD)) or 0.0
         # 2. Apply a correction percentage to the Dynamic RMS to make it more or less aggressive.
         #   This is because the Dynamic RMS is calculated based on the recent audio, 
         #   so it can be too high or too low depending on the environment and the user's voice.

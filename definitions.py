@@ -15,6 +15,7 @@ QUEUE_TRANSCRIBER = "transcriber_queue"
 
 # Shared memory flag positions
 SHARED_MEMORY_FLAGS = "pitxu_shared_memory_flags"
+# const = index(int)
 SHARED_SPEAKER_BUSY = 0
 SHARED_EINK_BUSY = 1
 SHARED_MATRIX_BUSY = 2
@@ -34,6 +35,7 @@ SHARED_TRANSCRIBER_BUSY = 15
 
 # Shared Memory Values
 SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
+# const = index(int)
 SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
 
 # Painter

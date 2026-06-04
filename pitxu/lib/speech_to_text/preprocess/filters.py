@@ -27,7 +27,7 @@ class Filters(PyXavi):
     # How long to wait after the last detected human speaking before considering that the user has stopped speaking (in seconds)
     SPEAKING_SILENCE_TIMEOUT_SECONDS = 1
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     DEBUG_ENERGY_FACTOR = 1
 
     def __init__(self, config: Config, params: Dictionary):

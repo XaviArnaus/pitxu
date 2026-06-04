@@ -14,7 +14,7 @@ class StatefulLists(PyXavi, Command):
 
     _lists: Lists = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(StatefulLists, self).init_pyxavi(config=config, params=params)

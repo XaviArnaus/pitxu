@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.1 - 2026-06-04
+
+### Added
+
+- FasterWhisperStream delivers also partials.
+
+### Changed
+
+- Control STT via a new State Machine [#41](https://github.com/XaviArnaus/pitxu/pull/41)
+- Simplify the callback to be used by RawInputStream and decouple the logic by using a queue to a new Thread that does the VAD distribution.
+- Embed the RawInputCallback in a Thread (not sure if it does anything)
+
+### Fixed
+
+- Some states where incorrectly fit.
+
 
 ## v0.4.0 - 2026-06-02
 
@@ -13,12 +29,15 @@
 ### Changed
 
 - Iterate the chatbot prompt to avoid using so many tokens
-- Fix memory update not returning the entry
-- Fix memory migration util
 - Big iteration on closing instances / processes to try to smooth the app ending
-- Fix trigger words identification
 - Some visual improvements, like in tool callbacks.
 - SQLite3-based memory approach, replacing file-based one [#40](https://github.com/XaviArnaus/pitxu/pull/40).
+
+# Fixed
+
+- Fix memory update not returning the entry
+- Fix memory migration util
+- Fix trigger words identification
 
 ## v0.3.5 - 2026-05-22
 

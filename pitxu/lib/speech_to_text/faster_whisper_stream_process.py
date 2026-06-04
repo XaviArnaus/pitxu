@@ -283,7 +283,8 @@ class FasterWhisperStreamProcess(Xprocess):
                 #   the repetitions that I see? I don't expect elements in the queue but the very final one!
                 # Still not sure whe this return, but the repetitions came from bad timestamp calculation,
                 #   forghetting the overlap extra duration.
-                return self.process_chunks(param)
+                # REMOVED THE RETURN.
+                self.process_chunks(param)
             else:
                 raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
         
@@ -380,8 +381,9 @@ class FasterWhisperStreamProcess(Xprocess):
             # We need a correction factor related to the overlap that we add in front. 
             # Otherwise, the merger thinks that the firs word starts at 0s, but in reality it starts from -overlap_duration.
             # Also, the overlap size may be smaller than the chunk duration, for example in very small chunks.
-            real_overlap_duration = min(self._overlap_size / self._xconfig.get("speech-to-text.target_samplerate", 16000), chunk_duration)
-            current_segment_starting_time = current_segment_starting_time - real_overlap_duration
+            # COMMENTED: The merging is eating some words. Commented for now to see if it improves.
+            # real_overlap_duration = min(self._overlap_size / self._xconfig.get("speech-to-text.target_samplerate", 16000), chunk_duration)
+            # current_segment_starting_time = current_segment_starting_time - real_overlap_duration
 
             for segment in segments:
 
@@ -426,7 +428,8 @@ class FasterWhisperStreamProcess(Xprocess):
                 new_transcribed_words
             )
 
-            self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{" ".join([w['word'] for w in self._ongoing_transcription])}{TerminalColor.END}\n")
+            ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
+            self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{ongoing_transcription_text}{TerminalColor.END}\n")
 
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
@@ -440,6 +443,10 @@ class FasterWhisperStreamProcess(Xprocess):
                 # Emit the committed words (e.g., put them in the output queue)
                 self._final_transcription += " " + " ".join([w['word'] for w in committed_words])
                 result = self._final_transcription
+            
+            # At this point, this is what we have, even it's going to be corrected on-the-go.
+            # Emit it, so the caller can see a partial.
+            self._emit_transcription(partial_transcription=self._final_transcription.strip() + " " + " ".join([w['word'] for w in self._ongoing_transcription]))
 
             # Keep the last defined samples as overlap
             self._last_overlap = audio_to_process[-self._overlap_size:]
@@ -447,6 +454,13 @@ class FasterWhisperStreamProcess(Xprocess):
         self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
     
+    def _emit_transcription(self, final_transcription: str = None, partial_transcription: str = None):
+        # It's a tuple: (partial, final)
+        queue_item = (partial_transcription.strip() if partial_transcription is not None else None,
+            final_transcription.strip() if final_transcription is not None else None
+        )
+        self._output_queue.put(queue_item)
+
     def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
         """
         Merges new words into the buffer. If a new word overlaps with the end of the
@@ -568,7 +582,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
         if self._output_queue is not None:
-            self._output_queue.put(final_transcription)
+            self._emit_transcription(final_transcription=final_transcription)
             # self._output_queue.put(self._output_queue_sentinel)
             self._log_debug("Final transcription put in the output queue.")
             # Reset the context to avoid issues if the start does not trigger well
@@ -581,7 +595,7 @@ class FasterWhisperStreamProcess(Xprocess):
         Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
         """
         self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
-        silent_chunk = self._generate_silent_audio_chunk(sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
+        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
         self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
         self._log_debug("Faster Whisper model warmed up successfully.")
 

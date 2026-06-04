@@ -12,7 +12,7 @@ class StatefulMemory(PyXavi, Command):
 
     _memory: Memory = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(StatefulMemory, self).init_pyxavi(config=config, params=params)
