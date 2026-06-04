@@ -46,18 +46,25 @@ class SttStateMachine(PyXavi):
 
         # self._log_debug("STT State Machine initialization complete")
     
-    def is_valid_expected_current_state(self, expected_state: TrascriptionState) -> bool:
+    def is_expected_current_state(self, expected_state: TrascriptionState) -> bool:
         """
         Validates if the given state equals the current state. 
         """
-        return self.is_valid_expected_current_states([expected_state])
+        return self.is_expected_current_states([expected_state])
     
-    def is_valid_expected_current_states(self, expected_states: list[TrascriptionState]) -> bool:
+    def is_expected_current_states(self, expected_states: list[TrascriptionState], where_am_i: str = None) -> bool:
         """
         Validates if the current state is one of the expected states.
+
+        Args:
+            expected_states (list[TrascriptionState]): The list of expected states to validate against.
+            where_am_i (str, optional): A string to indicate where this validation is being called from, to provide more context in the logs. Defaults to None. Commented as logging is useless.
+        Returns:
+            bool: True if the current state is one of the expected states, False otherwise.
         """
         if self.current_state not in expected_states:
-            self._xlog.error(f"👁️‍🗨️ Invalid state: {self.current_state}. Expected one of: {expected_states}")
+            #where_am_i = f"[{where_am_i}]" if where_am_i else ""
+            #self._xlog.error(f"👁️‍🗨️ {where_am_i} Invalid state: {self.current_state}. Expected one of: {expected_states}.")
             return False
         return True
     
@@ -65,7 +72,7 @@ class SttStateMachine(PyXavi):
         """
         Transitions the state machine to a new state if the transition is valid.
         """
-        if expected_current_states and not self.is_valid_expected_current_states(expected_current_states):
+        if expected_current_states and not self.is_expected_current_states(expected_current_states):
             self._xlog.error(f"👁️‍🗨️ Invalid expected current states: {expected_current_states}")
             return False
         

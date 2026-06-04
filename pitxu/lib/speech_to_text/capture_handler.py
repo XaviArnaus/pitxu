@@ -38,7 +38,10 @@ class CaptureHandler(PyXavi):
     stt_state_machine: SttStateMachine = None
 
     is_active: bool = True
+    # The counter of ongoing chunks discarded IN THIS CLASS. Should match discarded_ongoing_chunks_in_stt_state_machine.
     discarded_ongoing_chunks_by_stt_state_machine: dict = {}
+    # The counter of ongoing chunks discarded in the STAGE MACHINE. Should match discarded_ongoing_chunks_by_stt_state_machine
+    discarded_ongoing_chunks_in_stt_state_machine: dict = {}
 
     vad_thread: threading.Thread = None
 
@@ -281,7 +284,7 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD detected speech start, but CaptureHandler is not active, ignoring.")
             return
         
-        if not self.stt_state_machine.is_valid_expected_current_state(TrascriptionState.IDLE):
+        if not self.stt_state_machine.is_expected_current_state(TrascriptionState.IDLE):
             self._xlog.warning(f"🟠 VAD detected speech start but the current state is not IDLE: {self.stt_state_machine.get_transcription_state()}")
             return
         
@@ -308,7 +311,7 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD detected speech chunk, but CaptureHandler is not active, ignoring.")
             return
         
-        if not self.stt_state_machine.is_valid_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+        if not self.stt_state_machine.is_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK], where_am_i="vad_on_speech_chunk"):
             # Avoid logging so many times. Just count them
             state = self.stt_state_machine.get_transcription_state()
             if state not in self.discarded_ongoing_chunks_by_stt_state_machine:
@@ -341,7 +344,7 @@ class CaptureHandler(PyXavi):
         for state, count in self.discarded_ongoing_chunks_by_stt_state_machine.items():
             self._xlog.warning(f"🟠 VAD detected speech chunk in unexpected {state}, discarding {count} ongoing chunks. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}")
         
-        if not self.stt_state_machine.is_valid_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+        if not self.stt_state_machine.is_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK], where_am_i="vad_on_speech_end"):
             self._xlog.warning(f"🟠 VAD detected speech end but current state is {self.stt_state_machine.get_transcription_state()}. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}. Ignoring this event.")
             return
 
