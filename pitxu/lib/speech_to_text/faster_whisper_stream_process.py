@@ -381,8 +381,8 @@ class FasterWhisperStreamProcess(Xprocess):
             # We need a correction factor related to the overlap that we add in front. 
             # Otherwise, the merger thinks that the firs word starts at 0s, but in reality it starts from -overlap_duration.
             # Also, the overlap size may be smaller than the chunk duration, for example in very small chunks.
-            real_overlap_duration = min(self._overlap_size / self._xconfig.get("speech-to-text.target_samplerate", 16000), chunk_duration)
-            current_segment_starting_time = current_segment_starting_time - real_overlap_duration
+            # real_overlap_duration = min(self._overlap_size / self._xconfig.get("speech-to-text.target_samplerate", 16000), chunk_duration)
+            # current_segment_starting_time = current_segment_starting_time - real_overlap_duration
 
             for segment in segments:
 
