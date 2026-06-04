@@ -5,18 +5,14 @@ speech-to-text:
   # [Integer] Index of the car to use, from the list in `make sounddevices`. Set [None] for autodetect
   # input_device: 4 # MacOS connected to the USB Hub
   input_device: 0 # MacOS alone
-  # Microphone channels activation flags
-  # This functionality is gone.
-  #microphone_channels:
-    # [Bool] Activates the left channel
-    #left: True
-    # [Bool] Activates the right channel
-    #right: False
-  # [String] Engine to use for the Speech-to-Text. 
-  # Options: "vosk", "whisper", "faster_whisper" as the string used for the key in the configuration.
-  engine: "faster_whisper"
+  # [String] Engine to use for the Speech-to-Text.
+  # Options: "vosk", "whisper", "faster_whisper", "faster_whisper_streaming" as the string used for the key in the configuration.
+  # The "faster_whisper_streaming" option uses the config from the "faster_whisper" section, but it processes the audio in streaming mode.
+  engine: "faster_whisper_streaming"
   # [Integer] Number of bytes to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied only in the server module to split the received audio for processing.
+  # bytes_per_chunk: 4000 # Working in Mac
+  # bytes_per_chunk: 2048 # Working in Rpi
   bytes_per_chunk: 4000
   # [Integer] Number of samples to process in each chunk sent to the STT engine. This is a tradeoff between latency and performance.
   # It is applied in the main Input Stream setup (sounddevice.InputStream) and in the Capture Handler callback for VAD identification.
@@ -46,9 +42,13 @@ speech-to-text:
     enabled: True
     # [Float] Threshold for the VAD to consider that there is voice activity.
     # This is a value between 0 and 1, where 0 means that any sound is considered voice and 1 means that only very loud sounds are considered voice.
-    threshold: 0.8
+    # threshold: 0.7 # Working in Mac
+    # threshold: 0.8 # Working in RPi
+    threshold: 0.7
     # [Float] Seconds before speech onset confirmed
-    attack: 0.0
+    # attack: 0.050 # Working in Mac
+    # attack: 0.060 # Working in RPi
+    attack: 0.050
     # [Float] Seconds of silence before speech end
     release: 2.0
   # Configuration for the Preprocessor (filters noises, energy identification)
@@ -133,7 +133,71 @@ speech-to-text:
     # [Bool] Allow transcription of multilingual input.
     # NOT YET USED
     multilingual: True
-
+  # Specific configuration for Faster Whisper Streaming, when applicable.
+  faster_whisper_streaming:
+    # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
+    # See https://github.com/openai/whisper# Models: tiny, base, small, medium, large. The ones with ".en" are optimized for English.
+    model:
+      # Catalan
+      ca: small
+      # Spanish
+      es: small
+      # English
+      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
+      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
+      en: small.en
+      # German
+      de: small
+    # [String] The location where the offline faster whisper files are stored.
+    #   It will take the path starting from /storage or whatever is defined in the Main configuration for the storage_path, and then add this path to it.
+    download_root: faster_whisper
+    # [String] The device to use for the Faster Whisper model. Options: "cpu", "cuda", "mps", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    device: cpu
+    # [String] The compute type to use for the Faster Whisper model. Options: "int8", "int8_float16", "float16", "float32", etc.
+    #   See https://github.com/SYSTRAN/faster-whisper for more details.
+    compute_type: int8
+    # [Integer] The beam size for the inference. The bigger the more accurate, but also the slower.
+    beam_size: 2
+    # [Integer] The number of threads to use for the inference. Defaults to 4,
+    #   but we should leave it lower than the actual CPU cores to allow the system to run smoothly and avoid overload.
+    #   The main idea is to leave space for the Input Stream to provide chunks to the queue smoothly,
+    #   and the rest of the system to keep itself responsive while the STT engine is processing the audio.
+    num_threads: 3
+    # [Integer] Samples to overlap between chunks when using the Faster Whisper model as streaming.
+    #   The calculation goes like 2000 samples = 125ms (1 overlapping chunk of 4000 bytes at 16kHz sample rate).
+    #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
+    overlap_size: 8000
+    # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
+    chunks_window: 100
+    # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
+    sleep_when_no_chunks: 0.1
+    # [List of Strings] Hot words to add to the Faster Whisper model for each language.
+    # The name of the bot and its possible aliases will be added automatically.
+    hot_words:
+      # Catalan
+      ca: []
+      # Spanish
+      es: []
+      # English
+      en: []
+      # German
+      de: []
+    # [Float] The hallucination threshold for silences, in seconds.
+    hallucination_silence_threshold: 1.0
+    # [Integer] The maximum number of characters to use from the ongoing transcription as a prompt for the next chunk.
+    max_prompt_buffer_size_in_chars: 100
+    # [Float] The temperature to use for the inference. The higher, the more creative (and less accurate) the transcription will be.
+    temperature: 0.2
+    # [Float] The confidence threshold to consider that a word is low confidence
+    word_low_confidence_threshold: 0.1
+    # [Float] The threshold of confidence over the segments to consider that the model is hallucinating.
+    hallucination_low_confidence_segments_threshold: -1
+    # [Float] The threshold of confidence to reset the hallucination counter.
+    #   If the average confidence of the segments is above this threshold, the counter will be reset.
+    hallucination_low_confidence_reset_threshold: -1
+    # [Integer] The maximum number of occurrences of low confidence segments before considering the transcription ashallucination.
+    hallucination_low_confidence_segments_max_occurrences: 3
 
 # Configurations for the Text-to-Speech
 text-to-speech:

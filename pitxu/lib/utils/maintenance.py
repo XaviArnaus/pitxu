@@ -300,3 +300,16 @@ class Maintenance(PyXavi):
         except Exception as e:
             self._xlog.error(f"⚙️  Error loading current start timestamp from file: {e}")
             return None
+
+    def execute_memory_preload(self):
+        '''
+        Executes a preload of the Memory to have it ready and avoid potential delays when it's used for the first time.
+        '''
+        try:
+            from pitxu.lib.utils.memory import Memory
+            memory = Memory(config=self._xconfig, params=self._xparams)
+            memory.preload_memory()
+            self._xlog.info("⚙️  Memory preloaded successfully.")
+            memory.close()
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error preloading Memory: {e}")

@@ -1,0 +1,36 @@
+# This file contains memory entries that will be dumped into the memory at startup.
+# Ideally, this is a one-time dump into the memory. Enable it before the first run, and then disable it for the next runs, 
+#   to avoid dumping the same entries multiple times.
+# WARNING: This is NOT LANGUAGE AWARE. It will take the current language of the chatbot at startup, and dump the entries in that language. 
+#   If you change the language of the chatbot, you should update the entries in this file accordingly, to match the new language.
+#   Otherwise, the entries will be dumped in the old language, which may not be useful for the chatbot if it is now operating in a different language.
+memory_preload:
+  # [bool] Enable or disable the memory preload. If disabled, the entries in this file will be ignored.
+  enabled: True
+  # [list] The entries to preload into the memory. Each entry is a dictionary with the following keys:
+  #   - title: The title of the memory entry. 
+  #       This is a string that will be used by the chatbot to search for relevant information in the memory. 
+  #       It should be descriptive and concise, as it will be used as a reference for the content of the entry.
+  #   - content: The content of the memory entry. 
+  #       This can be any string that you want to be available in the memory at startup.
+  #       It can be used to store important information, facts, or any other data that you want to be easily accessible by the chatbot.
+  entries:
+    - title: "Pitxu Chatbot Project and Github Information"
+      content: |
+        - The main goal of the project is to create a local, voice-based chatbot that can run on a Raspberry Pi, with the ability to understand and respond to user queries in natural language, and to perform various tasks using external tools and APIs.
+        - At the hardware level,
+          - the main architecture is a Raspberry Pi 5 with 8GB of RAM.
+          - there is a microphone to capture voice input, and speakers for voice output.
+          - there is a screen where you show visual notifications with the interactions.
+          - there is access to the internet through WiFi, but only when you use the external tools you have configured.
+          - there is no keyboard, mouse or any other form of manual input, all input is done by voice.
+        - At the software level,
+          - the operating system is Raspberry Pi OS, a Linux distribution based on Debian.
+          - the application that orchestrates everything is written in Python, and uses several libraries and tools for the different functions (STT, TTS, LLM, etc.).
+        - Project information:
+          - Xavi's Github account: `XaviArnaus`
+          - Project name: `Pitxu`
+          - Repository in Xavi's Github: `pitxu`
+          - Project repository URL: `https://github.com/XaviArnaus/pitxu`
+    
+

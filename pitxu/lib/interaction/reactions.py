@@ -314,7 +314,7 @@ class Reactions(PyXavi):
     def handle_answer_with_code_block(self, chat_response: ChatbotResponse) -> ChatbotResponse:
         self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
 
-        self.interaction.show_code_block_on_foreground(
+        self.interaction.show_code_block_on_foreground_while_speaking(
             code=chat_response.code[0],
             for_seconds=10.0)
 

@@ -54,7 +54,7 @@ class PyXavi:
         if self.VERBOSE_DEBUG:
             self._xlog.debug(message)
     
-    def log_summary(self, title: str, lines: list[str | tuple], tuple_separator: str = ": ", log_level: int = None):
+    def log_summary(self, title: str, lines: list[str | tuple], tuple_separator: str = ": ", log_level: int = None, attend_verbose_debug_flag: bool = False):
         """
         Logs a summary with a title and lines, formatted in a nice way with borders.
 
@@ -63,9 +63,14 @@ class PyXavi:
         lines (list[str | tuple]): The lines to include in the summary.
         tuple_separator (str, optional): The separator to use for tuple lines. Defaults to ": ".
         log_level (int, optional): The logging level. Defaults to None (DEBUG).
+        attend_verbose_debug_flag (bool, optional): Whether to attend the VERBOSE_DEBUG flag. If True, the log level will be set to log_level, otherwise the log will be ignored.
 
         Attention: Does not support emojis. It messes up with the length.
         """
+
+        if attend_verbose_debug_flag and not self.VERBOSE_DEBUG:
+            return
+
         if log_level is None:
             log_level = logging.DEBUG
         

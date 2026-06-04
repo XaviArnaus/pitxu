@@ -27,7 +27,7 @@ class Filters(PyXavi):
     # How long to wait after the last detected human speaking before considering that the user has stopped speaking (in seconds)
     SPEAKING_SILENCE_TIMEOUT_SECONDS = 1
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     DEBUG_ENERGY_FACTOR = 1
 
     def __init__(self, config: Config, params: Dictionary):
@@ -227,7 +227,7 @@ class Filters(PyXavi):
         high = self.highcut_freq / nyquist
         # Most likely this IF should not be here
         if high >= 1.0:
-            self._xlog.warning(f"High cut frequency {self.highcut_freq} Hz is above Nyquist frequency for samplerate {self.samplerate} Hz, adjusting to {0.99*nyquist} Hz.")
+            self._xlog.warning(f"High cut frequency {self.highcut_freq} Hz is above Nyquist frequency for samplerate {self.samplerate} Hz, adjusting to {0.99} Hz.")
             high = 0.99
         sos = signal.butter(self.order, [low, high], btype='band', analog=False, output='sos')
 

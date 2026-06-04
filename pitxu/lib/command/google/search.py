@@ -73,10 +73,11 @@ class GoogleSearch(PyXavi, Command):
         # We may even have several code blocks.
         code_blocks = []
         while Code.text_includes_code(text):
-            code = Code.extract_code_from_text(text)
-            if code:
-                code = Code.remove_comment_lines_from_code(code)
-                code_blocks.append(code)
+            codes = Code.extract_code_from_text(text)
+            if codes:
+                for code in codes:
+                    code = Code.remove_comment_lines_from_code(code)
+                    code_blocks.append(code)
             text = Code.remove_all_code_blocks_from_text(text)
         
         try:

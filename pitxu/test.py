@@ -20,6 +20,7 @@ class Test(PyXavi):
         # to find it already initialised, so we need to do it here in the init of the Test class.
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_new_shared_memory_flags()
+        self.shared_memory.initialize_new_shared_memory_values()
     
     def close(self):
 

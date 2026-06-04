@@ -13,6 +13,15 @@ import numpy as np
 import logging
 
 class FasterWhisper(PyXavi):
+    """
+    STT with Faster Whisper.
+
+    - Works
+    - Processes all the audio queue in one shot after VAD detects the end of the speech.
+    - Slow user feeling.
+    - Very accurate, awesome.
+    - Being used in the RPi 5 since 2026-05-17
+    """
 
     _model: WhisperModel = None
     _queue: queue.Queue = None
@@ -23,7 +32,7 @@ class FasterWhisper(PyXavi):
     is_active: bool = False
     language: str = "en"
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(FasterWhisper, self).init_pyxavi(config=config, params=params)
@@ -96,6 +105,7 @@ class FasterWhisper(PyXavi):
 
         self._queue = queue.Queue()
         self._preprocessor = Preprocessor(config=self._xconfig, params=self._xparams)
+        self._support = self._xparams.get("support")
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
 

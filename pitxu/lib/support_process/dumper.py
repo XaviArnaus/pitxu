@@ -78,6 +78,12 @@ class Dumper(PyXavi):
         
         self._log_debug("🎤 Done Initializing Audio Dumper for Speech-to-Text")
     
+    def close(self):
+        self._log_debug("Closing Dumper")
+        if self.audio_graph is not None:
+            self.audio_graph.close()
+        self._log_debug("Dumper closed")
+    
     # ----- Context managers for unified timestamps --------
     @contextmanager
     def unified_timestamp(self, timestamp_str: str = None, timestamp_key: str = None):
@@ -182,6 +188,13 @@ class Dumper(PyXavi):
 
         preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
         self._log_debug(f"Plotting accumulated audio data")
+
+        if self.accumulated_signal is None or len(self.accumulated_signal) == 0:
+            self._log_debug("🛑 No raw audio data in memory to plot")
+            return
+        if preprocessor_enabled and (self.accumulated_filtered_signal is None or len(self.accumulated_filtered_signal) == 0):
+            self._log_debug("🛑 No preprocessed audio data in memory to plot")
+            return
 
         if self._xconfig.get("speech-to-text.generate_signal_plots", False):
             self.plot_signals(input_signal=np.concatenate(self.accumulated_signal),

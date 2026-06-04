@@ -81,12 +81,20 @@ class GoogleCode(PyXavi, Command):
         # Does the text contain a code block?
         # We may even have several code blocks.
         code_blocks = []
+
         # First remove the code language identifier if it exists
         text = Code.remove_code_language_identifier(text)
         # Get the code blocks from the text
         raw_code_blocks = Code.extract_code_from_text(text)
+
+        if raw_code_blocks is None:
+            log.warning(f"🔎 Could not extract code from the text: [{text}]")
+            dd(text)
+            return
+
         for code_block in raw_code_blocks:
             code_blocks.append(Code.remove_comment_lines_from_code(code_block))
+
         # Remove the code blocks from the text
         text = Code.remove_all_code_blocks_from_text(text)
         
@@ -133,3 +141,41 @@ class GoogleCode(PyXavi, Command):
         if function_name == "get_generate_code":
             return self.callback_get_generate_code
         return self.default_empty_callback
+    
+# 2026-05-28 23:24:38,771 [MainProcess MainThread            ] ERROR    pitxu        🛑 Error reacting to function call: 'NoneType' object is not iterable
+# 2026-05-28 23:24:38,774 [MainProcess MainThread            ] DEBUG    pitxu        Traceback (most recent call last):
+#   File "<string>", line 1, in <module>
+#     import sys; from importlib import import_module; sys.argv = ['/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/bin/main']; sys.exit(import_module('runner').run())
+#   File "/home/xavier/pitxu/runner.py", line 166, in run
+#     asyncio.run(main.run())
+#   File "/usr/lib/python3.13/asyncio/runners.py", line 195, in run
+#     return runner.run(main)
+#   File "/usr/lib/python3.13/asyncio/runners.py", line 118, in run
+#     return self._loop.run_until_complete(task)
+#   File "/usr/lib/python3.13/asyncio/base_events.py", line 712, in run_until_complete
+#     self.run_forever()
+#   File "/usr/lib/python3.13/asyncio/base_events.py", line 683, in run_forever
+#     self._run_once()
+#   File "/usr/lib/python3.13/asyncio/base_events.py", line 2042, in _run_once
+#     handle._run()
+#   File "/usr/lib/python3.13/asyncio/events.py", line 89, in _run
+#     self._context.run(self._callback, *self._args)
+#   File "/home/xavier/pitxu/pitxu/main.py", line 453, in main_execution_on_transcription_finished
+#     self._reactions.react_on_answer(chat_response=chat_response)
+#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 83, in react_on_answer
+#     self.react_on_function_call(function_call_pair)
+#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 167, in react_on_function_call
+#     self.handle_client_callback(function_call_pair)
+#     ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 201, in handle_client_callback
+#     partial(
+#     ~~~~~~~~
+#     ...<4 lines>...
+#         args
+#         ~~~~
+#     )()
+#     ~^^
+#   File "/home/xavier/pitxu/pitxu/lib/command/google/code.py", line 89, in callback_get_generate_code
+#     for code_block in raw_code_blocks:
+#                       ^^^^^^^^^^^^^^^
+# TypeError: 'NoneType' object is not iterable

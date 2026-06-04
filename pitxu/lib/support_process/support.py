@@ -45,8 +45,15 @@ class Support(PyXavi):
     def close(self):
         self._xlog.info("Closing Support class")
 
-        # Close the Support process in the pool.
-        self.process_pool.force_queue_to_empty(self.input_queue)
+        if self.input_queue is not None:
+            self._log_debug("Joining Support input queue")
+            self.input_queue.join()
+            del self.input_queue
+        
+        if self.output_queue is not None:
+            self._log_debug("Joining Support output queue")
+            self.output_queue.join()
+            del self.output_queue
 
         self._xlog.info("Support class closed")
     
@@ -59,18 +66,22 @@ class Support(PyXavi):
     # ---- Support actions ----
 
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
+        self._log_debug("Accumulating audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, 
                                XprocAction.ACCUMULATE_PREPROCESSED_AUDIO if preprocessed else XprocAction.ACCUMULATE_AUDIO, 
                                audio_data_np)
     
     def clear_accumulated_audio(self):
+        self._log_debug("Clearing accumulated audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.CLEAR_AUDIOS, None)
     
     def dump_accumulated_audio(self, preprocessed: bool = False):
+        self._log_debug("Dumping accumulated audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, 
                                XprocAction.DUMP_PREPROCESSED_AUDIO if preprocessed else XprocAction.DUMP_AUDIO)
     
     def plot_accumulated_audio(self):
+        self._log_debug("Plotting accumulated audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.PLOT_AUDIO)
     
     def dump_and_plot_all(self):
@@ -78,9 +89,11 @@ class Support(PyXavi):
         Dumps all accumulated audio (raw and preprocessed) and plots them.
         Sends 1 action to the process queue, and there it uses the context manager to fit the same timestamp for all.
         """
+        self._log_debug("Dumping and plotting all accumulated audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.DUMP_ALL)
     
     def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
+        self._log_debug("Summarizing and storing chatbot history in memory in Support process")
         self.process_pool.send(QUEUE_SUPPORT, 
                                XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY, 
                                chatbot_history)

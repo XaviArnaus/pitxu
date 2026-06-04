@@ -31,7 +31,7 @@ class Vosk(PyXavi):
 
     transcription_result: str = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     VOICE_LIB_LOG_LEVEL: int = 0
 
     def __init__(self, config: Config = None, params: Dictionary = None):

@@ -89,3 +89,56 @@ class Util(PyXavi):
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+    
+    def util_migrate_db(self):
+        from pitxu.lib.utils.memory import Memory
+        memory = Memory(config=self._xconfig, params=self._xparams)
+        memory.db.migrate_db()
+        memory.close()
+    
+    def util_import_old_memory(self):
+        """
+        This is a one-time utility to import the old memory from the file-based storage to the new SQLite-based storage.
+        After running this, you can delete the old memory file and this utility function.
+        """
+        from pitxu.lib.utils.memory import Memory
+        from pyxavi import Storage, dd
+
+        # Initialize the new Memory (which uses SQLite)
+        memory = Memory(config=self._xconfig, params=self._xparams)
+
+        # Path to the old memory file
+        old_memory_path = os.path.join(
+            self._xconfig.get("storage.path", "storage/"),
+            self._xconfig.get("memory.file.path", "memory.yaml"))
+
+        if not os.path.exists(old_memory_path):
+            self._xlog.error(f"Old memory file not found at {old_memory_path}. Cannot import.")
+            return
+        
+        self._xlog.info(f"Importing old memory from {old_memory_path} to SQLite database.")
+
+        try:
+            old_memory_entries = dict(Storage(filename=old_memory_path).get("entries", {}))
+            counter_succeeded = 0
+            counter_failed = 0
+            for key, entry in old_memory_entries.items():
+                summary = entry.get("summary", "")
+                content = entry.get("content", "")
+                created_at = entry.get("created_at", None)
+                if summary and content:
+                    created_entry = memory.create_short_memory_entry(
+                        summary=summary, 
+                        content=content, 
+                        created_at=created_at)
+                    self._xlog.debug(f"Imported memory entry with ID {created_entry['id']} from old memory.")
+                    counter_succeeded += 1
+                else:
+                    self._xlog.warning(f"Skipping invalid memory entry in old memory: {entry}")
+                    counter_failed += 1
+            self._xlog.info(f"Old memory import complete. Imported {counter_succeeded} entries, {counter_failed} failed.")
+        except Exception as e:
+            self._xlog.error(f"Unexpected error during old memory import: {str(e)}")
+            self._xlog.debug(full_stack())
+        finally:
+            memory.close()

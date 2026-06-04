@@ -28,7 +28,7 @@ class Lists(PyXavi, Command):
 
     state: Storage = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Lists, self).init_pyxavi(config=config, params=params)

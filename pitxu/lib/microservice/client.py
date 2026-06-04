@@ -18,7 +18,7 @@ class Client(PyXavi, MicroserviceBase):
     ENDPOINT_ASK_CHATBOT: str = "ask_chatbot"
     ENDPOINT_SYNTHESIZE: str = "synthesize"
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     URLLIB3_LIB_LOG_LEVEL: int = logging.INFO
 
     DEFAULT_STORAGE_PATH = "storage/"

@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
 
 import signal
 
@@ -15,12 +15,14 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.capture_handler import CaptureHandler
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
+from pitxu.lib.speech_to_text.threaded_input_stream import ThreadedInputStream
 
 import sys
 import sounddevice
@@ -53,15 +55,15 @@ class Main(PyXavi):
     _chatbot: GeminiChatbot = None
     _chatbot_session_manager: ChatbotSessionManager = None
     _dictate = None
-    _raw_input_stream: sounddevice.RawInputStream = None
     _capture_handler: CaptureHandler = None
+    _stt_state_machine: SttStateMachine = None
 
     _is_pitxu_active: bool = True
     _current_start_timestamp: str = None
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
-    _input_stream: sounddevice.RawInputStream = None
+    _threaded_input_stream: ThreadedInputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
 
@@ -72,12 +74,12 @@ class Main(PyXavi):
     _fan_control: FanControl = None
 
     _stopwatch: Stopwatch = None
-    _supported_languages: list = []
+    _supported_languages: list[str] = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
     _trigger_answers: list[str] = []
-    _exit_words: list = []
-    _trigger_words: list = []
+    _exit_words: list[str] = []
+    _trigger_words: list[str] = []
     _tokens_counter: int = 0
 
     _dictate_count: int = 0
@@ -115,6 +117,7 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_signal_plots()
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
+            self._maintenance.execute_memory_preload()
 
             # Register that we just did a new start
             self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
@@ -139,15 +142,14 @@ class Main(PyXavi):
             # Initialize the microphone and defines the callback for the audio capture.
             self._interaction.show_init_phases(4, text="🎙️  Microphone")
             self._instantiate_input_stream()
-                
-            # Set up of all the session context we need for the Chatbot and the MCP tools
-            self._interaction.show_init_phases(5, text="🤖 Chatbot Session Manager")
-            await self._initialize_chatbot_session_manager()
 
             # Initialise the Chatbot async context with all the tools from the session manager
-            self._interaction.show_init_phases(6, text="🤖 Chatbot")
-            await self._chatbot.initialize_async(tools=self._chatbot_session_manager.tools)
-            self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+            self._interaction.show_init_phases(5, text="🤖 Chatbot")
+            await self._initialize_chatbot()
+
+            # Warm up the chatbot
+            self._interaction.show_init_phases(6, text="🔥 Chatbot warm up")
+            await self._warmup_chatbot()
 
             # Initialise the Server that accepts requests to the defined endpoints.
             self._interaction.show_init_phases(7, text="🖥️  Server")
@@ -155,7 +157,7 @@ class Main(PyXavi):
 
             # Initialize the Reactions class
             self._interaction.show_init_phases(8, text="⚡️ Reactions")
-            self._initialize_reactions(input_stream=self._input_stream)
+            self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
             #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
@@ -178,7 +180,7 @@ class Main(PyXavi):
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
             self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
@@ -226,6 +228,10 @@ class Main(PyXavi):
         self.close_nicely()
 
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
+
+        if self._xconfig.get("memory.summarize_at_end_conversation", True) is False:
+            return
+
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
         
         # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
@@ -243,6 +249,7 @@ class Main(PyXavi):
         if not is_end_of_application:
             self._chatbot.reset_session()
             self._log_debug("Chatbot session reset after end of conversation request.")
+            asyncio.run_coroutine_threadsafe(self._warmup_chatbot(), asyncio.get_event_loop())
         else:
             self._log_debug("End of application requested, not resetting chatbot session, but waiting for the support process to summarize")
             self._interaction.wait_for_support_process_to_finish()
@@ -262,30 +269,81 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            pass
+            
+            # Attention: only for Streaming engines!
+            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
+            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
+                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
+                self._dictate.reset_context()
+                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
+                # self._interaction.set_stt_busy()
+                self._interaction.set_transcriber_busy()
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
             self._xlog.error(full_stack())
+    
+    async def main_execution_on_vad_detected_ongoing(self):
+        """
+        This method is called while the user is speaking, detected by the VAD in CaptureHandler.
+        It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_ongoing() method there.
+        """
 
+        try:
+            # Attention: only for Streaming engines!
+            # COMMENTED: We now have a thread that processes the chunks as they arrive.
+            # if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
+            #     # So we have a new chunk in the queue. Process it.
+            #     #self._log_debug("🗣️ Processing new audio chunk received from VAD on speech ongoing...")
+            #     partial_transcription = self._dictate.recognize_chunks_from_queue()
+            #     if partial_transcription is not None and partial_transcription.strip() != "":
+            #         self._log_debug(f"🗣️ Partial transcription: {partial_transcription}")
+            pass
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_vad_detected_ongoing(): " + str(e))
+            self._xlog.error(full_stack())
     
     async def main_execution_on_vad_detected_finished(self):
         """
         This method is called when the user finishes speaking, detected by the VAD in CaptureHandler.
-        It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
         It is meant to be passed as a callback to the CaptureHandler, to be called in vad_on_speech_end() method there.
+        It WAS used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
+        Now this work is done in the callback triggered when the transcription finishes. See main_execution_on_transcription_finished() method.
+        As we want to support non-streaming engines, here we check for a fitting engine and redirect to the transcription
+            callback to be able to continue the flow.
         """
 
-        self._xlog.info("Main execution triggered by user finishing speaking, via VAD callback.")
+        try:
+            if self._xconfig.get("speech-to-text.engine") not in ["faster_whisper_streaming"]:
+                self._log_debug("Redirecting from VAD detected speech finished callback to Transcription finished callback, for non-streaming engines...")
+                await self.main_execution_on_transcription_finished()
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
+            self._xlog.error(full_stack())
+    
+    async def main_execution_on_transcription_finished(self, final_transcription: str = None):
+        """
+        This method is called when the Transcription is finished (receiving a None in the transcription).
+        It is used to trigger the processing of the captured audio immediately, abandoning the main loop iteration approach.
+        It is meant to be passed as a callback to the FasterWhisper Streaming Thread..
+        """
+
+        self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
+
+        # As we want to try to recover from any error, we need to control a possible error state we fall into.
+        #   This will be set to True when an exception is caught.
+        we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._input_stream)
+        self._interaction.mute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
         try:
         
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
+                self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -293,23 +351,35 @@ class Main(PyXavi):
             
             # Recognize what comes from the microphone
             sw_dictate = self._stopwatch.continue_or_start(name="dictate" + str(self._dictate_count))
-            self._interaction.set_stt_busy()
             self._last_stt_processing_time = 0
 
-            question = self._dictate.recognize_all_queue_at_once()
+            # If we are using a streaming engine, we don't want to process the audio, 
+            #   we just want to get the transcription from the transcription process.
+            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming"]:
+                # For Faster Whisper Streaming, the final transcription is sent as an argument of the callback.
+                self._log_debug("Getting transcription from STT after VAD detected speech finished, for streaming engine...")
+                if final_transcription is not None:
+                    question = final_transcription
+            else:
+                # For non-streaming engines, we need to call the recognize_all_queue_at_once() method to process the audio in the queue and get the transcription.
+                self._log_debug("Getting transcription from STT after VAD detected speech finished, for non-streaming engine...")
+                question = self._dictate.recognize_all_queue_at_once()
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
                 # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._input_stream)
+                self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
+                self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
             self._log_debug("💬 Recognised dictate: " + question)
 
-            self._interaction.unset_stt_busy()
+            # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
+            # self._interaction.unset_stt_busy()
+            self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -409,11 +479,13 @@ class Main(PyXavi):
 
             # Do we actually have any answer?
             if answer is not None and answer.strip() != "":
+
+                known_text_replacements = self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {})
             
                 # Clean the answer first, just in case
                 answer = Text.remove_emojis(answer)
                 answer = Text.remove_markdown(answer)
-                answer = Text.replace_known_text(answer, self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {}))
+                answer = Text.replace_known_text(answer, known_text_replacements)
 
                 # Answer
                 sw_answer = self._stopwatch.start(name="answer" + str(self._answer_count))
@@ -444,16 +516,33 @@ class Main(PyXavi):
                 self.reset_last_interaction_event_mark()
 
             # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+
+            # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
+            we_are_in_error_state = False
         
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
+            we_are_in_error_state = True
         except SpeechToTextException as stte:
             if not self._is_pitxu_active:
-                self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
+                self._xlog.warning("🛑 SpeechToTextException detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(stte))
                 self._xlog.error(full_stack())
                 return
             self._xlog.error("🛑 SpeechToTextException detected in Main run callback: " + str(stte))
+            we_are_in_error_state = True
+        except FileNotFoundError as fnfe:
+            if not self._is_pitxu_active:
+                if "pitxu_shared_memory_flags" in str(fnfe.filename):
+                    # It's normal, because when Pitxu is closing, it removes the shared memory that holds the busy flags,
+                    #   so if any callback tries to access it while it's closing, it may raise this FileNotFoundError. 
+                    # We can just ignore it in this case, as it means that we are already in the process of closing 
+                    #   and we don't want to do anything else.
+                    pass
+            else:
+                self._xlog.error("🛑 FileNotFoundError detected in Main run callback: " + str(fnfe))
+                self._xlog.error(full_stack())
+                we_are_in_error_state = True
         except Exception as e:
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Exception detected in Main run callback, but Pitxu is already in the process of closing, so ignoring it: " + str(e))
@@ -461,6 +550,40 @@ class Main(PyXavi):
                 return
             self._xlog.error("🛑 Error in Main run callback: " + str(e))
             self._xlog.error(full_stack())
+            we_are_in_error_state = True
+
+        # At this point, the whole interaction is done.
+        # But we may have arrived here from within an exception, that leaves the app unusable.
+        # So because we don't want to close the app we don't use the close_nicely() method, as it finishes the app, 
+        #   but we want to try to recover a clean state to allow further interactions, we do some cleaning here.
+        # try:
+        #     if we_are_in_error_state:
+        #         self._xlog.warning("🟠 We are in an error state. Trying now to recover a clean state to allow further interactions.")
+
+        #         # Stop any interaction effects that may be still active, like the busy flags not related to subprocess (as they are handled by XProcess)
+        #         #   to allow the user to see them properly in the next interaction.
+        #         self._interaction.unset_chatbot_busy()
+        #         self._interaction.unset_transcriber_busy()
+
+        #         # Same for the queues, just clean them all.
+        #         self._interaction.get_process_pool().force_all_queues_to_empty()
+
+        #         # Now we clean the displays, to remove any possible stuck display that may be still there from the previous interaction.
+        #         self.clear_displays()
+
+        #         # And tell the app that this is the end of an interaction, to allow the interaction mecanisms.
+        #         self.reset_last_interaction_event_mark()
+
+        #         # Turn on the microphone again, just in case, to allow the user to try again.
+        #         self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+
+        # except Exception as e:
+        #     if not self._is_pitxu_active:
+        #         self._xlog.warning("🛑 Exception detected while recovering from an error state, but pitxu is inactive, so ignoring it: " + str(e))
+        #         self._xlog.error(full_stack())
+        #         return
+        #     self._xlog.error("🛑 Error in Main run callback, when recovering from an error state: " + str(e))
+        #     self._xlog.error(full_stack())
 
 
     # ------------- End of the main method run() -------------
@@ -486,7 +609,8 @@ class Main(PyXavi):
         self._last_interaction_paused_seconds = 0
 
     def _text_has_exit_intention(self, text: str) -> bool:
-        return text.replace(".", "").lower() in self._exit_words
+        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{text.replace(".", "").lower().strip()}': {text.replace(".", "").lower().strip() in self._exit_words}")
+        return text.replace(".", "").lower().strip() in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
@@ -502,17 +626,34 @@ class Main(PyXavi):
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
         first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower() in first_words:
+            if trigger_word.replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
         return False
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
-        # Let's consider that from what the user said, all words need to be one of the trigger words
-        all_user_input = Text.remove_accents(question.lower().strip())
+        """
+        Everything what the user said i one or more trigger words, and nothing else.
+        """
+
+        # Clean minimally the user input
+        all_user_input = Text.remove_accents(question)
+        all_user_input = Text.remove_punctuation(all_user_input)
+        all_user_input = all_user_input.lower().strip()
+        # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
+        if all_user_input == "":
+            return False
+        # Now check the trigger words we have
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower() in all_user_input:
+            # Same cleaning for same comparison.
+            cleaned_trigger_word = Text.remove_accents(trigger_word)
+            cleaned_trigger_word = Text.remove_punctuation(cleaned_trigger_word)
+            cleaned_trigger_word = cleaned_trigger_word.lower().strip()
+            # If the cleaned trigger word is in the cleaned user input, we remove it from the user input and keep checking.
+            all_user_input = all_user_input.replace(cleaned_trigger_word, "")
+            # If after removing the trigger words we don't have any text, then the user only said trigger words.
+            if len(all_user_input.strip()) == 0:
                 return True
         
         # No trigger word found
@@ -551,6 +692,10 @@ class Main(PyXavi):
         # The scheduler contains a thread, so close it properly.
         self._scheduler.shutdown()
 
+        # Close the Threaded Input Stream
+        if self._threaded_input_stream is not None:
+            self._threaded_input_stream.close()
+
         # Persist state
         self.persist_state()
 
@@ -559,41 +704,53 @@ class Main(PyXavi):
             self._interaction.set_idle_mode_off()
 
         # Clear the displays
+        # ⚠️ It does nothing
         self.clear_displays()
-
-        # Close the Support class, which empties the queue discarding all actions there
-        if self._support is not None:
-            self._support.close()
-
-        # Wait for all the queues and processes to get empty
-        self._interaction.get_process_pool().get_memory_manager().force_all_flags_to_idle()
-        self._interaction.wait_for_all_queues_to_empty()
-        self._interaction.wait_for_all_busy_processes_to_idle()
+        self._interaction.wait_for_background_display_queue_to_empty()
+        self._interaction.wait_for_foreground_display_queue_to_empty()
+        self._interaction.wait_for_busy_background_display_to_idle()
+        self._interaction.wait_for_busy_foreground_display_to_idle()
 
         # Stop the Chatbot Session Manager.
-        # ❗️ THE CLOSING STOPS HERE. RESULT() TIMESOUT AND THE EXCEPTION GETS CAUGHT, BUT THE APP KEEPS RUNNING AND DOES NOT CLOSE. IT SEEMS LIKE THE EXCEPTION IS NOT THE PROBLEM, BUT THE FACT OF WAITING FOR THE COROUTINE TO FINISH WITH RESULT() IS WHAT MAKES IT HANG. MAYBE WE CAN JUST CALL THE COROUTINE WITHOUT WAITING FOR IT TO FINISH? OR WAIT FOR IT WITH A TIMEOUT AND IGNORE IF IT TIMES OUT?
         if self._chatbot_session_manager is not None:
             asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            # future = asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
-            # try:
-            #     if future.result(timeout=1) == True:  # Wait for the coroutine to finish, with a timeout to avoid hanging indefinitely
-            #         self._xlog.info("Chatbot Session Manager closed successfully.")
-            #     else:
-            #         self._xlog.warning("Chatbot Session Manager did not close successfully.")
-            # except Exception as e:
-            #     self._xlog.error("🛑 Error while closing Chatbot Session Manager: " + str(e))
-            #     self._xlog.error("🛑 " + full_stack())
 
         # Close the server
         if self._server is not None:
             self._server.close()
+        
+        # Close the CaptureHandler, that also closes the VAD and the microphone stream.
+        if self._capture_handler is not None:
+            self._capture_handler.close()
 
-        # Close Vosk
+        # Close STT
         if self._dictate is not None:
             self._dictate.close()
-
+        
         # Finish all related multiprocess stuff
-        self._interaction.get_process_pool().finish_leftover_processes()
+        # Take in account that a Control + C may have killed some of the processes already,
+        #   so check somehow if any of the following is still alive before sending a FINISH to a queue that does not exist anymore.
+        except_queue_names = []
+        for name in self._interaction.get_process_pool().list_of_processes():
+            process = self._interaction.get_process_pool().get_process(name)
+            if process is None or not process.is_alive():
+                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
+                except_queue_names.append(name)
+        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+
+        # Close the Support class.
+        # Support is used by:
+        #   1. Main -> Support (main instance)
+        #   2. STT -> Support (main instance, passed via params)
+        #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
+        # How are they closed?
+        #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
+        #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
+        if self._support is not None:
+            self._support.close()
+        
+        self._xlog.debug("Closing Shared Memory Manager")
+        self._interaction.get_process_pool().get_memory_manager().close()
 
         # Finish interactions and related processes
         self._interaction.close()
@@ -715,10 +872,17 @@ class Main(PyXavi):
         # Initialise Speech-to-Text. This runs in the main process
         self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
                          f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
-        # COMMENTED: This way Vosk chooses between config or device.
-        # self._xparams.set("samplerate", self._xconfig.get("speech-to-text.input_samplerate"))
+        
+        # Initialise the STT State Machine
+        self._stt_state_machine = SttStateMachine(config=self._xconfig, params=Dictionary())
 
         if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+            # Use the Vosk engine. 
+            # It is a streaming approach.
+            # Has been in use the whole development until May 2026. Was fustrating but working.
+            # - Accuracy is VERY low
+            # - It's fast.
+            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
 
             from pitxu.lib.speech_to_text.vosk import Vosk
 
@@ -727,6 +891,13 @@ class Main(PyXavi):
             self._dictate = Vosk(config=self._xconfig, params=self._xparams)
 
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+            # Use the Whisper engine.
+            # It is a non-streaming approach
+            # Was barely used. Too slow in the RPi, good in the Mac.
+            # - Accuracy is good
+            # - It's VERY slow
+            # # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+
 
             from pitxu.lib.speech_to_text.whisper import Whisper
 
@@ -734,11 +905,43 @@ class Main(PyXavi):
             self._dictate = Whisper(config=self._xconfig, params=self._xparams)
 
         elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
+            # Use Faster Whisper engine.
+            # It is a non-streaming approach, 
+            # It was some time in use during May 2026. Transcription takes a bit of time, but holds a much better conversation quality.
+            # - Accuracy is EXCELLENT with the tiny model. 
+            # - It's slow, but way much faster than Whisper.
+            # The tradeoff is worth considering. 
+            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+            # TODO: What if we use the faster_whisper_process, that runs in a separate process? 
+            #   It may be a good option to keep the main loop more responsive and still keep the accuracy.
 
             from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
 
             self._xparams.set("support", self._support)
             self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
+        
+        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+            # Use Faster Whisper Streaming engine. 
+            # It's a streaming approach:
+            #   - A thread consumes the input queue and sends a window of chunks to a subprocess via another queue.
+            #   - The partial transcriptions are merged in the subprocess by word match (Good by now, may need improvements), 
+            #       accumulating an ongoing transcription.
+            #   - The thread receives a sentinel from the input queue and requests the transcription from the subprocess, through an output queue.
+            #   - The same first thread also consumes the output queue from the subprocess, 
+            #       and reacts on receiving a transcription calls the Main's callback with the received transcription.
+            # It's the current working implementation as of May 2026, and it is working pretty well, with a good accuracy and a decent speed.
+
+            from pitxu.lib.speech_to_text.faster_whisper_stream import FasterWhisperStream
+
+            self._dictate = FasterWhisperStream(config=self._xconfig, params=Dictionary({
+                "support": self._support,
+                "stt_state_machine": self._stt_state_machine,
+                "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                "main_event_loop": asyncio.get_event_loop(),
+                "language": self._xparams.get("language"),
+                "audio_parameters": self._audio_parameters,
+                "process_pool": self._interaction.get_process_pool(),
+            }))
 
         else:
             self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
@@ -747,37 +950,38 @@ class Main(PyXavi):
             sys.exit(1)
 
         input_audio_chunk_queue = self._dictate.get_queue()
+        silence_input_queue = self._dictate.get_silence_input_queue()
 
         # Initialise the Capture Handler, that captures the audio from the microphone.
         # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
         self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
             "capture_queue": input_audio_chunk_queue,
+            "silence_input_queue": silence_input_queue,
             "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
             "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
+
+            # For Faster Whisper Streaming:
+            # Even it's tempting, the callbacks here should be used solely for VAD purposes.
+            # Once the end of speech is detected, a sentinel is sent to the transcription thread
+            # and it's this one who triggers the main execution.
+
+            # For non-streaming engines:
+            # Yes, the callback for the end of VAD speech detection should redirect to the same
+            # transcription callback, that as it does not receive the transcription as an argument, 
+            # it will get it from the Dictate class, that in non-streaming engines is where the transcription is done.
+
             # The callback that triggers when the user starts speaking, detected by the VAD.
             "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
+            # The callback that triggers while the user is speaking, detected by the VAD.
+            "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
             # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
             "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
             # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
-            "main_event_loop": asyncio.get_event_loop()
-        }))
+            "main_event_loop": asyncio.get_event_loop(),
 
-        # # Initialise the Raw Input Stream for microphone
-        # self._xlog.debug("Initialising the Raw Input Stream for microphone")
-        # if self._xconfig.get("speech_to_text.mock", True) is False:
-        #     self._xlog.info("Loading Real Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.wrapper_raw_input_stream import WrapperRawInputStream
-        #     # Correct format for Vosk is PCM 16khz 16bit mono
-        #     self._raw_input_stream = WrapperRawInputStream(samplerate=self._dictate.samplerate,
-        #                     blocksize = 0, 
-        #                     device=self._dictate.device,
-        #                     dtype="int16", 
-        #                     channels=1,
-        #                     callback=self._dictate.callback)
-        # else:
-        #     self._xlog.info("Loading Mocked Raw Input Stream (mic) for Speech-to-Text by Config")
-        #     from pitxu.lib.speech_to_text.mocked_raw_input_stream import MockedRawInputStream
-        #     self._raw_input_stream = MockedRawInputStream(config=self._xconfig, dictionary=self._xparams)
+            # The STT State Machine that controls transcription state transitions.
+            "stt_state_machine": self._stt_state_machine,
+        }))
 
         # Initialise Chatbot
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
@@ -797,6 +1001,17 @@ class Main(PyXavi):
         self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "] with chatbot name [" + self._xconfig.get("chatbot.name") + "]")
         self._trigger_words = [trigger_words % self._xconfig.get("chatbot.name") for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language"))]
 
+        # Add more trigger words based on the name variations, if specified in the config.
+        if self._xconfig.get("chatbot.name_variations"):
+            name_variations = self._xconfig.get("chatbot.name_variations", [])
+            self._xlog.debug("Adding trigger words based on name variations: " + ", ".join(name_variations))
+            for name_variation in name_variations:
+                for trigger_words in self._xconfig.get("language.trigger_words." + self._xparams.get("language")):
+                    new_trigger_word = trigger_words % name_variation
+                    if new_trigger_word not in self._trigger_words:
+                        self._trigger_words.append(new_trigger_word)
+        self._xlog.debug("Added trigger words based on name variations: " + ", ".join(self._trigger_words))
+
         # Load trigger answers
         self._xlog.debug("Load Trigger answers with language [" + self._xparams.get("language") + "]")
         self._trigger_answers = self._xconfig.get("language.trigger_answers." + self._xparams.get("language"))
@@ -807,7 +1022,7 @@ class Main(PyXavi):
             for word in exit_words:
                 if word not in all_possible_exit_words:
                     all_possible_exit_words.append(word)
-        self._xlog.debug("Load ALL possible exit words " + str(all_possible_exit_words) + "")
+        self._xlog.debug("Load ALL possible exit words " + ", ".join(all_possible_exit_words))
         self._exit_words = all_possible_exit_words
 
         # Idle mode after some minutes of inactivity
@@ -816,40 +1031,39 @@ class Main(PyXavi):
     def _instantiate_input_stream(self):
         """
         Initialization of the Raw Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
+        It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
         """
 
-        # This is the samplerate that generates the chunks received in CaptureHandler.callback().
-        #   In MacOS the microphone can't be set to an arbitrary samplerate that fits on us, so
-        #   the config value for it must be -1 so that it gets inferred by de library.
-        # Then the CaptureHeader will resample it to 16 kHz, and that's why the rest of components work
-        #   under 16 kHz.
-        # Set the samplerate that we're going to settle for the STT (ensure that the STT model has the EXACT SAME VALUE)
-        # Fall back to what the Vosk's Kaldi Recognizer is using if the config value is not set.
-        samplerate = self._audio_parameters.get("input_samplerate")
-        blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
-        device = self._xparams.get("audio_parameters.input_device", None)
+        self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
+            "audio_parameters": self._audio_parameters,
+            "capture_handler_callback": self._capture_handler.callback,
+        }))
+    
+    async def _initialize_chatbot(self):
+        """
+        Initialization of the Chatbot, that manages the conversation with the Chatbot and its history.
+        """
 
-        self._xlog.debug("Initialising the Raw Input Stream for microphone")
-        self._input_stream = sounddevice.RawInputStream(
-                            #samplerate=self._dictate.samplerate,
-                            # samplerate=16000, # Vosk works better with 16kHz, even if the mic supports higher rates.
-                            samplerate=samplerate,
-                            # blocksize=0, 
-                            blocksize=blocksize,
-                            device=device,
-                            dtype="int16", 
-                            channels=1,
-                            # callback=self._dictate.callback) as input_stream:
-                            callback=self._capture_handler.callback)
-        
-        self.log_summary("Raw Input Stream (Mic) initialized", [
-                    ("Device", device),
-                    ("Sample Rate", samplerate),
-                    ("Block Size", blocksize if blocksize > 0 else "0 (automatic by pyAudio)"),
-                    ("Channels", 1),
-                    ("Data Type", "int16"),
-                    ("Callback", "CaptureHandler.callback")
-                ])
+        # Set up of all the session context we need for the Chatbot and the MCP tools
+        await self._initialize_chatbot_session_manager()
+
+        # Initialise the Chatbot async context with all the tools from the session manager
+        await self._chatbot.initialize_async(tools=self._chatbot_session_manager.tools)
+        self._chatbot_client_callbacks = self._chatbot.get_session_manager().get_client_callbacks_by_function_name()
+    
+    async def _warmup_chatbot(self):
+        """
+        Warmup of the Chatbot, that makes a simple question to the Chatbot to make sure that everything is loaded and working before starting to interact with the user.
+        """
+
+        self._xlog.info("Warming up Chatbot with a simple question to make sure everything is loaded and working.")
+
+        warmup_question = self._xconfig.get(f"language.warmup_question.{self._xparams.get('language')}", "Acknowledge that you're ready")
+
+        try:
+            warmup_response: ChatbotResponse = await self._chatbot.ask_async(warmup_question)
+        except Exception as e:
+            self._xlog.error("🛑 Error during Chatbot warmup: " + str(e))
     
     async def _initialize_chatbot_session_manager(self):
         """
@@ -897,7 +1111,8 @@ class Main(PyXavi):
         self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
         # EVERY MINUTE
-        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args=[None])
+        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args={
+            "input_stream": self._threaded_input_stream.get_input_stream()})
 
         # EVERY SECOND
         self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
@@ -988,6 +1203,12 @@ class Main(PyXavi):
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
             self._log_debug("🕐 New minute detected: " + str(current_minute) + ".")
+
+            # Import something for the FasterWhisperStream.
+            # TODO: Should be in a more generic way, look at this when we refactor STT to be really multimodel.
+            # COMMENTED: Idea unfinished.
+            # from pitxu.lib.speech_to_text.faster_whisper_stream import TrascriptionState
+
             # Get the possible reminder for the current date and time
             date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
             time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
@@ -1049,14 +1270,34 @@ class Main(PyXavi):
                         header="Idle",
                         font_header_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
                         show_for_seconds=15)
+                
+                    # If we're in a state of waiting for a transcription to happen,
+                    #   - Mic is off
+                    # then put the Mic on, and reset the transcription (if streaming), so at leat the user can try
+                    #   to trigger the interaction again.
+                    # ⚠️ Still... it shouldn't happen!
+                    if self._interaction.is_microphone_muted():
+                        self._log_debug("Microphone is muted while in idle mode, unmuting it to allow the user to trigger an interaction.")
+                        self._interaction.unmute_microphone(input_stream=input_stream)
+                        if self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+                            self._dictate.reset_context()
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
             
+            # COMMENTED: Idea unfinished.
+            # # If we're in idle mode and the dictation is in a weird state, force a reset.
+            # if self._interaction.is_idle_mode_on() and not self._interaction.is_transcriber_busy():
+            #     self._log_debug("Dictation is in progress while in idle mode, resetting it to avoid being stuck in a weird state.")
+            #     self._dictate.reset_context()
+
+                
+
             # Pollute the logs with VAD stats every minute, as they are interesting to check from time to time.
-            if self._xconfig.get("speech-to-text.vad.enabled", False):
-                vad_stats = self._capture_handler.get_vad_handler().get_stats()
-                self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
+            # COMMENTED: Not that interesting... Unless we're debugging the VAD.
+            # if self._xconfig.get("speech-to-text.vad.enabled", False):
+            #     vad_stats = self._capture_handler.get_vad_handler().get_stats()
+            #     self.log_summary("VAD stats", [(key.replace("_", " ").title(), value) for key, value in vad_stats.items()])
     
     # ------- Stuff to do every second -------
 
@@ -1091,20 +1332,38 @@ class Main(PyXavi):
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
 
-                    if not self._interaction.is_vad_detected():
-                        # Vad did not detect anything, and we're in the time window to show the holding percentage
+                    # The is_vad_detected should manage the *non-streaming* Faster Whisper
+                    # The is_transcriber_busy should manage the *streaming* Faster Whisper
+                    if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+                        # The transcriber still didn't finish inferring the speech.
+                        self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
+                        self._last_interaction_paused_seconds += 1
+                    else:
+                        # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
                         self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
-                    else:
-                        self._xlog.debug("🎤 User may be speaking, pausing interaction holding time counter.")
-                        self._last_interaction_paused_seconds += 1
                     
-                    # Display it.
-                    if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
-                        self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
-                        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                    if not self._interaction.is_transcriber_busy():
+                        # Display it.
+                        if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
+                            self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
+                            self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                        else:
+                            self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     else:
-                        self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                        # If the transcriber is busy, we don't show the percentage, show something else.
+                        current_partial = self._dictate.get_ongoing_transcription()
+                        self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
+                        # dd(current_partial)
+                        # most likely this is not the way of showing it...
+                        # the *_while_* is meant to be called once and stay until the flag is over...
+                        # Here we're calling it for every second, which it's not designed for it.
+                        # TODO: Here we have to think how to do so.
+                        # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
+                        #     icon="🎙️", 
+                        #     text="", 
+                        #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
+                        # )
 
                 elif self._last_processed_interaction_percentage >= 0:
                     # We are meant to clean the display.

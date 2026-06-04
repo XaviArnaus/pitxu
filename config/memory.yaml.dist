@@ -6,6 +6,10 @@ memory:
   #   The higher, the more similar the memory should be to be accepted.
   #   Not used by now.
   summary_similarity_threshold: 0.4
+  # [Boolean] Whether to summarize the conversation at the end of the conversation.
+  summarize_at_end_conversation: False
+  # [String] Model to use for summarizing the chatbot history into a memory entry.
+  summarization_model: gemini-2.5-flash
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
   #   The prompt will receive the chatbot history as a list of dictionaries with "role" and "content" as keys.
   #   The prompt should return a concise summary of the chatbot history that captures the main points and context. 

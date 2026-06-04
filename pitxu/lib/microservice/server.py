@@ -28,7 +28,7 @@ class Server(PyXavi, MicroserviceBase):
 
     stt_samplerate: int = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     FLASK_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config, params: Dictionary):
@@ -116,8 +116,8 @@ class Server(PyXavi, MicroserviceBase):
     def close(self):
         self._xlog.info("Closing Server")
 
-        self._log_debug("Closing Vosk instance in the server context")
         if 'stt' in self.server.config and self.server.config['stt'] is not None:
+            self._log_debug("Closing Vosk instance in the server context")
             self.server.config['stt'].close()
 
         self._log_debug("Shutting down Server")
