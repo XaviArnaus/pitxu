@@ -532,8 +532,7 @@ class FasterWhisperStream(PyXavi):
         return self.use_dynamic_rms_silence and self.silence_input_queue is not None
     
     def get_ongoing_transcription(self) -> str:
-        ongoing_transcription = self.ongoing_transcription if self.ongoing_transcription is not None else ""
-        return self.final_transcription + " " + ongoing_transcription
+        return self.ongoing_transcription
     
     def close(self):
         self._xlog.info("Closing FasterWhisper Stream STT")

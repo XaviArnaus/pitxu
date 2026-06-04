@@ -430,9 +430,6 @@ class FasterWhisperStreamProcess(Xprocess):
             ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
             self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{ongoing_transcription_text}{TerminalColor.END}\n")
 
-            # At this point, this is what we have, even it's going to be corrected on-the-go:
-            self._emit_transcription(partial_transcription=ongoing_transcription_text)
-
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
             stability_threshold = 2.0
@@ -445,6 +442,10 @@ class FasterWhisperStreamProcess(Xprocess):
                 # Emit the committed words (e.g., put them in the output queue)
                 self._final_transcription += " " + " ".join([w['word'] for w in committed_words])
                 result = self._final_transcription
+            
+            # At this point, this is what we have, even it's going to be corrected on-the-go.
+            # Emit it, so the caller can see a partial.
+            self._emit_transcription(partial_transcription=self._final_transcription.strip() + " " + " ".join([w['word'] for w in self._ongoing_transcription]))
 
             # Keep the last defined samples as overlap
             self._last_overlap = audio_to_process[-self._overlap_size:]
