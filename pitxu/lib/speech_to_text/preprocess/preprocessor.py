@@ -53,7 +53,7 @@ class Preprocessor(PyXavi):
     dyanamic_rms_correction_percentage: float = 2.5
     apply_dynamic_rms_silence: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     DEBUG_RMS: bool = True
 
     def __init__(self, config: Config, params: Dictionary):

@@ -32,7 +32,7 @@ class FasterWhisper(PyXavi):
     is_active: bool = False
     language: str = "en"
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(FasterWhisper, self).init_pyxavi(config=config, params=params)

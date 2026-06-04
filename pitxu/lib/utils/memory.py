@@ -23,7 +23,7 @@ class Memory(PyXavi):
     GENAI_LIB_LOG_LEVEL: int = logging.INFO
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)

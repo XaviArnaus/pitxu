@@ -28,7 +28,7 @@ class Server(PyXavi, MicroserviceBase):
 
     stt_samplerate: int = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
     FLASK_LIB_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, config: Config, params: Dictionary):

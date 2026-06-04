@@ -38,7 +38,7 @@ class CaptureHandler(PyXavi):
     # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
     add_timestamps_to_chunks: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(CaptureHandler, self).init_pyxavi(config=config, params=params)

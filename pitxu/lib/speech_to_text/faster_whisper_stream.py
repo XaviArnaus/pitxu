@@ -1,4 +1,4 @@
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, TerminalColor, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.conversors import Conversors
@@ -394,7 +394,7 @@ class FasterWhisperStream(PyXavi):
                             self._xlog.warning(f"🟠 Received transcription result but can't transition from {current_state} to FINAL_TRANSCRIPTION. Expected state was REQUESTED_TRANSCRIPTION.")
 
                         if isinstance(final_transcription, str) and len(final_transcription) > 0:
-                            self._log_debug("✏️ Got transcription result from the Process: " + final_transcription)
+                            self._log_debug(f"✏️ Got transcription result from the Process: {TerminalColor.RED}{final_transcription}{TerminalColor.END}")
                             # Oops! Why do we receive duplications?
                             if final_transcription in self.final_transcription:
                                 self._log_debug("✏️ Received transcription result is already in the final transcription, skipping to avoid duplication.")
