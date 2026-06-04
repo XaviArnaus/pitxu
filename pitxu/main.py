@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
 
 import signal
 
@@ -1368,7 +1368,6 @@ class Main(PyXavi):
                 seconds_since_last_interaction = self.get_seconds_since_last_interaction()
                 # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
             
-                transcriber_is_busy = False
                 if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
                     # We are meant to show the holding percentage.
 
@@ -1378,13 +1377,12 @@ class Main(PyXavi):
                         # The transcriber still didn't finish inferring the speech.
                         self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                         self._last_interaction_paused_seconds += 1
-                        transcriber_is_busy = True
                     else:
                         # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
                         self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
                     
-                    if not transcriber_is_busy:
+                    if not self._interaction.is_transcriber_busy():
                         # Display it.
                         if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
                             self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
@@ -1392,9 +1390,19 @@ class Main(PyXavi):
                         else:
                             self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
                     else:
-                        # If the transcriber is busy, we don't show the percentage.
-                        # TODO: Show here anything instead.
-                        pass
+                        # If the transcriber is busy, we don't show the percentage, show something else.
+                        current_partial = self._dictate.get_ongoing_transcription()
+                        self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
+                        # dd(current_partial)
+                        # most likely this is not the way of showing it...
+                        # the *_while_* is meant to be called once and stay until the flag is over...
+                        # Here we're calling it for every second, which it's not designed for it.
+                        # TODO: Here we have to think how to do so.
+                        # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
+                        #     icon="🎙️", 
+                        #     text="", 
+                        #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
+                        # )
 
                 elif self._last_processed_interaction_percentage >= 0:
                     # We are meant to clean the display.

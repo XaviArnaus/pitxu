@@ -283,7 +283,8 @@ class FasterWhisperStreamProcess(Xprocess):
                 #   the repetitions that I see? I don't expect elements in the queue but the very final one!
                 # Still not sure whe this return, but the repetitions came from bad timestamp calculation,
                 #   forghetting the overlap extra duration.
-                return self.process_chunks(param)
+                # REMOVED THE RETURN.
+                self.process_chunks(param)
             else:
                 raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
         
@@ -426,7 +427,11 @@ class FasterWhisperStreamProcess(Xprocess):
                 new_transcribed_words
             )
 
-            self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{" ".join([w['word'] for w in self._ongoing_transcription])}{TerminalColor.END}\n")
+            ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
+            self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{ongoing_transcription_text}{TerminalColor.END}\n")
+
+            # At this point, this is what we have, even it's going to be corrected on-the-go:
+            self._emit_transcription(partial_transcription=ongoing_transcription_text)
 
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
@@ -447,6 +452,13 @@ class FasterWhisperStreamProcess(Xprocess):
         self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
     
+    def _emit_transcription(self, final_transcription: str = None, partial_transcription: str = None):
+        # It's a tuple: (partial, final)
+        queue_item = (partial_transcription.strip() if partial_transcription is not None else None,
+            final_transcription.strip() if final_transcription is not None else None
+        )
+        self._output_queue.put(queue_item)
+
     def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
         """
         Merges new words into the buffer. If a new word overlaps with the end of the
@@ -568,7 +580,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
         # We put the transcription in the output queue, to be retrieved by the Main process.
         if self._output_queue is not None:
-            self._output_queue.put(final_transcription)
+            self._emit_transcription(final_transcription=final_transcription)
             # self._output_queue.put(self._output_queue_sentinel)
             self._log_debug("Final transcription put in the output queue.")
             # Reset the context to avoid issues if the start does not trigger well
