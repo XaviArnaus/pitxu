@@ -115,3 +115,19 @@ class ThreadedInputStream(PyXavi):
                             # callback=self._dictate.callback) as input_stream:
                             callback=self.capture_handler_callback)
     
+class MockedInputStream(ThreadedInputStream):
+    """
+    This is a mocked version of the ThreadedInputStream, which can be used for testing purposes. 
+    It simulates the behavior of the actual input stream without capturing real audio data. 
+    This allows us to test the speech-to-text pipeline and other components without relying on a microphone or audio input.
+    """
+
+    def initialize(self):
+        self._xlog.debug("Initializing MockedInputStream... (no actual audio capture will occur)")
+        self._xlog.debug("MockedInputStream initialized successfully.")
+    
+    def close(self):
+        self._xlog.info("Closing MockedInputStream... (no actual stream to close)")
+    
+    def get_input_stream(self):
+        return None  # No actual stream, since this is a mock.

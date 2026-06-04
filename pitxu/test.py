@@ -1,3 +1,5 @@
+import asyncio
+
 from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -768,5 +770,43 @@ finally:
 
         except FileNotFoundError:
             print(TerminalColor.RED_BRIGHT + f"The file '{input_wavefile_path}' was not found." + TerminalColor.END)
+        except Exception:
+            print(full_stack())
+    
+    async def test_one_run(self):
+        try:
+            self._xlog.info("Starting Test Run...")
+
+            # this should bring up everything but STT and Schedulers
+            self._xparams.set("execution_mode", "test")
+
+            # Initialize the parts
+            from pitxu.main import Main
+
+            self._xlog.info("Initializing Main...")
+            main = Main(config=self._xconfig, params=self._xparams)
+            # main_loop = asyncio.new_event_loop()
+            # asyncio.run_coroutine_threadsafe(main.run(), main_loop)
+            await main.run()
+
+            # Read a file to simulate speech, and call the transcriber.
+            self._xlog.info("Getting question from STT...")
+            question = "What time is it now?"
+
+            # Use the chatbot. It should trigger an external tool
+            self._xlog.info("Getting answer from Chatbot...")
+            # answer = question.upper()
+            answer = await main.chatbot_request_for_answer(question)
+
+            # Make it through the outcome interaction (TTS, display)
+            self._xlog.info("Delivering outcome...")
+            main.deliver_outcome(question=question, answer=answer)
+
+            # And now close everything down
+            self._xlog.info("Closing Main...")
+            main.close_nicely()
+
+            self._xlog.info("test_one_run completed successfully.")
+
         except Exception:
             print(full_stack())
