@@ -17,6 +17,7 @@ import numpy as np
 import logging
 import samplerate
 import asyncio
+import threading
 
 class CaptureHandler(PyXavi):
 
@@ -24,7 +25,10 @@ class CaptureHandler(PyXavi):
     target_samplerate: int = 16000
 
     shared_memory: SharedMemoryManager = None
+    # Queue to put the chunks that the Raw Input Stream produces, in the initial callback.
     queue: Queue.Queue = None
+    # Internal queue to communicate the decoupled Input Stream with the VAD callbacks, to avoid putting non-speech chunks in the main queue. 
+    internal_queue: Queue.Queue = None
     vad: RmsVAD = None
     resampler: samplerate.Resampler = None
     on_vad_detected_started_callback: callable = None
@@ -35,10 +39,13 @@ class CaptureHandler(PyXavi):
 
     is_active: bool = True
 
+    vad_thread: threading.Thread = None
+
     # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
     add_timestamps_to_chunks: bool = False
 
     VERBOSE_DEBUG: bool = False
+    THREAD_NAME = "VADWorker"
 
     def __init__(self, config: Config, params: Dictionary):
         super(CaptureHandler, self).init_pyxavi(config=config, params=params)
@@ -103,6 +110,9 @@ class CaptureHandler(PyXavi):
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_existing_shared_memory_flags()
 
+        # The intermediate queue to communicate the decoupled Input Stream with the VAD callbacks
+        self.internal_queue = Queue.Queue()
+
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
         attack = self._xconfig.get("speech-to-text.vad.attack", 0.2)
@@ -136,16 +146,43 @@ class CaptureHandler(PyXavi):
             ("Out Sample Rate", f"{self.target_samplerate} Hz")
         ])
 
+        self._xlog.debug("🗣️ Starting VAD worker thread to process raw audio chunks from the Input Stream...")
+        self.vad_thread = threading.Thread(target=self._process_raw_chunks_worker, name=self.THREAD_NAME, daemon=True)
+        self.vad_thread.start()
+
         self._log_debug("🗣️ Done Initializing Capture Handler for Speech-to-Text")
     
     def close(self):
         self._xlog.info("🗣️ Closing Capture Handler for Speech-to-Text")
+
         self.is_active = False
 
+        # Empty the intermediate queue
+        self._xlog.debug("Emptying internal queue of Capture Handler...")
+        while not self.internal_queue.empty():
+            try:
+                self.internal_queue.get_nowait()
+                self.internal_queue.task_done()
+            except Queue.Empty:
+                pass
+
+        # Now join the queue
+        self._xlog.debug("Joining internal queue of Capture Handler...")
+        self.internal_queue.join()
+
+        # Now joing the thread
+        self._xlog.debug("Joining VAD worker thread of Capture Handler...")
+        if self.vad_thread is not None:
+            self.vad_thread.join()
+
+        # Now finish the VAD
+        self._xlog.debug("Closing VAD of Capture Handler...")
         if self.vad is not None:
             self.vad.reset()
             del self.vad
 
+        # And also the Resampler
+        self._xlog.debug("Closing Resampler of Capture Handler...")
         if self.resampler is not None:
             del self.resampler
 
@@ -169,46 +206,66 @@ class CaptureHandler(PyXavi):
         if status:
             self._xlog.debug(f"🗣️ Audio input status: {status}")
             print(status, file=sys.stderr)
-
-        if not self.should_skip_audio_input() and self.queue is not None and self.is_active:
-            # self._xlog.debug(f"Input audio callback: Received audio block of {len(indata)} bytes, putting it in the queue for processing")
-
-            # Whatever comes as input, resample it to the working samplerate.
-            if self.microphone_samplerate != self.target_samplerate:
-                # indata = Conversors.resample_audio_interpolation(indata, 
-                #                                     in_rate=self.microphone_samplerate, 
-                #                                     out_rate=self.target_samplerate)
-                indata = Conversors.resample_audio_scikit(self.resampler,
-                                            indata,
-                                            in_rate=self.microphone_samplerate,
-                                            out_rate=self.target_samplerate)
-                
-                # Sometimes the resampled audio can be empty due to some issue in the resampling process, so we check for that before feeding the VAD.
-                if len(indata) == 0 or indata is None:
-                    self._xlog.warning("🗣️ Resampled audio is None or empty, skipping this block")
-                    return
-
-            vad_returned_events = []
-            if self._xconfig.get("speech-to-text.vad.enabled", False):
-                # Feed the VAD, it will decide if has a speech,
-                # and put the chunk into the queue via callbacks.
-                vad_returned_events = self.vad.feed(indata)
-            else:
-                if self.add_timestamps_to_chunks:
-                    queue_data = (Xtime.now_as_milliseconds(), bytes(indata))
-                else:
-                    queue_data = bytes(indata)
-                self.queue.put(queue_data)
-            
-            # Now, depending on what the VAD returned, we can identify if that was a speech or not.
-            if self._is_silence_dynamic_rms_active() and not self._vad_event_is_speech_chunk(vad_returned_events):
-                # VAD did not detect that this chunk is part of a speech,
-                # we put it in the silence input queue for the Preprocessor to analyze its RMS.
-                # self._xlog.debug("🗣️ VAD did not detect speech in this chunk, putting it in the silence input queue for dynamic RMS calculation")
-                self.silence_input_queue.put(bytes(indata))
+        
+        # Now we simply put the chunk in an intermediate queue to be processed by the VAD worker, 
+        # to avoid doing heavy processing in this callback and risking to block the audio input.
+        self.internal_queue.put(bytes(indata))
     
         # else:
         #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
+    
+    def _process_raw_chunks_worker(self):
+        """
+        This is a worker that runs in a separate thread, to process the raw chunks that the Input Stream produces and put them in the main queue if they are detected as speech by the VAD.
+        This is necessary to decouple the Input Stream thread from the VAD processing, to avoid blocking the Input Stream thread with the VAD processing.
+        """
+        while self.is_active:
+
+            if self.internal_queue.empty():
+                continue  # No chunk to process, loop again
+
+            chunk = self.internal_queue.get(timeout=1)  # Wait for a chunk for up to 1 second
+            if chunk is None:
+                continue  # Skip if we receive a None chunk, which can be used as a signal to stop the worker
+            
+            if not self.should_skip_audio_input() and self.queue is not None and self.is_active:
+                # self._xlog.debug(f"Input audio callback: Received audio block of {len(chunk)} bytes, putting it in the queue for processing")
+
+                # Whatever comes as input, resample it to the working samplerate.
+                if self.microphone_samplerate != self.target_samplerate:
+                    # chunk = Conversors.resample_audio_interpolation(chunk, 
+                    #                                     in_rate=self.microphone_samplerate, 
+                    #                                     out_rate=self.target_samplerate)
+                    chunk = Conversors.resample_audio_scikit(self.resampler,
+                                                chunk,
+                                                in_rate=self.microphone_samplerate,
+                                                out_rate=self.target_samplerate)
+                    
+                    # Sometimes the resampled audio can be empty due to some issue in the resampling process, so we check for that before feeding the VAD.
+                    if len(chunk) == 0 or chunk is None:
+                        self._xlog.warning("🗣️ Resampled audio is None or empty, skipping this block")
+                        continue
+
+                vad_returned_events = []
+                if self._xconfig.get("speech-to-text.vad.enabled", False):
+                    # Feed the VAD, it will decide if has a speech,
+                    # and put the chunk into the queue via callbacks.
+                    vad_returned_events = self.vad.feed(chunk)
+                else:
+                    if self.add_timestamps_to_chunks:
+                        queue_data = (Xtime.now_as_milliseconds(), bytes(chunk))
+                    else:
+                        queue_data = bytes(chunk)
+                    self.queue.put(queue_data)
+                
+                # Now, depending on what the VAD returned, we can identify if that was a speech or not.
+                if self._is_silence_dynamic_rms_active() and not self._vad_event_is_speech_chunk(vad_returned_events):
+                    # VAD did not detect that this chunk is part of a speech,
+                    # we put it in the silence input queue for the Preprocessor to analyze its RMS.
+                    # self._xlog.debug("🗣️ VAD did not detect speech in this chunk, putting it in the silence input queue for dynamic RMS calculation")
+                    self.silence_input_queue.put(bytes(chunk))
+            
+            self.internal_queue.task_done()
     
     def _vad_event_is_speech_chunk(self, events: list[VADEvent]) -> bool:
         if len(events) == 0 or events is None:
