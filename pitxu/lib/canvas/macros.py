@@ -1025,7 +1025,6 @@ class Macros(PyXavi):
         x = point.x * ((width) // 8) + (offset_x)
         y = point.y * ((height) // 8) + (offset_y)
         radius = max((width) // 16, (height) // 16) - 2
-        dd((width, height))
 
         draw.circle(
             (x + radius, y + radius),
