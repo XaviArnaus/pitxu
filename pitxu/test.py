@@ -789,18 +789,18 @@ finally:
             # asyncio.run_coroutine_threadsafe(main.run(), main_loop)
             await main.run()
 
-            # Read a file to simulate speech, and call the transcriber.
-            self._xlog.info("Getting question from STT...")
-            question = "What time is it now?"
+            # # Read a file to simulate speech, and call the transcriber.
+            # self._xlog.info("Getting question from STT...")
+            # question = "What time is it now?"
 
-            # Use the chatbot. It should trigger an external tool
-            self._xlog.info("Getting answer from Chatbot...")
-            # answer = question.upper()
-            answer = await main.chatbot_request_for_answer(question)
+            # # Use the chatbot. It should trigger an external tool
+            # self._xlog.info("Getting answer from Chatbot...")
+            # # answer = question.upper()
+            # answer = await main.chatbot_request_for_answer(question)
 
-            # Make it through the outcome interaction (TTS, display)
-            self._xlog.info("Delivering outcome...")
-            main.deliver_outcome(question=question, answer=answer)
+            # # Make it through the outcome interaction (TTS, display)
+            # self._xlog.info("Delivering outcome...")
+            # main.deliver_outcome(question=question, answer=answer)
 
             # And now close everything down
             self._xlog.info("Closing Main...")

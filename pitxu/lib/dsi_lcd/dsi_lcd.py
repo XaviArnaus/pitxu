@@ -8,7 +8,7 @@ from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.canvas.macros import Macros
 from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
+from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, StartupWithPhaseForegroundPaint, ThinkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
                                             ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
                                             ArbitraryContentWhileUserSpeakingForegroundPaint, \
@@ -38,6 +38,7 @@ class DsiLcd(XprocessDisplayCombined):
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
     LED_TO_LCD_OFFSET_X: int = 250
+    APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
     VERBOSE_DEBUG: bool = False
 
@@ -58,7 +59,7 @@ class DsiLcd(XprocessDisplayCombined):
 
         # Define which offset do we use IN EACH SIDE of the horizontal screen to emulate the LED Matrix
         self._xparams.set("led_to_lcd_offset_x", self.LED_TO_LCD_OFFSET_X)
-        self._xparams.set("apply_led_to_lcd_offset_to_all", True)
+        self._xparams.set("apply_led_to_lcd_offset_to_all", self.APPLY_LED_TO_LCD_OFFSET_TO_ALL)
 
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)
@@ -268,6 +269,13 @@ class DsiLcd(XprocessDisplayCombined):
         
         self.painter.paint_into_foreground_while_speaking(
             foreground_interaction=TextBlockWhileSpeakingForegroundPaint(parameter=param))
+    
+    def init_phase(self, phase: int, text: str = None):
+        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+        self.painter.just_paint(foreground_interaction=StartupWithPhaseForegroundPaint(name=f"StartupWithPhaseForegroundPaint-{phase}", parameter={
+            "phase": phase,
+            "text": text
+        }))
 
     # ------- Common functions ---------
     
@@ -307,12 +315,12 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info(f"🚥 Drawing on DSI LCD: {text}")
         self._macros.draw_something()
 
-    def init_phase(self, phase: int, text: str = None):
-        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on DSI LCD")
-        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
-            "phase": phase,
-            "text": text
-        }))
+    # def init_phase(self, phase: int, text: str = None):
+    #     self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on DSI LCD")
+    #     self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
+    #         "phase": phase,
+    #         "text": text
+    #     }))
     
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")

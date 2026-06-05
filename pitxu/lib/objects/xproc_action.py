@@ -23,7 +23,7 @@ class XprocAction:
     PLAY_TTS: str = "PLAY_TTS"
     SAY_OUTPUT_QUEUE: str = "SAY_OUTPUT_QUEUE"
 
-    # Display Foreground
+    # Display Foreground specific
     SHOW: str = "SHOW"
     STARTUP: str = "STARTUP"
     READY: str = "READY"
@@ -46,7 +46,7 @@ class XprocAction:
     # Common between eInk and LED
     CLEAR: str = "CLEAR"
 
-    # Background
+    # Background specific
     LED: str = "LED"    # This should be removed, should not actually be used.
     INIT_STEP: str = "INIT_STEP"
     THINKING: str = "THINKING"
@@ -54,9 +54,13 @@ class XprocAction:
     SHOW_IMAGE_LED: str = "SHOW_IMAGE_LED"  # This is not used.
     INTERACTION_HOLDING_PERCENTAGE: str = "INTERACTION_HOLDING_PERCENTAGE"
 
+    # Status specific
+    
+
     # New Foreground actions
     FOREGROUND_CLEAR: str = "FOREGROUND_CLEAR"
     BACKGROUND_CLEAR: str = "BACKGROUND_CLEAR"
+    STATUS_CLEAR: str = "STATUS_CLEAR"
 
     # Support
     ACCUMULATE_AUDIO: str = "ACCUMULATE_AUDIO"

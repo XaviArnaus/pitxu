@@ -44,6 +44,7 @@ class Interaction(PyXavi):
     # This is what is currently being done in foreground and background
     foreground_interaction: str = None
     background_interaction: str = None
+    # notification_interaction: str = None
 
     # Subprocess control
     process_pool: XprocessPool = None
@@ -51,6 +52,7 @@ class Interaction(PyXavi):
     # Be aware what to trigger in each case
     foreground_display_queue: str = None
     background_display_queue: str = None
+    notification_display_queue: str = None
     speech_queue: str = QUEUE_SPEAKER
 
     # Output queue for the speech, to allow the server to generate the audio bytes and return them through the endpoint.

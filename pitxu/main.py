@@ -150,7 +150,8 @@ class Main(PyXavi):
 
             # Warm up the chatbot
             self._interaction.show_init_phases(6, text="🔥 Chatbot warm up")
-            await self._warmup_chatbot()
+            if not self._xparams.get("execution_mode") in ["test"]:
+                await self._warmup_chatbot()
 
             # Initialise the Server that accepts requests to the defined endpoints.
             self._interaction.show_init_phases(7, text="🖥️  Server")
