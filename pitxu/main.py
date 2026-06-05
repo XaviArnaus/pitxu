@@ -128,10 +128,6 @@ class Main(PyXavi):
             # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
             self._interaction.show_init_phases(1, text="💬 Interactions")
 
-            # Startup splash. It should be understood as a "Loading..." screen.
-            # We set it for 4s, but it may be overridden by the display config block for the related display.
-            self._interaction.startup_splash(for_seconds=4.0)
-
             # Load all language statics, like the exit words and the greeting / goodbye sentences
             self._interaction.show_init_phases(2, text="⚙️  Statics, Params and Support")
             self._load_statics_params_and_support()

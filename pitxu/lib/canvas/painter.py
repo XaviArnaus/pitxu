@@ -740,7 +740,8 @@ class Painter(PyXavi, Thread):
                             self.macros.draw_startup_splash(draw=self.draw)
                         elif current_foreground_interaction.interaction == ForegroundComm.STARTUP_WITH_PHASE:
                             self._log_debug("Painter Loop: Drawing startup with phase screen on LCD display.")
-                            self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
+                            # self.macros.draw_foreground_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
+                            self.macros.draw_combined_init_phase(draw=self.draw, parameter=current_foreground_interaction.parameter)
                         elif current_foreground_interaction.interaction == ForegroundComm.ARBITRARY_TEXT:
                             self._log_debug("Painter Loop: Drawing arbitrary text on LCD display.")
                             self.macros.draw_arbitrary_text_centered(draw=self.draw, text=current_foreground_interaction.parameter)

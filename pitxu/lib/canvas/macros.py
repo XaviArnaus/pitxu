@@ -811,7 +811,7 @@ class Macros(PyXavi):
         # Main title
         title = self._xconfig.get("app.name")
         version = self._xparams.get("app_version")
-        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 1.5).to_image_point(),
+        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
                     text = title + "  v" + version, 
                     font = self.canvas.FONT_HUGE, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -820,7 +820,7 @@ class Macros(PyXavi):
         
         # Mocked features line
         mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
-        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 4).to_image_point(),
+        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 3).to_image_point(),
                     text = mocked_line, 
                     font = self.canvas.FONT_SMALL, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -830,7 +830,7 @@ class Macros(PyXavi):
         # Phases
         phase = parameter.get("phase", 0)
         text = parameter.get("text", None)
-        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 6.5).to_image_point(),
+        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 6).to_image_point(),
                     # text = f"{phase} - {text}", 
                     text = text,
                     font = self.canvas.FONT_SMALL, 
