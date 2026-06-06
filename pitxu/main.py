@@ -1137,7 +1137,13 @@ class Main(PyXavi):
         warmup_question = self._xconfig.get(f"language.warmup_question.{self._xparams.get('language')}", "Acknowledge that you're ready")
 
         try:
+            # Trigger the chatbot warmup with a simple question.
+            # Be aware that it may trigger external tools (which is actually good to also warmup tools)
+            # Good thing is that this is the same chat that then interacts with us, so a good question should be
+            #   something that can bring us some context from our memory. For example:
+            #       - "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context."
             warmup_response: ChatbotResponse = await self._chatbot.ask_async(warmup_question)
+            
         except Exception as e:
             self._xlog.error("🛑 Error during Chatbot warmup: " + str(e))
     

@@ -197,7 +197,6 @@ class GeminiChatbot(PyXavi):
             self.MODEL = self.pick_new_model()
         self._xlog.info("🧠 Using model: " + str(self.MODEL))
         self._initialize_chat(tools=tools)
-        self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
     
     def _initialize_chat(self, tools: list):
         self._chat = self._client.aio.chats.create(
