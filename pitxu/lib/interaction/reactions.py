@@ -77,22 +77,31 @@ class Reactions(PyXavi):
         if chat_response is None or not isinstance(chat_response, ChatbotResponse):
             return chat_response
         
-        # First we check if we have a Tool's response to react to.
-        function_call_pair = chat_response.function_call_history.get_last()
-        if function_call_pair.has_response():
-            self.react_on_function_call(function_call_pair)
+        # The whole logic for the code block needs to be reviewed.
+        # The code can come in 2 ways:
+        #   1. Inside the text, as part of the answer.
+        #       - the code is extracted from the text when parsing the answer from the chatbot.
+        #       - this should have priority over a function call with code.
+        #   2. As a callback from a Tool
+        #       - the code should be handled by the callback of the tool.
+        # TODO: This is too messy, should be unified.
 
-        # Then we check if the answer itself has any particularity that we need to react to.
-        # For example, if it has a code block, we show it in a particular way.
-        else:
+        # 1st. handle the case of having the code already post-processed as part of the answer.
+        if chat_response.has_code() and len(chat_response.code) > 0:
+
             try:
-
-                if chat_response.has_code():
-                    chat_response = self.handle_answer_with_code_block(chat_response)
-            
+                self._xlog.debug("⚡️ Reacting to an answer with code block inside the text")
+                chat_response = self.handle_answer_with_code_block(chat_response)
             except Exception as e:
                 self._xlog.error("🛑 Error reacting to an answer: " + str(e))
                 self._xlog.debug(full_stack())
+
+        # 2nd. handle the answer as an usual reaction.
+        else:
+
+            function_call_pair = chat_response.function_call_history.get_last()
+            if function_call_pair.has_response():
+                self.react_on_function_call(function_call_pair)
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response

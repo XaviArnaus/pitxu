@@ -5,7 +5,6 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Rectangle, Line, Point
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.abstract.device import Device
-from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
 
 import time, math
 
@@ -21,9 +20,9 @@ class Macros(PyXavi):
     device: Device = None
 
     layout_info: dict[str, Rectangle] = None
+    color_scheme_info: dict[str, dict[str, any]] = None
 
     # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
-    # LED_TO_LCD_OFFSET_X: int = 40
     LED_TO_LCD_OFFSET_X: int = 0
     APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
@@ -60,7 +59,9 @@ class Macros(PyXavi):
         ])
     
         # Calculate the layout info. Make sure that the padding is consistent (it may need a refactor)
-        self.layout_info = self.get_layout_info(padding=10)
+        self.layout_info = self.get_layout_info(padding=10, corners_radius=10)
+        # Get the color scheme info
+        self.color_scheme_info = self.get_color_scheme_info()
 
     def get_canvas(self) -> Canvas:
         return self.canvas
@@ -572,30 +573,60 @@ class Macros(PyXavi):
         # Return the canvas with the drawn eyes
         return canvas
     
-    def soft_clear(self):
+    def soft_clear(self, display_area: str = "full_screen"):
 
         # First create a canvas
         draw = self.canvas.get_canvas()
 
         # Create a background color rectangle with the sizes of the screen
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area=display_area)
 
         # Flush the image (generated from the canvas) to the device
         self.device.display(self.canvas.get_image())
 
-    def _soft_clear_rectangle(self, draw: ImageDraw.ImageDraw, color: str = None):
+    def _soft_clear_rectangle(self, draw: ImageDraw.ImageDraw, display_area: str = "full_screen", color: str = None):
         '''
         Draws a rectangle over the given canvas.
         '''
         if color is None:
             color = self.canvas.COLOR_BACKGROUND
-
-        point_1 = Point(0, 0)
-        point_2 = Point(self._display_size.x, self._display_size.y)
-        draw.rectangle(
-            Rectangle(point_1, point_2).to_image_rectangle(),
-            outline=color,
-            fill=color)
+        
+        # Set the default, which is non-RGBA.
+        outline = color
+        fill = color
+        rectangle: Rectangle = None
+        
+        found_area = False
+        if display_area == "full_screen":
+            offset_x = 0
+            offset_y = 0
+            max_x = self._display_size.x
+            max_y = self._display_size.y
+            rectangle = Rectangle(Point(offset_x, offset_y), Point(max_x, max_y))
+            found_area = True
+        else:
+            if display_area in self.layout_info:
+                rectangle = self.layout_info[display_area]
+                outline = self.color_scheme_info[display_area]["outline"]
+                fill = self.color_scheme_info[display_area]["fill"]
+                found_area = True
+            
+        if not found_area:
+            self._xlog.warning(f"Unrecognized display area [{display_area}] for soft clear.")
+            return
+        else:
+            if self.canvas.COLOR_MODE == "RGBA":
+                draw.rounded_rectangle(
+                    rectangle.to_image_rectangle(),
+                    radius=self.layout_info["corners_radius"],
+                    outline=outline,
+                    fill=fill,
+                    corners=(True, True, True, True))
+            else:
+                draw.rectangle(
+                    rectangle.to_image_rectangle(),
+                    outline=outline,
+                    fill=fill)
     
     # ------ Background effects adapted to LCD -------
 
@@ -603,7 +634,7 @@ class Macros(PyXavi):
         self._log_debug("Starting KITT effect")
 
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         image = self.canvas.get_image()
 
         # Move right
@@ -625,7 +656,7 @@ class Macros(PyXavi):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -641,7 +672,7 @@ class Macros(PyXavi):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -660,7 +691,7 @@ class Macros(PyXavi):
         needs to be closed afterwards.
         '''
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         # The "draw" object is linked to the canvas, so we can get the image from there
         # It gets updated as we draw on it, so is more efficient than getting it each time
         image = self.canvas.get_image()
@@ -730,7 +761,7 @@ class Macros(PyXavi):
         for drawing_frame in range(1, 5):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
             # Every iteration here is a full frame to be drawn
             self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
@@ -750,7 +781,7 @@ class Macros(PyXavi):
         for drawing_frame in range(3, -1, -1):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
             # Every iteration here is a full frame to be drawn
             self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
@@ -774,7 +805,7 @@ class Macros(PyXavi):
     def draw_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
 
         # Initial Background Paint clear
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
         phase = parameter.get("phase", 0)
         text = parameter.get("text", None)
@@ -791,8 +822,6 @@ class Macros(PyXavi):
         Draws the combined status (bottom-center) and foreground (top-right) for the init phase. 
         It is meant to be used on the new Pitxu main, as it has more space to show both the progress and the details.
         The old Pitxu client should still use the draw_foreground_init_phase() due to the small screen.
-
-        NOT IN USE YET
         '''
         fore_offset_x = self.layout_info["top_right"].point_1.x
         fore_offset_y = self.layout_info["top_right"].point_1.y
@@ -928,7 +957,7 @@ class Macros(PyXavi):
     
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         
         self.draw_cross(draw=draw)
 
@@ -965,12 +994,12 @@ class Macros(PyXavi):
         '''
 
         # Initial Background Paint clear
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
         # Calculate how many columns to light up
         columns_to_light = math.ceil((percentage / 100) * 8)
         for x in range(0, columns_to_light):
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7))
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7), apply_offset=False)
 
     def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
         '''
@@ -1016,12 +1045,6 @@ class Macros(PyXavi):
 
         # We need to convert the point from a 8x8 Matrix LED to LCD coordinates, based on the full LCD size.
         # And also correct the radius to be relative to the LCD size.
-        # x = point.x * ((self._display_size.x - offset_x) // 8) + (offset_x // 2 + 1)
-        # y = point.y * ((self._display_size.y - 1) // 8)
-        # radius = min((self._display_size.x - offset_x) // 16, (self._display_size.y - 1) // 16)
-        # x = point.x * ((max_x - offset_x) // 8) + (offset_x // 2 + 1)
-        # y = point.y * ((max_y - offset_y) // 8) + (offset_y // 2 + 1)
-        # radius = min((max_x - offset_x) // 16, (max_y - offset_y) // 16)
         x = point.x * ((width) // 8) + (offset_x)
         y = point.y * ((height) // 8) + (offset_y)
         radius = max((width) // 16, (height) // 16) - 2
@@ -1032,7 +1055,7 @@ class Macros(PyXavi):
             fill=color,
             outline=color)
     
-    def get_layout_info(self, padding: int = 10) -> dict[str, Rectangle]:
+    def get_layout_info(self, padding: int = 10, corners_radius: int = 10) -> dict[str, Rectangle]:
         '''
         Returns the layout information of the LCD display, based on the padding and the division in 2 rows.
 
@@ -1072,10 +1095,112 @@ class Macros(PyXavi):
             "bottom_left": bottom_left,
             "bottom_center": bottom_center,
             "bottom_right": bottom_right,
-            "padding": padding
+            "padding": padding,
+            "corners_radius": corners_radius,
+        }
+    
+    def get_color_scheme_info(self, frame_color: str = None, opacity: float = 0.25) -> dict[str, dict[str, any]]:
+        """
+        Returns the color scheme information for the different areas of the LCD display, based on the color mode.
+        """
+
+        # -- Let's start by a simple default, no RGBA --
+        # This will be the outline color.
+        if frame_color is None:
+            frame_color = self.canvas.COLOR_ORANGE
+        # Now the fill color.
+        color = self.canvas.COLOR_BACKGROUND
+        # This is not needed by the non-RGBA modes, but we define it here to avoid having it undefined in the RGBA mode.
+        overlay: Image.Image = None
+
+        # -- Now, if we have RGBA --
+        if self.canvas.COLOR_MODE == "RGBA":
+            TINT_COLOR = frame_color
+            # Sorry, fellow reader, I understand "less transparency, more opaque", so 0.25 opacity is closer to no-transparent.
+            TRANSPARENCY = opacity  # Degree of transparency, 0-100%
+            OPACITY = int(255 * TRANSPARENCY)
+            color = (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], OPACITY)
+
+            # Create an overlay image for the transparency effect.
+            # ATTENTION: This is meant to be a template, copy it when using it!
+            #   overlay.copy() to use it, as we will need to draw on it and we don't want to modify the original one.
+            overlay = Image.new(
+                'RGBA', 
+                self._display_size.to_image_point(), 
+                (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
+
+        return {
+            "top_left": {
+                "outline": frame_color,
+                # We don't want any background in the top-left corner
+                "fill": None
+            },
+            "top_right": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_left": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_center": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_right": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "overlay_image": overlay,
         }
     
     # ------ Main method (and helpers) to show on LCD display -------
+
+    def draw_overall_full_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
+        '''
+        Draws a full screen frame on the given canvas, with the given padding and radius.
+
+        It is meant to be used as an overlay for the whole screen, to show any specific interaction.
+        '''
+        if frame_color is None:
+            frame_color = self.canvas.COLOR_ORANGE
+
+        if self.canvas.COLOR_MODE == "RGBA":
+            TINT_COLOR = frame_color
+            # Sorry, fellow reader, I understand "less transparency, more opaque", so 0.25 opacity is closer to no-transparent.
+            TRANSPARENCY = opacity  # Degree of transparency, 0-100%
+            OPACITY = int(255 * TRANSPARENCY)
+            color = (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], OPACITY)
+
+            # Create an overlay image for the transparency effect
+            overlay = Image.new(
+                'RGBA', 
+                self._display_size.to_image_point(), 
+                (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
+            # Create a context for drawing things on it.
+            draw_overlay = ImageDraw.Draw(overlay)
+
+            # Draw a rounded rectangle on the overlay
+            point_1 = Point(padding, padding)
+            point_2 = Point(self._display_size.x - padding, self._display_size.y - padding)
+            draw_overlay.rounded_rectangle(
+                Rectangle(point_1, point_2).to_image_rectangle(),
+                radius=radius,
+                outline=frame_color,
+                fill=color,
+                corners=(True, True, True, True))
+
+            # Now composite the overlay onto the original image
+            self.canvas.combine_into_image(overlay)
+        else:
+            color = self.canvas.COLOR_BACKGROUND
+
+            point_1 = Point(padding, padding)
+            point_2 = Point(self._display_size.x - padding - 1, self._display_size.y - padding - 1)
+            draw.rectangle(
+                Rectangle(point_1, point_2).to_image_rectangle(),
+                outline=frame_color,
+                fill=color)
     
     def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
         '''
@@ -1103,22 +1228,11 @@ class Macros(PyXavi):
         # Now defining the frame points
         # TODO: All of this should be re-thought. This should be a template, stored externally
 
-        if frame_color is None:
-            frame_color = self.canvas.COLOR_ORANGE
 
         if self.canvas.COLOR_MODE == "RGBA":
-            TINT_COLOR = frame_color
-            # Sorry, fellow reader, I understand "less transparency, more opaque", so 0.25 opacity is closer to no-transparent.
-            TRANSPARENCY = opacity  # Degree of transparency, 0-100%
-            OPACITY = int(255 * TRANSPARENCY)
-            color = (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], OPACITY)
 
-            # Create an overlay image for the transparency effect
-            overlay = Image.new(
-                'RGBA', 
-                self._display_size.to_image_point(), 
-                (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
-            # Create a context for drawing things on it.
+            overlay: Image.Image = self.color_scheme_info["overlay_image"]
+            overlay = overlay.copy()  # We copy it to avoid modifying the original one, which is stored in the color scheme info for re-use in other frames.
             draw_overlay = ImageDraw.Draw(overlay)
 
             # Draw all the rectangles given (they are already calculated to be inside the screen and with the padding)
@@ -1127,23 +1241,15 @@ class Macros(PyXavi):
                     draw_overlay.rounded_rectangle(
                         rectangle.to_image_rectangle(),
                         radius=radius,
-                        outline=frame_color,
-                        fill=color if name not in ["top_left"] else None,
+                        outline=self.color_scheme_info[name]["outline"],
+                        fill=self.color_scheme_info[name]["fill"],
                         corners=(True, True, True, True))
-
-            # # Draw a rounded rectangle on the overlay
-            # point_1 = Point(padding, padding)
-            # point_2 = Point(self._display_size.x - padding, self._display_size.y - padding)
-            # draw_overlay.rounded_rectangle(
-            #     Rectangle(point_1, point_2).to_image_rectangle(),
-            #     radius=radius,
-            #     outline=frame_color,
-            #     fill=color,
-            #     corners=(True, True, True, True))
 
             # Now composite the overlay onto the original image
             self.canvas.combine_into_image(overlay)
         else:
+            if frame_color is None:
+                frame_color = self.canvas.COLOR_ORANGE
             color = self.canvas.COLOR_BACKGROUND
 
             point_1 = Point(padding, padding)

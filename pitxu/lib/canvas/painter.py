@@ -641,7 +641,18 @@ class Painter(PyXavi, Thread):
                     # What if we try the whole drawing, starting by a clear screen?
                     if current_background_interaction is not None or current_foreground_interaction is not None:
                         self._log_debug(f"Painter Loop: Clearing screen on LCD display at the beginning of the loop.")
-                        self.macros._soft_clear_rectangle(draw=self.draw)
+                        self.macros._soft_clear_rectangle(draw=self.draw, display_area="full_screen")
+                    
+                        # This is new from v0.4.2: The frame should always be here.
+                        # The idea is that from now on, all interactions need to fit in the frame.
+                        # The only exception is when we have nothing to paint.
+                        foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
+                        foreground_frame_opacity = 0.25
+                        self.macros.draw_foreground_frame(
+                                draw=self.draw, 
+                                frame_color=foreground_frame_color, 
+                                opacity=foreground_frame_opacity)
+                        # ⚠️ Aparently, it paints forever, even we have nothing to paint.
                     
                     # We need to draw from background to foreground.
                     # At this point, LED effects are the most background, so we draw them first.
@@ -722,18 +733,6 @@ class Painter(PyXavi, Thread):
                         # Because we may have painted anything related to the background first, we need to paint again the foreground over it.
                         # That's why, even a flushed image stays until changed, we need to keep on repainting it.
                     
-                        # Whatever we print here, make it over a semi-transparent frame
-                        # For code blocks and text blocks we want a specific setup to make it more readable.
-                        foreground_frame_color = self.macros.get_canvas().COLOR_ORANGE
-                        foreground_frame_opacity = 0.25
-                        if current_foreground_interaction.interaction in [ForegroundComm.CODE_BLOCK, ForegroundComm.TEXT_BLOCK]:
-                            foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
-                            foreground_frame_opacity = 0.75
-                        self.macros.draw_foreground_frame(
-                            draw=self.draw, 
-                            frame_color=foreground_frame_color, 
-                            opacity=foreground_frame_opacity)
-
                         # Now the expected interactions.
                         if current_foreground_interaction.interaction == ForegroundComm.STARTUP:
                             self._log_debug("Painter Loop: Drawing startup splash screen on LCD display.")
@@ -760,12 +759,23 @@ class Painter(PyXavi, Thread):
                                                             icon=current_foreground_interaction.parameter.get("icon"),
                                                             text=current_foreground_interaction.parameter.get("text", None),
                                                             color=current_foreground_interaction.parameter.get("color", None)),
-                        elif current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
-                            self._log_debug("Painter Loop: Drawing code block on LCD display.")
-                            self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
-                        elif current_foreground_interaction.interaction == ForegroundComm.TEXT_BLOCK:
-                            self._log_debug("Painter Loop: Drawing text block on LCD display.")
-                            self.macros.draw_text_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
+
+                        elif current_foreground_interaction.interaction in [ForegroundComm.CODE_BLOCK, ForegroundComm.TEXT_BLOCK]:
+                            # First we want to paint an overall frame for them.
+                            foreground_frame_color = self.macros.get_canvas().COLOR_WHITE
+                            foreground_frame_opacity = 0.75
+                            self.macros.draw_overall_full_frame(
+                                draw=self.draw, 
+                                frame_color=foreground_frame_color, 
+                                opacity=foreground_frame_opacity)
+                            # And now we paint what we're meant to.
+                            if current_foreground_interaction.interaction == ForegroundComm.CODE_BLOCK:
+                                self._log_debug("Painter Loop: Drawing code block on LCD display.")
+                                self.macros.draw_code_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
+                            elif current_foreground_interaction.interaction == ForegroundComm.TEXT_BLOCK:
+                                self._log_debug("Painter Loop: Drawing text block on LCD display.")
+                                self.macros.draw_text_block(draw=self.draw, text=current_foreground_interaction.parameter.get("text", ""))
+
                         elif current_foreground_interaction.interaction == ForegroundComm.CLEAR:
                             # If we need to clear the foreground, actualy we use the iteration to draw nothing.
                             # this is because if we clean the foreground, we may loose the background that was painted before.
@@ -801,7 +811,7 @@ class Painter(PyXavi, Thread):
                     # A final clearing was requested by a callback at the end of the previous loop iteration?
                     if final_clearing_needed:
                         self._log_debug(f"Painter Loop: Final clearing requested by an END callback, will clear the screen.")
-                        self.macros._soft_clear_rectangle(draw=self.draw)
+                        self.macros._soft_clear_rectangle(draw=self.draw, display_area="full_screen")
                         final_clearing_needed = False
 
                     # Show the image on the device
