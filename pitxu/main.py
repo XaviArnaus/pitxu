@@ -407,6 +407,13 @@ class Main(PyXavi):
 
                 # Just assume a goodbye
                 answer = self._goodbye_sentence
+
+                # Emulate a Chatbot answer: show the text into the foreground display and speak it.
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=answer
+                )
+
             # Avoid calling the Chatbot when the text is only meant for waking up the system.
             elif text_is_only_trigger_words:
 
@@ -418,6 +425,13 @@ class Main(PyXavi):
                 # Randomly choose one of the trigger answers
                 import random
                 answer = random.choice(self._trigger_answers)
+
+                # Emulate a Chatbot answer: show the text into the foreground display and speak it.
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=answer
+                )
+
             # Check if the text is meant to trigger or continue an interaction
             # Same as before, but the question is passed to the chatbot.
             elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:

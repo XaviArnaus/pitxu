@@ -100,14 +100,22 @@ class Reactions(PyXavi):
         else:
 
             function_call_pair = chat_response.function_call_history.get_last()
+            callback_was_handled = False
             if function_call_pair.has_response():
-                self.react_on_function_call(function_call_pair)
+                callback_was_handled = self.react_on_function_call(function_call_pair)
+
+            if not callback_was_handled:
+                self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
+                self.interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=chat_response.text
+                )
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response
         
     
-    def react_on_function_call(self, function_call_pair: FunctionCallPair):
+    def react_on_function_call(self, function_call_pair: FunctionCallPair) -> bool:
         """
         Reacts to the received function call response, meaning that a Tool was used,
         and we're supposed to show anything on the screen.
@@ -116,7 +124,7 @@ class Reactions(PyXavi):
             function_call_pair (FunctionCallPair): The last response from the chatbot with a function call.
         
         Returns:
-            None
+            bool: True if the function call was handled, False otherwise.
         """
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
@@ -131,11 +139,12 @@ class Reactions(PyXavi):
         if function_call_pair is None or \
             not isinstance(function_call_pair, FunctionCallPair) or \
             not function_call_pair.has_response():
-            return None
+            return False
         
         self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
 
         # Now distribute according to what we received.
+        result = True
         try:
 
             if function_call_pair.function_name == "error":
@@ -178,10 +187,14 @@ class Reactions(PyXavi):
             else:
 
                 self._xlog.debug("⚡️ No reaction implemented for this function call, just ignoring it: " + str(function_call_pair.function_name))
+                result = False
+            
+            return result
         
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
             self._xlog.debug(full_stack())
+            return False
 
     def handle_error(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🚨  Showing an ERROR in the Foreground Display")

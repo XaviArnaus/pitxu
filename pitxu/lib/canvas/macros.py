@@ -1133,7 +1133,7 @@ class Macros(PyXavi):
             "top_left": {
                 "outline": frame_color,
                 # We don't want any background in the top-left corner
-                "fill": None
+                "fill": self.canvas.COLOR_BACKGROUND
             },
             "top_right": {
                 "outline": frame_color,
