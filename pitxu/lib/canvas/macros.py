@@ -1258,3 +1258,67 @@ class Macros(PyXavi):
                 Rectangle(point_1, point_2).to_image_rectangle(),
                 outline=frame_color,
                 fill=color)
+
+    def draw_status_button(self, draw: ImageDraw.ImageDraw, params: dict):
+        '''
+        Draws a status button in both buttons columns in the bottom row, based on the given parameters.
+
+        Args:
+            draw: The canvas to draw on.
+            params: The parameters for the button, which should include:
+                - column: "left" or "right", indicating in which column to draw the button.
+                - color: The color of the button, if None it will be red.
+        '''
+        # Which display area.
+        display_area = params.get("display_area", "bottom-left")
+        # There is space for 4 buttons each column. Position starts by 1
+        position = params.get("position", 1)
+        # Radius of the button.
+        radius = params.get("radius", 5)
+        # Padding to apply to the buttons related to the display_area
+        padding_buttons = params.get("padding_buttons", 10)
+        # Padding to apply to the text related to the button
+        # COMMENTED: This should be centered
+        # padding_text = params.get("padding_text", 5)
+        # Text to show
+        text = params.get("text", None)
+        # Colors
+        text_color = params.get("text_color", self.canvas.COLOR_BLACK)
+        button_color = params.get("button_color", self.canvas.COLOR_YELLOW)
+
+        # The gathered layout info.
+        display_area_layout: Rectangle = self.layout_info.get(display_area, None)
+
+        # Calculations
+        position = position - 1 if position > 0 else 0
+        button_offset_x = display_area_layout.point_1.x + padding_buttons
+        button_offset_y = display_area_layout.point_1.y + padding_buttons + (padding_buttons // 2 * position)
+        button_max_x = display_area_layout.point_2.x - padding_buttons
+        button_max_y = display_area_layout.point_2.y - padding_buttons
+        button_width = button_max_x - button_offset_x
+        button_height = button_max_y - button_offset_y
+        button_center_x = (button_offset_x + button_max_x) // 2
+        # We divide the button area in 4, so we can have up to 4 buttons. 
+        # The position starts by 1, so we need to remove 1 to calculate the offset.
+        button_center_y = button_offset_y + (position * (button_height // 4)) + ((button_height // 4) // 2)
+
+        draw.rounded_rectangle(
+            Rectangle(
+                Point(button_offset_x, button_offset_y + (position * (button_height // 4))),
+                Point(button_max_x, button_offset_y + ((position + 1) * (button_height // 4)))
+            ).to_image_rectangle(),
+            radius=radius,
+            outline=button_color,
+            fill=button_color,
+            corners=(True, True, True, True))
+        
+        if text:
+            draw.text(
+                Point(button_center_x, button_center_y).to_image_point(),
+                text=text,
+                font=self.canvas.FONT_SMALL,
+                fill=text_color,
+                anchor="mm",
+                align="center")
+        
+        

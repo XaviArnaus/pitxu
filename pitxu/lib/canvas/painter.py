@@ -40,7 +40,7 @@ class Painter(PyXavi, Thread):
         BackgroundComm.SPEAKING
     ]
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Painter, self).init_pyxavi(config=config, params=params)
@@ -639,6 +639,8 @@ class Painter(PyXavi, Thread):
                         self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
 
                     # What if we try the whole drawing, starting by a clear screen?
+                    # YES, it's taken as the real start of the drawing.
+                    # Read as: Is there anythng to paint? Then paint the base.
                     if current_background_interaction is not None or current_foreground_interaction is not None:
                         self._log_debug(f"Painter Loop: Clearing screen on LCD display at the beginning of the loop.")
                         self.macros._soft_clear_rectangle(draw=self.draw, display_area="full_screen")
@@ -653,6 +655,35 @@ class Painter(PyXavi, Thread):
                                 frame_color=foreground_frame_color, 
                                 opacity=foreground_frame_opacity)
                         # ⚠️ Aparently, it paints forever, even we have nothing to paint.
+
+                        # Paint always the status Busy Flags and others as status buttons
+                        button_idle = self.macros.get_canvas().COLOR_DARK_GREEN
+                        button_busy = self.macros.get_canvas().COLOR_DARK_YELLOW
+                        button_error = self.macros.get_canvas().COLOR_RED
+                        # 1. STT
+                        self.macros.draw_status_button(draw=self.draw, params={
+                            "display_area": "bottom_left",
+                            "position": 1,
+                            "text": "STT",
+                            "text_color": self.macros.get_canvas().COLOR_WHITE,
+                            "button_color": button_busy if self.painter_busy_flags.is_transcriber_busy() else button_idle,
+                        })
+                        # 2. Chatbot
+                        self.macros.draw_status_button(draw=self.draw, params={
+                            "display_area": "bottom_left",
+                            "position": 2,
+                            "text": "🧠",
+                            "text_color": self.macros.get_canvas().COLOR_WHITE,
+                            "button_color": button_busy if self.painter_busy_flags.is_chatbot_busy() else button_idle,
+                        })
+                        # 3. Microphone
+                        self.macros.draw_status_button(draw=self.draw, params={
+                            "display_area": "bottom_left",
+                            "position": 3,
+                            "text": "Mic",
+                            "text_color": self.macros.get_canvas().COLOR_WHITE,
+                            "button_color": button_busy if self.painter_busy_flags.is_microphone_muted() else button_idle,
+                        })
                     
                     # We need to draw from background to foreground.
                     # At this point, LED effects are the most background, so we draw them first.
