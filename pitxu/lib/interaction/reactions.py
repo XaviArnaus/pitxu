@@ -334,7 +334,7 @@ class Reactions(PyXavi):
         self._unmute_microphone_if_needed()
     
     def handle_answer_with_code_block(self, chat_response: ChatbotResponse) -> ChatbotResponse:
-        self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
+        self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response for language [{self._xparams.get('language')}]")
 
         self.interaction.show_code_block_on_foreground_while_speaking(
             code=chat_response.code[0],

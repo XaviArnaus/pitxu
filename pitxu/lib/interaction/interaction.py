@@ -39,6 +39,10 @@ class Interaction(PyXavi):
     
     The idea is good, but the implementation is not yet done.
     What we have is a simpler version focused on displays in canvas/painter_busy_flags.py.
+
+    UPDATE:
+    - There is a thread-based busy flags control that adds / removes interactions into the related queues
+        whenever the flags change the state according to the parameters.
     """
 
     # This is what is currently being done in foreground and background
@@ -255,6 +259,9 @@ class Interaction(PyXavi):
             # The background display depends on the configuration.
             self._log_debug(f"🗣️ Sending SAY command to Background display")
             self.process_pool.send(self._get_active_background_display_queue(), XprocAction.SAY, message)
+            # We need to wait until it's processed, otherwise it starts speaking before the display is ready to react.
+            self.process_pool.wait_for_queue_to_empty(self._get_active_background_display_queue())
+            self.wait_for_busy_background_display_to_idle()
 
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending SAY command to Speaker")
@@ -596,7 +603,8 @@ class Interaction(PyXavi):
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.BACKGROUND_CLEAR)
     
     def clear_combined_display(self):
-        # They are combined, so let's send the clear to just one of it. Picking randomly Background.
+        # They are combined, so we need to send the clear to all of them.
+        self.clear_foreground_display()
         self.clear_background_display()
     
     # --------- (Proxy) Functions to wait for queues to be empty and busy flags to idle ---------

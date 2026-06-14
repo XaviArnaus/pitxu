@@ -169,9 +169,10 @@ class Main(PyXavi):
             self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
             # Clean the display after initialisation.
-            self._log_debug("Clearing display after initialisation.")
-            self._interaction.clear_combined_display()
-            self._interaction.wait_for_all_queues_to_empty()
+            # COMMENTED: Apparently this is not needed given the new visual approach.
+            # self._log_debug("Clearing display after initialisation.")
+            # self._interaction.clear_background_display()
+            # self._interaction.wait_for_all_queues_to_empty()
             self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
             # Before we start with the loop, let's set the last interaction time to now
@@ -765,12 +766,12 @@ class Main(PyXavi):
             self._interaction.set_idle_mode_off()
 
         # Clear the displays
-        # ⚠️ It does nothing
-        self.clear_displays()
-        self._interaction.wait_for_background_display_queue_to_empty()
-        self._interaction.wait_for_foreground_display_queue_to_empty()
-        self._interaction.wait_for_busy_background_display_to_idle()
-        self._interaction.wait_for_busy_foreground_display_to_idle()
+        # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
+        # self.clear_displays()
+        # self._interaction.wait_for_background_display_queue_to_empty()
+        # self._interaction.wait_for_foreground_display_queue_to_empty()
+        # self._interaction.wait_for_busy_background_display_to_idle()
+        # self._interaction.wait_for_busy_foreground_display_to_idle()
 
         # Stop the Chatbot Session Manager.
         if self._chatbot_session_manager is not None:
@@ -1233,7 +1234,8 @@ class Main(PyXavi):
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
             "end_of_conversation_callback": self.on_end_of_conversation_requested,
-            "input_stream": input_stream
+            "input_stream": input_stream,
+            "language": self._xparams.get("language"),
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
     
