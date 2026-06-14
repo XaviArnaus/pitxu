@@ -563,14 +563,14 @@ class Painter(PyXavi):
                     logging_parts.append(("", f"- Loop iterations: {current_interaction.loop_iterations}"))
             else:
                 logging_parts.append((f"Current interaction for {queue_name}", "[None]"))
-        self.log_summary(f"Painter loop new iteration", logging_parts)
+        self.log_summary(f"Painter loop new iteration", logging_parts, attend_verbose_debug_flag=True)
         logging_parts: list = []
         # Log the current status of the shared memory flags that we're monitoring.
         for name, flag_idx, flag_name, activation_value, current_value, callback_name, is_dependant in self.painter_shared_memory.get_shared_memory_flags_current_status():
             logging_parts.append((flag_name.upper(), f"Current: {str(current_value).ljust(5)}, Expected: {str(activation_value).ljust(5)}, Callback: {name}, is_dependant: {is_dependant}"))
         if not logging_parts:
             logging_parts.append(("No shared memory flags being monitored", ""))
-        self.log_summary(f"Current Shared Memory Monitoring Flags status", logging_parts)
+        self.log_summary(f"Current Shared Memory Monitoring Flags status", logging_parts, attend_verbose_debug_flag=True)
     
     def flush_drawing(self):
         self.drawing_callbacks["display"]["callback"](self.canvas.get_image())
