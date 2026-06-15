@@ -23,7 +23,7 @@ class PainterQueue:
     BACKGROUND: str = "background"
     OVERALL: str = "overall"
 
-class IntermediatePainterQueueControl:
+class IntermediatePainterQueueAction:
     """
     This class is meant to control the actions to be done in by every item in the intermediate queue.
     """
@@ -165,13 +165,13 @@ class Painter(PyXavi):
     }
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
-    intermediate_interactions_queue: list[tuple[IntermediatePainterQueueControl, PainterQueue, BasePaint]] = []
+    intermediate_interactions_queue: list[tuple[IntermediatePainterQueueAction, PainterQueue, BasePaint]] = []
 
     # This class controls the transitions of the shared memory flags and values in a separate thread.
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
@@ -248,7 +248,7 @@ class Painter(PyXavi):
                     queue_name
                 )
             else:
-                self.add_to_intermediate_queue(paint, queue_name, IntermediatePainterQueueControl.SET)
+                self.add_to_intermediate_queue(paint, queue_name, IntermediatePainterQueueAction.SET)
                 # self.set_interaction(paint, queue_name)
         
         # Start the painting loop
@@ -577,7 +577,8 @@ class Painter(PyXavi):
         logging_parts: list = []
         # Log the current status of the shared memory flags that we're monitoring.
         for name, flag_idx, flag_name, activation_value, current_value, callback_name, is_dependant in self.painter_shared_memory.get_shared_memory_flags_current_status():
-            logging_parts.append((flag_name.upper(), f"Current: {str(current_value).ljust(5)}, Expected: {str(activation_value).ljust(5)}, Callback: {name}, is_dependant: {is_dependant}"))
+            previous_value = self.painter_shared_memory._shared_memory_flag_previous_value[flag_idx]
+            logging_parts.append((flag_name.upper(), f"Previous: {str(previous_value).ljust(5)}, Current: {str(current_value).ljust(5)}, Expected: {str(activation_value).ljust(5)}, Callback: {name}, is_dependant: {is_dependant}"))
         if not logging_parts:
             logging_parts.append(("No shared memory flags being monitored", ""))
         self.log_summary(f"Current Shared Memory Monitoring Flags status", logging_parts, attend_verbose_debug_flag=True)
@@ -703,7 +704,7 @@ class Painter(PyXavi):
                 
     # ---- Managing the Painting queues and interactions ----
 
-    def add_to_intermediate_queue(self, interaction: BasePaint, queue_name: PainterQueue, action: IntermediatePainterQueueControl):
+    def add_to_intermediate_queue(self, interaction: BasePaint, queue_name: PainterQueue, action: IntermediatePainterQueueAction):
         self._log_debug(f"Adding [{action}] interaction [{interaction.name}] to intermediate [{queue_name}] queue.")
         self.intermediate_interactions_queue.append((action, queue_name, interaction))
     
@@ -713,9 +714,9 @@ class Painter(PyXavi):
         while len(self.intermediate_interactions_queue) > 0:
             action, queue_name, interaction = self.intermediate_interactions_queue.pop(0)
             self._log_debug(f"Triggering [{action}] interaction [{interaction.name}] over [{queue_name}].")
-            if action == IntermediatePainterQueueControl.SET:
+            if action == IntermediatePainterQueueAction.SET:
                 self._set_interaction(interaction=interaction, queue_name=queue_name)
-            elif action == IntermediatePainterQueueControl.REMOVE:
+            elif action == IntermediatePainterQueueAction.REMOVE:
                 self._remove_interaction(interaction=interaction, queue_name=queue_name)
     
     def _set_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
@@ -762,6 +763,16 @@ class Painter(PyXavi):
                 #   - Reset the starting time for the interaction, to avoid issues with the maintain_paint_for_seconds parameter.
                 self.reset_interaction_artifacts(queue_name)
                 self._log_debug(f"Interaction [{interaction.name}] removed from [{queue_name}] queue successfully.")
+                # Removing the interaction means to stop drawing it.
+                # It's the moment to check for a final cleaning request from the callbacks.
+                if interaction.final_screen_clearing:
+                    name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
+                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Clearing intended, telling to painter loop")
+                    if queue_name not in self.flags_callback_returned_requests:
+                        self.flags_callback_returned_requests[queue_name] = {}
+                    if name not in self.flags_callback_returned_requests[queue_name]:
+                        self.flags_callback_returned_requests[queue_name][name] = {}
+                    self.flags_callback_returned_requests[queue_name][name]["final_clearing_needed"] = True
             else:
                 # Could be that meanwhile anything else with more priority (or a dupe) came in and then
                 #   the "current" one was already removed.
@@ -918,15 +929,15 @@ class Painter(PyXavi):
 
         # We register the callback to trigger the painting of this interaction when the shared memory flag changes to the desired value.
         self.painter_shared_memory.set_callback_for_shared_memory_flag(
-            name=f"Set_{paint.name}",
+            name=f"{IntermediatePainterQueueAction.SET}_{paint.name}",
             shared_memory_flag=shared_memory_flag, 
             activation_value=activation_value, 
             callback=self._generate_callback(
-                name=f"Set_{paint.name}",
+                name=f"{IntermediatePainterQueueAction.SET}_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
                 # interaction_callback=self.set_interaction,
-                intermediate_queue_action=IntermediatePainterQueueControl.SET,
+                intermediate_queue_action=IntermediatePainterQueueAction.SET,
                 flag=shared_memory_flag,
                 for_value=activation_value,
                 is_removal_callback=False
@@ -936,15 +947,15 @@ class Painter(PyXavi):
 
         # We register the callback to trigger the removal of this interaction when the shared memory flag changes to any other value.
         self.painter_shared_memory.set_callback_for_shared_memory_flag(
-            name=f"Remove_{paint.name}",
+            name=f"{IntermediatePainterQueueAction.REMOVE}_{paint.name}",
             shared_memory_flag=shared_memory_flag, 
             activation_value=not activation_value, 
             callback=self._generate_callback(
-                name=f"Remove_{paint.name}",
+                name=f"{IntermediatePainterQueueAction.REMOVE}_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
                 # interaction_callback=self.remove_interaction,
-                intermediate_queue_action=IntermediatePainterQueueControl.REMOVE,
+                intermediate_queue_action=IntermediatePainterQueueAction.REMOVE,
                 flag=shared_memory_flag,
                 for_value=not activation_value,
                 is_removal_callback=True
@@ -957,7 +968,7 @@ class Painter(PyXavi):
                            interaction: BasePaint,
                            queue_name: PainterQueue,
                         #    interaction_callback: callable,
-                           intermediate_queue_action: IntermediatePainterQueueControl, 
+                           intermediate_queue_action: IntermediatePainterQueueAction, 
                            flag: int,
                            for_value: bool,
                            is_removal_callback: bool,
@@ -983,14 +994,6 @@ class Painter(PyXavi):
                     shared_memory_flag=flag, 
                     activation_value=for_value
                 )
-
-                if interaction.final_screen_clearing and is_removal_callback:
-                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Clearing intended, telling to painter loop")
-                    if queue_name not in self.flags_callback_returned_requests:
-                        self.flags_callback_returned_requests[queue_name] = {}
-                    if name not in self.flags_callback_returned_requests[queue_name]:
-                        self.flags_callback_returned_requests[queue_name][name] = {}
-                    self.flags_callback_returned_requests[queue_name][name]["final_clearing_needed"] = True
 
                 # 3. Give the chance to execute an extra callback if provided
             #     if extra_callback is not None:

@@ -25,6 +25,8 @@ class PainterSharedMemory(PyXavi):
 
     is_active: bool = True
 
+    VERBOSE_DEBUG: bool = True
+
     def __init__(self, config: Config, params: Dictionary):
         super(PainterSharedMemory, self).init_pyxavi(config, params)
 
@@ -113,15 +115,21 @@ class PainterSharedMemory(PyXavi):
         # to be able to detect the transition to the activation value for this flag, when it is activated.
         if not updated_existing_flag:
 
+            # The worker monitors value transitions.
             # To be able to control it, we need to get the current value of the flag and set it as the previous value, 
             # so we can detect the transition to the activation value in the worker.
             # It needs to happen BEFORE we add the flag to the list, 
             # otherwise the worker may detect a transition to the activation value before we have set the previous value, 
             # which would lead to a wrong callback call.
-            current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
+            # current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
             if self._shared_memory_flag_previous_value is None:
                 self._shared_memory_flag_previous_value = {}
-            self._shared_memory_flag_previous_value[shared_memory_flag] = current_value
+            # Could be that we add a monitoring for a flag that is already active.
+            # The previous value will be the same of the activation, so the worker won't detect a transition.
+            # That's why we initialize the previous value with with a None, so the worker will be forced to detect
+            # the first transition to the activation value, even if the flag is already at that value.
+            # self._shared_memory_flag_previous_value[shared_memory_flag] = current_value
+            self._shared_memory_flag_previous_value[shared_memory_flag] = None
         
             # If the flag is not in the list, we add it.
             self._shared_memory_flag_to_callback.append((name, shared_memory_flag, activation_value, callback, is_dependant))
@@ -156,10 +164,18 @@ class PainterSharedMemory(PyXavi):
             ))
         return result
     
-    def did_shared_memory_flag_change_to_activation_value(self, shared_memory_flag: int, activation_value: bool) -> bool:
+    def did_shared_memory_flag_change_to_activation_value(self, shared_memory_flag: int, activation_value: bool, is_dependant: bool) -> bool:
         current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
         previous_value = self._shared_memory_flag_previous_value.get(shared_memory_flag, None)
-        return previous_value is not None and current_value != previous_value and current_value == activation_value
+        # return previous_value is not None and current_value != previous_value and current_value == activation_value
+        if previous_value is None and current_value == activation_value and not is_dependant:
+            self._log_debug(f"🏳️  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} is being monitored for the value {activation_value}, and it has no previous value, but the current value is already at the activation value. Will consider that it changed to the activation value.")
+            return True
+        elif previous_value is not None and current_value != previous_value and current_value == activation_value:
+            self._log_debug(f"🏳️  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} is being monitored for the value {activation_value}, and it changed from {previous_value} to {current_value}.")
+            return True
+        else:
+            return False
     
     def did_previous_callback_to_dependant_ran_already(self, name: str, shared_memory_flag: int, activation_value: bool) -> bool:
         """
@@ -195,6 +211,15 @@ class PainterSharedMemory(PyXavi):
     
     def trigger_callback_for_shared_memory_flag(self, name: str, shared_memory_flag: int, activation_value: bool):
         for existing_name, flag, expected_activation_value, callback, is_dependant in self._shared_memory_flag_to_callback:
+            # # First, if the previous value is None, means that we just added this flag to the monitoring list, 
+            # # so we consider that it has changed to the activation value, so we trigger the callback
+            # #   if the rest of the parameters match (name, flag, activation_value).
+            # if self._shared_memory_flag_previous_value.get(shared_memory_flag, None) is None and \
+            #     existing_name == name and flag == shared_memory_flag:
+            #         callback()
+            # # The previous value has an actual value, so we check the proper transition.
+            # elif existing_name == name and flag == shared_memory_flag and expected_activation_value == activation_value:
+            #     callback()
             if existing_name == name and flag == shared_memory_flag and expected_activation_value == activation_value:
                 callback()
     
@@ -222,7 +247,7 @@ class PainterSharedMemory(PyXavi):
                 for name, shared_memory_flag, activation_value, callback, is_dependant in self._shared_memory_flag_to_callback:
 
                     # Did the flag change to anything we're monitoring?
-                    if self.did_shared_memory_flag_change_to_activation_value(shared_memory_flag, activation_value):
+                    if self.did_shared_memory_flag_change_to_activation_value(shared_memory_flag, activation_value, is_dependant):
 
                         # Are we checking a dependant callback? If so, did the previous one already ran?
                         if is_dependant and not self.did_previous_callback_to_dependant_ran_already(name, shared_memory_flag, activation_value):

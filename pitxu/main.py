@@ -1459,7 +1459,9 @@ class Main(PyXavi):
                         # We clear the background display and reset the percentage.
                         self._last_processed_interaction_percentage = -1
                         self._last_interaction_paused_seconds = 0
-                        # Clean the display.
+                        # We need to send a specific clear Background, to remove the last percentage.
+                        self._interaction.clear_background_display()
+                        # And then we clean the display completely, as we go to idle soon.
                         self._interaction.clear_device()
                         # if not self._interaction.is_background_display_busy():
                         #     self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
