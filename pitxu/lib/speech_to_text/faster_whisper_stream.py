@@ -563,7 +563,7 @@ class FasterWhisperStream(PyXavi):
         
         if self.silence_input_queue is not None:
             # Joining queue to make sure that all tasks are done before closing.
-            self._xlog.debug("Joining FasterWhisper Stream silence input queue to make sure all tasks are done before closing.")
+            self._xlog.debug("Joining FasterWhisper Stream silence input queue.")
             if not self.silence_input_queue.empty():
                 while not self.silence_input_queue.empty():
                     discarded_chunk = self.silence_input_queue.get()
