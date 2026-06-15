@@ -767,11 +767,7 @@ class Main(PyXavi):
 
         # Clear the displays
         # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
-        # self.clear_displays()
-        # self._interaction.wait_for_background_display_queue_to_empty()
-        # self._interaction.wait_for_foreground_display_queue_to_empty()
-        # self._interaction.wait_for_busy_background_display_to_idle()
-        # self._interaction.wait_for_busy_foreground_display_to_idle()
+        self._interaction.clear_device()
 
         # Stop the Chatbot Session Manager.
         if self._chatbot_session_manager is not None:
@@ -844,15 +840,15 @@ class Main(PyXavi):
         self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
 
-    def clear_displays(self):
-        if self._interaction.displays_are_combined():
-            self._log_debug("Clearing the Combined Display.")
-            self._interaction.clear_combined_display()
-            return
-        self._log_debug("Clearing the Foreground Display.")
-        self._interaction.clear_foreground_display()
-        self._log_debug("Clearing the Background Display.")
-        self._interaction.clear_background_display()
+    # def clear_displays(self):
+    #     if self._interaction.displays_are_combined():
+    #         self._log_debug("Clearing the Combined Display.")
+    #         self._interaction.clear_combined_display()
+    #         return
+    #     self._log_debug("Clearing the Foreground Display.")
+    #     self._interaction.clear_foreground_display()
+    #     self._log_debug("Clearing the Background Display.")
+    #     self._interaction.clear_background_display()
 
     def _instantiate(self):
         """

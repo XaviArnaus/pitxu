@@ -23,6 +23,13 @@ class PainterQueue:
     BACKGROUND: str = "background"
     OVERALL: str = "overall"
 
+class IntermediatePainterQueueControl:
+    """
+    This class is meant to control the actions to be done in by every item in the intermediate queue.
+    """
+    SET: str = "set"
+    REMOVE: str = "remove"
+
 class Painter(PyXavi):
     """
     This class performs the hard work of painting, using given canvas and macros for tools.
@@ -157,6 +164,9 @@ class Painter(PyXavi):
         PainterQueue.OVERALL: None
     }
 
+    # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
+    intermediate_interactions_queue: list[tuple[IntermediatePainterQueueControl, PainterQueue, BasePaint]] = []
+
     # This class controls the transitions of the shared memory flags and values in a separate thread.
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
@@ -200,6 +210,9 @@ class Painter(PyXavi):
         # We start the thread in paused mode, so it doesn't start working until we have something to paint.
         self.start_paused()
 
+        # Initialize the queue that is used to set and remove interactions in a controlled way.
+        self.intermediate_interactions_queue = []
+
         # Initialized, but we need to set up the callbacks per each flag to monitor.
         painter_shared_memory_params = Dictionary({
             "shared_memory": params.get("shared_memory"),
@@ -235,7 +248,8 @@ class Painter(PyXavi):
                     queue_name
                 )
             else:
-                self.set_interaction(paint, queue_name)
+                self.add_to_intermediate_queue(paint, queue_name, IntermediatePainterQueueControl.SET)
+                # self.set_interaction(paint, queue_name)
         
         # Start the painting loop
         self.resume_paint()
@@ -283,13 +297,9 @@ class Painter(PyXavi):
 
                 self._log_debug(f"Painter Loop: 🔄 Starting new painting loop iteration.")
 
-                # ⚠️ ATTENTION !!
-                # There is a race condition here between the Painter loop and the PainterSharedMemory callbacks, 
-                #   because they can both modify the queues and the interactions to paint.
-                # Ideally, we should "queue" the setting and removal actions triggered by the PainterSharedMemory callbacks, 
-                #   and then execute them in the painting loop in a controlled position of the loop, so the whole loop
-                #   can rely on having a consistent queue state during the loop iteration.
-                # Now, what we have instead, is a handful of checks spread around but it's not the right thing to do.
+                # The very first thing to do is to apply the pending interactions to set or remove that we have in the intermediate queue,
+                # which are triggered by the shared memory flags callbacks or other events.
+                self.process_intermediate_queue()
 
                 # This is just some logging at the beginning of the loop iteration.
                 self._logging_start_painter_loop_iteration({
@@ -423,7 +433,7 @@ class Painter(PyXavi):
                                     self.starting_time_by_queue[PainterQueue.FOREGROUND] = None
 
                                     # And remove the current foreground paint, so we can pick the next.
-                                    self.remove_interaction(interaction=current_interaction, queue_name=PainterQueue.FOREGROUND)
+                                    self._remove_interaction(interaction=current_interaction, queue_name=PainterQueue.FOREGROUND)
                             
                     self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
 
@@ -474,7 +484,7 @@ class Painter(PyXavi):
                         current_interaction_by_queue[PainterQueue.BACKGROUND].remove_interaction_after_painting:
                         
                         self._log_debug(f"Background interaction [{current_interaction_by_queue[PainterQueue.BACKGROUND].name}] requested to be removed at the end of the loop, removing it now.")
-                        self.remove_interaction(interaction=current_interaction_by_queue[PainterQueue.BACKGROUND], queue_name=PainterQueue.BACKGROUND)
+                        self._remove_interaction(interaction=current_interaction_by_queue[PainterQueue.BACKGROUND], queue_name=PainterQueue.BACKGROUND)
         
                     # If the list of background interactions contains more than the current item, we remove the current one to move to the next.
                     # This should override the request to avoid removing at the end of the painting.
@@ -486,7 +496,7 @@ class Painter(PyXavi):
 
                         # Remove and log
                         current_background_interaction_name = current_interaction_by_queue[PainterQueue.BACKGROUND].name
-                        self.remove_interaction(interaction=current_interaction_by_queue[PainterQueue.BACKGROUND], queue_name=PainterQueue.BACKGROUND)
+                        self._remove_interaction(interaction=current_interaction_by_queue[PainterQueue.BACKGROUND], queue_name=PainterQueue.BACKGROUND)
                         new_current_background_interaction = self.get_current_interaction(PainterQueue.BACKGROUND)
                         self._log_debug(f"Painter: More than one background interaction in the queue, removing current background interaction [{current_background_interaction_name}] to move to next: [{new_current_background_interaction.name}].")
                     
@@ -504,7 +514,7 @@ class Painter(PyXavi):
                         
                         # And now we can safely remove the foreground interaction.
                         self._log_debug(f"Painter: Removing foreground interaction [{current_interaction_by_queue[PainterQueue.FOREGROUND].name}] after painting as requested.")
-                        self.remove_interaction(interaction=current_interaction_by_queue[PainterQueue.FOREGROUND], queue_name=PainterQueue.FOREGROUND)
+                        self._remove_interaction(interaction=current_interaction_by_queue[PainterQueue.FOREGROUND], queue_name=PainterQueue.FOREGROUND)
                     
                     # Finally, if there is no foreground nor background paint, we can stop the loop.
                     # Please note that here we're not using the current_background_interaction variable directly,
@@ -692,8 +702,23 @@ class Painter(PyXavi):
 
                 
     # ---- Managing the Painting queues and interactions ----
+
+    def add_to_intermediate_queue(self, interaction: BasePaint, queue_name: PainterQueue, action: IntermediatePainterQueueControl):
+        self._log_debug(f"Adding [{action}] interaction [{interaction.name}] to intermediate [{queue_name}] queue.")
+        self.intermediate_interactions_queue.append((action, queue_name, interaction))
     
-    def set_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
+    def process_intermediate_queue(self):
+        # Process the intermediate interactions queue, which may contain interactions that need to be added to the main queues with some control over how they are added.
+        self._log_debug(f"Processing intermediate interactions queue with {len(self.intermediate_interactions_queue)} items.")
+        while len(self.intermediate_interactions_queue) > 0:
+            action, queue_name, interaction = self.intermediate_interactions_queue.pop(0)
+            self._log_debug(f"Triggering [{action}] interaction [{interaction.name}] over [{queue_name}].")
+            if action == IntermediatePainterQueueControl.SET:
+                self._set_interaction(interaction=interaction, queue_name=queue_name)
+            elif action == IntermediatePainterQueueControl.REMOVE:
+                self._remove_interaction(interaction=interaction, queue_name=queue_name)
+    
+    def _set_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Setting [{queue_name}] interaction to [{interaction.name}] with parameters [{interaction.drawing_callback_parameters}].")
 
         # In case that we received anything with priority, we remove the previous interactions of the same queue, to give it the inmediate priority.
@@ -714,7 +739,7 @@ class Painter(PyXavi):
             current_interaction.while_shared_memory_flag is None and \
             not current_interaction.remove_interaction_after_painting:
             self._log_debug(f"Current {queue_name} interaction [{current_interaction.name}] is set to stay after painting, but we received a new {queue_name} interaction [{interaction.name}]. Removing the current one to give priority to the new one.")
-            self.remove_interaction(interaction=current_interaction, queue_name=queue_name)
+            self._remove_interaction(interaction=current_interaction, queue_name=queue_name)
 
         # Now add the new interaction to the queue
         self.queue[queue_name].append(interaction)
@@ -727,7 +752,7 @@ class Painter(PyXavi):
             return None
         return current_paint
 
-    def remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
+    def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
         if len(self.queue[queue_name]) > 0:
             if self.queue[queue_name][0].name == interaction.name:
@@ -900,7 +925,8 @@ class Painter(PyXavi):
                 name=f"Set_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
-                interaction_callback=self.set_interaction,
+                # interaction_callback=self.set_interaction,
+                intermediate_queue_action=IntermediatePainterQueueControl.SET,
                 flag=shared_memory_flag,
                 for_value=activation_value,
                 is_removal_callback=False
@@ -917,7 +943,8 @@ class Painter(PyXavi):
                 name=f"Remove_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
-                interaction_callback=self.remove_interaction,
+                # interaction_callback=self.remove_interaction,
+                intermediate_queue_action=IntermediatePainterQueueControl.REMOVE,
                 flag=shared_memory_flag,
                 for_value=not activation_value,
                 is_removal_callback=True
@@ -929,7 +956,8 @@ class Painter(PyXavi):
                            name: str,
                            interaction: BasePaint,
                            queue_name: PainterQueue,
-                           interaction_callback: callable,
+                        #    interaction_callback: callable,
+                           intermediate_queue_action: IntermediatePainterQueueControl, 
                            flag: int,
                            for_value: bool,
                            is_removal_callback: bool,
@@ -947,7 +975,8 @@ class Painter(PyXavi):
             # Set the interactions if provided
             if interaction is not None:
                 # 1. Trigger the callback of the interaction based on the shared memory flag value.
-                interaction_callback(interaction=interaction, queue_name=queue_name)
+                # interaction_callback(interaction=interaction, queue_name=queue_name)
+                self.add_to_intermediate_queue(interaction=interaction, queue_name=queue_name, action=intermediate_queue_action)
                 # 2. Remove the callback itself to avoid multiple triggers
                 self.painter_shared_memory.remove_callback_for_shared_memory_flag(
                     name=name,
