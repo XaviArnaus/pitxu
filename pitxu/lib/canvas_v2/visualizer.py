@@ -470,7 +470,7 @@ class Visualizer(PyXavi):
                                                                     self.interaction_delays.get("default_delay_between_frames", 
                                                                                                 0.05)),
 
-                    final_screen_clearing=True,
+                    final_area_clearing=True,
                     remove_interaction_after_painting=False
 
                     # TODO: Maybe we should do a soft clear after removing the interaction, 
@@ -503,7 +503,7 @@ class Visualizer(PyXavi):
                                                                     self.interaction_delays.get("default_delay_between_frames", 
                                                                                                 0.05)),
 
-                    final_screen_clearing=True,
+                    final_area_clearing=True,
                     remove_interaction_after_painting=False
 
                     # TODO: Maybe we should do a soft clear after removing the interaction, 

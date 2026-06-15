@@ -45,6 +45,7 @@ class BasePaint:
 
     # Painting desired flow control
     delay_between_frames: float = 0.05  # Delay between frames in seconds
+    final_area_clearing: bool = False  # Whether to clear the display area at the end of the interaction
     final_screen_clearing: bool = False  # Whether to clear the screen at the end of the interaction
     remove_interaction_after_painting: bool = True  # Whether to remove the interaction after painting
     overwrite_current_interaction_with_same_type: bool = False  # Whether to overwrite the current interaction with the same type
@@ -83,6 +84,7 @@ class BasePaint:
                     cache_control_parameters: list[str] = [],
                     # Painting desired flow control
                     delay_between_frames: float = 0.05,
+                    final_area_clearing: bool = False,
                     final_screen_clearing: bool = False,
                     remove_interaction_after_painting: bool = False,
                     overwrite_current_interaction_with_same_type: bool = False,
@@ -102,6 +104,7 @@ class BasePaint:
         self.cache_control_parameters = cache_control_parameters if cache_control_parameters is not None else []
         # Painting desired flow control
         self.delay_between_frames = delay_between_frames
+        self.final_area_clearing = final_area_clearing
         self.final_screen_clearing = final_screen_clearing
         self.remove_interaction_after_painting = remove_interaction_after_painting
         self.overwrite_current_interaction_with_same_type = overwrite_current_interaction_with_same_type

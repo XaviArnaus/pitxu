@@ -8,12 +8,11 @@ from pitxu.lib.canvas_v2.painter_shared_memory import PainterSharedMemory
 from pitxu.lib.canvas_v2.painting_object import PaintingObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint
 from pitxu.lib.canvas_v2.painting_command import ForegroundCommand, PaintingCommand, BackgroundCommand
 
-import threading
-from PIL import Image, ImageDraw
-
 from pitxu.lib.objects.point import Point
 from pitxu.lib.objects.rectangle import Rectangle
-from pitxu.lib.utils.xtime import Xtime
+
+import threading
+from PIL import Image, ImageDraw
 
 class PainterQueue:
     """
@@ -82,14 +81,13 @@ class Painter(PyXavi):
 
     _worker_thread: threading.Thread = None
     _thread_event: threading.Event = None
+    _timer: dict[str, threading.Timer] = {}
 
     THREAD_NAME: str = "Painter"
 
     # Controls if the loop should work. Set to False to exit the loop and finish the thread.
     is_active: bool = True
 
-    # All the possible macros to paint
-    # macros: dict[str, MacrosOverlay | MacrosLayout | MacrosForeground | MacrosBackground]= None
     canvas: Canvas = None
     # The drawing tool, initialized once we start painting, outside the loop for better performance, per queue
     image_per_queue: dict[str, Image.Image | None] = {
@@ -155,13 +153,6 @@ class Painter(PyXavi):
             "interaction": None,
             "image": None
         }
-    }
-
-    # The foreground paint maintains some extra information to control how long it has been shown, so we can control the time showing it.
-    starting_time_by_queue: dict[PainterQueue, int] = {
-        PainterQueue.BACKGROUND: None,
-        PainterQueue.FOREGROUND: None,
-        PainterQueue.OVERALL: None
     }
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
@@ -249,7 +240,6 @@ class Painter(PyXavi):
                 )
             else:
                 self.add_to_intermediate_queue(paint, queue_name, IntermediatePainterQueueAction.SET)
-                # self.set_interaction(paint, queue_name)
         
         # Start the painting loop
         self.resume_paint()
@@ -268,14 +258,6 @@ class Painter(PyXavi):
 
             # Each time we enter this loop, we reset the iteration counter.
             background_iteration_counter = None
-
-            # We calculate the showing time for the paint from the first showing instant,
-            #   so we depend on paint changes. Start with None.
-            self.starting_time_by_queue: dict[PainterQueue, int] = {
-                PainterQueue.BACKGROUND: None,
-                PainterQueue.FOREGROUND: None,
-                PainterQueue.OVERALL: None
-            }
 
             # Should do an extra screen clearing at the end of the current interaction?
             # It is set via the end-callbacks when registering painting while busy flags.
@@ -324,10 +306,7 @@ class Painter(PyXavi):
                     # This is because we merge the screen using alfa composite, and otherwise we would
                     # have fill colors being merged again and again with alpha transparency, so ends up in a mess.
                     self._log_debug(f"🎨 Cleaning the whole screen.")
-                    self.drawing_callbacks["soft_full_clear"]["callback"](
-                        self.canvas.get_canvas(), 
-                        params=self.drawing_callbacks["soft_full_clear"]["parameters"]
-                    )
+                    self._full_clear()
 
                     # We paint the interactions in order, from background to overall.
                     for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
@@ -364,14 +343,6 @@ class Painter(PyXavi):
                                 current_interaction.drawing_callback_parameters["current_loop_iteration"] = background_iteration_counter
                                 current_interaction.drawing_callback_parameters["max_loop_iterations"] = current_interaction.loop_iterations
                             
-                            elif queue_name == PainterQueue.FOREGROUND:
-
-                                # We have a foreground paint. Is it the first loop iteration to see it?
-                                if self.starting_time_by_queue[PainterQueue.FOREGROUND] is None:
-                                    # It was, so we set the starting time and then we control how much it is getting shown.
-                                    self._log_debug(f"Painter: New foreground paint detected: [{current_interaction.name}], starting to show it now.")
-                                    self.starting_time_by_queue[PainterQueue.FOREGROUND] = Xtime.now_as_milliseconds()
-
                             # --- START painting the interaction, with cache support ---
 
                             # We check if we have already painted this interaction in the previous iteration, and if so, we retrieve it from the cache.
@@ -407,61 +378,38 @@ class Painter(PyXavi):
                                     self._log_debug(f"Reached max iterations for background interaction [{current_interaction.name if current_interaction is not None else 'None'}], Cleaning the counter.")
                                     background_iteration_counter = None
                             
-                            elif queue_name == PainterQueue.FOREGROUND:
-
-                                # This is only for typing.
-                                current_interaction: ForegroundPaint = current_interaction
-
-                                # We may have reached the end of the foreground paint showing time.
-                                # We now allow new foregrounds to be painted. This is useful when the expected time for a foreground is shorter than
-                                #   the background showing time. We can show the next foreground paint.
-                                # Only if we have a maintain_paint_for_seconds parameter, otherwise we just maintain it until we receive a new foreground paint, which is the default behaviour.
-                                if current_interaction.maintain_paint_for_seconds is not None and \
-                                    Xtime.now_minus_seconds_as_milliseconds(current_interaction.maintain_paint_for_seconds) > self.starting_time_by_queue[PainterQueue.FOREGROUND] and\
-                                    not current_interaction.ignore_maintain_time:
-                                    # If we remove the foreground we may loose the one that may have been set while showing the previous interaction, so no.
-                                    # The start of the foreground_starting_time must happen at the beginning of the loop's iteration
-                                    #   so we start with a new paint.
-
-                                    self._log_debug(f"Painter: Foreground interaction [{current_interaction.name}] showing time of " +
-                                                    f"[{current_interaction.maintain_paint_for_seconds}] elapsed, requesting remove.")
-                                    self._log_debug(f"Painter: Foreground interaction ignore time is [{'INGONE' if current_interaction.ignore_maintain_time else 'NOT IGNORE'}]")
-                                    self._log_debug(f"Painter: Initial time was [{self.starting_time_by_queue[PainterQueue.FOREGROUND]}], current time is [{Xtime.now_as_milliseconds()}]," +
-                                                    f" diff is [{(Xtime.now_as_milliseconds() - self.starting_time_by_queue[PainterQueue.FOREGROUND]) / 1000}]sec.")
-
-                                    # What we do here is to set it to None so that the IF at the beginning of the iteration knows that it needs to be started.
-                                    self.starting_time_by_queue[PainterQueue.FOREGROUND] = None
-
-                                    # And remove the current foreground paint, so we can pick the next.
-                                    self._remove_interaction(interaction=current_interaction, queue_name=PainterQueue.FOREGROUND)
-                            
                     self._log_debug(f"Painter Loop: ⏹️ End section: Flushing, delays and cleaning up.")
 
                     # Could be that any removal callback requests a final clearing. 
                     # We need to read it from the requests, remove it from there, and apply it if any is True.
                     # Attention, it is not meant as a full screen clearing, but per queue.
+                    callback_final_screen_clearing_request = False
                     for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
-                        callback_final_clearing_request = False
+                        callback_final_area_clearing_request = False
                         for callback_name, requests in self.flags_callback_returned_requests[queue_name].items():
-                            if "final_clearing_needed" in requests:
-                                if requests.get("final_clearing_needed") == True:
-                                    callback_final_clearing_request = True
+                            if "final_area_clearing_needed" in requests:
+                                if requests.get("final_area_clearing_needed") == True:
+                                    callback_final_area_clearing_request = True
+                                    self._log_debug(f"Painter Loop: Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the area.")
+                                # We remove the request once we read it, to avoid carrying it on into the next loop iteration.
+                                del self.flags_callback_returned_requests[queue_name][callback_name]["final_area_clearing_needed"]
+                            if "final_screen_clearing_needed" in requests:
+                                if requests.get("final_screen_clearing_needed") == True:
+                                    callback_final_screen_clearing_request = True
                                     self._log_debug(f"Painter Loop: Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the screen.")
                                 # We remove the request once we read it, to avoid carrying it on into the next loop iteration.
-                                del self.flags_callback_returned_requests[queue_name][callback_name]["final_clearing_needed"]
-                        if callback_final_clearing_request:
+                                del self.flags_callback_returned_requests[queue_name][callback_name]["final_screen_clearing_needed"]
+                        if callback_final_area_clearing_request:
                             # Be careful with this, it may paint the empty frame of the BACKGROUND once the OVERALL has ben just painted!
                             self._reset_display_area_for_queue(queue_name)
 
                     # A final clearing was requested during loop iteration or by a removal callback?
                     # ⚠️ Does this make any sense? I believe it is a legacy from the previous approach, that now we covered
                     #   with the callback_final_clearing_request snippet.
-                    if final_clearing_needed:
+                    if final_clearing_needed or callback_final_screen_clearing_request:
+
                         self._log_debug(f"Painter Loop: Final clearing requested by an END callback, will clear the screen.")
-                        self.drawing_callbacks["soft_full_clear"]["callback"](
-                            self.canvas.get_canvas(), 
-                            params=self.drawing_callbacks["soft_full_clear"]["parameters"]
-                        )
+                        self._full_clear()
                         final_clearing_needed = False
                     
                     # Show the image on the device
@@ -700,6 +648,19 @@ class Painter(PyXavi):
         self.canvas.combine_into_image(self.image_per_queue[queue_name], 
                                         position=layout_position, 
                                         use_alpha_composite=True)
+    
+    def _full_clear(self):
+        self.drawing_callbacks["soft_full_clear"]["callback"](
+            self.canvas.get_canvas(), 
+            params=self.drawing_callbacks["soft_full_clear"]["parameters"]
+        )
+    
+    def _any_current_interaction_wants_final_screen_clearing(self) -> bool:
+        for queue_name in self.queue:
+            current_interaction = self.get_current_interaction(queue_name)
+            if current_interaction and current_interaction.final_screen_clearing:
+                return True
+        return False
 
                 
     # ---- Managing the Painting queues and interactions ----
@@ -741,6 +702,22 @@ class Painter(PyXavi):
             not current_interaction.remove_interaction_after_painting:
             self._log_debug(f"Current {queue_name} interaction [{current_interaction.name}] is set to stay after painting, but we received a new {queue_name} interaction [{interaction.name}]. Removing the current one to give priority to the new one.")
             self._remove_interaction(interaction=current_interaction, queue_name=queue_name)
+        
+        # If we're meant to keep the interaction for an amount of seconds, set up a scheduler to remove it after the defined time.
+        if queue_name == PainterQueue.FOREGROUND and interaction.maintain_paint_for_seconds is not None:
+            self._log_debug(f"{queue_name} interaction [{interaction.name}] is meant to be maintained for [{interaction.maintain_paint_for_seconds}] seconds. Setting up a scheduler to remove it after the defined time.")
+            def remove_interaction_after_time():
+                self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
+                self._remove_interaction(interaction=interaction, queue_name=queue_name)
+                # The following lines are to clean the screen after removing the interaction.
+                # ⚠️ This does not stand for long. Any waiting_for_seconds besides idle will produce
+                #   a full screen clearing after the time is over, which is not ideal. 
+                # if interaction.final_screen_clearing:
+                #     self._log_debug(f"Scheduler for {queue_name} interaction [{interaction.name}] is performing a final screen clearing as requested by the interaction.")
+                self._full_clear()
+                self.flush_drawing()
+            self._timer[interaction.get_cache_key()] = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
+            self._timer[interaction.get_cache_key()].start()
 
         # Now add the new interaction to the queue
         self.queue[queue_name].append(interaction)
@@ -764,15 +741,23 @@ class Painter(PyXavi):
                 self.reset_interaction_artifacts(queue_name)
                 self._log_debug(f"Interaction [{interaction.name}] removed from [{queue_name}] queue successfully.")
                 # Removing the interaction means to stop drawing it.
-                # It's the moment to check for a final cleaning request from the callbacks.
+                # It's the moment to check for a final cleaning requests from the callbacks.
                 if interaction.final_screen_clearing:
                     name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
-                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Clearing intended, telling to painter loop")
+                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final ScreenClearing intended, telling to painter loop")
                     if queue_name not in self.flags_callback_returned_requests:
                         self.flags_callback_returned_requests[queue_name] = {}
                     if name not in self.flags_callback_returned_requests[queue_name]:
                         self.flags_callback_returned_requests[queue_name][name] = {}
-                    self.flags_callback_returned_requests[queue_name][name]["final_clearing_needed"] = True
+                    self.flags_callback_returned_requests[queue_name][name]["final_screen_clearing_needed"] = True
+                if interaction.final_area_clearing:
+                    name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
+                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Area Clearing intended, telling to painter loop")
+                    if queue_name not in self.flags_callback_returned_requests:
+                        self.flags_callback_returned_requests[queue_name] = {}
+                    if name not in self.flags_callback_returned_requests[queue_name]:
+                        self.flags_callback_returned_requests[queue_name][name] = {}
+                    self.flags_callback_returned_requests[queue_name][name]["final_area_clearing_needed"] = True
             else:
                 # Could be that meanwhile anything else with more priority (or a dupe) came in and then
                 #   the "current" one was already removed.
@@ -784,20 +769,24 @@ class Painter(PyXavi):
         self._log_debug(f"Removing all {queue_name} interactions.")
         self.queue[queue_name] = []
         self.reset_interaction_artifacts(queue_name)
+        # Cancel any timers associated with interactions in this queue
+        for interaction_cache_key, timer in list(self._timer.items()):
+            self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
+            timer.cancel()
+            del self._timer[interaction_cache_key]
     
     def reset_interaction_artifacts(self, queue_name: PainterQueue):
         self._log_debug(f"Resetting interaction artifacts for queue [{queue_name}].")
         self.previous_interaction_by_queue[queue_name]["interaction"] = None
         self.previous_interaction_by_queue[queue_name]["cache_key"] = None
         self.previous_interaction_by_queue[queue_name]["image"] = None
-        self.starting_time_by_queue[queue_name] = None
     
     def _remove_duplicated_interaction_types_from_queue(self, interaction: BasePaint, queue_name: PainterQueue):
         """
         Removes previous duplicated interactions of the same type as the given one from the corresponding queue.
         Keeps only the given interaction.
 
-        Useful for schenarios like the init_phase when next phase comes and we didin't show the previous one.
+        Useful for scenarios like the init_phase when next phase comes and we didn't show the previous one.
 
         Args:
             interaction (BasePaint): The interaction to compare with the ones in the queue. We will remove the ones with the same type as this one.
@@ -864,6 +853,12 @@ class Painter(PyXavi):
                 self._xlog.debug("Painter worker thread finished successfully.")
         else:
             self._xlog.debug("Painter worker thread is not alive or was never started.")
+        
+        for interaction_cache_key, timer in self._timer.items():
+            self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
+            timer.cancel()
+        self._timer = {}
+        self._log_debug("Painter shutdown complete.")
     
     def start_paused(self):
         """
@@ -882,7 +877,6 @@ class Painter(PyXavi):
     def resume_paint(self):
 
         # If we're actually not running anything inside the thread, do it now.
-        # if not self.is_active:
         if not self._thread_event.is_set():
             self._log_debug("Painter thread not running, starting it now.")
 
@@ -936,7 +930,6 @@ class Painter(PyXavi):
                 name=f"{IntermediatePainterQueueAction.SET}_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
-                # interaction_callback=self.set_interaction,
                 intermediate_queue_action=IntermediatePainterQueueAction.SET,
                 flag=shared_memory_flag,
                 for_value=activation_value,
@@ -954,7 +947,6 @@ class Painter(PyXavi):
                 name=f"{IntermediatePainterQueueAction.REMOVE}_{paint.name}",
                 interaction=paint,
                 queue_name=queue_name,
-                # interaction_callback=self.remove_interaction,
                 intermediate_queue_action=IntermediatePainterQueueAction.REMOVE,
                 flag=shared_memory_flag,
                 for_value=not activation_value,
@@ -967,7 +959,6 @@ class Painter(PyXavi):
                            name: str,
                            interaction: BasePaint,
                            queue_name: PainterQueue,
-                        #    interaction_callback: callable,
                            intermediate_queue_action: IntermediatePainterQueueAction, 
                            flag: int,
                            for_value: bool,
