@@ -16,7 +16,6 @@ from definitions import SHARED_SPEAKER_BUSY, \
                         SHARED_MICROPHONE_MUTED, \
                         SHARED_CHATBOT_BUSY, \
                         SHARED_CHATBOT_ANSWER_IS_ERROR, \
-                        SHARED_IDLE_MODE, \
                         SHARED_DSI_LCD_IDLE_MODE, \
                         SHARED_NETWORK_BUSY, \
                         SHARED_VAD_DETECTED, \
@@ -128,6 +127,15 @@ class Visualizer(PyXavi):
 
         self.interaction_delays = self._xparams.get("interaction_delays", {})
 
+        # ⚠️ There has to be a list of shared memory flags that we monitor forever, and the related callbacks never get removed.
+        # Examples:
+        #   - SHARED_SPEAKER_BUSY: to trigger the speaking animation when the speaker is busy.
+        #   - SHARED_CHATBOT_BUSY: to trigger the thinking animation when the chatbot is busy.
+        #   - SHARED_DSI_LCD_IDLE_MODE: to trigger the idle animation when the DSI LCD is in idle mode.
+        #   - SHARED_NETWORK_BUSY: to trigger a network animation when the network is busy for too long.
+        #   - other status-like flags that we want to monitor to trigger some visualization when they are activated.
+        # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
+
         self._xlog.debug("Initialized Visualizer.")
     
     # We need to place here the methods that trigger the visualization. 
@@ -212,7 +220,7 @@ class Visualizer(PyXavi):
                     name="ArbitraryContentWhileIdleForegroundPaint",
                     command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    while_shared_memory_flag=SHARED_IDLE_MODE,
+                    while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
                     while_shared_memory_flag_value=True,
 
                     drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,

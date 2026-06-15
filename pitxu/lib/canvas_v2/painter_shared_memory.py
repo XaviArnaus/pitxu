@@ -1,6 +1,7 @@
 import re
 
 from pyxavi import Config, Dictionary
+from definitions import SHARED_DSI_LCD_IDLE_MODE
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
@@ -248,4 +249,12 @@ class PainterSharedMemory(PyXavi):
                     self._log_debug(f"🏳️  Resuming painter loop after triggering callbacks for shared memory flags.")
                     self._painter_resume_callback()
 
-            time.sleep(0.2)
+            # If we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage, 
+            # because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.
+            if self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE):
+                time.sleep(1)
+            else:
+                time.sleep(0.2)
+
+    def is_idle_mode_on(self) -> bool:
+        return self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)

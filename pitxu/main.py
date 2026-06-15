@@ -1464,11 +1464,12 @@ class Main(PyXavi):
                         self._last_processed_interaction_percentage = -1
                         self._last_interaction_paused_seconds = 0
                         # Clean the display.
-                        if not self._interaction.is_background_display_busy():
-                            self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                            self._interaction.clear_background_display()
-                        else:
-                            self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
+                        self._interaction.clear_device()
+                        # if not self._interaction.is_background_display_busy():
+                        #     self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
+                        #     self._interaction.clear_background_display()
+                        # else:
+                        #     self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
                     # else:
                     #     self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
     

@@ -17,8 +17,8 @@ from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
-                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY,\
-                        SHARED_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
+                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
+                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
 
 class Interaction(PyXavi):
     """
@@ -383,8 +383,10 @@ class Interaction(PyXavi):
         Show the idle mode on the Foreground display.
         """
         self._xlog.debug("👀 Starting idle mode from Interaction class")
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, True)
         self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.SHOW_IDLE)
+        self.process_pool.wait_for_queue_to_empty(self._get_active_foreground_display_queue())
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_DSI_LCD_BUSY)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
     
     def show_arbitrary_text_on_foreground(
             self,
@@ -607,6 +609,16 @@ class Interaction(PyXavi):
         self.clear_foreground_display()
         self.clear_background_display()
     
+    def clear_device(self):
+        """
+        Clear the display device, the hard way.
+
+        This won't draw anything on the display, just a direct full screen clear.
+        """
+        self._xlog.debug("🧹 Clearing the display device.")
+
+        self.process_pool.send(QUEUE_DSI_LCD, XprocAction.CLEAR)
+    
     # --------- (Proxy) Functions to wait for queues to be empty and busy flags to idle ---------
 
     def wait_for_speaker_to_start_and_finish_speaking(self):
@@ -728,15 +740,15 @@ class Interaction(PyXavi):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_ANSWER_IS_ERROR, False)
     
     def is_idle_mode_on(self) -> bool:
-        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_IDLE_MODE)
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)
 
     def set_idle_mode_on(self):
         self._log_debug("💤  Setting idle mode on.")
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, True)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
 
     def set_idle_mode_off(self):
         self._log_debug("💤  Setting idle mode off.")
-        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_IDLE_MODE, False)
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, False)
 
     def is_matrix_busy(self):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MATRIX_BUSY)

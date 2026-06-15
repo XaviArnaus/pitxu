@@ -176,8 +176,9 @@ class DsiLcd(XprocessDisplayCombined):
     # ------- Common functions ---------
     
     def clear(self):
-        # Clear the display
-        self.device.clear()
+        # Clear the display.
+        # Passing the display size just in case we want to clear the mocked LCD, to have a black image of the correct size.
+        self.device.clear(screen_size=(self._display_size.x, self._display_size.y))
     
     def soft_clear(self):
         self.clear_background()

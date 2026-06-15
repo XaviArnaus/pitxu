@@ -92,18 +92,10 @@ class XprocessDisplayForeground(Xprocess):
                 for_seconds = param.get("for_seconds", 3.0)
                 self.show_error(text=text, for_seconds=for_seconds)
         
-        # Clears the screen
-        if action == XprocAction.CLEAR:
-            self.clear()
-        
         # Clears the foreground screen only
         if action == XprocAction.FOREGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
             self._log_debug("XprocessDisplayForeground: Clearing foreground screen only.")
             self.clear_foreground()
-        
-        # Clears the screen using a partial white
-        if action == XprocAction.SOFT_CLEAR:
-            self.soft_clear()
         
         # Now see if we need to do any extended action for the given action.
         self.extended_foreground_run(config, logger, action, param)
