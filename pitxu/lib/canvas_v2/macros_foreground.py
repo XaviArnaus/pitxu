@@ -140,6 +140,17 @@ class MacrosForeground(MacrosBase):
         # Main title
         title = self._xconfig.get("app.name")
         version = self._xparams.get("app_version")
+
+        # ⚠️ Tried Pilmoji, but implies a complete refactor of the text drawing, and it's not worth it for now. 
+        # Next, take a look at https://jdhao.github.io/2022/04/03/add_color_emoji_to_image_in_python/
+        # self.text(
+        #     draw=draw,
+        #     xy=Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
+        #     text = f"{title}  v{version}",
+        #     font = self.canvas.FONT_HUGE, 
+        #     fill = self.canvas.COLOR_FOREGROUND,
+        #     anchor = "mm",
+        #     align = "center")
         draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
                     text = title + "  v" + version, 
                     font = self.canvas.FONT_HUGE, 
@@ -161,10 +172,18 @@ class MacrosForeground(MacrosBase):
         text = params.get("text", None)
         # This is test, should be shown in the StatusPaint
         # draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 6).to_image_point(),
-        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
-                    # text = f"{phase} - {text}", 
-                    text = text,
-                    font = self.canvas.FONT_SMALL, 
+        # self.text(
+        #     draw=draw,
+        #     xy=Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
+        #     # text = f"{phase} - {text}", 
+        #     text = text,
+        #     font = self.canvas.FONT_SMALL, 
+        #     fill = self.canvas.COLOR_FOREGROUND,
+        #     anchor = "mm",
+        #     align = "center")
+        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
+                    text = title + "  v" + version, 
+                    font = self.canvas.FONT_HUGE, 
                     fill = self.canvas.COLOR_FOREGROUND,
                     anchor = "mm",
                     align = "center")

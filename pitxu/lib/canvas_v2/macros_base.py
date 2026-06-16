@@ -1,4 +1,6 @@
-from PIL import ImageDraw,ImageFont, Image
+from typing import AnyStr, Any
+
+from PIL import ImageDraw,ImageFont, Image, ImageText
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -6,7 +8,7 @@ from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
 
 import math
-
+# from pilmoji import Pilmoji
 
 class MacrosBase(PyXavi):
     """
@@ -337,3 +339,47 @@ class MacrosBase(PyXavi):
             (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
         
         return fill_color, overlay
+    
+    # def text(self,
+    #             draw: ImageDraw.ImageDraw, 
+    #             xy: tuple[float, float],
+    #             text: AnyStr | ImageText.Text,
+    #             fill: float | tuple[int, ...] | str | None = None,
+    #             font: (
+    #                 ImageFont.ImageFont
+    #                 | ImageFont.FreeTypeFont
+    #                 | ImageFont.TransposedFont
+    #                 | None
+    #             ) = None,
+    #             anchor: str | None = None,
+    #             spacing: float = 4,
+    #             align: str = "left",
+    #             direction: str | None = None,
+    #             features: list[str] | None = None,
+    #             language: str | None = None,
+    #             stroke_width: float = 0,
+    #             stroke_fill: float | tuple[int, ...] | str | None = None,
+    #             embedded_color: bool = False,
+    #             *args: Any,
+    #             **kwargs: Any):
+    #     # This uses PilMoji. You need to add the package as a dependency:
+    #     #   pilmoji = "^2.0.5"
+        
+    #     with Pilmoji(draw.im) as pilmoji:
+    #         pilmoji.text(
+    #             xy=xy,
+    #             text=text,
+    #             fill=fill,
+    #             font=font,
+    #             anchor=anchor,
+    #             spacing=spacing,
+    #             align=align,
+    #             direction=direction,
+    #             features=features,
+    #             language=language,
+    #             stroke_width=stroke_width,
+    #             stroke_fill=stroke_fill,
+    #             embedded_color=embedded_color,
+    #             *args,
+    #             **kwargs
+    #         )

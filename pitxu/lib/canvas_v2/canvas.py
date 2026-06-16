@@ -320,6 +320,9 @@ class Canvas(PyXavi):
         small_emoji_size = self.DEFAULT_FONT_SIZE_SMALL_EMOJI
         tiny_size = self.DEFAULT_FONT_SIZE_TINY
 
+        engine = 0
+        mode = "L"
+
         self._xlog.debug(f"Initialising fonts from file: {self.FONT_FILE}")
 
         # Ultra size
@@ -328,7 +331,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.ultra")):
             ultra_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.ultra")
         self.FONT_SIZE_ULTRA = ultra_size
-        self.FONT_ULTRA = ImageFont.truetype(self.FONT_FILE, ultra_size)
+        self.FONT_ULTRA = ImageFont.truetype(self.FONT_FILE, ultra_size, layout_engine=engine)
         
         # Huge size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.huge")):
@@ -336,7 +339,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.huge")):
             huge_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.huge")
         self.FONT_SIZE_HUGE = huge_size
-        self.FONT_HUGE = ImageFont.truetype(self.FONT_FILE, huge_size)
+        self.FONT_HUGE = ImageFont.truetype(self.FONT_FILE, huge_size, layout_engine=engine)
 
         # Big size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.big")):
@@ -344,7 +347,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.big")):
             big_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.big")
         self.FONT_SIZE_BIG = big_size
-        self.FONT_BIG = ImageFont.truetype(self.FONT_FILE, big_size)
+        self.FONT_BIG = ImageFont.truetype(self.FONT_FILE, big_size, layout_engine=engine)
 
         # Medium size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.medium")):
@@ -352,7 +355,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.medium")):
             medium_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.medium")
         self.FONT_SIZE_MEDIUM = medium_size
-        self.FONT_MEDIUM = ImageFont.truetype(self.FONT_FILE, medium_size)
+        self.FONT_MEDIUM = ImageFont.truetype(self.FONT_FILE, medium_size, layout_engine=engine)
 
         # Small size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.small")):
@@ -360,7 +363,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.small")):
             small_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.small")
         self.FONT_SIZE_SMALL = small_size
-        self.FONT_SMALL = ImageFont.truetype(self.FONT_FILE, small_size)
+        self.FONT_SMALL = ImageFont.truetype(self.FONT_FILE, small_size, layout_engine=engine)
 
         # Small emoji size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.small-emoji")):
@@ -368,7 +371,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.small-emoji")):
             small_emoji_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.small-emoji")
         self.FONT_SIZE_SMALL_EMOJI = small_emoji_size
-        self.FONT_SMALL_EMOJI = ImageFont.truetype(self.FONT_FILE, small_emoji_size)
+        self.FONT_SMALL_EMOJI = ImageFont.truetype(self.FONT_FILE, small_emoji_size, layout_engine=engine)
 
         # Tiny size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.tiny")):
@@ -376,7 +379,7 @@ class Canvas(PyXavi):
         elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.tiny")):
             tiny_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.tiny")
         self.FONT_SIZE_TINY = tiny_size
-        self.FONT_TINY = ImageFont.truetype(self.FONT_FILE, tiny_size)
+        self.FONT_TINY = ImageFont.truetype(self.FONT_FILE, tiny_size, layout_engine=engine)
 
         # Prepare the font by size dictionary
         self.font_by_size = {

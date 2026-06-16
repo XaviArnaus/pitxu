@@ -790,22 +790,23 @@ finally:
             # Delay a bit so we can see the loop stopping itself
             await asyncio.sleep(2)
 
-            # Read a file to simulate speech, and call the transcriber.
-            # By now, just assuming an question. Be smart, it can trigger specific parts of the app.
-            self._xlog.info("Getting question from STT...")
-            question = "Show me a `hello world` code example in Python."
+            # COMMENTED: I am playing with Emojis.
+            # # Read a file to simulate speech, and call the transcriber.
+            # # By now, just assuming an question. Be smart, it can trigger specific parts of the app.
+            # self._xlog.info("Getting question from STT...")
+            # question = "Show me a `hello world` code example in Python."
 
-            # Use the chatbot. It should trigger an external tool
-            self._xlog.info("Getting answer from Chatbot...")
-            # answer = question.upper()
-            answer = await main.chatbot_request_for_answer(question)
+            # # Use the chatbot. It should trigger an external tool
+            # self._xlog.info("Getting answer from Chatbot...")
+            # # answer = question.upper()
+            # answer = await main.chatbot_request_for_answer(question)
 
-            # Make it through the outcome interaction (TTS, display)
-            self._xlog.info("Delivering outcome...")
-            main.deliver_outcome(question=question, answer=answer)
+            # # Make it through the outcome interaction (TTS, display)
+            # self._xlog.info("Delivering outcome...")
+            # main.deliver_outcome(question=question, answer=answer)
 
-            # Delay a bit so we can see the loop stopping itself
-            await asyncio.sleep(2)
+            # # Delay a bit so we can see the loop stopping itself
+            # await asyncio.sleep(2)
 
             # And now close everything down
             self._xlog.info("Closing Main...")
