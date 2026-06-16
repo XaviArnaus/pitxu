@@ -17,6 +17,7 @@ class Canvas(PyXavi):
 
     DEFAULT_FONT_PATH = os.path.join(ROOT_DIR, "pitxu", "fonts")
     FONT_FILE: str = os.path.join(DEFAULT_FONT_PATH, "Font_with_emojis.ttc")
+    FONT_FILE_FOR_EMOJIS: str = os.path.join(DEFAULT_FONT_PATH, "NotoColorEmoji.ttf")
     COLOR_MODE = "RGBA"  # '1' for 1-bit images, 'L' for greyscale, 'RGB' for true color, 'RGBA' for true color with transparency
 
     FONT_TINY: ImageFont = None
@@ -26,6 +27,7 @@ class Canvas(PyXavi):
     FONT_BIG: ImageFont = None
     FONT_HUGE: ImageFont = None
     FONT_ULTRA: ImageFont = None
+    FONT_FIXED_EMOJI: ImageFont = None
 
     FONT_SIZE_TINY: int = None
     FONT_SIZE_SMALL_EMOJI: int = None
@@ -34,6 +36,7 @@ class Canvas(PyXavi):
     FONT_SIZE_BIG: int = None
     FONT_SIZE_HUGE: int = None
     FONT_SIZE_ULTRA: int = None
+    FONT_SIZE_FIXED_EMOJI: int = None
 
     DEFAULT_FONT_SIZE_TINY = 16
     DEFAULT_FONT_SIZE_SMALL_EMOJI = 16
@@ -42,6 +45,7 @@ class Canvas(PyXavi):
     DEFAULT_FONT_SIZE_BIG = 28
     DEFAULT_FONT_SIZE_HUGE = 45
     DEFAULT_FONT_SIZE_ULTRA = 85
+    DEFAULT_FONT_SIZE_FIXED_EMOJI = 109
 
     font_by_size: dict[str, ImageFont.ImageFont] = {}
     
@@ -197,6 +201,12 @@ class Canvas(PyXavi):
         else:
             self._log_debug(f"Font file set to class default: {self.FONT_FILE}")
         
+        # The emoji fnt file for the colored emojis has only a fixed size, intended to be added into a PIL image and the you can play.
+        self.FONT_FILE_FOR_EMOJIS = os.path.join(
+            self._xconfig.get("fonts.path", self.DEFAULT_FONT_PATH),
+            self._xconfig.get("fonts.fixed_emojis_only_filename"), 
+            self.FONT_FILE_FOR_EMOJIS)
+        
         # Getting the image color mode from params or config or default
         if params.key_exists("color_mode"):
             self.COLOR_MODE = str(params.get("color_mode"))
@@ -218,7 +228,9 @@ class Canvas(PyXavi):
             ("Font Medium size", self.FONT_SIZE_MEDIUM),
             ("Font Big size", self.FONT_SIZE_BIG),
             ("Font Huge size", self.FONT_SIZE_HUGE),
-            ("Font Ultra size", self.FONT_SIZE_ULTRA)
+            ("Font Ultra size", self.FONT_SIZE_ULTRA),
+            ("Font Fixed Emoji size", self.FONT_SIZE_FIXED_EMOJI),
+
         ])
 
     def get_canvas(self, reset_base_image = True):
@@ -319,11 +331,20 @@ class Canvas(PyXavi):
         small_size = self.DEFAULT_FONT_SIZE_SMALL
         small_emoji_size = self.DEFAULT_FONT_SIZE_SMALL_EMOJI
         tiny_size = self.DEFAULT_FONT_SIZE_TINY
+        fixed_emoji_size = self.DEFAULT_FONT_SIZE_FIXED_EMOJI
 
         engine = 0
         mode = "L"
 
         self._xlog.debug(f"Initialising fonts from file: {self.FONT_FILE}")
+
+        # Fixed emoji size
+        if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
+            fixed_emoji_size = self._xparams.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
+        elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
+            fixed_emoji_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
+        self.FONT_SIZE_FIXED_EMOJI = fixed_emoji_size
+        self.FONT_FIXED_EMOJI = ImageFont.truetype(self.FONT_FILE, fixed_emoji_size, layout_engine=engine)
 
         # Ultra size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.ultra")):

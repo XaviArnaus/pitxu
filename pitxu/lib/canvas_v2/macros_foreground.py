@@ -181,12 +181,12 @@ class MacrosForeground(MacrosBase):
         #     fill = self.canvas.COLOR_FOREGROUND,
         #     anchor = "mm",
         #     align = "center")
-        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
-                    text = title + "  v" + version, 
-                    font = self.canvas.FONT_HUGE, 
-                    fill = self.canvas.COLOR_FOREGROUND,
-                    anchor = "mm",
-                    align = "center")
+        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
+            text = text,
+            font = self.canvas.FONT_SMALL, 
+            fill = self.canvas.COLOR_FOREGROUND,
+            anchor = "mm",
+            align = "center")
 
     def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
         '''
