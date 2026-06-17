@@ -17,7 +17,7 @@ class Canvas(PyXavi):
 
     DEFAULT_FONT_PATH = os.path.join(ROOT_DIR, "pitxu", "fonts")
     FONT_FILE: str = os.path.join(DEFAULT_FONT_PATH, "Font_with_emojis.ttc")
-    FONT_FILE_FOR_EMOJIS: str = os.path.join(DEFAULT_FONT_PATH, "NotoColorEmoji.ttf")
+    FONT_FILE_FOR_EMOJIS: str = "NotoColorEmoji.ttf"
     COLOR_MODE = "RGBA"  # '1' for 1-bit images, 'L' for greyscale, 'RGB' for true color, 'RGBA' for true color with transparency
 
     FONT_TINY: ImageFont = None
@@ -204,8 +204,7 @@ class Canvas(PyXavi):
         # The emoji fnt file for the colored emojis has only a fixed size, intended to be added into a PIL image and the you can play.
         self.FONT_FILE_FOR_EMOJIS = os.path.join(
             self._xconfig.get("fonts.path", self.DEFAULT_FONT_PATH),
-            self._xconfig.get("fonts.fixed_emojis_only_filename"), 
-            self.FONT_FILE_FOR_EMOJIS)
+            self._xconfig.get("fonts.fixed_emojis_only_filename", self.FONT_FILE_FOR_EMOJIS))
         
         # Getting the image color mode from params or config or default
         if params.key_exists("color_mode"):
