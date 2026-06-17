@@ -1104,10 +1104,24 @@ class Main(PyXavi):
         It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
         """
 
+        def finished_callback():
+            """
+            This is called (from a separate thread) when the audio stream is finished.
+            Will is used to restart it if needed.
+            """
+            self._xlog.warning("Audio input stream finished.")
+            self._capture_handler.get_callback_error_flag()
+            if self._capture_handler.get_callback_error_flag():
+                self._xlog.warning("Audio input stream finished due to an exception in the audio callback. Attempting to restart the audio stream...")
+                self._threaded_input_stream.start_recording()
+            else:
+                self._xlog.warning("Audio input stream finished without exceptions. Won't restart the audio stream.")
+
         if self._xparams.get("execution_mode") not in ["test"]:
             self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
                 "audio_parameters": self._audio_parameters,
                 "capture_handler_callback": self._capture_handler.callback,
+                "finished_callback": finished_callback,
             }))
         else:
             self._threaded_input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())

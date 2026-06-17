@@ -249,7 +249,7 @@ class Visualizer(PyXavi):
                     drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
                     drawing_callback_parameters=params,
 
-                    for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
                     # final_screen_clearing=True,
                     # remove_interaction_after_painting=True,
@@ -276,7 +276,7 @@ class Visualizer(PyXavi):
                         "padding": params.get("padding", 5)
                     },
 
-                    for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
                     # final_screen_clearing=True,
                     # remove_interaction_after_painting=True,
@@ -321,7 +321,7 @@ class Visualizer(PyXavi):
                         # "padding": params.get("padding", 5)
                     },
 
-                    for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
                     # final_screen_clearing=True,
                     # remove_interaction_after_painting=True,
@@ -370,7 +370,7 @@ class Visualizer(PyXavi):
                         # "padding": params.get("padding", 5)
                     },
 
-                    for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
                     # final_screen_clearing=True,
                     # remove_interaction_after_painting=True,

@@ -1,6 +1,6 @@
 from functools import partial
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary, dd, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
@@ -47,6 +47,11 @@ class CaptureHandler(PyXavi):
 
     # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
     add_timestamps_to_chunks: bool = False
+
+    # We try to remember that there was an error rose inside the audio callback,
+    #   basically to know (by now) that we want to restart the audio stream if it finishes, 
+    #   as that callback may stop being called if an exception is raised inside it.
+    audio_callback_raised_exception: bool = False
 
     VERBOSE_DEBUG: bool = False
     THREAD_NAME = "VADWorker"
@@ -199,6 +204,13 @@ class CaptureHandler(PyXavi):
 
         self._log_debug("🗣️ Done Closing Capture Handler for Speech-to-Text")
     
+    def get_callback_error_flag(self) -> bool:
+        """
+        Gets the flag that indicates if the audio callback raised an exception in its last execution.
+        This can be useful to know if we want to restart the audio stream when it finishes, as the callback may stop being called if an exception is raised inside it.
+        """
+        return self.audio_callback_raised_exception
+    
     def _is_silence_dynamic_rms_active(self) -> bool:
         return self.silence_input_queue is not None
     
@@ -206,17 +218,38 @@ class CaptureHandler(PyXavi):
         """
         This is called (from a separate thread) for each audio block by the sounddevice library.
         Audio blocks are sentences.
+
+        Read the docs. It explicitly mentions regarding any Excepition happening here may stop callback calling
+        and the app won't even notice as the app keeps ruuning.
+
+        Also, it mentions that vars are re-binded, so we should gather the data by indexing.
+        https://github.com/spatialaudio/python-sounddevice/blob/88de286aab83296e35e4b83d29216e6b8fea80ff/src/sounddevice.py#L1585
+
         """
-        if status:
-            self._xlog.debug(f"🗣️ Audio input status: {status}")
-            print(status, file=sys.stderr)
+
+        try:
+
+            if status:
+                self._xlog.debug(f"🗣️ Audio input status: {status}")
+                print(status, file=sys.stderr)
+            
+            # Just reset the flag that indicates that the audio callback raised an exception, 
+            # as we are receiving audio blocks again, so it seems to be working again.
+            self.audio_callback_raised_exception = False
+            
+            # Now we simply put the chunk in an intermediate queue to be processed by the VAD worker, 
+            # to avoid doing heavy processing in this callback and risking to block the audio input.
+            chunk = indata[:]
+            self.internal_queue.put(bytes(chunk))
         
-        # Now we simply put the chunk in an intermediate queue to be processed by the VAD worker, 
-        # to avoid doing heavy processing in this callback and risking to block the audio input.
-        self.internal_queue.put(bytes(indata))
-    
-        # else:
-        #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
+            # else:
+            #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
+        except Exception as e:
+            self._xlog.error(f"Exception in audio input callback: {e}")
+            self._xlog.debug(full_stack())
+            # We don't raise the exception, as it would stop the callback from being called again, and we want to keep trying to capture audio even if some blocks fail.
+            # raise e
+            self.audio_callback_raised_exception = True
     
     def _process_raw_chunks_worker(self):
         """

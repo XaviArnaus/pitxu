@@ -102,7 +102,7 @@ class Reactions(PyXavi):
             function_call_pair = chat_response.function_call_history.get_last()
             callback_was_handled = False
             if function_call_pair.has_response():
-                callback_was_handled = self.react_on_function_call(function_call_pair)
+                callback_was_handled = self.react_on_function_call(function_call_pair, text=chat_response.text)
 
             if not callback_was_handled:
                 self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
@@ -115,13 +115,14 @@ class Reactions(PyXavi):
         return chat_response
         
     
-    def react_on_function_call(self, function_call_pair: FunctionCallPair) -> bool:
+    def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
         Reacts to the received function call response, meaning that a Tool was used,
         and we're supposed to show anything on the screen.
 
         Args:
             function_call_pair (FunctionCallPair): The last response from the chatbot with a function call.
+            text (str, optional): The text associated with the function call response. Defaults to None.
         
         Returns:
             bool: True if the function call was handled, False otherwise.
@@ -182,7 +183,7 @@ class Reactions(PyXavi):
                 # We got a client tool callback, treat it generically.
                 # Please note that this must go at the end of all possibilities, so we
                 #   can allow particular implementations like the shutdown and reboot above.
-                self.handle_client_callback(function_call_pair)
+                self.handle_client_callback(function_call_pair, text=text)
 
             else:
 
@@ -208,10 +209,15 @@ class Reactions(PyXavi):
             text=function_call_pair.function_response.response.get("result", "unknown"),
             font_size=self._get_canvas().FONT_SIZE_BIG)
     
-    def handle_client_callback(self, function_call_pair: FunctionCallPair):
+    def handle_client_callback(self, function_call_pair: FunctionCallPair, text: str = None):
         self._xlog.debug("↩️  Reacting to a function call with a client callback: " + str(function_call_pair.function_name))
         
-        value = function_call_pair.function_response.response.get("result", "unknown")
+        value = function_call_pair.function_response.response.get("result", None)
+        # This is meant to be temporary. The idea is to parse the text and extract info from it,
+        #   like the Markdown list that the Chatbot usualy answers, and show it.
+        if value is None:
+            self._xlog.warning("⚠️  The function call response does not have a 'result' field. Passing the chatbot response's 'text' field to the callback.")
+            value = text
         args = function_call_pair.function_call.arguments
         self._xlog.debug("📺 Executing callback with value: " + str(value))
         self.interaction.set_idle_mode_off()
