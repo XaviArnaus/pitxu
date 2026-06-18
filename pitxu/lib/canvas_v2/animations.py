@@ -8,6 +8,9 @@ import os
 from pitxu.lib.objects.size import Size
 
 class Animations(PyXavi):
+    """
+    https://googlefonts.github.io/noto-emoji-animation/
+    """
 
     _animations: dict[str, Animation]
 
