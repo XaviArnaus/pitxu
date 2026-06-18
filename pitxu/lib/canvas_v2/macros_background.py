@@ -7,6 +7,8 @@ from pitxu.lib.canvas_v2.macros_base import MacrosBase
 
 import math
 
+from pitxu.lib.objects.size import Size
+
 class MacrosBackground(MacrosBase):
     """
     Drawings that take place in the background, which is the "top-left" area of the layout.
@@ -446,7 +448,7 @@ class MacrosBackground(MacrosBase):
         frame_to_show = self.animations.get_animation_frame(
             animation_name, 
             current_loop_iteration, 
-            desired_size=(desired_width_gif, desired_height_gif))
+            desired_size=Size(width=desired_width_gif, height=desired_height_gif))
 
         # Calculate the position to draw the frame, centered in the display area.
         offset_x = self.layout_info["relative"]["top_left"].point_1.x + ((width - desired_width_gif) // 2)

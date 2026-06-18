@@ -5,6 +5,8 @@ from pitxu.lib.objects.animation import Animation
 from PIL import Image
 import os
 
+from pitxu.lib.objects.size import Size
+
 class Animations(PyXavi):
 
     _animations: dict[str, Animation]
@@ -22,6 +24,8 @@ class Animations(PyXavi):
             self._xlog.warning(f"Animations path '{base_path}' does not exist. No animations will be loaded.")
             return
         
+        sizes_to_cache = self._xparams.get("animation_sizes", [])
+        
         self._animations = {}
         for animation_name in self._xconfig.get("animations.map", {}):
             animation_file = self._xconfig.get(f"animations.map.{animation_name}", None)
@@ -34,7 +38,7 @@ class Animations(PyXavi):
                 self._xlog.warning(f"Animation file '{animation_full_path}' does not exist. Skipping animation '{animation_name}'.")
                 continue
             
-            self._animations[animation_name] = Animation(animation_name, animation_full_path)
+            self._animations[animation_name] = Animation(animation_name, animation_full_path, list_of_sizes_to_cache=sizes_to_cache)
             self._log_debug(f"Loaded animation '{animation_name}' from file '{animation_full_path}' with {len(self._animations[animation_name].frames)} frames.")
     
     def get_animation(self, animation_name: str) -> Animation:
@@ -42,5 +46,5 @@ class Animations(PyXavi):
             raise ValueError(f"Animation '{animation_name}' not found. Available animations: {list(self._animations.keys())}")
         return self._animations[animation_name]
     
-    def get_animation_frame(self, animation_name: str, frame_index: int, desired_size: tuple[int, int] = None) -> Image.Image:
+    def get_animation_frame(self, animation_name: str, frame_index: int, desired_size: Size = None) -> Image.Image:
         return self.get_animation(animation_name).get_frame(frame_index, desired_size)

@@ -3,6 +3,7 @@ from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
+from pitxu.lib.canvas_v2.layout_info import LayoutInfo
 from pitxu.lib.canvas_v2.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros_foreground import MacrosForeground
 from pitxu.lib.canvas_v2.macros_layout import MacrosLayout
@@ -23,6 +24,8 @@ from definitions import SHARED_SPEAKER_BUSY, \
                         SHARED_SUPPORT_BUSY, \
                         SHARED_STT_BUSY, \
                         SHARED_TRANSCRIBER_BUSY
+from pitxu.lib.objects.rectangle import Rectangle
+from pitxu.lib.objects.size import Size
 
 class Visualizer(PyXavi):
     """
@@ -41,11 +44,13 @@ class Visualizer(PyXavi):
     animations: Animations = None
 
     interaction_delays: dict[str, float] = None
+    layout_info: dict[str, dict[str, Rectangle]] = None
     display_size: Point = None
+    animation_sizes_per_display_area: dict[str, Size] = None
 
     DEFAULT_FOREGROUND_MAINTAIN_SECONDS: float = 5.0
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(Visualizer, self).init_pyxavi(config, params)
@@ -68,10 +73,6 @@ class Visualizer(PyXavi):
         else:
             raise ValueError("'device' parameter is required for Visualizer.")
         
-        # Load the animations, if any
-        self.animations = Animations(config, params)
-        self.animations.load_animations()
-
         # We instantiate now the generic stuff that we need from here on.
         # Canvas needs:
         #   - device_config_prefix: to read the specific configuration for the canvas ("dsi_lcd", ...)
@@ -79,11 +80,27 @@ class Visualizer(PyXavi):
         #   - font_file: to be instantiate the fonts in every needed size. Can also read from the config.
         #   - color_mode: to know if we need to create RGBA or RGB images. Can also read from the config.
         self.canvas = Canvas(config, params)
+        params.set("canvas", self.canvas)
+
+        # LayoutInfo needs:
+        #   - canvas: to know where to paint to.
+        layout_info_class: LayoutInfo = LayoutInfo(config, params)
+        self.layout_info = layout_info_class.get_layout_info()
+        params.set("layout_info_class", layout_info_class)
+        params.set("layout_info", self.layout_info)
+        
+        # Animations needs:
+        #   - Layout info: to calculate the size to which we need to resize the animation frames, based on the display area sizes.
+        self.animation_sizes_per_display_area = self._prepare_animation_sizes()
+        params.set("animation_sizes", self.animation_sizes_per_display_area.values())
+        self.animations = Animations(config, params)
+        self.animations.load_animations()
+        params.set("animations", self.animations)
+
         # All Macros needs:
         #   - canvas: to know where to paint to.
+        #   - layout_info_class: to know the layout of the screen and where to paint the different interactions.
         #   - animations: to be able to use the loaded animations in the macros that need them.
-        params.set("canvas", self.canvas)
-        params.set("animations", self.animations)
         self.macros_layout = MacrosLayout(config, params)
         self.macros_overlay = MacrosOverlay(config, params)
         self.macros_foreground = MacrosForeground(config, params)
@@ -127,7 +144,6 @@ class Visualizer(PyXavi):
                 "parameters": {}
             },
         })
-        params.set("layout_info", self.macros_layout.get_layout_info())
         params.set("layout_position_to_queue_name", {
             "top_left": PainterQueue.BACKGROUND,
             "top_right": PainterQueue.FOREGROUND,
@@ -150,6 +166,8 @@ class Visualizer(PyXavi):
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
             ("interaction_delays", self.interaction_delays),
         ]
+        for display_area, size in self.animation_sizes_per_display_area.items():
+            logging_parts.append((f"Animation Size for {display_area}", size))
         self.log_summary("Visualizer initialized", logging_parts, attend_verbose_debug_flag=True)
 
         # ⚠️ There has to be a list of shared memory flags that we monitor forever, and the related callbacks never get removed.
@@ -168,6 +186,37 @@ class Visualizer(PyXavi):
         self.painter.close()
         self.canvas.close_canvas()
         self._xlog.debug("Visualizer closed.")
+    
+    def _prepare_animation_sizes(self):
+
+        animation_sizes_per_display_area = {}
+        for display_area, rectangle in self.layout_info["relative"].items():
+            # Calculate the size to draw the frame, based on the layout info and the size of the frame.
+            width = rectangle.point_2.x - rectangle.point_1.x
+            height = rectangle.point_2.y - rectangle.point_1.y
+
+            # Also, we want to keep the aspect ratio of the original GIF, but resized to fit inside the given width and height.
+            # Assuming here that:
+            #   - The animation is squared
+            # original_width, original_height = animation.frames[0].size
+            aspect_ratio = 1.0
+            if width / height > aspect_ratio:
+                # We are limited by the height, we need to calculate the width based on the aspect ratio.
+                desired_height_gif = height
+                desired_width_gif = int(height * aspect_ratio)
+            else:
+                # We are limited by the width, we need to calculate the height based on the aspect ratio.
+                desired_width_gif = width
+                desired_height_gif = int(width / aspect_ratio)
+            # Apply a final correction factor to make sure it fits into the display area, 
+            # taking in account some padding and the rounded corners of the LCD.
+            correction_factor = 0.8
+            desired_width_gif = int(desired_width_gif * correction_factor)
+            desired_height_gif = int(desired_height_gif * correction_factor)
+
+            animation_sizes_per_display_area[display_area] = Size(desired_width_gif, desired_height_gif)
+
+        return animation_sizes_per_display_area
     
     # We need to place here the methods that trigger the visualization. 
     # They are meant to encapsulate the Paint creation with all the Painter parameters, 
@@ -244,8 +293,6 @@ class Visualizer(PyXavi):
         )
     
     def arbitrary_text_while_idle(self, params: dict):
-
-        dd(self.interaction_delays)
 
         self.painter.paint(
             PaintingObject(
