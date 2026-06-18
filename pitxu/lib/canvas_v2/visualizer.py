@@ -322,6 +322,7 @@ class Visualizer(PyXavi):
                     # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
                     loop_iterations=self.animations.get_animation("sleeping").get_frame_count() - 1,
 
+                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
                     delay_between_frames=self.interaction_delays.get("idle", 0.1),
 
                     drawing_callback=self.macros_background.merge_animation,
