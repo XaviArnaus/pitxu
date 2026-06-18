@@ -29,6 +29,10 @@ class GoogleSearch(PyXavi, Command):
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Getting Google Search response for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
 
+        if self._xparams.get('language') == 'en-us':
+            self._xlog.warning("Language set to 'en-us', which is not expected. Defaulting to 'en'.")
+            self._xparams.set('language', 'en')
+
         instructions = {
             "ca": f"Usa Google Search per obtenir la resposta. Sigues curt i precís.",
             "es": f"Usa Google Search para obtener la respuesta. Sé breve y preciso.",
