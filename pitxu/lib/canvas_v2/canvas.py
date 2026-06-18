@@ -330,7 +330,7 @@ class Canvas(PyXavi):
         small_size = self.DEFAULT_FONT_SIZE_SMALL
         small_emoji_size = self.DEFAULT_FONT_SIZE_SMALL_EMOJI
         tiny_size = self.DEFAULT_FONT_SIZE_TINY
-        fixed_emoji_size = self.DEFAULT_FONT_SIZE_FIXED_EMOJI
+        # fixed_emoji_size = self.DEFAULT_FONT_SIZE_FIXED_EMOJI
 
         engine = 0
         mode = "L"
@@ -338,12 +338,12 @@ class Canvas(PyXavi):
         self._xlog.debug(f"Initialising fonts from file: {self.FONT_FILE}")
 
         # Fixed emoji size
-        if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
-            fixed_emoji_size = self._xparams.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
-        elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
-            fixed_emoji_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
-        self.FONT_SIZE_FIXED_EMOJI = fixed_emoji_size
-        self.FONT_FIXED_EMOJI = ImageFont.truetype(self.FONT_FILE, fixed_emoji_size, layout_engine=engine)
+        # if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
+        #     fixed_emoji_size = self._xparams.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
+        # elif (self._xconfig.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")):
+        #     fixed_emoji_size = self._xconfig.get(self.DEVICE_CONFIG_PREFIX + ".fonts.fixed_emoji")
+        # self.FONT_SIZE_FIXED_EMOJI = fixed_emoji_size
+        # self.FONT_FIXED_EMOJI = ImageFont.truetype(self.FONT_FILE, fixed_emoji_size, layout_engine=engine)
 
         # Ultra size
         if (self._xparams.key_exists(self.DEVICE_CONFIG_PREFIX + ".fonts.ultra")):
