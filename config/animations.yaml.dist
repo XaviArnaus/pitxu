@@ -1,0 +1,7 @@
+# Configuration regarding the animations
+animations:
+  # [String] Path for animation files, from the root of the project
+  path: "pitxu/animations"
+  # Mapping between animation name and file
+  map:
+    sleeping: "sleeping.gif"

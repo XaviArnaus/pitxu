@@ -5,7 +5,7 @@ from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
 
-from definitions import ROOT_DIR
+from definitions import ROOT_DIR, SHARED_DSI_LCD_IDLE_MODE
 
 import time, json, os
 
@@ -814,5 +814,64 @@ finally:
 
             self._xlog.info("test_one_run completed successfully.")
 
+        except Exception:
+            print(full_stack())
+    
+    async def test_status_idle(self):
+        try:
+            from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas_v2.visualizer import Visualizer
+            from pitxu.lib.objects.point import Point
+            from pitxu.lib.utils.system import System
+            from pitxu.lib.microservice.client import Client
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing the Status Idle Screen")
+
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": Point(int(self._xconfig.get("dsi_lcd.size.x")), int(self._xconfig.get("dsi_lcd.size.y"))),
+                "device_config_prefix": "dsi_lcd",
+                "shared_memory": self.shared_memory,
+                "interaction_delays": {
+                    "default_delay_between_frames": self._xconfig.get("dsi_lcd.delays.default_delay_between_frames"),
+                    "foreground_notifications": self._xconfig.get("dsi_lcd.delays.foreground_notifications"),
+                    "startup_splash": self._xconfig.get("dsi_lcd.delays.startup_splash"),
+                    "thinking": self._xconfig.get("dsi_lcd.delays.thinking"),
+                    "speaking": self._xconfig.get("dsi_lcd.delays.speaking"),
+                    "idle": self._xconfig.get("dsi_lcd.delays.idle"),
+                }
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            visualizer = Visualizer(config=self._xconfig, params=self._xparams)
+
+            client = Client(config=self._xconfig, params=self._xparams)
+            execution_mode = "local_status"
+
+            self._xlog.debug("Gathering network information and server connection status to show in the idle screen...")
+            wifis = System.get_connected_wifi()
+            network = System.get_default_network_interface()
+            response = client.status() if execution_mode == "public" else {"status": "off"}
+            server_status = response.get("status", "off")
+            text = wifis[0].get("ssid", "Not connected") + "\n" + \
+                    network.get("ip", "Not connected") + "\n" + \
+                    ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}") + "\n"
+            
+            self._xlog.debug(f"Network info and server status to show: \n{text}")
+            
+            self._xlog.debug("Showing idle status screen with network info and server connection status...")
+            self.shared_memory.write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
+            visualizer.arbitrary_text_while_idle(params={"text": text})
+            
+            self._xlog.debug("Showing image and pausing 5 seconds to let it show")
+            time.sleep(5)
+
+            self._xlog.debug("Closing visualizer...")
+            visualizer.close()
+
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())

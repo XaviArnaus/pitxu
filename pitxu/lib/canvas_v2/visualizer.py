@@ -1,14 +1,15 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
+from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros_foreground import MacrosForeground
 from pitxu.lib.canvas_v2.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter import Painter, PainterQueue
 from pitxu.lib.canvas_v2.painting_command import *
-from pitxu.lib.canvas_v2.painting_object import PaintingObject, ForegroundPaint, BackgroundPaint, OverallPaint
+from pitxu.lib.canvas_v2.painting_object import PaintingObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \
@@ -37,11 +38,14 @@ class Visualizer(PyXavi):
     macros_overlay: MacrosOverlay = None
     macros_foreground: MacrosForeground = None
     macros_background: MacrosBackground = None
+    animations: Animations = None
 
     interaction_delays: dict[str, float] = None
     display_size: Point = None
 
     DEFAULT_FOREGROUND_MAINTAIN_SECONDS: float = 5.0
+
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(Visualizer, self).init_pyxavi(config, params)
@@ -63,6 +67,10 @@ class Visualizer(PyXavi):
 
         else:
             raise ValueError("'device' parameter is required for Visualizer.")
+        
+        # Load the animations, if any
+        self.animations = Animations(config, params)
+        self.animations.load_animations()
 
         # We instantiate now the generic stuff that we need from here on.
         # Canvas needs:
@@ -73,7 +81,9 @@ class Visualizer(PyXavi):
         self.canvas = Canvas(config, params)
         # All Macros needs:
         #   - canvas: to know where to paint to.
+        #   - animations: to be able to use the loaded animations in the macros that need them.
         params.set("canvas", self.canvas)
+        params.set("animations", self.animations)
         self.macros_layout = MacrosLayout(config, params)
         self.macros_overlay = MacrosOverlay(config, params)
         self.macros_foreground = MacrosForeground(config, params)
@@ -125,7 +135,22 @@ class Visualizer(PyXavi):
         })
         self.painter = Painter(config, params)
 
-        self.interaction_delays = self._xparams.get("interaction_delays", {})
+        self.interaction_delays = params.get("interaction_delays", {})
+
+        logging_parts = [
+            ("display_size", self._display_size),
+            ("device", self.device.__class__.__name__),
+            ("canvas", self.canvas.__class__.__name__),
+            ("macros_layout", self.macros_layout.__class__.__name__),
+            ("macros_overlay", self.macros_overlay.__class__.__name__),
+            ("macros_foreground", self.macros_foreground.__class__.__name__),
+            ("macros_background", self.macros_background.__class__.__name__),
+            ("animations_loaded", list(self.animations._animations.keys())),
+            ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
+            ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
+            ("interaction_delays", self.interaction_delays),
+        ]
+        self.log_summary("Visualizer initialized", logging_parts, attend_verbose_debug_flag=True)
 
         # ⚠️ There has to be a list of shared memory flags that we monitor forever, and the related callbacks never get removed.
         # Examples:
@@ -137,6 +162,12 @@ class Visualizer(PyXavi):
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
 
         self._xlog.debug("Initialized Visualizer.")
+    
+    def close(self):
+        self._xlog.debug("Closing Visualizer...")
+        self.painter.close()
+        self.canvas.close_canvas()
+        self._xlog.debug("Visualizer closed.")
     
     # We need to place here the methods that trigger the visualization. 
     # They are meant to encapsulate the Paint creation with all the Painter parameters, 
@@ -214,6 +245,8 @@ class Visualizer(PyXavi):
     
     def arbitrary_text_while_idle(self, params: dict):
 
+        dd(self.interaction_delays)
+
         self.painter.paint(
             PaintingObject(
                 foreground=ForegroundPaint(
@@ -231,6 +264,22 @@ class Visualizer(PyXavi):
                     # final_screen_clearing=True,
                     # remove_interaction_after_painting=True,
                     ignore_maintain_time=False,
+                ),
+                background=AnimationPaint(
+                    name="IdleBackgroundPaint",
+                    command=BackgroundCommand(BackgroundCommand.IDLE),
+
+                    while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
+                    while_shared_memory_flag_value=True,
+
+                    # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+                    loop_iterations=self.animations.get_animation("sleeping").get_frame_count() - 1,
+
+                    delay_between_frames=self.interaction_delays.get("idle", 0.1),
+
+                    drawing_callback=self.macros_background.merge_animation,
+                    drawing_callback_parameters={**params, "animation": "sleeping"},
+                    cache_control_parameters=["current_loop_iteration"],
                 )
             )
         )

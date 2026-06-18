@@ -50,6 +50,10 @@ class BasePaint:
     remove_interaction_after_painting: bool = True  # Whether to remove the interaction after painting
     overwrite_current_interaction_with_same_type: bool = False  # Whether to overwrite the current interaction with the same type
 
+    # Keep the painting for some seconds after the interaction is painted, so that it doesn't disappear immediately.
+    maintain_paint_for_seconds: float = None  # Time to maintain the painting after the interaction is painted
+    ignore_maintain_time: bool = False  # Whether to ignore the global foreground maintain time setting
+
     # Macro callback to trigger for drawing the interaction.
     # The idea is that the drawing action is set by the caller, not manually in the painter, making the painter agnostic.
     drawing_callback: callable = None
@@ -88,6 +92,9 @@ class BasePaint:
                     final_screen_clearing: bool = False,
                     remove_interaction_after_painting: bool = False,
                     overwrite_current_interaction_with_same_type: bool = False,
+                    # Keep the painting for some seconds after the interaction is painted, so that it doesn't disappear immediately.
+                    maintain_paint_for_seconds: float = None,
+                    ignore_maintain_time: bool = False,
                     # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
                     while_shared_memory_flag: int = None,
                     while_shared_memory_flag_value: bool = True,
@@ -108,6 +115,9 @@ class BasePaint:
         self.final_screen_clearing = final_screen_clearing
         self.remove_interaction_after_painting = remove_interaction_after_painting
         self.overwrite_current_interaction_with_same_type = overwrite_current_interaction_with_same_type
+        # Keep the painting for some seconds after the interaction is painted, so that it doesn't disappear immediately.
+        self.maintain_paint_for_seconds = maintain_paint_for_seconds
+        self.ignore_maintain_time = ignore_maintain_time
         # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
         self.while_shared_memory_flag = while_shared_memory_flag
         self.while_shared_memory_flag_value = while_shared_memory_flag_value
@@ -145,40 +155,19 @@ class BasePaint:
 
 class OverallPaint(BasePaint):
 
-    # Take this as temporary: it's a copy from ForegroundPaint because the commands come from there,
-    #   but it may develop differently.
-    maintain_paint_for_seconds: float = 3.0  # Time to maintain the painting after the interaction is painted
-    ignore_maintain_time: bool = False  # Whether to ignore the global foreground maintain time setting
-
     def __init__(self, name: str, command: OverallCommand, **kwargs):
-
-        if "maintain_paint_for_seconds" in kwargs:
-            self.maintain_paint_for_seconds = kwargs["maintain_paint_for_seconds"]
-            del kwargs["maintain_paint_for_seconds"]
-        if "ignore_maintain_time" in kwargs:
-            self.ignore_maintain_time = kwargs["ignore_maintain_time"]
-            del kwargs["ignore_maintain_time"]
 
         super(OverallPaint, self).__init__(name=name, command=command, **kwargs)
 
 class ForegroundPaint(BasePaint):
 
-    maintain_paint_for_seconds: float = None  # Time to maintain the painting after the interaction is painted
-    ignore_maintain_time: bool = False  # Whether to ignore the global foreground maintain time setting
-
     def __init__(self, name: str, command: ForegroundCommand, **kwargs):
-
-        if "maintain_paint_for_seconds" in kwargs:
-            self.maintain_paint_for_seconds = kwargs["maintain_paint_for_seconds"]
-            del kwargs["maintain_paint_for_seconds"]
-        if "ignore_maintain_time" in kwargs:
-            self.ignore_maintain_time = kwargs["ignore_maintain_time"]
-            del kwargs["ignore_maintain_time"]
 
         super(ForegroundPaint, self).__init__(name=name, command=command, **kwargs)
 
 class BackgroundPaint(BasePaint):
 
+    current_loop_iteration: int = 0  # Current loop iteration for the background interaction, useful for animations
     loop_iterations: int = 1  # Number of loop iterations to paint the background interaction
 
     def __init__(self, name: str, command: BackgroundCommand, **kwargs):
@@ -186,4 +175,21 @@ class BackgroundPaint(BasePaint):
         if "loop_iterations" in kwargs:
             self.loop_iterations = kwargs["loop_iterations"]
             del kwargs["loop_iterations"]
+        if "current_loop_iteration" in kwargs:
+            self.current_loop_iteration = kwargs["current_loop_iteration"]
+            del kwargs["current_loop_iteration"]
         super(BackgroundPaint, self).__init__(name=name, command=command, **kwargs)
+
+class AnimationPaint(BackgroundPaint):
+    """
+    This is a special type of paint that is meant to be used for animations. 
+    Requires to receive the base image instead of the canvas to draw on.
+
+    The painter is meant to handle it, so it gives the right parameters.
+    As a start, it is inheriting from BackgroundPaint as it is meant to paint animated emojis in the background,
+        but this could change in the future.
+    """
+
+    def __init__(self, name: str, command: BackgroundCommand, **kwargs):
+
+        super(AnimationPaint, self).__init__(name=name, command=command, **kwargs)

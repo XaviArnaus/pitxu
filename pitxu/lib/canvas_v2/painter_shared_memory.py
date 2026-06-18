@@ -25,7 +25,7 @@ class PainterSharedMemory(PyXavi):
 
     is_active: bool = True
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(PainterSharedMemory, self).init_pyxavi(config, params)

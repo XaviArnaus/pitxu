@@ -186,7 +186,8 @@ class MacrosForeground(MacrosBase):
             font = self.canvas.FONT_SMALL, 
             fill = self.canvas.COLOR_FOREGROUND,
             anchor = "mm",
-            align = "center")
+            align = "center",
+            embedded_color=True)
 
     def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
         '''

@@ -88,6 +88,7 @@ class BackgroundCommand(PaintingCommand):
 
     HOLDER_PERCENTAGE: str = "HOLDER_PERCENTAGE"
     ERROR: str = "ERROR"
+    IDLE: str = "IDLE"
 
     def __init__(self, command: str):
         available_commands = [
@@ -97,5 +98,6 @@ class BackgroundCommand(PaintingCommand):
             self.HOLDER_PERCENTAGE,
             self.ERROR,
             self.CLEAR,
+            self.IDLE,
         ]
         super(BackgroundCommand, self).__init__(command, available_commands)

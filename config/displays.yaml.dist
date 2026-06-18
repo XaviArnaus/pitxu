@@ -177,3 +177,5 @@ dsi_lcd:
     thinking: 0.08
     # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
     speaking: 0.05
+    # [Float] Delay for the "idle" animation frames. Defaults to default_delay_between_frames
+    idle: 0.02

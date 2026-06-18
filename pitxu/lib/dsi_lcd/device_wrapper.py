@@ -1,7 +1,7 @@
 
 from datetime import datetime
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 

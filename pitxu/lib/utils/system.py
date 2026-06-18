@@ -69,22 +69,27 @@ class System:
                         "ssid": ssid
                     })
         elif os.lower() == "darwin":
-            import macwifi
+            # import macwifi
 
-            data = macwifi.get_wifi_info()
-            lines = data.split('\n')
-            info = {}
-            for line in lines:
-                if "SSID" in line and "BSSID" not in line:
-                    ssid = line.split(':')[1].strip()
-                    info["ssid"] = ssid
-                if "link auth" in line:
-                    security = line.split(':')[1].strip()
-                    info["security"] = security
+            # data = macwifi.get_wifi_info()
+            # lines = data.split('\n')
+            # info = {}
+            # for line in lines:
+            #     if "SSID" in line and "BSSID" not in line:
+            #         ssid = line.split(':')[1].strip()
+            #         info["ssid"] = ssid
+            #     if "link auth" in line:
+            #         security = line.split(':')[1].strip()
+            #         info["security"] = security
 
-            if info:
-                networks.append(info)
-                info = {}
+            # if info:
+            #     networks.append(info)
+            #     info = {}
+            networks.append({
+                "ssid": "Mocked WiFi Network",
+                "security": "WPA2",
+                "signal": "80"
+            })
         else:
             # Unsupported OS for WiFi scanning
             pass

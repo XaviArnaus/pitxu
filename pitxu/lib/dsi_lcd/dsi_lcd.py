@@ -40,8 +40,6 @@ class DsiLcd(XprocessDisplayCombined):
         # The canvas to draw on
         self.canvas = Canvas(config=self._xconfig, params=self._xparams)
         self._xparams.set("canvas", self.canvas)
-        # COMMENTED: This is tied with the Idle Mode. Will be revisited later.
-        # self._macros.load_or_create_statics()
 
         # Add the parent's shared memory manager to the params for the painter
         self._xparams.set("shared_memory", self._shared_memory)

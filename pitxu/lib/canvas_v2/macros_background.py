@@ -1,4 +1,4 @@
-from PIL import ImageDraw, Image, ImageFont
+from PIL import Image, ImageDraw
 
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.objects import Point
@@ -6,7 +6,6 @@ from pitxu.lib.objects import Point
 from pitxu.lib.canvas_v2.macros_base import MacrosBase
 
 import math
-import time
 
 class MacrosBackground(MacrosBase):
     """
@@ -16,6 +15,8 @@ class MacrosBackground(MacrosBase):
     # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
     LED_TO_LCD_OFFSET_X: int = 0
     APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
+
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosBackground, self).__init__(config, params)
@@ -395,4 +396,61 @@ class MacrosBackground(MacrosBase):
     #         align = "center",
     #         embedded_color=True,)
 
-        
+    def merge_animation(self, base_image: Image.Image, params: dict):
+        '''
+        Draws a GIF on the LCD canvas.
+
+        Args:
+            draw: The canvas to draw on.
+            params: A dictionary containing the parameters for the drawing.
+                - gif_path: The path to the GIF file to draw.
+        '''
+        current_loop_iteration = params.get("current_loop_iteration", 0)
+        max_loop_iterations = params.get("max_loop_iterations", 0)
+        animation_name = params.get("animation", None)
+
+        # Before anything, draw the display_area frame.
+        draw = ImageDraw.Draw(base_image)
+        self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
+
+        # Peek into the loaded animation.
+        animation = self.animations.get_animation(animation_name) if self.animations is not None else None
+        if animation is None:
+            self._xlog.error(f"Animation '{animation_name}' not found.")
+            return
+
+        self._log_debug(f"Loaded GIF '{animation_name}' with {animation.get_frame_count()} frames. Picking index {current_loop_iteration}")
+
+        # Calculate the size to draw the frame, based on the layout info and the size of the frame.
+        width = self.layout_info["relative"]["top_left"].point_2.x - self.layout_info["relative"]["top_left"].point_1.x
+        height = self.layout_info["relative"]["top_left"].point_2.y - self.layout_info["relative"]["top_left"].point_1.y
+
+        # Also, we want to keep the aspect ratio of the original GIF, but resized to fit inside the given width and height.
+        original_width, original_height = animation.frames[0].size
+        aspect_ratio = (original_width / original_height)
+        if width / height > aspect_ratio:
+            # We are limited by the height, we need to calculate the width based on the aspect ratio.
+            desired_height_gif = height
+            desired_width_gif = int(height * aspect_ratio)
+        else:
+            # We are limited by the width, we need to calculate the height based on the aspect ratio.
+            desired_width_gif = width
+            desired_height_gif = int(width / aspect_ratio)
+        # Apply a final correction factor to make sure it fits into the display area, 
+        # taking in account some padding and the rounded corners of the LCD.
+        correction_factor = 0.8
+        desired_width_gif = int(desired_width_gif * correction_factor)
+        desired_height_gif = int(desired_height_gif * correction_factor)
+
+        # Calculate which frame to show based on the current loop iteration and max loop iterations
+        frame_to_show = self.animations.get_animation_frame(
+            animation_name, 
+            current_loop_iteration, 
+            desired_size=(desired_width_gif, desired_height_gif))
+
+        # Calculate the position to draw the frame, centered in the display area.
+        offset_x = self.layout_info["relative"]["top_left"].point_1.x + ((width - desired_width_gif) // 2)
+        offset_y = self.layout_info["relative"]["top_left"].point_1.y + ((height - desired_height_gif) // 2)
+
+        # Paint the frame on the canvas, resizing it to fit into the display area if needed.
+        base_image.paste(frame_to_show, (offset_x, offset_y))

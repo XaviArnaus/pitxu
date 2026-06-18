@@ -165,6 +165,8 @@ class Interaction(PyXavi):
                         self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.speaking"):
                         self.map_actions_to_delays[XprocAction.SAY] = self._xconfig.get(f"{display_name}.delays.speaking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                    if self._xconfig.key_exists(f"{display_name}.delays.idle"):
+                        self.map_actions_to_delays[XprocAction.SHOW_IDLE] = self._xconfig.get(f"{display_name}.delays.idle", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                 
                 # Add these parameters to the display process params
                 params.set("interaction_delays", {
@@ -173,6 +175,7 @@ class Interaction(PyXavi):
                     "startup_splash": self.map_actions_to_delays.get(XprocAction.STARTUP),
                     "thinking": self.map_actions_to_delays.get(XprocAction.THINKING),
                     "speaking": self.map_actions_to_delays.get(XprocAction.SAY),
+                    "idle": self.map_actions_to_delays.get(XprocAction.SHOW_IDLE),
                 })
             
 

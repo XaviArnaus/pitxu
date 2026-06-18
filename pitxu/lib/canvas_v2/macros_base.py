@@ -4,6 +4,7 @@ from PIL import ImageDraw,ImageFont, Image, ImageText
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
 
@@ -20,6 +21,7 @@ class MacrosBase(PyXavi):
         "eyes_closed": None
     }
     canvas: Canvas = None
+    animations: Animations = None
 
     layout_info: dict[str, dict[str, Rectangle]] = None
     color_scheme_info: dict[str, dict[str, any]] = None
@@ -44,6 +46,11 @@ class MacrosBase(PyXavi):
         self.layout_info = self.get_layout_info(padding=10, corners_radius=10)
         # Get the color scheme info
         self.color_scheme_info = self.get_color_scheme_info()
+        # Load the animations, if any
+        if params.key_exists("animations"):
+            self.animations = params.get("animations")
+        else:
+            self.animations = None
 
     def get_canvas(self) -> Canvas:
         return self.canvas
