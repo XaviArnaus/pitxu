@@ -50,7 +50,7 @@ class Visualizer(PyXavi):
 
     DEFAULT_FOREGROUND_MAINTAIN_SECONDS: float = 5.0
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(Visualizer, self).init_pyxavi(config, params)

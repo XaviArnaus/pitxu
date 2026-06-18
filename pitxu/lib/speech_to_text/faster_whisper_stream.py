@@ -79,7 +79,7 @@ class FasterWhisperStream(PyXavi):
     # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
     use_dynamic_rms_silence: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     THREAD_NAME = "TranscriptorManager"
 

@@ -162,7 +162,7 @@ class Painter(PyXavi):
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)

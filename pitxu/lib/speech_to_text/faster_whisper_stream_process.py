@@ -104,7 +104,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
     _hot_words: list = []
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
         return "FWhisperStr"

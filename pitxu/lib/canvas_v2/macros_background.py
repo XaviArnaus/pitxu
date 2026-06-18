@@ -18,7 +18,7 @@ class MacrosBackground(MacrosBase):
     LED_TO_LCD_OFFSET_X: int = 0
     APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosBackground, self).__init__(config, params)
