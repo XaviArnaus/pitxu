@@ -870,6 +870,9 @@ class Main(PyXavi):
         # Supported Languages
         self._supported_languages = self._xconfig.get("app.supported_languages")
 
+        # Initialize some timings.
+        self._idle_minutes_to_show_status = self._xconfig.get("timings.idle_minutes", 2)
+
         # Check and complain if the initial language is not supported
         if self._xparams.get("language") not in self._supported_languages:
             self._xlog.error(f"🛑 Initial language [{self._xparams.get('language')}] is not in the supported languages list: {self._supported_languages}")

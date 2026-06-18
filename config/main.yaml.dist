@@ -81,6 +81,11 @@ fonts:
   # [String] Default font file
   default_filename: "Font_with_emojis.ttc"
 
+# Timings
+timings:
+  # [Integer] Minutes to wait before entering into Idle mode. Defaults to 120 seconds (2 minutes).
+  idle_minutes: 2
+
 ups:
   # Whether to enable UPS support
   mock: True
