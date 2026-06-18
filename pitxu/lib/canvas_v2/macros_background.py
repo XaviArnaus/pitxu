@@ -1,4 +1,4 @@
-from PIL import ImageDraw
+from PIL import ImageDraw, Image, ImageFont
 
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.objects import Point
@@ -358,3 +358,41 @@ class MacrosBackground(MacrosBase):
             radius=radius,
             fill=color,
             outline=color)
+    
+    # def draw_emoji(self, draw: ImageDraw.ImageDraw, params: dict):
+    #     '''
+    #     Draws an emoji on the LCD canvas.
+
+    #     Args:
+    #         draw: The canvas to draw on.
+    #         params: A dictionary containing the parameters for the drawing.
+    #             - emoji: The emoji character to draw.
+    #     '''
+    #     emoji = params.get("emoji", "")
+
+    #     # Initial Background Paint clear
+    #     self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
+
+    #     # We need to: 
+    #     # 1. generate an image
+    #     # image = Image.new(self.canvas.COLOR_MODE, 
+    #     #                   (
+    #     #                       self.layout_info["relative"]["top_left"].point_2.x, 
+    #     #                       self.layout_info["relative"]["top_left"].point_2.y
+    #     #                 ),
+    #     #                 self.canvas.COLOR_BACKGROUND)
+    #     # 2. draw the emoji on it
+    #     # draw = ImageDraw.Draw(image)
+    #     # 3. resize the image to make it fit into the display area
+    #     # 4. combine the resized image into the final image.
+    #     width = self.layout_info["relative"]["top_left"].point_2.x - self.layout_info["relative"]["top_left"].point_1.x
+    #     height = self.layout_info["relative"]["top_left"].point_2.y - self.layout_info["relative"]["top_left"].point_1.y
+
+    #     draw.text(Point(width / 2, height / 2).to_image_point(),
+    #         text = emoji,
+    #         font = self.canvas.FONT_FIXED_EMOJI,
+    #         anchor = "mm",
+    #         align = "center",
+    #         embedded_color=True,)
+
+        

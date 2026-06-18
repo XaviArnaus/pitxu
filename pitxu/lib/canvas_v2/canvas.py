@@ -27,7 +27,7 @@ class Canvas(PyXavi):
     FONT_BIG: ImageFont = None
     FONT_HUGE: ImageFont = None
     FONT_ULTRA: ImageFont = None
-    FONT_FIXED_EMOJI: ImageFont = None
+    # FONT_FIXED_EMOJI: ImageFont = None
 
     FONT_SIZE_TINY: int = None
     FONT_SIZE_SMALL_EMOJI: int = None
@@ -36,7 +36,7 @@ class Canvas(PyXavi):
     FONT_SIZE_BIG: int = None
     FONT_SIZE_HUGE: int = None
     FONT_SIZE_ULTRA: int = None
-    FONT_SIZE_FIXED_EMOJI: int = None
+    # FONT_SIZE_FIXED_EMOJI: int = None
 
     DEFAULT_FONT_SIZE_TINY = 16
     DEFAULT_FONT_SIZE_SMALL_EMOJI = 16
@@ -45,7 +45,7 @@ class Canvas(PyXavi):
     DEFAULT_FONT_SIZE_BIG = 28
     DEFAULT_FONT_SIZE_HUGE = 45
     DEFAULT_FONT_SIZE_ULTRA = 85
-    DEFAULT_FONT_SIZE_FIXED_EMOJI = 109
+    # DEFAULT_FONT_SIZE_FIXED_EMOJI = 109
 
     font_by_size: dict[str, ImageFont.ImageFont] = {}
     
@@ -202,9 +202,9 @@ class Canvas(PyXavi):
             self._log_debug(f"Font file set to class default: {self.FONT_FILE}")
         
         # The emoji fnt file for the colored emojis has only a fixed size, intended to be added into a PIL image and the you can play.
-        self.FONT_FILE_FOR_EMOJIS = os.path.join(
-            self._xconfig.get("fonts.path", self.DEFAULT_FONT_PATH),
-            self._xconfig.get("fonts.fixed_emojis_only_filename", self.FONT_FILE_FOR_EMOJIS))
+        # self.FONT_FILE_FOR_EMOJIS = os.path.join(
+        #     self._xconfig.get("fonts.path", self.DEFAULT_FONT_PATH),
+        #     self._xconfig.get("fonts.fixed_emojis_only_filename", self.FONT_FILE_FOR_EMOJIS))
         
         # Getting the image color mode from params or config or default
         if params.key_exists("color_mode"):
@@ -228,7 +228,7 @@ class Canvas(PyXavi):
             ("Font Big size", self.FONT_SIZE_BIG),
             ("Font Huge size", self.FONT_SIZE_HUGE),
             ("Font Ultra size", self.FONT_SIZE_ULTRA),
-            ("Font Fixed Emoji size", self.FONT_SIZE_FIXED_EMOJI),
+            # ("Font Fixed Emoji size", self.FONT_SIZE_FIXED_EMOJI),
 
         ])
 
