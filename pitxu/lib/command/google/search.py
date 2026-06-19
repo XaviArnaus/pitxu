@@ -12,8 +12,12 @@ from google.genai import types
 
 class GoogleSearch(PyXavi, Command):
 
+    model_name: str = None
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
+
+        self.model_name = self._xconfig.get("chatbot.secondary_model")
 
     def get_google_search_response_to_a_prompt(self, prompt: str) -> str:
         '''
@@ -29,9 +33,10 @@ class GoogleSearch(PyXavi, Command):
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Getting Google Search response for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
 
-        if self._xparams.get('language') == 'en-us':
-            self._xlog.warning("Language set to 'en-us', which is not expected. Defaulting to 'en'.")
-            self._xparams.set('language', 'en')
+        # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
+        # if self._xparams.get('language') == 'en-us':
+        #     self._xlog.warning("Language set to 'en-us', which is not expected. Defaulting to 'en'.")
+        #     self._xparams.set('language', 'en')
 
         instructions = {
             "ca": f"Usa Google Search per obtenir la resposta. Sigues curt i precís.",
@@ -46,7 +51,7 @@ class GoogleSearch(PyXavi, Command):
         ]
         client = genai.Client(api_key=self._xparams.get("api_key"))
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],

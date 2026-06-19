@@ -114,9 +114,11 @@ class FasterWhisperStreamProcess(Xprocess):
 
         logging_parts = []
 
-        language = self._xparams.get("language", "en-us")
-        # I need to correct this Vosk language stupidity that is populated all around the code!!!
-        self.language = language if language != "en-us" else "en"
+        self.language = self._xparams.get("language", "en")
+        # ⚠️ I need to correct this Vosk language stupidity that is populated all around the code!!!
+        # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
+        # language = self._xparams.get("language", "en")
+        # self.language = language if language != "en-us" else "en"
         logging_parts.append(("Language", self.language))
 
         # Gathering the reference to the output queue, where to publish the results.

@@ -93,11 +93,12 @@ class FasterWhisperStream(PyXavi):
         self._xlog.info("Initializing Faster Whisper Stream STT")
         logging_parts = []
 
-        self.language = self._xparams.get("language", "en-us")
-        # I need to correct this Vosk language stupidity that is populated all around the code!!!
-        # if self.language == "en-us":
-        #     self.language = "en"
-        logging_parts.append(("Language", self.language if self.language != "en-us" else "en"))
+        self.language = self._xparams.get("language", "en")
+        # ⚠️ I need to correct this Vosk language stupidity that is populated all around the code!!!
+        # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
+        # language = self._xparams.get("language", "en")
+        # self.language = language if language != "en-us" else "en"
+        logging_parts.append(("Language", self.language))
 
         # Get the STT State Machine from params, fail otherwise.
         if self._xparams.key_exists("stt_state_machine"):

@@ -19,6 +19,9 @@ chatbot:
   # [String] The name of the main LLM model to use.
   # model: "gemini-2.5-flash"
   model: "gemini-3.1-flash-lite"
+  # [String] The name of the secondary LLM model to use for tool executions.
+  # secondary_model: "gemini-2.5-flash"
+  secondary_model: "gemini-3.1-flash-lite"
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction:
     ca: |

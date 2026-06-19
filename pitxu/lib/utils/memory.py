@@ -247,7 +247,6 @@ class Memory(PyXavi):
                         contents=prompt,
                         # config=types.GenerateContentConfig(
                         #     system_instruction=instructions[self._xparams.get('language')],
-                        #     # system_instruction=instructions["en-us"],
                         #     tools=tools
                         # )
                     )

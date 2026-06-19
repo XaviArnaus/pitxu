@@ -11,8 +11,12 @@ from google.genai import types
 
 class GoogleMaps(PyXavi, Command):
 
+    model_name: str = None
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(GoogleMaps, self).init_pyxavi(config=config, params=params)
+
+        self.model_name = self._xconfig.get("chatbot.secondary_model")
 
     def get_google_maps_response_to_a_prompt(self, prompt: str) -> str:
         '''
@@ -45,7 +49,7 @@ class GoogleMaps(PyXavi, Command):
         ]
         client = genai.Client(api_key=self._xparams.get("api_key"))
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],
