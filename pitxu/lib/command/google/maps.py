@@ -30,7 +30,7 @@ class GoogleMaps(PyXavi, Command):
         '''
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
-        self._xlog.debug(f"Getting Google Maps response for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
+        self._xlog.debug(f"Getting Google Maps response for prompt: [{prompt}] using model [{self.model_name}] andlanguage [{self._xparams.get('language')}]")
 
         instructions = {
             "ca": "Usa Google Maps per obtenir la resposta sobre distàncies, rutes i localitzacions en el mapa."

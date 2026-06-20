@@ -31,7 +31,7 @@ class GoogleSearch(PyXavi, Command):
         '''
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
-        self._xlog.debug(f"Getting Google Search response for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
+        self._xlog.debug(f"Getting Google Search response for prompt: [{prompt}] using model [{self.model_name}] and language [{self._xparams.get('language')}]")
 
         # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
         # if self._xparams.get('language') == 'en-us':
