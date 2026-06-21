@@ -25,6 +25,10 @@ class XprocessDisplayStatus(Xprocess):
 
     def _run_status_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):
 
+        # Shows a status entry
+        if action == XprocAction.STATUS_LINE and param is not None:
+            self.show_status_line(param)
+
         # Clears the screen
         if action == XprocAction.CLEAR:
             self.clear()
@@ -61,8 +65,8 @@ class XprocessDisplayStatus(Xprocess):
 
     # ------- Status Interaction functions ---------
     
-    # def show_kitt_mouth_while_speaking(self):
-    #     raise NotImplementedError("show_kitt_mouth_while_speaking() must be implemented in Display Status subclasses.")
+    def show_status_line(self, param: dict):
+        raise NotImplementedError("show_status_line() must be implemented in Display Status subclasses.")
 
     # ------- Communication with Flags ---------
 

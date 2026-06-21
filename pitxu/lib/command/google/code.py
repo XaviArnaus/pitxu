@@ -82,6 +82,8 @@ class GoogleCode(PyXavi, Command):
 
         text = value if isinstance(value, str) else str(value)
 
+        interaction.add_new_status_line(f"🔧 Tool: Code Generation for: [{args.get('prompt', 'unknown') if args else 'unknown'}]")
+
         # Does the text contain a code block?
         # We may even have several code blocks.
         code_blocks = []
@@ -117,6 +119,7 @@ class GoogleCode(PyXavi, Command):
                                                        "⚠️ The response includes a code block that couldn't be extracted properly. If you want to see it, please ask Pitxu to send you the full response to an email or something like that.")
             if code_block_to_show is not None:
                 log.info(f"Gemini's Code Generation response includes {len(code_blocks)} code blocks. Showing only the first one:\n{code_block_to_show}")
+                interaction.add_new_status_line(f"🔧 Tool: Code Generation : {len(code_blocks)} code blocks.")
                 interaction.show_code_block_on_foreground_while_speaking(code=code_block_to_show)
             else:
                 log.info(f"🔎 Showing Gemini's Code Generation result: [{text}]")

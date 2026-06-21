@@ -77,6 +77,7 @@ class GoogleMaps(PyXavi, Command):
 
         try:
             log.error(f"📍 Showing Google Maps searched term on eInk: [{search_term}]")
+            interaction.add_new_status_line(f"🔧 Tool: Google Maps search for: [{search_term}]")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📍",
                 text=search_term,

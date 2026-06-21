@@ -124,47 +124,56 @@ class Main(PyXavi):
             self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
 
             # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
+            # The main problem here is that nothing is displayed until the Interaction lib is initialized.
+            # With the Animations took forever, that's why the Animations initializon was moved out.
+            # Maybe other visualization initializations should also be promoted to its own initialization step.
             self._initialize_interactions()
+            # self._interaction.show_startup()
+            # self._interaction.wait_for_foreground_display_queue_to_empty()
+            # self._interaction.wait_for_busy_foreground_display_to_idle()
             # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
             self._interaction.show_init_phases(1, text="💬 Interactions")
 
+            self._interaction.show_init_phases(2, text="🙂 Animations")
+            self._interaction.initialize_animations()
+
             # Load all language statics, like the exit words and the greeting / goodbye sentences
-            self._interaction.show_init_phases(2, text="⚙️  Statics, Params and Support")
+            self._interaction.show_init_phases(3, text="⚙️  Statics, Params and Support")
             self._load_statics_params_and_support()
 
             # Initialise all classes that require a model. They go per language.
-            self._interaction.show_init_phases(3, text="🧠 Models")
+            self._interaction.show_init_phases(4, text="🧠 Models")
             self._load_models()
 
             # Initialize the microphone and defines the callback for the audio capture.
-            self._interaction.show_init_phases(4, text="🎙️  Microphone")
+            self._interaction.show_init_phases(5, text="🎙️  Microphone")
             self._instantiate_input_stream()
 
             # Initialise the Chatbot async context with all the tools from the session manager
-            self._interaction.show_init_phases(5, text="🤖 Chatbot")
+            self._interaction.show_init_phases(6, text="🤖 Chatbot")
             await self._initialize_chatbot()
 
             # Warm up the chatbot
-            self._interaction.show_init_phases(6, text="🔥 Chatbot warm up")
+            self._interaction.show_init_phases(7, text="🔥 Chatbot warm up")
             if not self._xparams.get("execution_mode") in ["test"]:
                 await self._warmup_chatbot()
 
             # Initialise the Server that accepts requests to the defined endpoints.
-            self._interaction.show_init_phases(7, text="🖥️  Server")
+            self._interaction.show_init_phases(8, text="🖥️  Server")
             self._initialize_server()
 
             # Initialize the Reactions class
-            self._interaction.show_init_phases(8, text="⚡️ Reactions")
+            self._interaction.show_init_phases(9, text="⚡️ Reactions")
             self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
             #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
-            self._interaction.show_init_phases(9, text="⏱️  Schedulers")
+            self._interaction.show_init_phases(10, text="⏱️  Schedulers")
             self._initialize_schedulers()
 
             # # Welcome greeting
             sw_greeting = self._stopwatch.start(name="greeting")
-            self._interaction.show_init_phases(10, text="👋 Greeting")
+            self._interaction.show_init_phases(11, text="👋 Greeting")
             self._greeting_interaction()
             self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
@@ -183,7 +192,7 @@ class Main(PyXavi):
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
-            self._interaction.show_init_phases(11, text="✅ Ready")
+            self._interaction.show_init_phases(12, text="✅ Ready")
             self._xlog.info("✅ All initialisations done, entering idle state, waiting for interactions...")
 
             # HERE WAS THE MAIN LOOP.

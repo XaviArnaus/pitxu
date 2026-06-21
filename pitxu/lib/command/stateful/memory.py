@@ -235,6 +235,7 @@ class StatefulMemory(PyXavi, Command):
                 error = value
 
             if error is None:
+                interaction.add_new_status_line("🔧 Tool: Chat history summarized into new Memory entry")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                             icon="Ⓜ️ ",
                             text=summary,

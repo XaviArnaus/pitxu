@@ -90,13 +90,8 @@ class MacrosForeground(MacrosBase):
                 anchor = "mm",
                 align = "center")
     
-    def draw_combined_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
-        '''
-        Draws the combined status (bottom-center) and foreground (top-right) for the init phase. 
-        It is meant to be used on the new Pitxu main, as it has more space to show both the progress and the details.
-        The old Pitxu client should still use the draw_foreground_init_phase() due to the small screen.
-        '''
-
+    def draw_startup(self, draw: ImageDraw.ImageDraw, params: dict):
+        
         # Initial Background Paint clear
         self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
 
@@ -107,56 +102,54 @@ class MacrosForeground(MacrosBase):
         fore_width = fore_max_x - fore_offset_x
         fore_height = fore_max_y - fore_offset_y
 
-        # This is wrong, should be in the StatusQueue, so in a new MacrosStatus.
-        #   That's why it's not shown, its out of the merging image frame.
-        # status_offset_x = self.layout_info["relative"]["bottom_center"].point_1.x
-        # status_offset_y = self.layout_info["relative"]["bottom_center"].point_1.y
-        # status_max_x = self.layout_info["relative"]["bottom_center"].point_2.x
-        # status_max_y = self.layout_info["relative"]["bottom_center"].point_2.y
-        # status_width = status_max_x - status_offset_x
-        # status_height = status_max_y - status_offset_y
-
         # Main title
         title = self._xconfig.get("app.name")
         version = self._xparams.get("app_version")
 
-        # ⚠️ Tried Pilmoji, but implies a complete refactor of the text drawing, and it's not worth it for now. 
-        # Next, take a look at https://jdhao.github.io/2022/04/03/add_color_emoji_to_image_in_python/
-        # self.text(
-        #     draw=draw,
-        #     xy=Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
-        #     text = f"{title}  v{version}",
-        #     font = self.canvas.FONT_HUGE, 
-        #     fill = self.canvas.COLOR_FOREGROUND,
-        #     anchor = "mm",
-        #     align = "center")
         draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
                     text = title + "  v" + version, 
                     font = self.canvas.FONT_HUGE, 
                     fill = self.canvas.COLOR_FOREGROUND,
                     anchor = "mm",
                     align = "center")
-        
-        # # Mocked features line
-        # mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
-        # draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 3).to_image_point(),
-        #             text = mocked_line, 
-        #             font = self.canvas.FONT_SMALL, 
-        #             fill = self.canvas.COLOR_FOREGROUND,
-        #             anchor = "mm",
-        #             align = "center")
-        
-        # Phases
-        phase = params.get("phase", 0)
-        text = params.get("text", None)
-        # This is test, should be shown in the StatusPaint
-        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
-            text = text,
-            font = self.canvas.FONT_SMALL, 
-            fill = self.canvas.COLOR_FOREGROUND,
-            anchor = "mm",
-            align = "center",
-            embedded_color=True)
+    
+    # def draw_combined_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
+    #     '''
+    #     Draws the combined status (bottom-center) and foreground (top-right) for the init phase. 
+    #     It is meant to be used on the new Pitxu main, as it has more space to show both the progress and the details.
+    #     The old Pitxu client should still use the draw_foreground_init_phase() due to the small screen.
+    #     '''
+
+    #     # Initial Background Paint clear
+    #     self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
+
+    #     fore_offset_x = self.layout_info["relative"]["top_right"].point_1.x
+    #     fore_offset_y = self.layout_info["relative"]["top_right"].point_1.y
+    #     fore_max_x = self.layout_info["relative"]["top_right"].point_2.x
+    #     fore_max_y = self.layout_info["relative"]["top_right"].point_2.y
+    #     fore_width = fore_max_x - fore_offset_x
+    #     fore_height = fore_max_y - fore_offset_y
+
+    #     # Main title
+    #     title = self._xconfig.get("app.name")
+    #     version = self._xparams.get("app_version")
+
+    #     # ⚠️ Tried Pilmoji, but implies a complete refactor of the text drawing, and it's not worth it for now. 
+    #     # Next, take a look at https://jdhao.github.io/2022/04/03/add_color_emoji_to_image_in_python/
+    #     # self.text(
+    #     #     draw=draw,
+    #     #     xy=Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
+    #     #     text = f"{title}  v{version}",
+    #     #     font = self.canvas.FONT_HUGE, 
+    #     #     fill = self.canvas.COLOR_FOREGROUND,
+    #     #     anchor = "mm",
+    #     #     align = "center")
+    #     draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
+    #                 text = title + "  v" + version, 
+    #                 font = self.canvas.FONT_HUGE, 
+    #                 fill = self.canvas.COLOR_FOREGROUND,
+    #                 anchor = "mm",
+    #                 align = "center")
 
     def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
         '''

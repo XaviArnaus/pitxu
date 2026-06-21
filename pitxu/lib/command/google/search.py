@@ -78,6 +78,8 @@ class GoogleSearch(PyXavi, Command):
 
         text = value if isinstance(value, str) else str(value)
 
+        interaction.add_new_status_line(f"🔧 Tool: Google Search result for: [{args.get('prompt', 'unknown') if args else 'unknown'}]")
+
         # Does the text contain a code block?
         # We may even have several code blocks.
         code_blocks = []
@@ -93,6 +95,7 @@ class GoogleSearch(PyXavi, Command):
             if len(code_blocks) > 0:
                 # don't go crazy. Log how many do you have, if more than 1, and simply show the first.
                 log.info(f"Google Search response includes {len(code_blocks)} code blocks. Showing only the first one.")
+                interaction.add_new_status_line(f"🔧 Tool: Google Search result includes {len(code_blocks)} code blocks.")
                 interaction.show_code_block_on_foreground_while_speaking(code=code_blocks[0])
             else:
                 # text = text[:50] + ("..." if len(text) > 100 else "")

@@ -166,6 +166,7 @@ class WorldWeather(PyXavi, Command):
             weather_other = f"💧 {humidity}% | 💨 {wind_speed}km/h"
 
             log.debug(f"☀️ Showing weather forecast for today on eInk: {weather_header} {weather_other}")
+            interaction.add_new_status_line(f"🔧 Tool: Weather forecast for today at [{requested_hour}h]: {weather_header}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 header=weather_header,
                 font_header_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE,

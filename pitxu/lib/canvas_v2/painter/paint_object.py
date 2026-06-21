@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pitxu.lib.canvas_v2.painter.painting_command import ForegroundCommand, OverallCommand, PaintingCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter.painting_command import *
 from pitxu.lib.canvas_v2.painter.painter_queue import PainterQueue
 
 class PaintObject:
@@ -158,6 +158,12 @@ class ForegroundPaint(BasePaint):
     def __init__(self, name: str, command: ForegroundCommand, **kwargs):
 
         super(ForegroundPaint, self).__init__(name=name, command=command, **kwargs)
+
+class StatusPaint(BasePaint):
+
+    def __init__(self, name: str, command: StatusCommand, **kwargs):
+
+        super(StatusPaint, self).__init__(name=name, command=command, **kwargs)
 
 class BackgroundPaint(BasePaint):
 

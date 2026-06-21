@@ -24,8 +24,10 @@ class XprocAction:
     SAY_OUTPUT_QUEUE: str = "SAY_OUTPUT_QUEUE"
 
     # Display Foreground specific
+    INITIALIZE_ANIMATIONS: str = "INITIALIZE_ANIMATIONS"
     SHOW: str = "SHOW"
     STARTUP: str = "STARTUP"
+    STARTUP_WITH_PHASE: str = "STARTUP_WITH_PHASE"
     READY: str = "READY"
     SOFT_CLEAR: str = "SOFT_CLEAR"
     SHOW_IMAGE_EINK: str = "SHOW_IMAGE_EINK"    # Do not use.
@@ -55,7 +57,7 @@ class XprocAction:
     INTERACTION_HOLDING_PERCENTAGE: str = "INTERACTION_HOLDING_PERCENTAGE"
 
     # Status specific
-    
+    STATUS_LINE: str = "STATUS_LINE"
 
     # New Foreground actions
     FOREGROUND_CLEAR: str = "FOREGROUND_CLEAR"

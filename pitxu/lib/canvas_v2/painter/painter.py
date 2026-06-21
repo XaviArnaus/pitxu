@@ -476,7 +476,7 @@ class Painter(PyXavi):
     def _logging_start_painter_loop_iteration(self, extra_info: dict[str, any]):
         # Log the current interactions in each queue at the beginning of the loop iteration.
         logging_parts: list = []
-        for queue_name in [PainterQueue.FOREGROUND, PainterQueue.BACKGROUND, PainterQueue.OVERALL]:
+        for queue_name in self.queue.keys():
             current_interaction = self.get_current_interaction(queue_name)
             if current_interaction is not None:
                 logging_parts.append((f"Current interaction for {queue_name}", f"- name: {current_interaction.name}"))
@@ -884,11 +884,9 @@ class Painter(PyXavi):
         if not self._thread_event.is_set():
             self._log_debug("Painter thread not running, starting it now.")
 
-            self.image_per_queue = {
-                PainterQueue.BACKGROUND: self._initialize_draw_for_queue(PainterQueue.BACKGROUND),
-                PainterQueue.FOREGROUND: self._initialize_draw_for_queue(PainterQueue.FOREGROUND),
-                PainterQueue.OVERALL: self._initialize_draw_for_queue(PainterQueue.OVERALL)
-            }
+            for queue_name in self.queue.keys():
+                self.image_per_queue[queue_name] = self._initialize_draw_for_queue(queue_name)
+                self._log_debug(f"Initialized drawing for queue [{queue_name}].")
 
             # Tell the worker that it can start painting.
             self._thread_event.set()

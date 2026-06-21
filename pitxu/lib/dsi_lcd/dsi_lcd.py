@@ -79,6 +79,9 @@ class DsiLcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
+    def initialize_animations(self):
+        self.visualizer.load_animations()
+
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
@@ -162,13 +165,22 @@ class DsiLcd(XprocessDisplayCombined):
         
         self.visualizer.text_block_while_speaking(param)
     
-    def init_phase(self, phase: int, text: str = None):
+    def show_startup(self, for_seconds = None):
+        self._xlog.info(f"👀 Showing startup on DSI LCD.")
+
+        param = None
+        if for_seconds is not None:
+            param = {
+                "for_seconds": for_seconds
+            }
+        
+        self.visualizer.startup_initial(param)
+    
+    def startup_with_phase(self, param: dict):
+        phase = param.get("phase", 0)
+        text = param.get("text", None)
         self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
         
-        param = {
-            "phase": phase,
-            "text": text
-        }
         self.visualizer.startup_with_phase(param)
 
     # ------- Common functions ---------
@@ -207,3 +219,16 @@ class DsiLcd(XprocessDisplayCombined):
             "percentage": percentage
         }
         self.visualizer.holding_percentage(param)
+    
+    # ------- Status functions ---------
+
+    def show_status_line(self, param: dict):
+        text = param.get("text", "")
+        color = param.get("color", self.canvas.COLOR_FOREGROUND)
+        self._xlog.info(f"👀 Showing status line on DSI LCD: {text} (color: {color})")
+
+        param = {
+            "text": text,
+            "color": color
+        }
+        self.visualizer.show_status_line(param)

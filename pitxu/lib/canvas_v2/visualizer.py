@@ -6,11 +6,12 @@ from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
+from pitxu.lib.canvas_v2.macros.macros_status import MacrosStatus
 from pitxu.lib.canvas_v2.macros.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter.painter import Painter, PainterQueue
 from pitxu.lib.canvas_v2.painter.painting_command import *
-from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.painter.paint_object import *
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \
@@ -40,6 +41,7 @@ class Visualizer(PyXavi):
     macros_layout: MacrosLayout = None
     macros_overlay: MacrosOverlay = None
     macros_foreground: MacrosForeground = None
+    macros_status: MacrosStatus = None
     macros_background: MacrosBackground = None
     animations: Animations = None
 
@@ -94,7 +96,7 @@ class Visualizer(PyXavi):
         self.animation_sizes_per_display_area = self._prepare_animation_sizes()
         params.set("animation_sizes", self.animation_sizes_per_display_area.values())
         self.animations = Animations(config, params)
-        self.animations.load_animations()
+        # self.animations.load_animations()
         params.set("animations", self.animations)
 
         # All Macros needs:
@@ -104,6 +106,7 @@ class Visualizer(PyXavi):
         self.macros_layout = MacrosLayout(config, params)
         self.macros_overlay = MacrosOverlay(config, params)
         self.macros_foreground = MacrosForeground(config, params)
+        self.macros_status = MacrosStatus(config, params)
         self.macros_background = MacrosBackground(config, params)
 
         # The painter is the one that will control the painting loop and trigger the macros to paint.
@@ -151,11 +154,19 @@ class Visualizer(PyXavi):
         params.set("layout_position_to_queue_name", {
             "top_left": PainterQueue.BACKGROUND,
             "top_right": PainterQueue.FOREGROUND,
+            "bottom_center": PainterQueue.STATUS,
             "full_screen": PainterQueue.OVERALL
         })
         # The order here is important. For sure, OVERALL has to be the last one to be painted.
-        params.set("painter_queues", [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL])
-        params.set("painter_priorities", {PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]})
+        params.set("painter_queues", [
+            PainterQueue.BACKGROUND, 
+            PainterQueue.STATUS, 
+            PainterQueue.FOREGROUND, 
+            PainterQueue.OVERALL
+        ])
+        params.set("painter_priorities", {
+            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]
+        })
         params.set("painter_exception_loop_interactions", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
         })
@@ -171,10 +182,15 @@ class Visualizer(PyXavi):
             ("macros_layout", self.macros_layout.__class__.__name__),
             ("macros_overlay", self.macros_overlay.__class__.__name__),
             ("macros_foreground", self.macros_foreground.__class__.__name__),
+            ("macros_status", self.macros_status.__class__.__name__),
             ("macros_background", self.macros_background.__class__.__name__),
-            ("animations_loaded", list(self.animations._animations.keys())),
+            # ("animations_loaded", list(self.animations._animations.keys())),
             ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
+            ("painter_queues", params.get("painter_queues", [])),
+            ("painter_priorities", params.get("painter_priorities", {})),
+            ("painter_exception_loop_interactions", params.get("painter_exception_loop_interactions", {})),
+            ("painter_queues_with_paints_that_slow_down_the_loop", params.get("painter_queues_with_paints_that_slow_down_the_loop", [])),
             ("interaction_delays", self.interaction_delays),
         ]
         for display_area, size in self.animation_sizes_per_display_area.items():
@@ -191,6 +207,18 @@ class Visualizer(PyXavi):
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
 
         self._xlog.debug("Initialized Visualizer.")
+    
+    def load_animations(self):
+        # It takes time, and because the Visualizer is loaded with the display, 
+        #   which is loaded during the initialization of the Interactions, 
+        #   which is the very first thing to do in main,
+        # We individualize it outside so we can print something before 
+        #   and don't let the user with a black screen meanwhile.
+        # Then, it's mandatory to be called through a XprocessAction
+
+        self._xlog.info("Loading animations in Visualizer...")
+        self.animations.load_animations()
+        self._xlog.info("Animations loaded in Visualizer.")
     
     def close(self):
         self._xlog.debug("Closing Visualizer...")
@@ -403,6 +431,27 @@ class Visualizer(PyXavi):
             )
         )
     
+    def startup_initial(self, params: dict):
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name=f"StartupInitialForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.STARTUP),
+
+                        drawing_callback=self.macros_foreground.draw_startup,
+                        drawing_callback_parameters=params,
+
+                        maintain_paint_for_seconds=self.interaction_delays.get("startup_splash", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=False,
+                    )
+                }
+            )
+        )
+    
     def startup_with_phase(self, params: dict):
 
         self.painter.paint(
@@ -412,9 +461,29 @@ class Visualizer(PyXavi):
                         name=f"StartupWithPhaseForegroundPaint",
                         command=ForegroundCommand(ForegroundCommand.STARTUP_WITH_PHASE),
 
-                        drawing_callback=self.macros_foreground.draw_combined_init_phase,
+                        drawing_callback=self.macros_foreground.draw_startup,
+                        drawing_callback_parameters=params,
+                        # cache_control_parameters=["phase"],
+
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=False,
+                        overwrite_current_interaction_with_same_type = True,
+                    ),
+                    PainterQueue.STATUS: StatusPaint(
+                        name=f"StartupWithPhaseStatusPaint",
+                        command=StatusCommand(StatusCommand.STARTUP_WITH_PHASE),
+
+                        drawing_callback=self.macros_status.draw_combined_init_phase,
                         drawing_callback_parameters=params,
                         cache_control_parameters=["phase"],
+
+                        # ⚠️ When it gets removed after the time, a full clear is performed.
+                        # TODO: THIS NEEDS TO BE FIXED, BECAUSE IT CAUSES A FLICKER WHEN THE PHASES ARE CHANGING, AND ALSO IT CAN CAUSE PROBLEMS IF WE WANT TO KEEP THE STATUS PAINTED AFTER THE STARTUP PHASES.
+                        # It has to do with the hack for the idle mode. 
+                        # What should happen is that there is a specific parameter to clean after removing 
+                        #   due to the maintain_paint_for_seconds, or challenge the current approach for 
+                        #   final_screen_clearing_needed and final_area_clearing_needed
+                        # maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
                         # final_screen_clearing=True,
                         # remove_interaction_after_painting=False,
@@ -662,6 +731,30 @@ class Visualizer(PyXavi):
                         cache_control_parameters=["percentage"],
 
                         overwrite_current_interaction_with_same_type=True,
+
+                        final_screen_clearing=False,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+    
+    # ----- Status paints -----
+
+    def show_status_line(self, param: dict):
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.STATUS: StatusPaint(
+                        name=f"StatusLineStatusPaint",
+                        command=StatusCommand(StatusCommand.STATUS_LINE), # We can use the code to identify the type of status paint, or we can also use different commands for different types of status paints.
+
+                        drawing_callback=self.macros_status.draw_status_line,
+                        drawing_callback_parameters=param,
+                        cache_control_parameters=["text"],
+
+                        overwrite_current_interaction_with_same_type=False,
 
                         final_screen_clearing=False,
                         remove_interaction_after_painting=False

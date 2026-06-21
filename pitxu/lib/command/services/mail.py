@@ -78,6 +78,7 @@ class ServiceMail(PyXavi, Command):
         try:
             if value:
                 log.debug("📧 Email sent.")
+                interaction.add_new_status_line(f"🔧 Tool: Email sent")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📧",
                     text="Email sent ✅",

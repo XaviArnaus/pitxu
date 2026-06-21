@@ -75,6 +75,23 @@ class ForegroundCommand(PaintingCommand):
             self.CLEAR,
         ]
         super(ForegroundCommand, self).__init__(command, available_commands)
+
+class StatusCommand(PaintingCommand):
+    """
+    Commands related to status painting.
+    They are meant to be used in the (currently) "bottom-center" area of the screen, but they can be used in other areas as well.
+    """
+
+    STARTUP_WITH_PHASE: str = "STARTUP_WITH_PHASE"
+    STATUS_LINE: str = "STATUS_LINE"
+
+    def __init__(self, command: str):
+        available_commands = [
+            self.STATUS_LINE,
+            self.STARTUP_WITH_PHASE,
+            self.CLEAR,
+        ]
+        super(StatusCommand, self).__init__(command, available_commands)
  
 class BackgroundCommand(PaintingCommand):
     """

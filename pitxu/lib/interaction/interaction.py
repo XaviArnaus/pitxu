@@ -56,7 +56,7 @@ class Interaction(PyXavi):
     # Be aware what to trigger in each case
     foreground_display_queue: str = None
     background_display_queue: str = None
-    notification_display_queue: str = None
+    status_display_queue: str = None
     speech_queue: str = QUEUE_SPEAKER
 
     # Output queue for the speech, to allow the server to generate the audio bytes and return them through the endpoint.
@@ -130,9 +130,11 @@ class Interaction(PyXavi):
         displays_to_use = []
         foreground_display = self._xconfig.get("displays.foreground_display", None)
         background_display = self._xconfig.get("displays.background_display", None)
+        status_display = self._xconfig.get("displays.status_display", None)
         # Now that we're here, just remember which queues to use for foreground and background
         self.foreground_display_queue = self.map_display_name_to_instance_data.get(foreground_display, (None, None))[1]
         self.background_display_queue = self.map_display_name_to_instance_data.get(background_display, (None, None))[1]
+        self.status_display_queue = self.map_display_name_to_instance_data.get(status_display, (None, None))[1]
         # Add them to the list of displays to use
         if foreground_display is not None\
             and foreground_display in available_displays\
@@ -142,6 +144,10 @@ class Interaction(PyXavi):
             and background_display in available_displays\
             and background_display not in displays_to_use:
             displays_to_use.append(background_display)
+        if status_display is not None\
+            and status_display in available_displays\
+            and status_display not in displays_to_use:
+            displays_to_use.append(status_display)
         
         # Initialize each display
         for display_name in displays_to_use:
@@ -167,8 +173,13 @@ class Interaction(PyXavi):
                         self.map_actions_to_delays[XprocAction.SAY] = self._xconfig.get(f"{display_name}.delays.speaking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.idle"):
                         self.map_actions_to_delays[XprocAction.SHOW_IDLE] = self._xconfig.get(f"{display_name}.delays.idle", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                # Status display
+                if display_name == status_display:
+                    # None by now.
+                    pass
                 
                 # Add these parameters to the display process params
+                # ⚠️ This doubkle mapping is a mess.
                 params.set("interaction_delays", {
                     "default_delay_between_frames": self.DEFAULT_DELAY_BETWEEN_FRAMES,
                     "foreground_notifications": self.map_actions_to_delays.get(XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND),
@@ -187,6 +198,17 @@ class Interaction(PyXavi):
             else:
                 self._xlog.error(f"Display class for {display_name} not found. Cannot initialize it. Stopping.")
                 raise RuntimeError(f"Display class for {display_name} not found.")
+    
+    def initialize_animations(self):
+        """
+        Initializes the animations in the Visualizer.
+
+        This is meant to be called through a XprocessAction, so it can be called after the display is initialized and shows something on the screen,
+        otherwise it may take time and let the user with a black screen meanwhile.
+        """
+        # This is a clear candidate to be moved to the display class, but for now we keep it here because it's the only interaction we have that needs to be triggered after the initialization.
+        self._xlog.info("Initializing animations in Visualizer through Interaction.")
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.INITIALIZE_ANIMATIONS)
     
     def displays_are_combined(self) -> bool:
         """
@@ -360,11 +382,11 @@ class Interaction(PyXavi):
 
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.NETWORKING)
     
-    def startup_splash(self, for_seconds: float = 3.0):
+    def show_startup(self):
         """
         Show the startup splash screen on the Foreground display.
         """
-        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP, str(for_seconds))
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP)
     
     def show_error(self, text: str, for_seconds: float = 3.0):
         """
@@ -377,9 +399,12 @@ class Interaction(PyXavi):
 
     def show_init_phases(self, step: int, text: str = None):
         """
-        Show the initialization phases on the Background display.
+        Show the initialization phases on the Foreground display.
         """
-        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.INIT_STEP, (str(step), text))
+        self.process_pool.send(self._get_active_foreground_display_queue(), XprocAction.STARTUP_WITH_PHASE, param={
+            "phase": step,
+            "text": text
+        })
 
     def show_idle(self):
         """
@@ -591,6 +616,19 @@ class Interaction(PyXavi):
         """
         self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
         self.process_pool.send(self._get_active_background_display_queue(), XprocAction.INTERACTION_HOLDING_PERCENTAGE, percentage)
+    
+    def add_new_status_line(self, text: str, color: str = None):
+        """
+        Adds a new status line on the background display.
+
+        Args:
+            text (str): The text to show in the status line.
+            color (str): The color of the text in the status line.
+        """
+        self.process_pool.send(self._get_active_background_display_queue(), XprocAction.STATUS_LINE, {
+            "text": text,
+            "color": color
+        })
 
     # --------- (Proxy) Functions to clear screens ---------
 
@@ -704,10 +742,12 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
 
     def set_chatbot_busy(self):
+        self.add_new_status_line("🧠 Chatbot busy")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
         self._log_debug("🤖 Setting Chatbot as busy.")
     
     def unset_chatbot_busy(self):
+        self.add_new_status_line("🧠 Chatbot done")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._log_debug("🤖 Unsetting Chatbot as busy.")
     
@@ -747,10 +787,12 @@ class Interaction(PyXavi):
 
     def set_idle_mode_on(self):
         self._log_debug("💤  Setting idle mode on.")
+        self.add_new_status_line("💤 Idle mode on")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
 
     def set_idle_mode_off(self):
         self._log_debug("💤  Setting idle mode off.")
+        self.add_new_status_line("💤 Idle mode off")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, False)
 
     def is_matrix_busy(self):
@@ -769,21 +811,22 @@ class Interaction(PyXavi):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
     
     def set_vad_detected(self):
+        self.add_new_status_line("🎤 VAD detected")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, True)
     
     def unset_vad_detected(self):
+        self.add_new_status_line("🎤 VAD cleared")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, False)
     
     def is_vad_detected(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
     
-    def is_stt_busy(self) -> bool:
-        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_STT_BUSY)
-    
     def set_transcriber_busy(self):
+        self.add_new_status_line("🎤 Transcribing")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, True)
     
     def unset_transcriber_busy(self):
+        self.add_new_status_line("🎤 Transcription done")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
     
     def is_transcriber_busy(self) -> bool:
@@ -826,4 +869,22 @@ class Interaction(PyXavi):
             str: The busy flag name of the active foreground display.
         """
         return self.process_pool.get_busy_flag_from_related_queue(self._get_active_foreground_display_queue())
+
+    def _get_active_status_display_queue(self):
+        """
+        Get the active status display queue.
+
+        Returns:
+            str: The queue name of the active status display.
+        """
+        return self.status_display_queue
+
+    def _get_active_status_display_busy_flag(self):
+        """
+        Get the active status display busy flag.
+
+        Returns:
+            str: The busy flag name of the active status display.
+        """
+        return self.process_pool.get_busy_flag_from_related_queue(self._get_active_status_display_queue())
         
