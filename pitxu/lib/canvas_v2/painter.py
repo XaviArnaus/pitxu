@@ -5,22 +5,15 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.painter_shared_memory import PainterSharedMemory
-from pitxu.lib.canvas_v2.painting_object import PaintingObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.painting_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.canvas_v2.painting_command import ForegroundCommand, PaintingCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter_queue import PainterQueue
 
 from pitxu.lib.objects.point import Point
 from pitxu.lib.objects.rectangle import Rectangle
 
 import threading
 from PIL import Image, ImageDraw
-
-class PainterQueue:
-    """
-    Definition for the available queues in the Painter.
-    """
-    FOREGROUND: str = "foreground"
-    BACKGROUND: str = "background"
-    OVERALL: str = "overall"
 
 class IntermediatePainterQueueAction:
     """
@@ -90,11 +83,12 @@ class Painter(PyXavi):
 
     canvas: Canvas = None
     # The drawing tool, initialized once we start painting, outside the loop for better performance, per queue
-    image_per_queue: dict[str, Image.Image | None] = {
-        PainterQueue.BACKGROUND: None,
-        PainterQueue.FOREGROUND: None,
-        PainterQueue.OVERALL: None
-    }
+    # image_per_queue: dict[str, Image.Image | None] = {
+    #     PainterQueue.BACKGROUND: None,
+    #     PainterQueue.FOREGROUND: None,
+    #     PainterQueue.OVERALL: None
+    # }
+    image_per_queue: dict[str, Image.Image | None] = {}
     # The callbacks defined on the caller regarding the frames to draw
     drawing_callbacks: dict[str, dict[str, any]] = None
     # The layout info, to know the sizes for the sub-canvases to paint the interactions.
@@ -107,34 +101,38 @@ class Painter(PyXavi):
     # Be careful, some can be contradictory. We start by classifying them per queue, and see if that's enough.
     # The structure is: {queue_name: {callback_name: {request_name: request_value}}}
     # The loop should remove the entry once consumed, to avoid carrying it on into the next loop iteration.
-    flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {
-        PainterQueue.BACKGROUND: {},
-        PainterQueue.FOREGROUND: {},
-        PainterQueue.OVERALL: {}
-    }
+    # flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {
+    #     PainterQueue.BACKGROUND: {},
+    #     PainterQueue.FOREGROUND: {},
+    #     PainterQueue.OVERALL: {}
+    # }
+    flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {}
 
     # Queues for each display area.
     # The idea is that we register the interactions to paint in these queues, and the Painter loop will consume them and paint them.
-    queue: dict[str, list[BasePaint]] = {
-        PainterQueue.FOREGROUND: [],
-        PainterQueue.BACKGROUND: [],
-        PainterQueue.OVERALL: []
-    }
+    # queue: dict[str, list[BasePaint]] = {
+    #     PainterQueue.FOREGROUND: [],
+    #     PainterQueue.BACKGROUND: [],
+    #     PainterQueue.OVERALL: []
+    # }
+    queue: dict[str, list[BasePaint]] = {}
 
     # These interactions per queue have priority over any other,
     # So when we receive any of them, everything currently in the queue is just discarded.
-    priority_interactions: dict[str, list[PaintingCommand]] = {
-        PainterQueue.FOREGROUND: [],
-        PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING],
-        PainterQueue.OVERALL: []
-    }
+    # priority_interactions: dict[str, list[PaintingCommand]] = {
+    #     PainterQueue.FOREGROUND: [],
+    #     PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING],
+    #     PainterQueue.OVERALL: []
+    # }
+    priority_interactions: dict[str, list[PaintingCommand]] = {}
 
     # These interactions per queue are never considered in the calculation for the loop execution.
-    exception_loop_interactions: dict[str, list[PaintingCommand]] = {
-        PainterQueue.FOREGROUND: [],
-        PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING],
-        PainterQueue.OVERALL: []
-    }
+    # exception_loop_interactions: dict[str, list[PaintingCommand]] = {
+    #     PainterQueue.FOREGROUND: [],
+    #     PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING],
+    #     PainterQueue.OVERALL: []
+    # }
+    exception_loop_interactions: dict[str, list[PaintingCommand]] = {}
 
     # This should effectively be the drawing cache
     previous_interaction_by_queue: dict[PainterQueue, dict[str, Image.Image | BasePaint | None]] = {
@@ -166,6 +164,22 @@ class Painter(PyXavi):
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
+
+        # We need the definition of the queues to play with
+        if params.key_exists("painter_queues"):
+            for queue_name in params.get("painter_queues"):
+                self._initialize_attributes_per_queue(queue_name)
+        else:
+            raise ValueError("'painter_queues' parameter is required for Painter.")
+        
+        # We may (or may not) have exceptions for the end of the loop
+        for queue_name, interactions in params.get("painter_exception_loop_interactions", {}).items():
+                self._assign_exception_loop_interactions_to_queue(queue_name, interactions)
+        
+        # We may (or may not) have priority interactions that need to be painted as soon as they are received,
+        #   discarding the previous ones in the queue.
+        for queue_name, interactions in params.get("painter_priority_interactions", {}).items():
+                self._assign_priority_interactions_to_queue(queue_name, interactions)
 
         if params.key_exists("canvas"):
             self.canvas = params.get("canvas")
@@ -213,21 +227,40 @@ class Painter(PyXavi):
 
         self._xlog.debug("Initialized Painter.")
     
-    def paint(self, painting_object: PaintingObject):
+    def _initialize_attributes_per_queue(self, queue_name: str):
+        """
+        Initialize the attributes that depend per queue, so we don't need to specifically define the queues in the class.
+        """
+        
+        self.image_per_queue[queue_name] = None
+        self.flags_callback_returned_requests[queue_name] = {}
+        self.queue[queue_name] = []
+        self.priority_interactions[queue_name] = []
+        self.exception_loop_interactions[queue_name] = []
+        self.previous_interaction_by_queue[queue_name] = {
+            "cache_key": None,
+            "interaction": None,
+            "image": None
+        }
+    
+    def _assign_priority_interactions_to_queue(self, queue_name: str, interactions: list[PaintingCommand]):
+        """
+        Assign the given interactions as priority interactions for the given queue.
+        """
+        self.priority_interactions[queue_name] = interactions
+    
+    def _assign_exception_loop_interactions_to_queue(self, queue_name: str, interactions: list[PaintingCommand]):
+        """
+        Assign the given interactions as exception loop interactions for the given queue.
+        """
+        self.exception_loop_interactions[queue_name] = interactions
+    
+    def paint(self, painting_object: PaintObject):
         """
         The main method to call to paint something.
         """
 
-        # Check what do we need to process.
-        real_paint_objects: list[tuple[PainterQueue, BasePaint]] = []
-        if painting_object.has_foreground():
-            real_paint_objects.append((PainterQueue.FOREGROUND, painting_object.get_foreground()))
-        if painting_object.has_background():
-            real_paint_objects.append((PainterQueue.BACKGROUND, painting_object.get_background()))
-        if painting_object.has_overall():
-            real_paint_objects.append((PainterQueue.OVERALL, painting_object.get_overall()))
-
-        for queue_name, paint in real_paint_objects:
+        for queue_name, paint in painting_object.get_all_paints_by_queue():
             # We add the painting object to the corresponding queue, and the loop will consume it and paint it.
             if paint.while_shared_memory_flag is not None and paint.while_shared_memory_flag_value is not None:                
                 self._log_debug(f"Painting object [{paint.name}] has a shared memory flag condition: flag [{self._get_shared_memory_flag_name_for(paint.while_shared_memory_flag)}] must be [{paint.while_shared_memory_flag_value}] to be painted.")

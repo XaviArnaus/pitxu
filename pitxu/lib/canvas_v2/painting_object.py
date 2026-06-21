@@ -1,6 +1,33 @@
 from __future__ import annotations
 
 from pitxu.lib.canvas_v2.painting_command import ForegroundCommand, OverallCommand, PaintingCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter_queue import PainterQueue
+
+class PaintObject:
+    """
+    This is the object passed into the Painter so it knows what to paint.
+    """
+
+    paint_by_queue: dict[PainterQueue, ForegroundPaint | BackgroundPaint | OverallPaint] = None  # Dictionary that maps the queue name to the paint to be painted in that queue.
+
+    def __init__(self, paints_by_queue: dict[PainterQueue, ForegroundPaint | BackgroundPaint | OverallPaint]):
+        self.paint_by_queue = paints_by_queue
+    
+    def has_paint_for(self, queue: PainterQueue):
+        return self.paint_by_queue.get(queue) is not None
+    
+    def has_any_paint(self):
+        return any(self.paint_by_queue.values())
+    
+    def get_paint_for(self, queue: PainterQueue):
+        return self.paint_by_queue.get(queue)
+    
+    def get_all_paints_by_queue(self) -> list[tuple[PainterQueue, BasePaint]]:
+        paint_by_queue_as_tuples = [(queue, paint) for queue, paint in self.paint_by_queue.items() if paint is not None]
+        return paint_by_queue_as_tuples
+    
+    def get_queues(self):
+        return self.paint_by_queue.keys()
 
 class PaintingObject:
     """

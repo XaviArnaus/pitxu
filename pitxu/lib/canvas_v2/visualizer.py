@@ -10,7 +10,7 @@ from pitxu.lib.canvas_v2.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter import Painter, PainterQueue
 from pitxu.lib.canvas_v2.painting_command import *
-from pitxu.lib.canvas_v2.painting_object import PaintingObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.painting_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \
@@ -112,6 +112,9 @@ class Visualizer(PyXavi):
         #   - layout_info: to know the layout of the screen and where to paint the different interactions.
         #   - layout_position_to_queue_name: to know where to queue the different interactions based on their layout position.
         #   - drawing_callbacks: to know which macros to trigger for each interaction type.
+        #   - painter_queues: to know the queues to use for the different interactions.
+        #   - painter_priorities: to know the interactions that have priority over others in each queue (that will remove previous ones in the queue)
+        #   - exception_loop_interactions: to know the interactions that will not be considered in the loop execution time calculation.
         params.set("drawing_callbacks", {
             "foreground_frame":  {
                 "callback": self.macros_layout.draw_foreground_frame,
@@ -148,6 +151,11 @@ class Visualizer(PyXavi):
             "top_left": PainterQueue.BACKGROUND,
             "top_right": PainterQueue.FOREGROUND,
             "full_screen": PainterQueue.OVERALL
+        })
+        params.set("painter_queues", [PainterQueue.FOREGROUND, PainterQueue.BACKGROUND, PainterQueue.OVERALL])
+        params.set("painter_priorities", {PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]})
+        params.set("painter_exception_loop_interactions", {
+            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
         })
         self.painter = Painter(config, params)
 
@@ -233,132 +241,142 @@ class Visualizer(PyXavi):
     def arbitrary_text(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ArbitraryContentForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ArbitraryContentForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters=params,
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters=params,
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False
+                    )
+                }
             )
         )
 
     def arbitrary_text_while_speaking(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ArbitraryContentWhileSpeakingForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ArbitraryContentWhileSpeakingForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters=params,
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters=params,
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    # ignore_maintain_time=True
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        # ignore_maintain_time=True
+                    )
+                }
             )
         )
     
     def arbitrary_text_while_thinking(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ArbitraryContentWhileThinkingForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ArbitraryContentWhileThinkingForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    while_shared_memory_flag=SHARED_CHATBOT_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_CHATBOT_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters=params,
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters=params,
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=False,
-                    # ignore_maintain_time=True
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=False,
+                        # ignore_maintain_time=True
+                    )
+                }
             )
         )
     
     def arbitrary_text_while_idle(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ArbitraryContentWhileIdleForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ArbitraryContentWhileIdleForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters=params,
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters=params,
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False,
-                ),
-                background=AnimationPaint(
-                    name="IdleBackgroundPaint",
-                    command=BackgroundCommand(BackgroundCommand.IDLE),
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False,
+                    ),
+                    PainterQueue.BACKGROUND: AnimationPaint(
+                        name="IdleBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.IDLE),
 
-                    while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
+                        while_shared_memory_flag_value=True,
 
-                    # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
-                    loop_iterations=self.animations.get_animation("sleeping").get_frame_count() - 1,
+                        # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+                        loop_iterations=self.animations.get_animation("sleeping").get_frame_count() - 1,
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
-                    delay_between_frames=self.interaction_delays.get("idle", 0.1),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        delay_between_frames=self.interaction_delays.get("idle", 0.1),
 
-                    drawing_callback=self.macros_background.merge_animation,
-                    drawing_callback_parameters={**params, "animation": "sleeping"},
-                    cache_control_parameters=["current_loop_iteration"],
-                )
+                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback_parameters={**params, "animation": "sleeping"},
+                        cache_control_parameters=["current_loop_iteration"],
+                    )
+                }
             )
         )
     
     def arbitrary_while_user_speaking(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ArbitraryContentWhileUserSpeakingForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ArbitraryContentWhileUserSpeakingForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    while_shared_memory_flag=SHARED_TRANSCRIBER_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_TRANSCRIBER_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters=params,
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters=params,
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False
+                    )
+                }
             )
         )
     
     def error(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
+            PaintObject(
                 foreground=ForegroundPaint(
                     name="ErrorForegroundPaint",
                     command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
@@ -385,19 +403,21 @@ class Visualizer(PyXavi):
     def startup_with_phase(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name=f"StartupWithPhaseForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.STARTUP_WITH_PHASE),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name=f"StartupWithPhaseForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.STARTUP_WITH_PHASE),
 
-                    drawing_callback=self.macros_foreground.draw_combined_init_phase,
-                    drawing_callback_parameters=params,
-                    cache_control_parameters=["phase"],
+                        drawing_callback=self.macros_foreground.draw_combined_init_phase,
+                        drawing_callback_parameters=params,
+                        cache_control_parameters=["phase"],
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=False,
-                    overwrite_current_interaction_with_same_type = True,
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=False,
+                        overwrite_current_interaction_with_same_type = True,
+                    )
+                }
             )
         )
     
@@ -406,98 +426,106 @@ class Visualizer(PyXavi):
     def code_block(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                overall=OverallPaint(
-                    name="CodeBlockOverallPaint",
-                    command=OverallCommand(OverallCommand.CODE_BLOCK),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.OVERALL: OverallPaint(
+                        name="CodeBlockOverallPaint",
+                        command=OverallCommand(OverallCommand.CODE_BLOCK),
 
-                    drawing_callback=self.macros_overlay.draw_code_block,
-                    drawing_callback_parameters={
-                        "text": params.get("text", ""),
-                        # "font_size": params.get("font_size", 20),
-                        # "padding": params.get("padding", 5)
-                    },
+                        drawing_callback=self.macros_overlay.draw_code_block,
+                        drawing_callback_parameters={
+                            "text": params.get("text", ""),
+                            # "font_size": params.get("font_size", 20),
+                            # "padding": params.get("padding", 5)
+                        },
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False
+                    )
+                }
             )
         )
     
     def code_block_while_speaking(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                overall=OverallPaint(
-                    name="CodeBlockWhileSpeakingOverallPaint",
-                    command=OverallCommand(OverallCommand.CODE_BLOCK),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.OVERALL: OverallPaint(
+                        name="CodeBlockWhileSpeakingOverallPaint",
+                        command=OverallCommand(OverallCommand.CODE_BLOCK),
 
-                    while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_overlay.draw_code_block,
-                    drawing_callback_parameters={
-                        "text": params.get("text", ""),
-                        # "font_size": params.get("font_size", 20),
-                        # "padding": params.get("padding", 5)
-                    },
+                        drawing_callback=self.macros_overlay.draw_code_block,
+                        drawing_callback_parameters={
+                            "text": params.get("text", ""),
+                            # "font_size": params.get("font_size", 20),
+                            # "padding": params.get("padding", 5)
+                        },
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    # ignore_maintain_time=True
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        # ignore_maintain_time=True
+                    )
+                }
             )
         )
     
     def text_block(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                overall=OverallPaint(
-                    name="TextBlockOverallPaint",
-                    command=OverallCommand(OverallCommand.TEXT_BLOCK),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.OVERALL: OverallPaint(
+                        name="TextBlockOverallPaint",
+                        command=OverallCommand(OverallCommand.TEXT_BLOCK),
 
-                    drawing_callback=self.macros_overlay.draw_text_block,
-                    drawing_callback_parameters={
-                        "text": params.get("text", ""),
-                        # "font_size": params.get("font_size", 20),
-                        # "padding": params.get("padding", 5)
-                    },
+                        drawing_callback=self.macros_overlay.draw_text_block,
+                        drawing_callback_parameters={
+                            "text": params.get("text", ""),
+                            # "font_size": params.get("font_size", 20),
+                            # "padding": params.get("padding", 5)
+                        },
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False
+                    )
+                }
             )
         )
     
     def text_block_while_speaking(self, params: dict):
 
         self.painter.paint(
-            PaintingObject(
-                overall=OverallPaint(
-                    name="TextBlockWhileSpeakingOverallPaint",
-                    command=OverallCommand(OverallCommand.TEXT_BLOCK),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.OVERALL: OverallPaint(
+                        name="TextBlockWhileSpeakingOverallPaint",
+                        command=OverallCommand(OverallCommand.TEXT_BLOCK),
 
-                    while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    drawing_callback=self.macros_overlay.draw_text_block,
-                    drawing_callback_parameters={
-                        "text": params.get("text", ""),
-                        # "font_size": params.get("font_size", 20),
-                        # "padding": params.get("padding", 5)
-                    },
+                        drawing_callback=self.macros_overlay.draw_text_block,
+                        drawing_callback_parameters={
+                            "text": params.get("text", ""),
+                            # "font_size": params.get("font_size", 20),
+                            # "padding": params.get("padding", 5)
+                        },
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    # ignore_maintain_time=True
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        # ignore_maintain_time=True
+                    )
+                }
             )
         )
     
@@ -506,38 +534,42 @@ class Visualizer(PyXavi):
     def clear_foreground(self):
 
         self.painter.paint(
-            PaintingObject(
-                foreground=ForegroundPaint(
-                    name="ClearForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.CLEAR),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ClearForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.CLEAR),
 
                     drawing_callback=self.macros_layout.base_frame_for_display_area,
                     drawing_callback_parameters={
                         "display_area": "top_right",
                     },
 
-                    # final_screen_clearing=False,
-                    remove_interaction_after_painting=True
-                )
+                        # final_screen_clearing=False,
+                        remove_interaction_after_painting=True
+                    )
+                }
             )
         )
     
     def clear_background(self):
 
         self.painter.paint(
-            PaintingObject(
-                background=BackgroundPaint(
-                    name="ClearBackgroundPaint",
-                    command=BackgroundCommand(BackgroundCommand.CLEAR),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name="ClearBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.CLEAR),
 
-                    drawing_callback=self.macros_layout.base_frame_for_display_area,
-                    drawing_callback_parameters={
-                        "display_area": "top_left",
-                    },
+                        drawing_callback=self.macros_layout.base_frame_for_display_area,
+                        drawing_callback_parameters={
+                            "display_area": "top_left",
+                        },
 
-                    # final_screen_clearing=False,
-                    remove_interaction_after_painting=True
-                )
+                        # final_screen_clearing=False,
+                        remove_interaction_after_painting=True
+                    )
+                }
             )
         )
     
@@ -546,86 +578,92 @@ class Visualizer(PyXavi):
     def kitt_mouth_while_speaking(self):
 
         self.painter.paint(
-            PaintingObject(
-                background=BackgroundPaint(
-                    name="KittMouthWhileSpeakingBackgroundPaint",
-                    command=BackgroundCommand(BackgroundCommand.SPEAKING),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name="KittMouthWhileSpeakingBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.SPEAKING),
 
-                    while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    # The parameters on this call are added during the painting stage.
-                    #   - current_loop_iteration
-                    #   - max_loop_iterations
-                    # They are used by the macro method to calculate the phase to draw.
-                    drawing_callback=self.macros_background.draw_kitt_speaking_effect,
-                    drawing_callback_parameters={},
-                    cache_control_parameters=["current_loop_iteration"],
+                        # The parameters on this call are added during the painting stage.
+                        #   - current_loop_iteration
+                        #   - max_loop_iterations
+                        # They are used by the macro method to calculate the phase to draw.
+                        drawing_callback=self.macros_background.draw_kitt_speaking_effect,
+                        drawing_callback_parameters={},
+                        cache_control_parameters=["current_loop_iteration"],
 
-                    loop_iterations=8,
-                    delay_between_frames=self.interaction_delays.get("speaking", 
-                                                                    self.interaction_delays.get("default_delay_between_frames", 
-                                                                                                0.05)),
+                        loop_iterations=8,
+                        delay_between_frames=self.interaction_delays.get("speaking", 
+                                                                        self.interaction_delays.get("default_delay_between_frames", 
+                                                                                                    0.05)),
 
-                    final_area_clearing=True,
-                    remove_interaction_after_painting=False
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
 
-                    # TODO: Maybe we should do a soft clear after removing the interaction, 
-                    # to avoid the persistence of the last phase of the effect on the screen, which can be a bit weird.
-                )
+                        # TODO: Maybe we should do a soft clear after removing the interaction, 
+                        # to avoid the persistence of the last phase of the effect on the screen, which can be a bit weird.
+                    )
+                }
             )
         )
     
     def kitt_scanner_while_thinking(self):
 
         self.painter.paint(
-            PaintingObject(
-                background=BackgroundPaint(
-                    name="KittScannerWhileThinkingBackgroundPaint",
-                    command=BackgroundCommand(BackgroundCommand.THINKING),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name="KittScannerWhileThinkingBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.THINKING),
 
-                    while_shared_memory_flag=SHARED_CHATBOT_BUSY,
-                    while_shared_memory_flag_value=True,
+                        while_shared_memory_flag=SHARED_CHATBOT_BUSY,
+                        while_shared_memory_flag_value=True,
 
-                    # The parameters on this call are added during the painting stage.
-                    #   - current_loop_iteration
-                    #   - max_loop_iterations
-                    # They are used by the macro method to calculate the phase to draw.
-                    drawing_callback=self.macros_background.draw_kitt_horizontal_effect,
-                    drawing_callback_parameters={},
-                    cache_control_parameters=["current_loop_iteration"],
+                        # The parameters on this call are added during the painting stage.
+                        #   - current_loop_iteration
+                        #   - max_loop_iterations
+                        # They are used by the macro method to calculate the phase to draw.
+                        drawing_callback=self.macros_background.draw_kitt_horizontal_effect,
+                        drawing_callback_parameters={},
+                        cache_control_parameters=["current_loop_iteration"],
 
-                    loop_iterations=16,
-                    delay_between_frames=self.interaction_delays.get("thinking", 
-                                                                    self.interaction_delays.get("default_delay_between_frames", 
-                                                                                                0.05)),
+                        loop_iterations=16,
+                        delay_between_frames=self.interaction_delays.get("thinking", 
+                                                                        self.interaction_delays.get("default_delay_between_frames", 
+                                                                                                    0.05)),
 
-                    final_area_clearing=True,
-                    remove_interaction_after_painting=False
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
 
-                    # TODO: Maybe we should do a soft clear after removing the interaction, 
-                    # to avoid the persistence of the last phase of the effect on the screen, which can be a bit weird.
-                )
+                        # TODO: Maybe we should do a soft clear after removing the interaction, 
+                        # to avoid the persistence of the last phase of the effect on the screen, which can be a bit weird.
+                    )
+                }
             )
         )
     
     def holding_percentage(self, param: dict):
 
         self.painter.paint(
-            PaintingObject(
-                background=BackgroundPaint(
-                    name=f"HoldingPercentageBackgroundPaint",
-                    command=BackgroundCommand(BackgroundCommand.HOLDER_PERCENTAGE),
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name=f"HoldingPercentageBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.HOLDER_PERCENTAGE),
 
-                    drawing_callback=self.macros_background.draw_interaction_holding_percentage,
-                    drawing_callback_parameters=param,
-                    cache_control_parameters=["percentage"],
+                        drawing_callback=self.macros_background.draw_interaction_holding_percentage,
+                        drawing_callback_parameters=param,
+                        cache_control_parameters=["percentage"],
 
-                    overwrite_current_interaction_with_same_type=True,
+                        overwrite_current_interaction_with_same_type=True,
 
-                    final_screen_clearing=False,
-                    remove_interaction_after_painting=False
-                )
+                        final_screen_clearing=False,
+                        remove_interaction_after_painting=False
+                    )
+                }
             )
         )
     
