@@ -35,27 +35,6 @@ class MacrosForeground(MacrosBase):
                     anchor = "mm",
                     align = "center")
     
-    # def arbitrary_text_with_icon(
-    #         self,
-    #         text: str = None, 
-    #         icon: str = None, 
-    #         font_size: int = 24, 
-    #         header: str = None, 
-    #         font_header_size: int = 32,
-    #         padding: int = 5) -> str:
-
-    #     self.draw_arbitrary_text_with_icon(
-    #         draw = self.canvas.get_canvas(reset_base_image=True),
-    #         text = text,
-    #         icon = icon,
-    #         font_size = font_size,
-    #         header = header,
-    #         font_header_size = font_header_size,
-    #         padding = padding)
-        
-    #     # Flush the image (generated from the canvas) to the device
-    #     self.device.display(self.canvas.get_image())
-    
     def draw_arbitrary_text_with_icon(self, draw: ImageDraw.ImageDraw, params: dict):
         
         text = params.get("text", None)
@@ -171,16 +150,6 @@ class MacrosForeground(MacrosBase):
         phase = params.get("phase", 0)
         text = params.get("text", None)
         # This is test, should be shown in the StatusPaint
-        # draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 6).to_image_point(),
-        # self.text(
-        #     draw=draw,
-        #     xy=Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
-        #     # text = f"{phase} - {text}", 
-        #     text = text,
-        #     font = self.canvas.FONT_SMALL, 
-        #     fill = self.canvas.COLOR_FOREGROUND,
-        #     anchor = "mm",
-        #     align = "center")
         draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 8 * 6).to_image_point(),
             text = text,
             font = self.canvas.FONT_SMALL, 

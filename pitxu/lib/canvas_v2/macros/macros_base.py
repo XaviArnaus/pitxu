@@ -1,6 +1,4 @@
-from typing import AnyStr, Any
-
-from PIL import ImageDraw,ImageFont, Image, ImageText
+from PIL import ImageDraw,ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -8,8 +6,6 @@ from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
-
-import math
 
 class MacrosBase(PyXavi):
     """

@@ -38,27 +38,6 @@ class MacrosBackground(MacrosBase):
 
         self._xlog.debug("Initialized MacrosBackground.")
     
-    # def kitt_horizontal_effect(self, delay: float = 0.1, color: str = None):
-    #     self._log_debug("Starting KITT effect")
-
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-    #     self.soft_clear_rectangle(draw=draw, display_area="top_left")
-    #     image = self.canvas.get_image()
-
-    #     # Move right
-    #     for i in range(8):
-    #         self.draw_kitt_horizontal_effect_left(draw=draw, frame=i, color=color)
-
-    #         self.device.display(image)
-    #         time.sleep(delay)
-
-    #     # Move left
-    #     for i in range(8):
-    #         self.draw_kitt_horizontal_effect_right(draw=draw, frame=i, color=color)
-
-    #         self.device.display(image)
-    #         time.sleep(delay)
-    
     def draw_kitt_horizontal_effect(self, draw: ImageDraw.ImageDraw, params: dict):
         """
         Draws the KITT horizontal effect on the LCD display, based on the given loop iterations counter and max value.
@@ -107,38 +86,6 @@ class MacrosBackground(MacrosBase):
                 return
             else:
                 counter += 1
-    
-    # def kitt_speaking_effect(self, col_1: int, col_2: int, col_3: int, col_4: int, delay: float = 0.01):
-    #     '''
-    #     KITT speaking effect using VU Meter columns
-
-    #     Be careful, it relies on having a HandableCanvas instance opened previously, and
-    #     needs to be closed afterwards.
-    #     '''
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-    #     self.soft_clear_rectangle(draw=draw, display_area="top_left")
-    #     # The "draw" object is linked to the canvas, so we can get the image from there
-    #     # It gets updated as we draw on it, so is more efficient than getting it each time
-    #     image = self.canvas.get_image()
-
-    #     # Drawing the bars up. In this this method we draw all the steps at once
-    #     for i in range(4):
-    #         # self.draw_kitt_speaking_effect(draw=draw, max_values=max_values, step=i)
-    #         self.draw_kitt_speaking_effect_increase(draw=draw, frame=i)
-
-    #         # We show this row to the device
-    #         # self.device.display(self.canvas.get_image())
-    #         self.device.display(image)
-    #         time.sleep(delay)
-        
-    #     # And now we move the bars down again to zero
-    #     for i in range(4):
-    #         # self.clear_kitt_speaking_effect(draw=draw, max_values=max_values, step=i)
-    #         self.draw_kitt_speaking_effect_decrease(draw=draw, frame=i)
-
-    #         # We show this row to the device
-    #         self.device.display(image)
-    #         time.sleep(delay)
     
     def _draw_kitt_mouth_frame(self, draw: ImageDraw.ImageDraw, frame: int):
         '''
@@ -236,14 +183,6 @@ class MacrosBackground(MacrosBase):
             else:
                 counter += 1
 
-    # def show_init_phase(self, phase):
-
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-
-    #     self.draw_init_phase(draw=draw, phase=phase)
-
-    #     self.device.display(self.canvas.get_image())
-    
     def draw_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
 
         # Initial Background Paint clear
@@ -259,33 +198,11 @@ class MacrosBackground(MacrosBase):
             for x in range(0, cols):
                 self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
     
-    # def show_cross(self):
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-    #     self.soft_clear_rectangle(draw=draw, display_area="top_left")
-        
-    #     self.draw_cross(draw=draw)
-
-    #     self.device.display(self.canvas.get_image())
-    
     def draw_cross(self, draw: ImageDraw.ImageDraw, params: dict):
         for i in range(0,8):
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(i, i))
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(7 - i, i))
-    
-    # def show_interaction_holding_percentage(self, percentage: int):
-    #     '''
-    #     Shows on the Matrix LED a percentage bar indicating how much time is left
-    #     for the user to hold the interaction (i.e., speak).
-
-    #     Args:
-    #         percentage: The percentage of time left (0-100).
-    #     '''
-    #     draw = self.canvas.get_canvas(reset_base_image = False)
-
-    #     self.draw_interaction_holding_percentage(draw=draw, percentage=percentage)
-
-    #     self.device.display(self.canvas.get_image())
     
     def draw_interaction_holding_percentage(self, draw: ImageDraw.ImageDraw, params: dict):
         '''
@@ -362,42 +279,6 @@ class MacrosBackground(MacrosBase):
             fill=color,
             outline=color)
     
-    # def draw_emoji(self, draw: ImageDraw.ImageDraw, params: dict):
-    #     '''
-    #     Draws an emoji on the LCD canvas.
-
-    #     Args:
-    #         draw: The canvas to draw on.
-    #         params: A dictionary containing the parameters for the drawing.
-    #             - emoji: The emoji character to draw.
-    #     '''
-    #     emoji = params.get("emoji", "")
-
-    #     # Initial Background Paint clear
-    #     self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
-
-    #     # We need to: 
-    #     # 1. generate an image
-    #     # image = Image.new(self.canvas.COLOR_MODE, 
-    #     #                   (
-    #     #                       self.layout_info["relative"]["top_left"].point_2.x, 
-    #     #                       self.layout_info["relative"]["top_left"].point_2.y
-    #     #                 ),
-    #     #                 self.canvas.COLOR_BACKGROUND)
-    #     # 2. draw the emoji on it
-    #     # draw = ImageDraw.Draw(image)
-    #     # 3. resize the image to make it fit into the display area
-    #     # 4. combine the resized image into the final image.
-    #     width = self.layout_info["relative"]["top_left"].point_2.x - self.layout_info["relative"]["top_left"].point_1.x
-    #     height = self.layout_info["relative"]["top_left"].point_2.y - self.layout_info["relative"]["top_left"].point_1.y
-
-    #     draw.text(Point(width / 2, height / 2).to_image_point(),
-    #         text = emoji,
-    #         font = self.canvas.FONT_FIXED_EMOJI,
-    #         anchor = "mm",
-    #         align = "center",
-    #         embedded_color=True,)
-
     def merge_animation(self, base_image: Image.Image, params: dict):
         '''
         Draws a GIF on the LCD canvas.
