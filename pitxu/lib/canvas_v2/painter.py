@@ -133,6 +133,8 @@ class Painter(PyXavi):
     #     PainterQueue.OVERALL: []
     # }
     exception_loop_interactions: dict[str, list[PaintingCommand]] = {}
+    # These queues, when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
+    queues_with_paints_that_slow_down_the_loop: list[str] = []
 
     # This should effectively be the drawing cache
     previous_interaction_by_queue: dict[PainterQueue, dict[str, Image.Image | BasePaint | None]] = {
@@ -180,6 +182,10 @@ class Painter(PyXavi):
         #   discarding the previous ones in the queue.
         for queue_name, interactions in params.get("painter_priority_interactions", {}).items():
                 self._assign_priority_interactions_to_queue(queue_name, interactions)
+        
+        # Maybe we have some queues that when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
+        for queue_name in params.get("painter_queues_with_paints_that_slow_down_the_loop", []):
+            self.queues_with_paints_that_slow_down_the_loop.append(queue_name)
 
         if params.key_exists("canvas"):
             self.canvas = params.get("canvas")
@@ -500,11 +506,9 @@ class Painter(PyXavi):
                     # Please note that here we're not using the current_background_interaction variable directly,
                     #   but rather calling the getter method to ensure we're getting the latest state.
                     # elif self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \ ... # the `elif`
-                    if self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \
-                        self.get_current_interaction(PainterQueue.BACKGROUND) is None and \
-                        self.get_current_interaction(PainterQueue.OVERALL) is not None:
+                    if self._should_slow_down_loop_iterations:
 
-                        self._log_debug("No background paint remaining, applying extra hardcoded delay of 0.5 seconds.")
+                        self._log_debug("We have only paints that not need fast loop iterations. Slowing down the loop.")
                         time.sleep(0.5)
                 else:
                     if not final_clearing_needed:
@@ -692,6 +696,21 @@ class Painter(PyXavi):
             if current_interaction and current_interaction.final_screen_clearing:
                 return True
         return False
+    
+    def _should_slow_down_loop_iterations(self) -> bool:
+        """
+        If we have paints in the defined queues to slow down (and not in the others), we say yes.
+        """
+        for queue_name in self.queue:
+            current_interaction = self.get_current_interaction(queue_name)
+            if current_interaction is None and queue_name in self.queues_with_paints_that_slow_down_the_loop:
+                # This queue should have a paint. Early exit.
+                return False
+            if current_interaction is not None and queue_name not in self.queues_with_paints_that_slow_down_the_loop:
+                # This queue should not have a paint. Early exit.
+                return False
+        # If we get here, it means that we have paints in the defined queues to slow down, and not in the others, so we say yes.
+        return True
 
                 
     # ---- Managing the Painting queues and interactions ----

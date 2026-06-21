@@ -115,6 +115,7 @@ class Visualizer(PyXavi):
         #   - painter_queues: to know the queues to use for the different interactions.
         #   - painter_priorities: to know the interactions that have priority over others in each queue (that will remove previous ones in the queue)
         #   - exception_loop_interactions: to know the interactions that will not be considered in the loop execution time calculation.
+        #   - painter_queues_with_paints_that_slows_down_the_loop: to know which queues we should consider that their paints can slow down the loop, to be able to log warnings when the loop is taking too long, and identify which interaction is causing it.
         params.set("drawing_callbacks", {
             "foreground_frame":  {
                 "callback": self.macros_layout.draw_foreground_frame,
@@ -152,11 +153,13 @@ class Visualizer(PyXavi):
             "top_right": PainterQueue.FOREGROUND,
             "full_screen": PainterQueue.OVERALL
         })
-        params.set("painter_queues", [PainterQueue.FOREGROUND, PainterQueue.BACKGROUND, PainterQueue.OVERALL])
+        # The order here is important. For sure, OVERALL has to be the last one to be painted.
+        params.set("painter_queues", [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL])
         params.set("painter_priorities", {PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]})
         params.set("painter_exception_loop_interactions", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
         })
+        params.set("painter_queues_with_paints_that_slow_down_the_loop", [PainterQueue.FOREGROUND, PainterQueue.OVERALL])
         self.painter = Painter(config, params)
 
         self.interaction_delays = params.get("interaction_delays", {})
