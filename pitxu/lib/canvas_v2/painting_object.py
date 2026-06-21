@@ -22,47 +22,49 @@ class PaintObject:
     def get_paint_for(self, queue: PainterQueue):
         return self.paint_by_queue.get(queue)
     
-    def get_all_paints_by_queue(self) -> list[tuple[PainterQueue, BasePaint]]:
-        paint_by_queue_as_tuples = [(queue, paint) for queue, paint in self.paint_by_queue.items() if paint is not None]
-        return paint_by_queue_as_tuples
+    # def get_all_paints_by_queue(self) -> list[tuple[PainterQueue, BasePaint]]:
+    def get_all_paints_by_queue(self) -> dict[PainterQueue, BasePaint]:
+        # paint_by_queue_as_tuples = [(queue, paint) for queue, paint in self.paint_by_queue.items() if paint is not None]
+        # return paint_by_queue_as_tuples
+        return self.paint_by_queue
     
     def get_queues(self):
         return self.paint_by_queue.keys()
 
-class PaintingObject:
-    """
-    This is the object passed into the Painter so it knows what to paint.
-    """
+# class PaintingObject:
+#     """
+#     This is the object passed into the Painter so it knows what to paint.
+#     """
 
-    foreground: ForegroundPaint = None
-    background: BackgroundPaint = None
-    overall: OverallPaint = None
+#     foreground: ForegroundPaint = None
+#     background: BackgroundPaint = None
+#     overall: OverallPaint = None
 
-    def __init__(self, foreground: ForegroundPaint = None, background: BackgroundPaint = None, overall: OverallPaint = None):
-        self.foreground = foreground
-        self.background = background
-        self.overall = overall
+#     def __init__(self, foreground: ForegroundPaint = None, background: BackgroundPaint = None, overall: OverallPaint = None):
+#         self.foreground = foreground
+#         self.background = background
+#         self.overall = overall
     
-    def has_foreground(self):
-        return self.foreground is not None
+#     def has_foreground(self):
+#         return self.foreground is not None
     
-    def has_background(self):
-        return self.background is not None
+#     def has_background(self):
+#         return self.background is not None
     
-    def has_overall(self):
-        return self.overall is not None
+#     def has_overall(self):
+#         return self.overall is not None
     
-    def has_any(self):
-        return self.has_foreground() or self.has_background() or self.has_overall()
+#     def has_any(self):
+#         return self.has_foreground() or self.has_background() or self.has_overall()
     
-    def get_foreground(self):
-        return self.foreground
+#     def get_foreground(self):
+#         return self.foreground
     
-    def get_background(self):
-        return self.background
+#     def get_background(self):
+#         return self.background
     
-    def get_overall(self):
-        return self.overall
+#     def get_overall(self):
+#         return self.overall
 
 class BasePaint:
     

@@ -260,7 +260,7 @@ class Painter(PyXavi):
         The main method to call to paint something.
         """
 
-        for queue_name, paint in painting_object.get_all_paints_by_queue():
+        for queue_name, paint in painting_object.get_all_paints_by_queue().items():
             # We add the painting object to the corresponding queue, and the loop will consume it and paint it.
             if paint.while_shared_memory_flag is not None and paint.while_shared_memory_flag_value is not None:                
                 self._log_debug(f"Painting object [{paint.name}] has a shared memory flag condition: flag [{self._get_shared_memory_flag_name_for(paint.while_shared_memory_flag)}] must be [{paint.while_shared_memory_flag_value}] to be painted.")
@@ -329,10 +329,13 @@ class Painter(PyXavi):
                     #  1. Background
                     #  2. Foreground
                     #  3. Overall
+                    # current_interaction_by_queue: dict[PainterQueue, BasePaint | None] = {
+                    #     PainterQueue.BACKGROUND: self.get_current_interaction(PainterQueue.BACKGROUND),
+                    #     PainterQueue.FOREGROUND: self.get_current_interaction(PainterQueue.FOREGROUND),
+                    #     PainterQueue.OVERALL: self.get_current_interaction(PainterQueue.OVERALL)
+                    # }
                     current_interaction_by_queue: dict[PainterQueue, BasePaint | None] = {
-                        PainterQueue.BACKGROUND: self.get_current_interaction(PainterQueue.BACKGROUND),
-                        PainterQueue.FOREGROUND: self.get_current_interaction(PainterQueue.FOREGROUND),
-                        PainterQueue.OVERALL: self.get_current_interaction(PainterQueue.OVERALL)
+                        queue_name: self.get_current_interaction(queue_name) for queue_name in self.queue.keys()
                     }
 
                     # First of all, we clean tha whole screen.
@@ -342,7 +345,7 @@ class Painter(PyXavi):
                     self._full_clear()
 
                     # We paint the interactions in order, from background to overall.
-                    for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
+                    for queue_name in self.queue.keys():
                         current_interaction: BasePaint | None = current_interaction_by_queue[queue_name]
 
                         # Do we have anything to paint in this queue?
@@ -426,7 +429,7 @@ class Painter(PyXavi):
                     # We need to read it from the requests, remove it from there, and apply it if any is True.
                     # Attention, it is not meant as a full screen clearing, but per queue.
                     callback_final_screen_clearing_request = False
-                    for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
+                    for queue_name in self.queue.keys():
                         callback_final_area_clearing_request = False
                         for callback_name, requests in self.flags_callback_returned_requests[queue_name].items():
                             if "final_area_clearing_needed" in requests:
@@ -456,9 +459,8 @@ class Painter(PyXavi):
                     
                     # Show the image on the device
                     self._log_debug(f"🎨 Flushing drawing to LCD display: ")
-                    self._log_debug(f"  - Background is {current_interaction_by_queue[PainterQueue.BACKGROUND].name if current_interaction_by_queue[PainterQueue.BACKGROUND] is not None else 'None'}.")
-                    self._log_debug(f"  - Foreground is {current_interaction_by_queue[PainterQueue.FOREGROUND].name if current_interaction_by_queue[PainterQueue.FOREGROUND] is not None else 'None'}.")
-                    self._log_debug(f"  - Overall is {current_interaction_by_queue[PainterQueue.OVERALL].name if current_interaction_by_queue[PainterQueue.OVERALL] is not None else 'None'}.")
+                    for queue_name in self.queue.keys():
+                        self._log_debug(f"  - {queue_name} is {current_interaction_by_queue[queue_name].name if current_interaction_by_queue[queue_name] is not None else 'None'}.")
                     self.flush_drawing()
 
                     # Apply delay between frames if needed, based on the current interaction. There is a priority.
@@ -469,7 +471,7 @@ class Painter(PyXavi):
                     # ⚠️ Recently replaced per-queue checks for the removal of the interactions by a single loop that checks all the queues,
                     # to be able to apply the logic of the priority interactions and the final clearing request in a more general way.
                     # Please elaborate it more, it's just an initial merge.
-                    for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
+                    for queue_name in self.queue.keys():
 
                         # Anything here?
                         if current_interaction_by_queue[queue_name] is None:
