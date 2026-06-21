@@ -4,13 +4,13 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo
-from pitxu.lib.canvas_v2.macros_background import MacrosBackground
-from pitxu.lib.canvas_v2.macros_foreground import MacrosForeground
-from pitxu.lib.canvas_v2.macros_layout import MacrosLayout
-from pitxu.lib.canvas_v2.macros_overlay import MacrosOverlay
-from pitxu.lib.canvas_v2.painter import Painter, PainterQueue
-from pitxu.lib.canvas_v2.painting_command import *
-from pitxu.lib.canvas_v2.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
+from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
+from pitxu.lib.canvas_v2.macros.macros_layout import MacrosLayout
+from pitxu.lib.canvas_v2.macros.macros_overlay import MacrosOverlay
+from pitxu.lib.canvas_v2.painter.painter import Painter, PainterQueue
+from pitxu.lib.canvas_v2.painter.painting_command import *
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \

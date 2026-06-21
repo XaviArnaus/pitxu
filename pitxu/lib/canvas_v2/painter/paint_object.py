@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pitxu.lib.canvas_v2.painting_command import ForegroundCommand, OverallCommand, PaintingCommand, BackgroundCommand
-from pitxu.lib.canvas_v2.painter_queue import PainterQueue
+from pitxu.lib.canvas_v2.painter.painting_command import ForegroundCommand, OverallCommand, PaintingCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter.painter_queue import PainterQueue
 
 class PaintObject:
     """

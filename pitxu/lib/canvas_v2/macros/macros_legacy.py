@@ -5,7 +5,7 @@ from pitxu.lib.abstract.device import Device
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.objects import Point, Rectangle, Line
 
-from pitxu.lib.canvas_v2.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 
 class MacrosLegacy(MacrosBase):
     """

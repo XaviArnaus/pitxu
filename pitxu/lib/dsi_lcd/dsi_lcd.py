@@ -1,7 +1,7 @@
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
 from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
 from pitxu.lib.canvas_v2.canvas import Canvas
-from pitxu.lib.canvas_v2.paint_object import *
+from pitxu.lib.canvas_v2.painter.paint_object import *
 from pitxu.lib.canvas_v2.visualizer import Visualizer
 from pitxu.lib.objects.point import Point
 

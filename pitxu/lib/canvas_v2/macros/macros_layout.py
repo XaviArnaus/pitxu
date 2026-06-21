@@ -3,7 +3,7 @@ from PIL import ImageDraw, Image
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.objects import Rectangle, Point
 
-from pitxu.lib.canvas_v2.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 
 class MacrosLayout(MacrosBase):
     """
