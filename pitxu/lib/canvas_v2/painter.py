@@ -5,7 +5,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.painter_shared_memory import PainterSharedMemory
-from pitxu.lib.canvas_v2.painting_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.paint_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.canvas_v2.painting_command import ForegroundCommand, PaintingCommand, BackgroundCommand
 from pitxu.lib.canvas_v2.painter_queue import PainterQueue
 
@@ -83,11 +83,6 @@ class Painter(PyXavi):
 
     canvas: Canvas = None
     # The drawing tool, initialized once we start painting, outside the loop for better performance, per queue
-    # image_per_queue: dict[str, Image.Image | None] = {
-    #     PainterQueue.BACKGROUND: None,
-    #     PainterQueue.FOREGROUND: None,
-    #     PainterQueue.OVERALL: None
-    # }
     image_per_queue: dict[str, Image.Image | None] = {}
     # The callbacks defined on the caller regarding the frames to draw
     drawing_callbacks: dict[str, dict[str, any]] = None
@@ -101,59 +96,23 @@ class Painter(PyXavi):
     # Be careful, some can be contradictory. We start by classifying them per queue, and see if that's enough.
     # The structure is: {queue_name: {callback_name: {request_name: request_value}}}
     # The loop should remove the entry once consumed, to avoid carrying it on into the next loop iteration.
-    # flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {
-    #     PainterQueue.BACKGROUND: {},
-    #     PainterQueue.FOREGROUND: {},
-    #     PainterQueue.OVERALL: {}
-    # }
     flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {}
 
     # Queues for each display area.
     # The idea is that we register the interactions to paint in these queues, and the Painter loop will consume them and paint them.
-    # queue: dict[str, list[BasePaint]] = {
-    #     PainterQueue.FOREGROUND: [],
-    #     PainterQueue.BACKGROUND: [],
-    #     PainterQueue.OVERALL: []
-    # }
     queue: dict[str, list[BasePaint]] = {}
 
     # These interactions per queue have priority over any other,
     # So when we receive any of them, everything currently in the queue is just discarded.
-    # priority_interactions: dict[str, list[PaintingCommand]] = {
-    #     PainterQueue.FOREGROUND: [],
-    #     PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING],
-    #     PainterQueue.OVERALL: []
-    # }
     priority_interactions: dict[str, list[PaintingCommand]] = {}
 
     # These interactions per queue are never considered in the calculation for the loop execution.
-    # exception_loop_interactions: dict[str, list[PaintingCommand]] = {
-    #     PainterQueue.FOREGROUND: [],
-    #     PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING],
-    #     PainterQueue.OVERALL: []
-    # }
     exception_loop_interactions: dict[str, list[PaintingCommand]] = {}
     # These queues, when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
     queues_with_paints_that_slow_down_the_loop: list[str] = []
 
     # This should effectively be the drawing cache
-    previous_interaction_by_queue: dict[PainterQueue, dict[str, Image.Image | BasePaint | None]] = {
-        PainterQueue.BACKGROUND: {
-            "cache_key": None,
-            "interaction": None,
-            "image": None
-        },
-        PainterQueue.FOREGROUND: {
-            "cache_key": None,
-            "interaction": None,
-            "image": None
-        },
-        PainterQueue.OVERALL: {
-            "cache_key": None,
-            "interaction": None,
-            "image": None
-        }
-    }
+    previous_interaction_by_queue: dict[PainterQueue, dict[str, Image.Image | BasePaint | None]] = {}
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
     intermediate_interactions_queue: list[tuple[IntermediatePainterQueueAction, PainterQueue, BasePaint]] = []
@@ -331,15 +290,7 @@ class Painter(PyXavi):
                 if self._should_draw_this_loop_iteration():
 
                     # Get the current iterations to draw, if they exist.
-                    # The order matters: we need to paint from bottom layer to upper layer, so:
-                    #  1. Background
-                    #  2. Foreground
-                    #  3. Overall
-                    # current_interaction_by_queue: dict[PainterQueue, BasePaint | None] = {
-                    #     PainterQueue.BACKGROUND: self.get_current_interaction(PainterQueue.BACKGROUND),
-                    #     PainterQueue.FOREGROUND: self.get_current_interaction(PainterQueue.FOREGROUND),
-                    #     PainterQueue.OVERALL: self.get_current_interaction(PainterQueue.OVERALL)
-                    # }
+                    # The order matters: we need to paint from bottom layer to upper layer.
                     current_interaction_by_queue: dict[PainterQueue, BasePaint | None] = {
                         queue_name: self.get_current_interaction(queue_name) for queue_name in self.queue.keys()
                     }
@@ -417,10 +368,6 @@ class Painter(PyXavi):
 
                                 # This is only for typing.
                                 current_interaction: BackgroundPaint = current_interaction
-
-                                # We increase the background iteration counter, to control the background animation.
-                                # ⚠️ Moved the increment of the counter to BEFORE the paint, to have the counter update grouped and matching the logs.
-                                # background_iteration_counter += 1
 
                                 # If we have reached the max iterations for background, we set the iterations counter to None.
                                 #   Then, the next loop iteration will re-initialize it to 0 again.
@@ -506,7 +453,7 @@ class Painter(PyXavi):
                     # Please note that here we're not using the current_background_interaction variable directly,
                     #   but rather calling the getter method to ensure we're getting the latest state.
                     # elif self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \ ... # the `elif`
-                    if self._should_slow_down_loop_iterations:
+                    if self._should_slow_down_loop_iterations():
 
                         self._log_debug("We have only paints that not need fast loop iterations. Slowing down the loop.")
                         time.sleep(0.5)
@@ -701,15 +648,22 @@ class Painter(PyXavi):
         """
         If we have paints in the defined queues to slow down (and not in the others), we say yes.
         """
+        # queues_with_interactions = []
+        self._log_debug(f"🎨 Queues with paints: {[queue_name for queue_name in self.queue if self.get_current_interaction(queue_name) is not None]}")
+        self._log_debug(f"🎨 Queues defined to slow down the loop: {self.queues_with_paints_that_slow_down_the_loop}")
         for queue_name in self.queue:
             current_interaction = self.get_current_interaction(queue_name)
-            if current_interaction is None and queue_name in self.queues_with_paints_that_slow_down_the_loop:
-                # This queue should have a paint. Early exit.
-                return False
+            # if current_interaction is None and queue_name in self.queues_with_paints_that_slow_down_the_loop:
+            #     # This queue should have a paint. Early exit.
+            #     # self._log_debug
+            #     return False
             if current_interaction is not None and queue_name not in self.queues_with_paints_that_slow_down_the_loop:
                 # This queue should not have a paint. Early exit.
+                self._log_debug(f"🎨 Queue [{queue_name}] has a paint [{current_interaction.name}] but is not defined to slow down the loop. We won't slow down the loop.")
                 return False
+            # Still here? Then this is a valid
         # If we get here, it means that we have paints in the defined queues to slow down, and not in the others, so we say yes.
+        self._log_debug(f"🎨 We have paints only in the defined queues to slow down the loop. We will slow down the loop.")
         return True
 
                 

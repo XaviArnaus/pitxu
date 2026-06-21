@@ -10,7 +10,7 @@ from pitxu.lib.canvas_v2.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter import Painter, PainterQueue
 from pitxu.lib.canvas_v2.painting_command import *
-from pitxu.lib.canvas_v2.painting_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
+from pitxu.lib.canvas_v2.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \

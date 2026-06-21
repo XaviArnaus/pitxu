@@ -31,41 +31,6 @@ class PaintObject:
     def get_queues(self):
         return self.paint_by_queue.keys()
 
-# class PaintingObject:
-#     """
-#     This is the object passed into the Painter so it knows what to paint.
-#     """
-
-#     foreground: ForegroundPaint = None
-#     background: BackgroundPaint = None
-#     overall: OverallPaint = None
-
-#     def __init__(self, foreground: ForegroundPaint = None, background: BackgroundPaint = None, overall: OverallPaint = None):
-#         self.foreground = foreground
-#         self.background = background
-#         self.overall = overall
-    
-#     def has_foreground(self):
-#         return self.foreground is not None
-    
-#     def has_background(self):
-#         return self.background is not None
-    
-#     def has_overall(self):
-#         return self.overall is not None
-    
-#     def has_any(self):
-#         return self.has_foreground() or self.has_background() or self.has_overall()
-    
-#     def get_foreground(self):
-#         return self.foreground
-    
-#     def get_background(self):
-#         return self.background
-    
-#     def get_overall(self):
-#         return self.overall
-
 class BasePaint:
     
     # Basic attributes
