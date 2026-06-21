@@ -496,25 +496,11 @@ class Painter(PyXavi):
                             else:
                                 self._remove_interaction(interaction=current_interaction_by_queue[queue_name], queue_name=queue_name)
 
-                    # Finally, if there is no foreground nor background paint, we can stop the loop.
-                    # Please note that here we're not using the current_background_interaction variable directly,
-                    #   but rather calling the getter method to ensure we're getting the latest state.
-                    # Also, we let one iteration more to happen if the end callbacks wanted to do a final clearing of the screen,
-                    #   that needs to happen before we flush the canvas.
-                    # ⚠️ Makes not too much sense to check the status of the current interaction here, if we also check it at the very beginning of the loop.
-                    if self.get_current_interaction(PainterQueue.FOREGROUND) is None and \
-                        self.get_current_interaction(PainterQueue.BACKGROUND) is None and \
-                        self.get_current_interaction(PainterQueue.OVERALL) is None and \
-                        not final_clearing_needed and \
-                        (self.get_current_interaction(PainterQueue.BACKGROUND) is not None and self.get_current_interaction(PainterQueue.BACKGROUND).loop_iterations > 1):
-
-                        self._log_debug("No foreground nor background paints nor callbacks nor screen clears remaining, pausing the painting loop.")
-                        self.pause()
-                    
                     # If we only have a foreground or overall paint, reduce the speed of the loop to avoid burning the CPU for example.
                     # Please note that here we're not using the current_background_interaction variable directly,
                     #   but rather calling the getter method to ensure we're getting the latest state.
-                    elif self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \
+                    # elif self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \ ... # the `elif`
+                    if self.get_current_interaction(PainterQueue.FOREGROUND) is not None and \
                         self.get_current_interaction(PainterQueue.BACKGROUND) is None and \
                         self.get_current_interaction(PainterQueue.OVERALL) is not None:
 
