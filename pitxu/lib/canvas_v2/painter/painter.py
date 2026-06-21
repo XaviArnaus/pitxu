@@ -121,7 +121,7 @@ class Painter(PyXavi):
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
@@ -372,7 +372,7 @@ class Painter(PyXavi):
                                 # If we have reached the max iterations for background, we set the iterations counter to None.
                                 #   Then, the next loop iteration will re-initialize it to 0 again.
                                 # This means that this loop will go forever until we stop the thread or change/remove the background interaction.
-                                if background_iteration_counter >= current_interaction.loop_iterations:
+                                if background_iteration_counter >= current_interaction.loop_iterations - 1:
                                     self._log_debug(f"🎨 Reached max iterations for background interaction [{current_interaction.name if current_interaction is not None else 'None'}], Cleaning the counter.")
                                     background_iteration_counter = None
                             
@@ -488,8 +488,8 @@ class Painter(PyXavi):
                 # Now some parameters depending on which queue we're talking about.
                 if queue_name == PainterQueue.BACKGROUND:
                     current_interaction: BackgroundPaint
-                    logging_parts.append(("", f"- Next Loop iteration counter: {extra_info.get('background_iteration_counter', 'N/A')}"))
-                    logging_parts.append(("", f"- Loop iterations: {current_interaction.loop_iterations}"))
+                    logging_parts.append(("", f"- Current Loop iteration counter: {extra_info.get('background_iteration_counter', 'N/A')}"))
+                    logging_parts.append(("", f"- Max Loop iterations: {current_interaction.loop_iterations}"))
             else:
                 logging_parts.append((f"Current interaction for {queue_name}", "[None]"))
         self.log_summary(f"Painter loop new iteration", logging_parts, attend_verbose_debug_flag=True)
