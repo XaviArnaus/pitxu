@@ -20,7 +20,7 @@ class Animations(PyXavi):
         super(Animations, self).init_pyxavi(config, params)
     
     def load_animations(self):
-        self._log_debug("Loading animations...")
+        self._xlog.info("Loading animations...")
 
         base_path = self._xconfig.get("animations.path", self.DEFAULT_ANIMATIONS_PATH)
         if not os.path.exists(base_path):
@@ -30,8 +30,7 @@ class Animations(PyXavi):
         sizes_to_cache = self._xparams.get("animation_sizes", [])
         
         self._animations = {}
-        for animation_name in self._xconfig.get("animations.map", {}):
-            animation_file = self._xconfig.get(f"animations.map.{animation_name}", None)
+        for animation_name, animation_file in self._xconfig.get("animations.map", {}).items():
             if animation_file is None:
                 self._xlog.warning(f"No file path found for animation '{animation_name}' in configuration. Skipping.")
                 continue
