@@ -184,7 +184,6 @@ class Visualizer(PyXavi):
             ("macros_foreground", self.macros_foreground.__class__.__name__),
             ("macros_status", self.macros_status.__class__.__name__),
             ("macros_background", self.macros_background.__class__.__name__),
-            # ("animations_loaded", list(self.animations._animations.keys())),
             ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
             ("painter_queues", params.get("painter_queues", [])),
