@@ -170,7 +170,7 @@ class Visualizer(PyXavi):
         params.set("painter_exception_loop_interactions", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
         })
-        params.set("painter_queues_with_paints_that_slow_down_the_loop", [PainterQueue.FOREGROUND, PainterQueue.OVERALL])
+        params.set("painter_queues_with_paints_that_slow_down_the_loop", [PainterQueue.FOREGROUND, PainterQueue.STATUS, PainterQueue.OVERALL])
         self.painter = Painter(config, params)
 
         self.interaction_delays = params.get("interaction_delays", {})
