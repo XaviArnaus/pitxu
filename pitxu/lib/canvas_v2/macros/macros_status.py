@@ -1,6 +1,6 @@
 from PIL import ImageDraw
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.objects import Point
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
@@ -9,10 +9,6 @@ class MacrosStatus(MacrosBase):
     """
     Drawings that take place in the status area, which is the "bottom-center" area of the layout.
     """
-
-    # The idea is to keep a bunch of them, and when it's full, the oldest one is removed.
-    status_lines: list[str] = []
-    how_many_status_lines_to_show: int = 7    # This is meant to be used for the status display, which has more space, but it can be used in the foreground if needed. The old Pitxu client should still use 1 line due to the small screen.
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosStatus, self).__init__(config, params)
@@ -64,7 +60,7 @@ class MacrosStatus(MacrosBase):
         Draws a status line in the status area, which is the "bottom-center" area of the layout.
          The params should include:
             - text (str): The text to show in the status line.
-            - color (str): The color of the text in the status line.
+            - color (str): The color of the text in the status lines.
          This is meant to be used for showing simple status lines, like "Listening...", "Thinking...", etc.
          For more complex interactions, like showing a progress bar or similar, a new method should be created, and called from the extended_status_run() method in the XprocessDisplayStatus subclass.
          This is not meant to be used for showing arbitrary text or images, those should be shown in the foreground or background areas, not in the status line.
@@ -72,28 +68,23 @@ class MacrosStatus(MacrosBase):
         
         self.base_frame_for_display_area(draw=draw, params={"display_area": "bottom_center"})
         
-        text = params.get("text", "")
-        color = params.get("color", self.canvas.COLOR_FOREGROUND)
-
-        # Maintain the list of status lines.
-        self.status_lines.append(text)
-        if len(self.status_lines) > self.how_many_status_lines_to_show:
-            self.status_lines.pop(0)
+        text: str = params.get("text", "")
+        color: tuple | int = params.get("color", self.canvas.COLOR_FOREGROUND)
 
         draw.multiline_text(
             Point(
                 # self.layout_info["relative"]["bottom_center"].point_1.x + (self.layout_info["relative"]["bottom_center"].point_2.x - self.layout_info["relative"]["bottom_center"].point_1.x) / 2,
                 # self.layout_info["relative"]["bottom_center"].point_1.y + (self.layout_info["relative"]["bottom_center"].point_2.y - self.layout_info["relative"]["bottom_center"].point_1.y) / 2).to_image_point(),
-                self.layout_info["relative"]["bottom_center"].point_1.x + 10,    # Add some padding from the left edge
-                self.layout_info["relative"]["bottom_center"].point_1.y + 10).to_image_point(),  # Add some padding from the top edge
+                self.layout_info["relative"]["bottom_center"].point_1.x + 8,    # Add some padding from the left edge
+                self.layout_info["relative"]["bottom_center"].point_1.y + 6).to_image_point(),  # Add some padding from the top edge
             # text=self.wrap_text_if_needed(
             #     canvas=draw,
             #     text="\n".join(self.status_lines),
             #     max_width=self.layout_info["relative"]["bottom_center"].point_2.x - self.layout_info["relative"]["bottom_center"].point_1.x - 20,
             #     font=self.canvas.FONT_SMALL
             #     ),
-            text="\n".join(self.status_lines),
-            font=self.canvas.FONT_SMALL,
+            text=text,
+            font=self.canvas.FONT_TINY,
             fill=color,
-            anchor="lt" if len(self.status_lines) == 1 else "lm",  # If there's only one line, align to the top-left, if there are multiple lines, align to the middle-left
+            anchor="la",
             align="left")

@@ -4,16 +4,23 @@ from pitxu.lib.utils.api_request import ApiRequest
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
 class WorldWikipedia(PyXavi, Command):
 
+    status_shortcuts: Status = None
+
     URL = f"https://%s.wikipedia.org/api/rest_v1/page/summary/%s"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in WorldWikipedia initialization.")
 
     def get_summary_from_wikipedia_by_term(self, term: str) -> str:
         '''
@@ -27,9 +34,10 @@ class WorldWikipedia(PyXavi, Command):
         '''
 
         # These are the languages we support towards the ones supported by Wikipedia
-        lang = switch.get(self._xconfig.get("app.default_language"), "en")
+        lang = self._xparams.get(self._xconfig.get("language"), "en")
 
         self._xlog.debug(f"Getting summary for language {lang} from Wikipedia for term: {term}")
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Wikipedia summary for term: [{term}] in language: [{lang}]")
 
         url = WorldWikipedia.URL % (lang, term)
         response = ApiRequest.do(url)
@@ -50,14 +58,14 @@ class WorldWikipedia(PyXavi, Command):
         log.info(f"The term searched in Wikipedia from the callback is: {search_term}")
 
         try:
-            log.error(f"🌐 Showing Wikipedia searched term on eInk: [{search_term}]")
-            interaction.add_new_status_line(f"🔧 Tool: Wikipedia summary for: [{search_term}]")
+            log.error(f"🌐 Showing Wikipedia searched term on Display: [{search_term}]")
+            self.status_shortcuts.add_new_status_line(f"🔧 Tool: Wikipedia was returned")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🌐",
                 text=search_term,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
-            log.error(f"🛑 Error showing Wikipedia searched term on eInk: {e}")
+            log.error(f"🛑 Error showing Wikipedia searched term on Display: {e}")
             log.error(full_stack())
 
     def get_tool_definition(self) -> list[callable]:

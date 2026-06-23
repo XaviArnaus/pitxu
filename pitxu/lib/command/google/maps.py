@@ -2,7 +2,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
@@ -12,11 +12,17 @@ from google.genai import types
 class GoogleMaps(PyXavi, Command):
 
     model_name: str = None
+    status_shortcuts: Status = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(GoogleMaps, self).init_pyxavi(config=config, params=params)
 
         self.model_name = self._xconfig.get("chatbot.secondary_model")
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in GoogleMaps initialization.")
 
     def get_google_maps_response_to_a_prompt(self, prompt: str) -> str:
         '''
@@ -31,6 +37,7 @@ class GoogleMaps(PyXavi, Command):
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Getting Google Maps response for prompt: [{prompt}] using model [{self.model_name}] andlanguage [{self._xparams.get('language')}]")
+        self.status_shortcuts.add_new_status_line(f"🔧 Google Maps: prompt: [{prompt}] using [{self.model_name}]")
 
         instructions = {
             "ca": "Usa Google Maps per obtenir la resposta sobre distàncies, rutes i localitzacions en el mapa."
@@ -77,7 +84,6 @@ class GoogleMaps(PyXavi, Command):
 
         try:
             log.error(f"📍 Showing Google Maps searched term on eInk: [{search_term}]")
-            interaction.add_new_status_line(f"🔧 Tool: Google Maps search for: [{search_term}]")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📍",
                 text=search_term,
@@ -106,41 +112,3 @@ class GoogleMaps(PyXavi, Command):
         if function_name == "get_google_maps_response_to_a_prompt":
             return self.callback_google_maps_response_to_a_prompt
         return self.default_empty_callback
-
-# 2026-05-07 18:44:35,345 [MainProcess      MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
-# 2026-05-07 18:44:35,347 [MainProcess      asyncio_0             ] DEBUG    pitxu        Getting Google Maps response for prompt: [distance between Dusseldorf, Germany and Altafulla, Spain] using language [en-us]
-# 2026-05-07 18:44:43,146 [MainProcess      asyncio_0             ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
-# 2026-05-07 18:44:43,147 [MainProcess      asyncio_0             ] DEBUG    pitxu        Google Maps response: I am unable to provide the distance between Dusseldorf, Germany and Altafulla, Spain using the available tools.
-# 2026-05-07 18:44:44,350 [MainProcess      MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent "HTTP/1.1 200 OK"
-# 2026-05-07 18:44:44,351 [MainProcess      MainThread            ] INFO     pitxu        🗣️  Answer: 
-
-# >> I apologize, but I'm still unable to retrieve the distance information using the available tools. It seems there's a persistent technical issue. I recommend trying again later.
-
-# 2026-05-07 18:44:44,351 [MainProcess      MainThread            ] DEBUG    pitxu        🤖 Unsetting Chatbot as busy.
-# 2026-05-07 18:44:44,351 [MainProcess      MainThread            ] INFO     pitxu        Reacting to a Chatbot answer: 
-#         - Text: I apologize, but I'm still unable to retrieve the distance information using the available tools. It seems there's a persistent technical issue. I recommend trying again later.
-#         - Function Calls: ['get_google_maps_response_to_a_prompt']
-#         - Code blocks: 0
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        ⚡️ Reacting to function call: get_google_maps_response_to_a_prompt
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        ↩️  Reacting to a function call with a client callback: get_google_maps_response_to_a_prompt
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        📺 Executing callback with value: I am unable to provide the distance between Dusseldorf, Germany and Altafulla, Spain using the available tools.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        💤  Setting idle mode off.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 0 elements.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0s.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        Waiting for the process dsi_lcd_busy to idle. It's now: IDLE.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        The process dsi_lcd_busy is idle now. I've slept 0s.
-# (dict[1]){"prompt": (str[57])"distance between Dusseldorf, Germany and Altafulla, Spain"}
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] INFO     pitxu        The term searched in Google Maps from the callback is: distance between Dusseldorf, Germany and Altafulla, Spain
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] ERROR    pitxu        📍 Showing Google Maps searched term on eInk: [distance between Dusseldorf, Germany and Altafulla, Spain]
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 0 elements.
-# 2026-05-07 18:44:44,352 [MainProcess      MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0s.
-# 2026-05-07 18:44:44,352 [DsiLcd-3         MainThread            ] INFO     pitxu        👀 Showing arbitrary text on DSI LCD while speaking.
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        🗣️ Triggering speech interaction: I apologize, but I'm still unable to retrieve the distance information using the available tools. It seems there's a persistent technical issue. I recommend trying again later.
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Background display
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Speaker
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        🗣️ Waiting for Speaker and Display to start and finish speaking
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to be busy. It's now: BUSY.
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        The process speaker_busy is busy now. I've slept 0s.
-# 2026-05-07 18:44:44,356 [MainProcess      MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to idle. It's now: BUSY.
-# 2026-05-07 18:44:44,356 [DsiLcd-3         MainThread            ] INFO     pitxu        👄 Showing KITT mouth on DSI LCD.
-# 2026-05-07 18:44:44,356 [Piper-2          MainThread            ] DEBUG    pitxu        Saying [I apologize, but I'm still unable to retrieve the distance information using the available tools. It seems there's a persistent technical issue. I recommend trying again later.]

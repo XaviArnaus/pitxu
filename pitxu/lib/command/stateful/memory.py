@@ -4,6 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.utils.memory import Memory
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
@@ -12,13 +13,20 @@ class StatefulMemory(PyXavi, Command):
 
     _memory: Memory = None
 
+    status_shortcuts: Status = None
+
     VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(StatefulMemory, self).init_pyxavi(config=config, params=params)
 
         self._memory = Memory(config=config, params=params)
-    
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in StatefulMemory initialization.")
+
     def close(self):
         if self._memory is not None:
             self._memory.close()
@@ -37,6 +45,8 @@ class StatefulMemory(PyXavi, Command):
         '''
         try:
             self._xlog.info(f"Ⓜ️ Request for Creating a new memory entry: {summary}")
+            if self.status_shortcuts:
+                self.status_shortcuts.add_new_status_line(f"🔧 Memory: New [{summary}]")
             created_entry = self._memory.create_short_memory_entry(summary, content)
             return created_entry
 
@@ -56,6 +66,8 @@ class StatefulMemory(PyXavi, Command):
             list[dict] | str: If successful, returns a list of memory entries; otherwise, an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{summary}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get all like [{summary}]")
 
         try:
             memory_entries = self._memory.get_short_memory_by_summary_like(summary)
@@ -79,6 +91,8 @@ class StatefulMemory(PyXavi, Command):
             list[dict] | str: If successful, returns a list of memory entries; otherwise, an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{date}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get all for [{date}]")
 
         try:
             memory_entries = self._memory.get_short_memory_by_date(date)
@@ -102,6 +116,8 @@ class StatefulMemory(PyXavi, Command):
             dict | str: If successful, returns the memory entry; otherwise, an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Retrieving memory entry with ID [{entry_id}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get by ID [{entry_id}]")
 
         try:
             memory_entry = self._memory.get_short_memory_by_id(entry_id)
@@ -122,6 +138,8 @@ class StatefulMemory(PyXavi, Command):
             list[dict] | str: If successful, returns a list of the last five memory entries; otherwise, an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Retrieving the last five memory entries")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get last five entries")
 
         try:
             memory_entries = self._memory.get_last_short_memory_entries(limit=5)
@@ -147,6 +165,8 @@ class StatefulMemory(PyXavi, Command):
             dict | str: The updated memory entry or an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Updating memory entry with ID [{entry_id}] with summary [{summary}] and content [{content}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Update memory with ID [{entry_id}]")
         entry = self._memory.get_short_memory_by_id(entry_id)
         if entry is None:
             error = f"🛑 Memory entry with ID [{entry_id}] not found."
@@ -172,6 +192,8 @@ class StatefulMemory(PyXavi, Command):
             dict | None: The updated memory entry or None if there are no entries to update.
         '''
         self._xlog.info(f"Ⓜ️ Request for Updating the last memory entry with summary [{summary}] and content [{content}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Update last memory entry")
         try:
             updated_entry = self._memory.update_last_short_memory_entry(summary, content)
             if updated_entry:
@@ -196,6 +218,8 @@ class StatefulMemory(PyXavi, Command):
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Ⓜ️ Summarizing the current Chatbot history into a memory entry using language [{self._xparams.get('language')}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Summarizing chatbot history into a new memory entry")
 
         try:
             response_as_dict = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
@@ -235,7 +259,6 @@ class StatefulMemory(PyXavi, Command):
                 error = value
 
             if error is None:
-                interaction.add_new_status_line("🔧 Tool: Chat history summarized into new Memory entry")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                             icon="Ⓜ️ ",
                             text=summary,

@@ -121,7 +121,7 @@ class Painter(PyXavi):
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
@@ -568,15 +568,14 @@ class Painter(PyXavi):
         """
 
         # First of all, do we have any elements in the queues to paint?
-        if not any([len(self.queue[PainterQueue.BACKGROUND]) > 0,
-                    len(self.queue[PainterQueue.FOREGROUND]) > 0,
-                    len(self.queue[PainterQueue.OVERALL]) > 0]):
+        queues_have_elements = [len(self.queue[queue_name]) > 0 for queue_name in self.queue.keys()]
+        if not any(queues_have_elements):
             self._log_debug(f"⏹️  Loop Control: No interactions in any queue to paint.")
             return False
         
         # So we have anything in any queue.
         # Are the current interactions the same as the previous ones in their related queues?
-        for queue_name in [PainterQueue.BACKGROUND, PainterQueue.FOREGROUND, PainterQueue.OVERALL]:
+        for queue_name in self.queue.keys():
             
             # If this interaction should always be painted while it is in the queue, we skip the cache check and just paint it.
             if self.get_current_interaction(queue_name) is not None and \

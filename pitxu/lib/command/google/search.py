@@ -2,7 +2,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 from pitxu.lib.utils.text import Code
 
 import logging
@@ -13,11 +13,17 @@ from google.genai import types
 class GoogleSearch(PyXavi, Command):
 
     model_name: str = None
+    status_shortcuts: Status = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
         self.model_name = self._xconfig.get("chatbot.secondary_model")
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in GoogleSearch initialization.")
 
     def get_google_search_response_to_a_prompt(self, prompt: str) -> str:
         '''
@@ -32,6 +38,7 @@ class GoogleSearch(PyXavi, Command):
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Getting Google Search response for prompt: [{prompt}] using model [{self.model_name}] and language [{self._xparams.get('language')}]")
+        self.status_shortcuts.add_new_status_line(f"🔧 Google Search: prompt: [{prompt}] using [{self.model_name}]")
 
         # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
         # if self._xparams.get('language') == 'en-us':
@@ -78,8 +85,6 @@ class GoogleSearch(PyXavi, Command):
 
         text = value if isinstance(value, str) else str(value)
 
-        interaction.add_new_status_line(f"🔧 Tool: Google Search result for: [{args.get('prompt', 'unknown') if args else 'unknown'}]")
-
         # Does the text contain a code block?
         # We may even have several code blocks.
         code_blocks = []
@@ -95,11 +100,12 @@ class GoogleSearch(PyXavi, Command):
             if len(code_blocks) > 0:
                 # don't go crazy. Log how many do you have, if more than 1, and simply show the first.
                 log.info(f"Google Search response includes {len(code_blocks)} code blocks. Showing only the first one.")
-                interaction.add_new_status_line(f"🔧 Tool: Google Search result includes {len(code_blocks)} code blocks.")
+                self.status_shortcuts.add_new_status_line(f"🔧 Google Search: result includes {len(code_blocks)} code blocks.")
                 interaction.show_code_block_on_foreground_while_speaking(code=code_blocks[0])
             else:
                 # text = text[:50] + ("..." if len(text) > 100 else "")
                 log.debug(f"🔎 Showing Google Search result: [{text}]")
+                self.status_shortcuts.add_new_status_line(f"🔧 Google Search: result includes no code blocks.")
                 interaction.show_text_block_on_foreground_while_speaking(text=text)
         except Exception as e:
             log.error(f"🛑 Error showing Google searched term on Foreground: {e}")

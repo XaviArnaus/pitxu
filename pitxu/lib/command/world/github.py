@@ -1,4 +1,5 @@
 from pyxavi import Config, Dictionary, full_stack
+from pitxu.lib.interaction.shortcuts.status import Status
 from pitxu.lib.utils.wget import Wget
 from pitxu.lib.utils.github import Github
 
@@ -12,13 +13,19 @@ class WorldGithub(PyXavi, Command):
 
     wget: Wget = None
     github: Github = None
+    status_shortcuts: Status = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(WorldGithub, self).init_pyxavi(config=config, params=params)
 
         self.wget = Wget(config=self._xconfig, params=self._xparams)
         self.github = Github(config=self._xconfig, params=self._xparams)
-    
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in WorldGithub initialization.")
+
     def get_files_involved_in_pr(self, pr_url: str) -> list[str]:
         """
         Gets the list of files involved in a PR, given the PR URL.
@@ -31,6 +38,7 @@ class WorldGithub(PyXavi, Command):
         Returns:
             list[str]: The list of files involved in the PR.
         """
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting files involved in PR: [{pr_url}]")
         return self.github.get_files_involved_in_pr(pr_url)
     
     def get_branch_related_to_pr(self, pr_url: str) -> str | bool:
@@ -44,6 +52,7 @@ class WorldGithub(PyXavi, Command):
         Returns:
             str | bool: The branch related to the PR, or False if not found.
         """
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting branch related to PR: [{pr_url}]")
         return self.github.get_branch_related_to_pr(pr_url)
 
     def get_raw_code_from_github_url(self, url: str) -> str | bool:
@@ -63,6 +72,7 @@ class WorldGithub(PyXavi, Command):
         # COMMENTED: Now we get the RAW url directly from the GitHub API, so we don't need to convert it ourselves
         # raw_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
         # self._xlog.debug(f"Converted GitHub URL to raw URL: {raw_url}")
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting raw code from GitHub URL: [{url}]")
         return self.wget.get(url)
     
     # def get_pull_request_content_from_github_project(self, account: str, repo: str, pull_request_number: int) -> str | bool:
@@ -97,6 +107,7 @@ class WorldGithub(PyXavi, Command):
         '''
         url = f"https://github.com/{account.lower()}/{repo.lower()}/blob/{branch.lower()}/{file_path.lower()}/{file_name.lower()}"
         self._xlog.debug(f"Constructed GitHub URL for file: {url}")
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting file from GitHub branch: [{url}]")
         return self.wget.get(url)
     
     def callback_get_files_involved_in_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -106,7 +117,7 @@ class WorldGithub(PyXavi, Command):
             text = "\n".join([f"📄 {file.get('name', '')}" for file in files])
             interaction.show_text_block_on_foreground_while_speaking(text=text)
         except Exception as e:
-            log.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
+            log.error(f"🛑 Error showing files involved in PR on Display: {e}")
             log.error(full_stack())
     
     def callback_get_branch_related_to_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -115,7 +126,7 @@ class WorldGithub(PyXavi, Command):
             branch = str(value)
             interaction.show_text_block_on_foreground_while_speaking(text=branch)
         except Exception as e:
-            log.error(f"🛑 Error showing weather forecast for today on eInk: {e}")
+            log.error(f"🛑 Error showing branch related to PR on Display: {e}")
             log.error(full_stack())
     
     def get_tool_definition(self) -> list[callable]:

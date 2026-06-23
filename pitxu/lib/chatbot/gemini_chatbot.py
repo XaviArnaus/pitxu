@@ -94,6 +94,7 @@ class GeminiChatbot(PyXavi):
         if (self._xconfig.get("chatbot.mock", True)):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
+        # The Status shortcuts are passed from main so that the tools can add status lines.
         self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()

@@ -413,7 +413,8 @@ class Main(PyXavi):
                 self._log_debug("Detection: We're inside hold interaction time and the user wants to exit.")
 
                 # An interaction comes, stop the idle mode.
-                self._interaction.set_idle_mode_off()
+                if self._interaction.is_idle_mode_on():
+                    self._interaction.set_idle_mode_off()
 
                 # Just assume a goodbye
                 answer = self._goodbye_sentence
@@ -430,7 +431,8 @@ class Main(PyXavi):
                 self._log_debug("Detection: Text only has trigger words.")
                                 
                 # An interaction comes, stop the idle mode.
-                self._interaction.set_idle_mode_off()
+                if self._interaction.is_idle_mode_on():
+                    self._interaction.set_idle_mode_off()
 
                 # Randomly choose one of the trigger answers
                 import random
@@ -549,7 +551,8 @@ class Main(PyXavi):
         """
 
         # An interaction comes, stop the idle mode.
-        self._interaction.set_idle_mode_off()
+        if self._interaction.is_idle_mode_on():
+            self._interaction.set_idle_mode_off()
 
         # We set it as busy in shared memory, so the Background Display can show the thinking effect
         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
@@ -1066,8 +1069,13 @@ class Main(PyXavi):
             self._xlog.info("Execution mode is 'test', skipping STT models loading.")
 
         # Initialise Chatbot
+        # Adding the status shortcuts to the params, so the Chatbot can register status lines
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot = GeminiChatbot(config=self._xconfig, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "language": self._xparams.get("language"),
+            "status_shortcuts": self._interaction.get_status_shortcuts(),
+        }))
 
     def _load_language_statics(self):
 
