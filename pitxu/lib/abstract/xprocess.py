@@ -1,7 +1,7 @@
 from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process

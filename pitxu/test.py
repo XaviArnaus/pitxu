@@ -3,7 +3,7 @@ import asyncio
 from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 
 from definitions import ROOT_DIR, SHARED_DSI_LCD_IDLE_MODE
 

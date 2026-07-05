@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper
@@ -97,7 +97,11 @@ class Interaction(PyXavi):
         self._xlog.info("Initializing Interaction.")
 
         # All interactions will be done via processes
-        self.process_pool = XprocessPool(config=config, params=params)
+        # self.process_pool = XprocessPool(config=config, params=params)
+        if self._xparams.get("process_pool") is not None:
+            self.process_pool = self._xparams.get("process_pool")
+        else:
+            raise RuntimeError("Interaction class requires a process_pool to be passed in the params.")
 
         # Load the TTS client if we're in "client" mode
         if self._xparams.get("execution_mode") == "client":
@@ -210,7 +214,11 @@ class Interaction(PyXavi):
                     "speaking": self.map_actions_to_delays.get(XprocAction.SAY),
                     "idle": self.map_actions_to_delays.get(XprocAction.SHOW_IDLE),
                 })
-            
+
+                # Don't forget the parameters that the display process needs to know about the execution mode and language, so it can load the correct resources.
+                params.set("execution_mode", self._xparams.get("execution_mode"))
+                params.set("language", self._xparams.get("language"))
+                params.set("app_version", self._xparams.get("app_version"))
 
             # Initialize the displays via the process pool
             display_class, display_queue = self.map_display_name_to_instance_data.get(display_name, (None, None))
@@ -279,7 +287,7 @@ class Interaction(PyXavi):
 
         # If we're in client mode, this is going to the server, so it may take time.
         # Show the thinking effect while grabbing the TTS response from the server.
-        if self._xconfig.get("app.execution_mode") == "client":
+        if self._xparams.get("execution_mode") == "client":
             self._log_debug(f"🗣️ Execution mode is 'client', the speech flow is different")
 
             # Gathering the TTS response from the server may take time.
@@ -685,12 +693,12 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
 
     def set_chatbot_busy(self):
-        self.add_new_status_line("🧠 Chatbot busy")
+        # self.add_new_status_line("🧠 Chatbot busy")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
         self._log_debug("🤖 Setting Chatbot as busy.")
     
     def unset_chatbot_busy(self):
-        self.add_new_status_line("🧠 Chatbot done")
+        # self.add_new_status_line("🧠 Chatbot done")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._log_debug("🤖 Unsetting Chatbot as busy.")
     
@@ -732,14 +740,14 @@ class Interaction(PyXavi):
         if self.is_idle_mode_on():
             return
         self._log_debug("💤  Setting idle mode on.")
-        self.add_new_status_line("💤 Idle mode on")
+        # self.add_new_status_line("💤 Idle mode on")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
 
     def set_idle_mode_off(self):
         if not self.is_idle_mode_on():
             return
         self._log_debug("💤  Setting idle mode off.")
-        self.add_new_status_line("💤 Idle mode off")
+        # self.add_new_status_line("💤 Idle mode off")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, False)
 
     def is_matrix_busy(self):
@@ -769,13 +777,13 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
     
     def set_transcriber_busy(self):
-        self.add_new_status_line("🎤 Transcribing")
-        self._log_debug("🎤 Setting Transcriber as busy.")
+        # self.add_new_status_line("🎤 Transcribing")
+        # self._log_debug("🎤 Setting Transcriber as busy.")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, True)
     
     def unset_transcriber_busy(self):
-        self.add_new_status_line("🎤 Transcription done")
-        self._log_debug("🎤 Unsetting Transcriber as busy.")
+        # self.add_new_status_line("🎤 Transcription done")
+        # self._log_debug("🎤 Unsetting Transcriber as busy.")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
     
     def is_transcriber_busy(self) -> bool:

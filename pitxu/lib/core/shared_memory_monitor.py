@@ -9,7 +9,12 @@ from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 import threading
 import time
 
-class PainterSharedMemory(PyXavi):
+class SharedMemoryMonitor(PyXavi):
+    """
+    This class monitors ALL shared memory flags and calls the corresponding callbacks when the flags change to the expected values, if there's anything registered over them.
+
+    It started as a copy of the PainterSharedMemory class, and it's intended to end up being the main shared memory monitoring, eventually to replace the one in Painter.
+    """
 
     _worker_thread: threading.Thread = None
 
@@ -21,28 +26,24 @@ class PainterSharedMemory(PyXavi):
     #   to ensure that the interaction is painted as soon as possible.
     _painter_resume_callback: callable = None
 
-    THREAD_NAME: str = "PainterSharedMemory"
+    THREAD_NAME: str = "SharedMemoryMonitor"
 
     is_active: bool = True
 
     VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):
-        super(PainterSharedMemory, self).init_pyxavi(config, params)
+        super(SharedMemoryMonitor, self).init_pyxavi(config, params)
+
+        self._xlog.info("Initialising Shared Memory Monitor")
 
         if params.key_exists("shared_memory"):
-            self._xlog.debug("Using provided shared memory manager for PainterBusyFlags.")
+            self._xlog.debug("Using provided shared memory manager for SharedMemoryMonitor.")
             self.shared_memory = params.get("shared_memory")
         else:
-            self._xlog.debug("Using existing initialized shared memory manager for PainterBusyFlags.")
+            self._xlog.debug("Using existing initialized shared memory manager for SharedMemoryMonitor.")
             self.shared_memory = SharedMemoryManager(config=config)
             self.shared_memory.initialize_existing_shared_memory_flags()
-        
-        if params.key_exists("painter_resume_callback"):
-            self._xlog.debug("Using provided painter resume callback for PainterSharedMemory.")
-            self._painter_resume_callback = params.get("painter_resume_callback")
-        else:
-            raise ValueError("PainterSharedMemory requires a painter_resume_callback to be provided in the params. Got None.")
         
         # Initialize the list of shared memory flags to control, empty otherwise.
         shared_memory_list_to_control = params.get("shared_memory_list_to_control", [])
@@ -55,18 +56,9 @@ class PainterSharedMemory(PyXavi):
             daemon=True)
         self.start_monitoring_shared_memory()
     
-    def load_list_control(self, shared_memory_list_to_control: list[tuple[int, bool, callable]]):
-        for shared_memory_flag, activation_value, callback in shared_memory_list_to_control:
-            if not isinstance(shared_memory_flag, int):
-                raise ValueError(f"Shared memory flag must be an integer. Got {type(shared_memory_flag)}.")
-            if shared_memory_flag not in self.shared_memory._map_index_to_flag:
-                raise ValueError(f"Invalid received shared memory flag: {self.get_shared_memory_flag_name_for(shared_memory_flag)}.")
-            if not callable(callback):
-                raise ValueError(f"Callback must be callable. Got {type(callback)}.")
-            if not isinstance(activation_value, bool):
-                raise ValueError(f"Activation value must be a boolean. Got {type(activation_value)}.")
-        
-        self._shared_memory_flag_to_callback = shared_memory_list_to_control
+    def load_list_control(self, shared_memory_list_to_control: list[tuple[str, int, bool, callable, bool]]):
+        for name, shared_memory_flag, activation_value, callback, is_dependant in shared_memory_list_to_control:
+            self.set_callback_for_shared_memory_flag(name, shared_memory_flag, activation_value, callback, is_dependant)
     
     def start_monitoring_shared_memory(self):
         if self._shared_memory_flag_to_callback is None:
@@ -76,7 +68,7 @@ class PainterSharedMemory(PyXavi):
         self._worker_thread.start()
     
     def shutdown(self):
-        self._xlog.debug("Shutting down PainterSharedMemory.")
+        self._xlog.debug("Shutting down SharedMemoryMonitor.")
         self.is_active = False
     
     def close(self):
@@ -251,28 +243,28 @@ class PainterSharedMemory(PyXavi):
 
                         # Are we checking a dependant callback? If so, did the previous one already ran?
                         if is_dependant and not self.did_previous_callback_to_dependant_ran_already(name, shared_memory_flag, activation_value):
-                            self._log_debug(f"🏳️  Dependant callback for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} and value {activation_value} is waiting for the previous callback to run.")
+                            self._log_debug(f"🚩  Dependant callback for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} and value {activation_value} is waiting for the previous callback to run.")
                         else:
 
                             # The flag changed to the value we're monitoring, so we call the callback.
-                            self._log_debug(f"🏳️  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} changed to the value {activation_value}. Will call [{name}].")
+                            self._log_debug(f"🚩  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} changed to the value {activation_value}. Will call [{name}].")
                             callbacks_to_trigger.append((name, shared_memory_flag, activation_value, callback))
 
                 # Now we trigger the callbacks that we collected.
                 for name, shared_memory_flag, activation_value, callback in callbacks_to_trigger:
-                    self._log_debug(f"🏳️  Triggering callback [{name}] for the flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} at value {activation_value}.")
+                    self._log_debug(f"🚩  Triggering callback [{name}] for the flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} at value {activation_value}.")
                     self.trigger_callback_for_shared_memory_flag(name, shared_memory_flag, activation_value)
                 
                 # Finally, we update the previous value of the flags that changed, to be able to detect future changes.
                 for _, shared_memory_flag, _, _ in callbacks_to_trigger:
-                    self._log_debug(f"🏳️  Updating previous value for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} after triggering callbacks.")
+                    self._log_debug(f"🚩  Updating previous value for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} after triggering callbacks.")
                     self.update_shared_memory_flag_monitored_previous_value(shared_memory_flag)
                 
                 # If we had any callback to trigger, we need to ensure that we resume the painter loop.
                 # 2. Resume the painter loop in case it was paused, to ensure that the interaction is painted as soon as possible.
-                if callbacks_to_trigger:
-                    self._log_debug(f"🏳️  Resuming painter loop after triggering callbacks for shared memory flags.")
-                    self._painter_resume_callback()
+                # if callbacks_to_trigger:
+                #     self._log_debug(f"🚩  Resuming painter loop after triggering callbacks for shared memory flags.")
+                #     self._painter_resume_callback()
 
             # If we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage, 
             # because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.

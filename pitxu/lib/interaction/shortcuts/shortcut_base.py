@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper

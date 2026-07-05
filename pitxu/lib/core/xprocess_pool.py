@@ -9,7 +9,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
                         QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, QUEUE_TRANSCRIBER
@@ -49,14 +49,20 @@ class XprocessPool(PyXavi):
         # Initialize the PyXavi parent
         super(XprocessPool, self).init_pyxavi(config=config, params=params)
 
+        self._xlog.info("Initialising Process Pool")
+
         # Initialize the process and queue dictionaries
         self._process = {}
         self._queue = {}
 
         # Initialize shared memory
-        self._shared_memory = SharedMemoryManager(config=config, params=params)
-        self._shared_memory.initialize_new_shared_memory_flags()
-        self._shared_memory.initialize_new_shared_memory_values()
+        # self._shared_memory = SharedMemoryManager(config=config, params=params)
+        # self._shared_memory.initialize_new_shared_memory_flags()
+        # self._shared_memory.initialize_new_shared_memory_values()
+        if params.key_exists("shared_memory_manager"):
+            self._shared_memory = params.get("shared_memory_manager")
+        else:
+            raise RuntimeError("XprocessPool requires a shared_memory_manager to be passed in the params.")
 
         # Initialise the manager that will create the queues
         self._manager = Manager()

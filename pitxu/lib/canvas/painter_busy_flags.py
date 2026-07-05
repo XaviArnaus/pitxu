@@ -1,6 +1,6 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
 from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END, SHARED_MICROPHONE_MUTED,\

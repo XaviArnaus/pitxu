@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.support_process.support_process import SupportProcess
 from pitxu.lib.objects import XprocAction
 

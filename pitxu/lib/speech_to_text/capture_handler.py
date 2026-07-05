@@ -6,7 +6,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager, \
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED, SHARED_TRANSCRIBER_BUSY
 
 import sys

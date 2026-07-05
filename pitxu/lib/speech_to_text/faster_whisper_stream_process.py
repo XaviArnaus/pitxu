@@ -3,8 +3,8 @@ import logging
 from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
-from pitxu.lib.utils.xprocess_pool import XprocessPool
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction

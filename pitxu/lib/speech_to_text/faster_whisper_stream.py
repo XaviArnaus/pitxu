@@ -5,9 +5,9 @@ from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisperStreamProcess
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_TRANSCRIBER_BUSY, \
                         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 

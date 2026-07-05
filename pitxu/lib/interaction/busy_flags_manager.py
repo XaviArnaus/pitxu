@@ -1,6 +1,6 @@
 from __future__ import annotations
 from threading import Thread
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 import time
 
 from pyxavi import Config, Dictionary

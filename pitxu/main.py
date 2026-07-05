@@ -7,6 +7,9 @@ from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.system import System
 from pitxu.lib.utils.maintenance import Maintenance
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
@@ -66,6 +69,7 @@ class Main(PyXavi):
     _threaded_input_stream: ThreadedInputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
+    _shared_memory_monitor: SharedMemoryMonitor = None
 
     _support: Support = None
 
@@ -127,12 +131,12 @@ class Main(PyXavi):
             # The main problem here is that nothing is displayed until the Interaction lib is initialized.
             # With the Animations took forever, that's why the Animations initializon was moved out.
             # Maybe other visualization initializations should also be promoted to its own initialization step.
-            self._initialize_interactions()
+            self._initialize_core()
             # self._interaction.show_startup()
             # self._interaction.wait_for_foreground_display_queue_to_empty()
             # self._interaction.wait_for_busy_foreground_display_to_idle()
             # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
-            self._interaction.show_init_phases(1, text="💬 Interactions")
+            self._interaction.show_init_phases(1, text="💚 Core")
 
             self._interaction.show_init_phases(2, text="🙂 Animations")
             self._interaction.initialize_animations()
@@ -378,6 +382,7 @@ class Main(PyXavi):
                 # For non-streaming engines, we need to call the recognize_all_queue_at_once() method to process the audio in the queue and get the transcription.
                 self._log_debug("Getting transcription from STT after VAD detected speech finished, for non-streaming engine...")
                 question = self._dictate.recognize_all_queue_at_once()
+
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
@@ -1236,13 +1241,59 @@ class Main(PyXavi):
         else:
             self._xlog.info("Execution mode is 'test', skipping schedulers initialization.")
     
-    def _initialize_interactions(self):
+    def _initialize_core(self):
         """
-        Initialisation of the Interaction class, that manages output (TTS and displays)
+        Initialisation of the Core classes, that manages all base functionalities.
+        This mostly for Shared Memory, Xprocess Pool and Interactions.
         """
 
-        self._xlog.info("Initialising Interaction class")
-        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
+        # Start the Shared Memory Manager, that manages the shared memory between processes and threads.
+        # It may be promoted to a class attribute, if we need the same instance in other parts of the app.
+        # At the moment it can instantiate separately and load existing flags.
+        shared_memory_manager = SharedMemoryManager(config=self._xconfig, params=Dictionary({
+            "language": self._xparams.get("language"),
+        }))
+        shared_memory_manager.initialize_new_shared_memory_flags()
+        shared_memory_manager.initialize_new_shared_memory_values()
+
+        # Start the Xprocess Pool, that manages the processes and queues for the different components of the app.
+        # Needs the Shared Memory Manager to be passed.
+        process_pool = XprocessPool(config=self._xconfig, params=Dictionary({
+            "language": self._xparams.get("language"),
+            "shared_memory_manager": shared_memory_manager,
+        }))
+
+        self._interaction = Interaction(config=self._xconfig, params=Dictionary({
+            "app_version": self._xparams.get("app_version"),
+            "execution_mode": self._xparams.get("execution_mode"),
+            "language": self._xparams.get("language"),
+            "process_pool": process_pool,
+        }))
+
+        # And now let's start monitoring the shared flags changes at app level.
+        # Remember that by now there's another almost exact functionality at Painter level,
+        #   that we want to merge eventually in one.
+        from definitions import SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
+                                SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
+                                SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
+
+        self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
+            "shared_memory": shared_memory_manager,
+            "shared_memory_list_to_control": [
+                # Callback for when the transcription starts
+                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
+                # Callback for when the transcription ends
+                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
+                # Callback for when the chatbot starts thinking
+                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
+                # Callback for when the chatbot finishes thinking
+                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Callback for when the app goes idle
+                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
+                # Callback for when the app goes out of idle
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False)
+            ]
+        }))
 
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
