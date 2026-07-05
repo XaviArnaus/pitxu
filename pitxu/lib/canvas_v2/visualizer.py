@@ -353,6 +353,8 @@ class Visualizer(PyXavi):
 
                         maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
+                        show_during_idle_mode=True,
+
                         # final_screen_clearing=True,
                         # remove_interaction_after_painting=True,
                         ignore_maintain_time=False,
@@ -369,6 +371,8 @@ class Visualizer(PyXavi):
 
                         maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
                         delay_between_frames=self.interaction_delays.get("idle", 0.1),
+
+                        show_during_idle_mode=True,
 
                         drawing_callback=self.macros_background.merge_animation,
                         drawing_callback_parameters={**params, "animation": "sleeping"},

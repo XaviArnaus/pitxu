@@ -693,12 +693,10 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
 
     def set_chatbot_busy(self):
-        # self.add_new_status_line("🧠 Chatbot busy")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
         self._log_debug("🤖 Setting Chatbot as busy.")
     
     def unset_chatbot_busy(self):
-        # self.add_new_status_line("🧠 Chatbot done")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, False)
         self._log_debug("🤖 Unsetting Chatbot as busy.")
     
@@ -739,15 +737,11 @@ class Interaction(PyXavi):
     def set_idle_mode_on(self):
         if self.is_idle_mode_on():
             return
-        self._log_debug("💤  Setting idle mode on.")
-        # self.add_new_status_line("💤 Idle mode on")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
 
     def set_idle_mode_off(self):
         if not self.is_idle_mode_on():
             return
-        self._log_debug("💤  Setting idle mode off.")
-        # self.add_new_status_line("💤 Idle mode off")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, False)
 
     def is_matrix_busy(self):
@@ -777,13 +771,9 @@ class Interaction(PyXavi):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_VAD_DETECTED)
     
     def set_transcriber_busy(self):
-        # self.add_new_status_line("🎤 Transcribing")
-        # self._log_debug("🎤 Setting Transcriber as busy.")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, True)
     
     def unset_transcriber_busy(self):
-        # self.add_new_status_line("🎤 Transcription done")
-        # self._log_debug("🎤 Unsetting Transcriber as busy.")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
     
     def is_transcriber_busy(self) -> bool:

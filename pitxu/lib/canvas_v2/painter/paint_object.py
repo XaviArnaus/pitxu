@@ -48,6 +48,9 @@ class BasePaint:
     maintain_paint_for_seconds: float = None  # Time to maintain the painting after the interaction is painted
     ignore_maintain_time: bool = False  # Whether to ignore the global foreground maintain time setting
 
+    # Show the painting anyways even the app is in idle mode. Otherwise, the painting won't be flushed.
+    show_during_idle_mode: bool = False
+
     # Macro callback to trigger for drawing the interaction.
     # The idea is that the drawing action is set by the caller, not manually in the painter, making the painter agnostic.
     drawing_callback: callable = None
@@ -89,6 +92,8 @@ class BasePaint:
                     # Keep the painting for some seconds after the interaction is painted, so that it doesn't disappear immediately.
                     maintain_paint_for_seconds: float = None,
                     ignore_maintain_time: bool = False,
+                    # Show the painting anyways even the app is in idle mode. Otherwise, the painting won't be flushed.
+                    show_during_idle_mode: bool = False,
                     # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
                     while_shared_memory_flag: int = None,
                     while_shared_memory_flag_value: bool = True,
@@ -112,6 +117,8 @@ class BasePaint:
         # Keep the painting for some seconds after the interaction is painted, so that it doesn't disappear immediately.
         self.maintain_paint_for_seconds = maintain_paint_for_seconds
         self.ignore_maintain_time = ignore_maintain_time
+        # Show the painting anyways even the app is in idle mode. Otherwise, the painting won't be flushed.
+        self.show_during_idle_mode = show_during_idle_mode
         # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
         self.while_shared_memory_flag = while_shared_memory_flag
         self.while_shared_memory_flag_value = while_shared_memory_flag_value

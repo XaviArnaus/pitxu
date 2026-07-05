@@ -148,3 +148,20 @@ class MacrosBase(PyXavi):
             rectangle.to_image_rectangle(),
             outline=outline,
             fill=fill)
+    
+    # def soft_display_area_clear(self, draw: ImageDraw.ImageDraw, params: dict[str, any]):
+    #     '''
+    #     Draws a rectangle over the given canvas.
+    #     '''
+
+    #     display_area = params.get("display_area", "full_screen")
+
+    #     if display_area in self.layout_info["relative"]:
+    #         rectangle = self.layout_info["relative"][display_area]
+    #         outline = self.canvas.COLOR_BACKGROUND
+    #         fill = self.canvas.COLOR_BACKGROUND
+
+    #         draw.rectangle(
+    #             rectangle.to_image_rectangle(),
+    #             outline=outline,
+    #             fill=fill)

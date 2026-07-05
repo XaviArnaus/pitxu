@@ -121,7 +121,7 @@ class Painter(PyXavi):
     #   and triggers callbacks when it happens.
     painter_shared_memory: PainterSharedMemory = None
 
-    VERBOSE_DEBUG: bool = False
+    VERBOSE_DEBUG: bool = True
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
@@ -589,13 +589,27 @@ class Painter(PyXavi):
             elif (self.get_current_interaction(PainterQueue.BACKGROUND) is not None and self.get_current_interaction(PainterQueue.BACKGROUND).loop_iterations > 1):
                 self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(PainterQueue.BACKGROUND).name}] in [BACKGROUND] has multiple loop iterations. We draw this loop iteration.")
                 return True
-            # Otherwise, we check if the current interaction in the queue is the same as the previous one, 
-            # and if we have it cached. If not, we need to paint it.
+            # If the current interaction is different than the previous one, in theory we should paint it.
             elif not self._current_interaction_by_queue_is_the_same_as_previous(queue_name):
-                # Careful, can be None.
-                current_interaction = self.get_current_interaction(queue_name)
-                self._log_debug(f"🔄  Loop Control: Current Paint [{current_interaction.name if current_interaction is not None else 'None'}] in [{queue_name}] has a different cache key than the previous one. We draw this loop iteration.")
-                return True
+                # If we're not in idle mode, we just paint it.
+                if not self.get_painter_shared_memory().is_idle_mode_on():
+                    # Careful, can be None.
+                    current_interaction = self.get_current_interaction(queue_name)
+                    self._log_debug(f"🔄  Loop Control: Current Paint [{current_interaction.name if current_interaction is not None else 'None'}] in [{queue_name}] has a different cache key than the previous one. We draw this loop iteration.")
+                    return True
+                # We're in idle mode, so we only paint in case that the interaction is meant to interrupt the idle mode, otherwise we skip it and wait for the next loop iteration.
+                else:
+                    # Is the interaction meant to be painted even during idle mode? If so, we paint it.
+                    if self.get_current_interaction(queue_name) is not None and self.get_current_interaction(queue_name).show_during_idle_mode:
+                        self._log_debug(f"🔄  Loop Control: Current Paint [{self.get_current_interaction(queue_name).name}] in [{queue_name}] has a different cache key than the previous one, and is meant to interrupt idle mode. We draw this loop iteration.")
+                        return True
+                    # If not, we need to paint a black screen in the display area of the interaction, because otherwise we're painting an old value.
+                    # Example: Status area gets updated with new debug lines, but we don't want to interrupt the idle mode. so we don't update it, and avoid painting even the cache.
+                    # COMMENTED: It's not doing what it should.
+                    # else:
+                    #     self._log_debug(f"🔄  Loop Control: Current Paint [{self.get_current_interaction(queue_name).name if self.get_current_interaction(queue_name) is not None else 'None'}] in [{queue_name}] has a different cache key than the previous one, but is NOT meant to interrupt idle mode. We will paint a black screen in the display area of this interaction.")
+                    #     self._reset_display_area_for_queue(queue_name)
+                    #     return True
 
         self._log_debug(f"⏹️  Loop Control: No changes in interactions detected. Skipping this loop iteration.")
         return False
