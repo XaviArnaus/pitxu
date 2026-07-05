@@ -413,8 +413,7 @@ class Main(PyXavi):
                 self._log_debug("Detection: We're inside hold interaction time and the user wants to exit.")
 
                 # An interaction comes, stop the idle mode.
-                if self._interaction.is_idle_mode_on():
-                    self._interaction.set_idle_mode_off()
+                self._interaction.set_idle_mode_off()
 
                 # Just assume a goodbye
                 answer = self._goodbye_sentence
@@ -431,8 +430,7 @@ class Main(PyXavi):
                 self._log_debug("Detection: Text only has trigger words.")
                                 
                 # An interaction comes, stop the idle mode.
-                if self._interaction.is_idle_mode_on():
-                    self._interaction.set_idle_mode_off()
+                self._interaction.set_idle_mode_off()
 
                 # Randomly choose one of the trigger answers
                 import random
@@ -551,8 +549,7 @@ class Main(PyXavi):
         """
 
         # An interaction comes, stop the idle mode.
-        if self._interaction.is_idle_mode_on():
-            self._interaction.set_idle_mode_off()
+        self._interaction.set_idle_mode_off()
 
         # We set it as busy in shared memory, so the Background Display can show the thinking effect
         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
@@ -774,8 +771,7 @@ class Main(PyXavi):
         self.persist_state()
 
         # Stop Idle Mode if active
-        if self._interaction.is_idle_mode_on():
-            self._interaction.set_idle_mode_off()
+        self._interaction.set_idle_mode_off()
 
         # Clear the displays
         # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
