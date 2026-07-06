@@ -1075,6 +1075,7 @@ class Main(PyXavi):
         self._chatbot = GeminiChatbot(config=self._xconfig, params=Dictionary({
             "api_key": self._xparams.get("api_key"),
             "github_token": self._xparams.get("github_token"),
+            "mail": self._xparams.get("mail"),
             "language": self._xparams.get("language"),
             "status_shortcuts": self._interaction.get_status_shortcuts(),
         }))
