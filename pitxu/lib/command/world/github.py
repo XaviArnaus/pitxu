@@ -127,7 +127,7 @@ class WorldGithub(PyXavi, Command):
         url = f"https://github.com/{account.lower()}/{repo.lower()}/blob/{branch.lower()}/{file_path.lower()}/{file_name.lower()}"
         self._xlog.debug(f"Constructed GitHub URL for file: {url}")
         self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting file from GitHub branch: [{url}]")
-        return self.wget.get(url)
+        return self.github.get_contents_from_path(url)
     
     def callback_get_files_involved_in_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         
