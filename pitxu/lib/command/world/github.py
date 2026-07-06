@@ -55,25 +55,44 @@ class WorldGithub(PyXavi, Command):
         self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting branch related to PR: [{pr_url}]")
         return self.github.get_branch_related_to_pr(pr_url)
 
-    def get_raw_code_from_github_url(self, url: str) -> str | bool:
+    def get_raw_code_from_github_url(self, url: str) -> str | list | bool:
         '''
-        Get the raw code content from a given GitHub URL.
+        Get the raw code content from a given GitHub URL. 
+        If the URL points to a single file, it returns the content of that file. 
+        If the URL points to a directory, it returns a list of files in that directory, as GitHub urls, 
+        and then the user can choose which one to get the content from.
 
         Args:
             url (str): The GitHub URL to get the raw code content from.
         Returns:
-            str | bool: The raw code content as a string, or False if not found.
+            str | list | bool: The raw code content as a string, a list of GitHub URLs, or False if not found.
         '''
         if "github.com" not in url:
             self._xlog.error(f"URL {url} is not a GitHub URL.")
             return False
+        
+        # If the URL already contains the raw.githubusercontent.com domain, we can directly fetch the content
+        if "raw.githubusercontent.com" in url:
+            self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting raw code from GitHub raw URL: [{url}]")
+            return self.wget.get(url)
         
         # Convert the GitHub URL to a raw content URL
         # COMMENTED: Now we get the RAW url directly from the GitHub API, so we don't need to convert it ourselves
         # raw_url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
         # self._xlog.debug(f"Converted GitHub URL to raw URL: {raw_url}")
         self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting raw code from GitHub URL: [{url}]")
-        return self.wget.get(url)
+        # return self.wget.get(url)
+        retrieved_contents = self.github.get_contents_from_path(url)
+        if not retrieved_contents:
+            self._xlog.error(f"Failed to retrieve contents from GitHub URL: {url}")
+            return False
+        if len(retrieved_contents) == 1:
+            return retrieved_contents[0].get("content", "")
+        else:
+            # If multiple files are retrieved, just return the file list as a list to let the user choose which one.
+            # This is done like this to avoid consuming so many tokens by sending the contents of all the files.
+            return [file.get("url", "") for file in retrieved_contents]
+            
     
     # def get_pull_request_content_from_github_project(self, account: str, repo: str, pull_request_number: int) -> str | bool:
     #     '''
