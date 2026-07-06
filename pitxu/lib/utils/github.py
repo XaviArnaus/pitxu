@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 import json
+import base64
 
 class Github(PyXavi):
 
@@ -162,24 +163,34 @@ class Github(PyXavi):
                 # If the path is a file, files_info will be a dict, not a list. We need to handle that case.
                 if isinstance(files_info, dict):
                     self._log_debug(f"File in path: {path}/{files_info['name']}")
+                    if "content" in files_info and files_info["content"] is not None:
+                        # Decode the base64 content
+                        decoded_content = base64.b64decode(files_info["content"]).decode('utf-8')
+                    else:
+                        decoded_content = None
                     file_data = {
                         "name": files_info["name"],
                         "type": files_info["type"],
                         "url": files_info["url"],
                         "download_url": files_info["download_url"],
-                        "content": files_info.get("content", None),
+                        "content": decoded_content,
                     }
                     return [file_data]
                 elif isinstance(files_info, list):
                     files_data = []
                     for file_info in files_info:
                         self._log_debug(f"File in path: {path}/{file_info['name']}")
+                        if "content" in file_info and file_info["content"] is not None:
+                            # Decode the base64 content
+                            decoded_content = base64.b64decode(file_info["content"]).decode('utf-8')
+                        else:
+                            decoded_content = None
                         file_data = {
                             "name": file_info["name"],
                             "type": file_info["type"],
                             "url": file_info["url"],
                             "download_url": file_info["download_url"],
-                            "content": file_info.get("content", None),
+                            "content": decoded_content,
                         }
                         files_data.append(file_data)
                     return files_data
