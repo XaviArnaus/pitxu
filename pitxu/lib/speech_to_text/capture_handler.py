@@ -1,5 +1,3 @@
-from functools import partial
-
 from pyxavi import Config, Dictionary, dd, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -231,7 +229,8 @@ class CaptureHandler(PyXavi):
 
             if status:
                 self._xlog.debug(f"🗣️ Audio input status: {status}")
-                print(status, file=sys.stderr)
+                self._xlog.debug(f"🗣️ Internal queue length: {self.internal_queue.qsize()}")
+                # print(status, file=sys.stderr)
             
             # Just reset the flag that indicates that the audio callback raised an exception, 
             # as we are receiving audio blocks again, so it seems to be working again.
