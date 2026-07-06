@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
@@ -292,11 +292,16 @@ class StatefulMemory(PyXavi, Command):
                         summary_pieces.append(f"{counter}. [{date}] {entry.get("summary", "")}")
                         counter += 1
                 summary = "\n".join(summary_pieces)
+            elif isinstance(value, str):
+                log.error(f"🟠 Memory entry retrieval result is a string: {value}")
+                interaction.show_error(text=value)
+                return
             elif value is None:
                 log.error(f"🟠 Memory entry retrieval result is None.")
                 interaction.show_error(text="Memory entry not found")
                 return
             else:
+                dd(value)
                 log.error(f"🛑 Memory entry retrieval result does not contain 'summary' to show on the Foreground.")
                 interaction.show_error(text=value if isinstance(value, str) else "Unknown error")
                 return

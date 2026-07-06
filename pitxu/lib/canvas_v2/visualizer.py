@@ -411,26 +411,28 @@ class Visualizer(PyXavi):
 
         self.painter.paint(
             PaintObject(
-                foreground=ForegroundPaint(
-                    name="ErrorForegroundPaint",
-                    command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: ForegroundPaint(
+                        name="ErrorForegroundPaint",
+                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
 
-                    drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                    drawing_callback_parameters={
-                        "text": params.get("text", ""),
-                        "icon": "❌",
-                        "font_size": params.get("font_size", 24),
-                        "header": "Error",
-                        "font_header_size": params.get("font_header_size", 32),
-                        "padding": params.get("padding", 5)
-                    },
+                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+                        drawing_callback_parameters={
+                            "text": params.get("text", ""),
+                            "icon": "❌",
+                            "font_size": params.get("font_size", 24),
+                            "header": "Error",
+                            "font_header_size": params.get("font_header_size", 32),
+                            "padding": params.get("padding", 5)
+                        },
 
-                    maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
+                        maintain_paint_for_seconds=params.get("for_seconds", self.DEFAULT_FOREGROUND_MAINTAIN_SECONDS),
 
-                    # final_screen_clearing=True,
-                    # remove_interaction_after_painting=True,
-                    ignore_maintain_time=False
-                )
+                        # final_screen_clearing=True,
+                        # remove_interaction_after_painting=True,
+                        ignore_maintain_time=False
+                    )
+                }
             )
         )
     
