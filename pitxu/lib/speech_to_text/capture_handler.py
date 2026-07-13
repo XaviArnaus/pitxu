@@ -46,6 +46,9 @@ class CaptureHandler(PyXavi):
     # Be careful with this, other STT engines than FastgerWhisperStream don't support it and will fail.
     add_timestamps_to_chunks: bool = False
 
+    # We intend to control the size of the internal queue, as it seems that it may get full and make the sounddevice to stop sending chunks
+    max_queue_size_reached: int = 40
+
     # We try to remember that there was an error rose inside the audio callback,
     #   basically to know (by now) that we want to restart the audio stream if it finishes, 
     #   as that callback may stop being called if an exception is raised inside it.
@@ -240,6 +243,12 @@ class CaptureHandler(PyXavi):
             # to avoid doing heavy processing in this callback and risking to block the audio input.
             chunk = indata[:]
             self.internal_queue.put(bytes(chunk))
+
+            # Instrumentation: Log if queue size exceeds the previous maximum
+            current_size = self.internal_queue.qsize()
+            if current_size > self.max_queue_size_reached:
+                self.max_queue_size_reached = current_size
+                self._xlog.warning(f"🗣️ New maximum queue size reached: {self.max_queue_size_reached}")
         
             # else:
             #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
