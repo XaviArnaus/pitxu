@@ -55,7 +55,7 @@ class Github(PyXavi):
 
         try:
             while api_url:
-                request = urllib.request.Request(api_url, headers=headers, params=params)
+                request = urllib.request.Request(api_url, headers=headers)
                 with urllib.request.urlopen(request) as response:
                     data = response.read()
                     
