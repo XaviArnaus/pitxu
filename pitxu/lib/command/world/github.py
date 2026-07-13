@@ -72,8 +72,12 @@ class WorldGithub(PyXavi, Command):
             return False
         
         # If the URL already contains the raw.githubusercontent.com domain, we can directly fetch the content
-        if "raw.githubusercontent.com" in url:
-            self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting raw code from GitHub raw URL: [{url}]")
+        # https://raw.githubusercontent.com/XaviArnaus/pitxu/1297294fdfc8c7eef8f5ea6b2b5fae61571bed57/pitxu/lib/speech_to_text/capture_handler.py
+        # Still, we could have another version of the raw URL, returned by the files_in_pr
+        # https://github.com/XaviArnaus/pitxu/raw/1297294fdfc8c7eef8f5ea6b2b5fae61571bed57/pitxu/lib/speech_to_text/capture_handler.py
+        parts = url.split("/")
+        if "raw.githubusercontent.com" in url or parts[5] == "raw":
+            self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting code from GitHub raw URL: [{url}]")
             return self.wget.get(url)
         
         # Convert the GitHub URL to a raw content URL

@@ -875,3 +875,22 @@ finally:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+    
+    async def test_github_files(self):
+        try:
+            from pitxu.lib.utils.github import Github
+
+           
+            self._xlog.debug("Testing the retrieval of files")
+
+            github = Github(config=self._xconfig, params=self._xparams)
+
+            files = github.get_files_involved_in_pr("https://github.com/XaviArnaus/pitxu/pull/35")
+            dd(files)
+
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())
