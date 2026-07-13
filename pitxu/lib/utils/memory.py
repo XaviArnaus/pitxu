@@ -28,6 +28,9 @@ class Memory(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
 
+        if not params.key_exists("api_key"):
+            raise ValueError("No API KEY received from params")
+
         # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
         self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
         self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)

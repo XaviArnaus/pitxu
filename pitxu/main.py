@@ -942,6 +942,7 @@ class Main(PyXavi):
 
         # Initialise the Support worker.
         support_params = Dictionary({
+            "api_key": self._xparams.get("api_key"),
             "audio_parameters": self._audio_parameters,
             "process_pool": self._interaction.get_process_pool(),
         })

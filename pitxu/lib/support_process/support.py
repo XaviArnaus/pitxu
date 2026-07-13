@@ -32,6 +32,7 @@ class Support(PyXavi):
         
         # Initialize the Support process in the pool, with the appropriate queues.
         initialized = self.process_pool.new_and_start(QUEUE_SUPPORT, SupportProcess, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
             "initialize_from_main": False,
             "use_output_queue": True
         }))
