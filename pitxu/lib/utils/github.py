@@ -45,25 +45,30 @@ class Github(PyXavi):
         api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
         headers = {
             "Authorization": f"Bearer {self.GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
         }
+        params = {"per_page": 100}
 
         try:
-            request = urllib.request.Request(api_url, headers=headers)
-            with urllib.request.urlopen(request) as response:
-                data = response.read()
-                
-                files_info = json.loads(data)
-                files_data = []
-                for file_info in files_info:
-                    self._log_debug(f"File in PR: {file_info['filename']}")
-                    file_data = {
-                        "name": file_info["filename"],
-                        "status": file_info["status"],
-                        "raw_url": file_info["raw_url"],
-                        "contents_url": file_info["contents_url"],
-                    }
-                    files_data.append(file_data)
+            while api_url:
+                request = urllib.request.Request(api_url, headers=headers, params=params)
+                with urllib.request.urlopen(request) as response:
+                    data = response.read()
+                    
+                    files_info = json.loads(data)
+                    files_data = []
+                    for file_info in files_info:
+                        self._log_debug(f"File in PR: {file_info['filename']}")
+                        file_data = {
+                            "name": file_info["filename"],
+                            "status": file_info["status"],
+                            "raw_url": file_info["raw_url"],
+                            "contents_url": file_info["contents_url"],
+                        }
+                        files_data.append(file_data)
+
+                    # Now get the next page's URL. If there's no link, the while will stop.
+                    api_url = response.links.get("next", {}).get("url")
                 return files_data
         except Exception as e:
             self._xlog.error(f"Error fetching PR files: {e}")
