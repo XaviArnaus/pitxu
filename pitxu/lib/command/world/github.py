@@ -41,19 +41,19 @@ class WorldGithub(PyXavi, Command):
         self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting files involved in PR: [{pr_url}]")
         return self.github.get_files_involved_in_pr(pr_url)
     
-    def get_branch_related_to_pr(self, pr_url: str) -> str | bool:
-        """
-        Gets the branch related to a PR, given the PR URL.
+    # def get_branch_related_to_pr(self, pr_url: str) -> str | bool:
+    #     """
+    #     Gets the branch related to a PR, given the PR URL.
 
-        It uses the GitHub API to get the branch related to the PR.
+    #     It uses the GitHub API to get the branch related to the PR.
 
-        Args:
-            pr_url (str): The URL of the PR.
-        Returns:
-            str | bool: The branch related to the PR, or False if not found.
-        """
-        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting branch related to PR: [{pr_url}]")
-        return self.github.get_branch_related_to_pr(pr_url)
+    #     Args:
+    #         pr_url (str): The URL of the PR.
+    #     Returns:
+    #         str | bool: The branch related to the PR, or False if not found.
+    #     """
+    #     self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting branch related to PR: [{pr_url}]")
+    #     return self.github.get_branch_related_to_pr(pr_url)
 
     def get_raw_code_from_github_url(self, url: str) -> str | list | bool:
         '''
@@ -111,23 +111,23 @@ class WorldGithub(PyXavi, Command):
     #     self._xlog.debug(f"Constructed GitHub API URL for pull request: {url}")
     #     return self.get_content_from_url(url)
     
-    def get_file_from_github_branch(self, account: str, repo: str, branch: str, file_path: str, file_name: str) -> str | bool:
-        '''
-        Get the content of a file from a specific branch in a GitHub repository.
+    # def get_file_from_github_branch(self, account: str, repo: str, branch: str, file_path: str, file_name: str) -> str | bool:
+    #     '''
+    #     Get the content of a file from a specific branch in a GitHub repository.
 
-        Args:
-            account (str): The GitHub account name.
-            repo (str): The GitHub repository name.
-            branch (str): The branch name.
-            file_path (str): The path to the file in the repository.
-            file_name (str): The name of the file in the repository.
-        Returns:
-            str | bool: The content of the file as a string, or False if not found.
-        '''
-        url = f"https://github.com/{account.lower()}/{repo.lower()}/blob/{branch.lower()}/{file_path.lower()}/{file_name.lower()}"
-        self._xlog.debug(f"Constructed GitHub URL for file: {url}")
-        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting file from GitHub branch: [{url}]")
-        return self.github.get_contents_from_path(url)
+    #     Args:
+    #         account (str): The GitHub account name.
+    #         repo (str): The GitHub repository name.
+    #         branch (str): The branch name.
+    #         file_path (str): The path to the file in the repository.
+    #         file_name (str): The name of the file in the repository.
+    #     Returns:
+    #         str | bool: The content of the file as a string, or False if not found.
+    #     '''
+    #     url = f"https://github.com/{account.lower()}/{repo.lower()}/blob/{branch.lower()}/{file_path.lower()}/{file_name.lower()}"
+    #     self._xlog.debug(f"Constructed GitHub URL for file: {url}")
+    #     self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting file from GitHub branch: [{url}]")
+    #     return self.github.get_contents_from_path(url)
     
     def callback_get_files_involved_in_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         
@@ -139,14 +139,14 @@ class WorldGithub(PyXavi, Command):
             log.error(f"🛑 Error showing files involved in PR on Display: {e}")
             log.error(full_stack())
     
-    def callback_get_branch_related_to_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+    # def callback_get_branch_related_to_pr(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         
-        try:
-            branch = str(value)
-            interaction.show_text_block_on_foreground_while_speaking(text=branch)
-        except Exception as e:
-            log.error(f"🛑 Error showing branch related to PR on Display: {e}")
-            log.error(full_stack())
+    #     try:
+    #         branch = str(value)
+    #         interaction.show_text_block_on_foreground_while_speaking(text=branch)
+    #     except Exception as e:
+    #         log.error(f"🛑 Error showing branch related to PR on Display: {e}")
+    #         log.error(full_stack())
     
     def get_tool_definition(self) -> list[callable]:
         """
@@ -157,8 +157,9 @@ class WorldGithub(PyXavi, Command):
         return [self.get_files_involved_in_pr,
                 self.get_raw_code_from_github_url,
                 # self.get_pull_request_content_from_github_project,
-                self.get_branch_related_to_pr,
-                self.get_file_from_github_branch]
+                # self.get_branch_related_to_pr,
+                # self.get_file_from_github_branch]
+        ]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -171,6 +172,6 @@ class WorldGithub(PyXavi, Command):
         """
         if function_name == "get_files_involved_in_pr":
             return self.callback_get_files_involved_in_pr
-        elif function_name == "get_branch_related_to_pr":
-            return self.callback_get_branch_related_to_pr
+        # elif function_name == "get_branch_related_to_pr":
+        #     return self.callback_get_branch_related_to_pr
         return self.default_empty_callback
