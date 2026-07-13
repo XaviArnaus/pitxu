@@ -1,10 +1,12 @@
 import urllib.request
+import urllib.parse
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 import json
 import base64
+import re
 
 class Github(PyXavi):
 
@@ -47,7 +49,9 @@ class Github(PyXavi):
             "Authorization": f"Bearer {self.GITHUB_TOKEN}",
             "Accept": "application/vnd.github.v3+json",
         }
-        params = {"per_page": 100}
+        params = {"per_page": 100, "sort": "asc"}
+        query_string = urllib.parse.urlencode(params)
+        api_url = f"{api_url}?{query_string}"
 
         try:
             while api_url:
@@ -68,7 +72,15 @@ class Github(PyXavi):
                         files_data.append(file_data)
 
                     # Now get the next page's URL. If there's no link, the while will stop.
-                    api_url = response.links.get("next", {}).get("url")
+                    link_header = response.headers.get('Link')
+                    if not link_header:
+                        api_url = None
+                    else:
+                        # Regex to find a URL inside < > followed by ; rel="next"
+                        # Matches <(.*?)> followed by optional whitespace and ; rel="next"
+                        pattern = r'<([^>]+)>;\s*rel="next"'
+                        match = re.search(pattern, link_header)
+                        api_url = match.group(1) if match else None
                 return files_data
         except Exception as e:
             self._xlog.error(f"Error fetching PR files: {e}")
