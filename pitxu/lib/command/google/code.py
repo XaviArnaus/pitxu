@@ -38,7 +38,12 @@ class GoogleCode(PyXavi, Command):
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
         self._xlog.debug(f"Getting Gemini generated code for prompt: [{prompt}] using model [{self.model_name}] and language [{self._xparams.get('language')}]")
-        self.status_shortcuts.add_new_status_line(f"🔧 Code: prompt: [{prompt}] using [{self.model_name}]")
+
+        # Clean the prompt from code ONLY when showing the prompt into the line status
+        prompt_for_status_line = Code.remove_code_language_identifier(prompt)
+        prompt_for_status_line = Code.remove_all_code_blocks_from_text(prompt_for_status_line)
+        # And now add it to the status as a new line.
+        self.status_shortcuts.add_new_status_line(f"🔧 Code: prompt: [{prompt_for_status_line}] using [{self.model_name}]")
 
         instructions = {
             "ca": f"Genera un bloc de codi relacionat amb el següent prompt: [{prompt}]. Sigues curt i precís.",
