@@ -47,7 +47,7 @@ class CaptureHandler(PyXavi):
     add_timestamps_to_chunks: bool = False
 
     # We intend to control the size of the internal queue, as it seems that it may get full and make the sounddevice to stop sending chunks
-    max_queue_size_reached: int = 40
+    max_queue_size_reached: int = 20
 
     # We try to remember that there was an error rose inside the audio callback,
     #   basically to know (by now) that we want to restart the audio stream if it finishes, 
@@ -121,7 +121,7 @@ class CaptureHandler(PyXavi):
         self.shared_memory.initialize_existing_shared_memory_flags()
 
         # The intermediate queue to communicate the decoupled Input Stream with the VAD callbacks
-        self.internal_queue = Queue.Queue()
+        self.internal_queue = Queue.Queue(max_size=40)
 
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
@@ -241,14 +241,16 @@ class CaptureHandler(PyXavi):
             
             # Now we simply put the chunk in an intermediate queue to be processed by the VAD worker, 
             # to avoid doing heavy processing in this callback and risking to block the audio input.
-            chunk = indata[:]
-            self.internal_queue.put(bytes(chunk))
-
-            # Instrumentation: Log if queue size exceeds the previous maximum
-            current_size = self.internal_queue.qsize()
-            if current_size > self.max_queue_size_reached:
-                self.max_queue_size_reached = current_size
-                self._xlog.warning(f"🗣️ New maximum queue size reached: {self.max_queue_size_reached}")
+            chunk = bytes(indata[:])
+            try:
+                self.internal_queue.put_nowait(chunk)
+            except Queue.Full:
+                try:
+                    self._xlog.warning(f"🗣️ Internal chunk queue is full at size {self.internal_queue.qsize()}")
+                    self.internal_queue.get_nowait()
+                    self.internal_queue.put_nowait(chunk)
+                except (Queue.Empty, Queue.Full):
+                    pass
         
             # else:
             #     self._xlog.debug("Input audio callback: Skipping audio input, as the microphone is muted or the speaker is busy according to the shared memory flags")
