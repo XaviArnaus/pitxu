@@ -121,7 +121,7 @@ class CaptureHandler(PyXavi):
         self.shared_memory.initialize_existing_shared_memory_flags()
 
         # The intermediate queue to communicate the decoupled Input Stream with the VAD callbacks
-        self.internal_queue = Queue.Queue(max_size=40)
+        self.internal_queue = Queue.Queue(maxsize=40)
 
         # Initialize the VAD with the provided configuration
         threshold = self._xconfig.get("speech-to-text.vad.threshold", 0.6)
