@@ -18,6 +18,7 @@ class ThreadedInputStream(PyXavi):
     blocksize: int = None
     device: str = None
     capture_handler_callback: callable = None
+    finished_callback: callable = None
 
     recording_thread: threading.Thread = None
 
@@ -45,6 +46,13 @@ class ThreadedInputStream(PyXavi):
             self._xlog.error("Capture handler not found in configuration. Please ensure that 'capture_handler_callback' is defined in the configuration.")
             raise ValueError("Capture handler not found in configuration.")
         
+        # We need also the finished callback handler
+        if self._xparams.key_exists("finished_callback"):
+            self.finished_callback = self._xparams.get("finished_callback")
+        else:
+            self._xlog.error("Finished callback not found in configuration. Please ensure that 'finished_callback' is defined in the configuration.")
+            raise ValueError("Finished callback not found in configuration.")
+        
         self.samplerate = self._audio_parameters.get("input_samplerate")
         self.blocksize = self._xconfig.get("speech-to-text.blocksize", 1024)
         self.device = self._xparams.get("audio_parameters.input_device", None)
@@ -60,9 +68,17 @@ class ThreadedInputStream(PyXavi):
         
         # Now we start the thread.
         self.recording_thread = threading.Thread(target=self._input_stream_worker, name=self.THREAD_NAME, daemon=True)
-        self.recording_thread.start()
+        self.start_recording()
         
         self._xlog.debug("InputStream initialized successfully.")
+    
+    def start_recording(self):
+        if self.recording_thread is not None:
+            self._xlog.debug("Starting the input stream...")
+            self.recording_thread.start()
+            self._xlog.debug("Input stream started.")
+        else:
+            self._xlog.error("Input stream is not initialized. Cannot start recording.")
     
     def close(self):
         self._xlog.info("Closing InputStream...")
@@ -115,3 +131,19 @@ class ThreadedInputStream(PyXavi):
                             # callback=self._dictate.callback) as input_stream:
                             callback=self.capture_handler_callback)
     
+class MockedInputStream(ThreadedInputStream):
+    """
+    This is a mocked version of the ThreadedInputStream, which can be used for testing purposes. 
+    It simulates the behavior of the actual input stream without capturing real audio data. 
+    This allows us to test the speech-to-text pipeline and other components without relying on a microphone or audio input.
+    """
+
+    def initialize(self):
+        self._xlog.debug("Initializing MockedInputStream... (no actual audio capture will occur)")
+        self._xlog.debug("MockedInputStream initialized successfully.")
+    
+    def close(self):
+        self._xlog.info("Closing MockedInputStream... (no actual stream to close)")
+    
+    def get_input_stream(self):
+        return None  # No actual stream, since this is a mock.

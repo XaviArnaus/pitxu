@@ -1,9 +1,11 @@
+import asyncio
+
 from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 
-from definitions import ROOT_DIR
+from definitions import ROOT_DIR, SHARED_DSI_LCD_IDLE_MODE
 
 import time, json, os
 
@@ -768,5 +770,127 @@ finally:
 
         except FileNotFoundError:
             print(TerminalColor.RED_BRIGHT + f"The file '{input_wavefile_path}' was not found." + TerminalColor.END)
+        except Exception:
+            print(full_stack())
+    
+    async def test_one_run(self):
+        try:
+            self._xlog.info("Starting Test Run...")
+
+            # this should bring up everything but STT and Schedulers
+            self._xparams.set("execution_mode", "test")
+
+            # Initialize the parts
+            from pitxu.main import Main
+
+            self._xlog.info("Initializing Main...")
+            main = Main(config=self._xconfig, params=self._xparams)
+            await main.run()
+
+            # Delay a bit so we can see the loop stopping itself
+            await asyncio.sleep(2)
+
+            # COMMENTED: I am playing with Emojis.
+            # # Read a file to simulate speech, and call the transcriber.
+            # # By now, just assuming an question. Be smart, it can trigger specific parts of the app.
+            # self._xlog.info("Getting question from STT...")
+            # question = "Show me a `hello world` code example in Python."
+
+            # # Use the chatbot. It should trigger an external tool
+            # self._xlog.info("Getting answer from Chatbot...")
+            # # answer = question.upper()
+            # answer = await main.chatbot_request_for_answer(question)
+
+            # # Make it through the outcome interaction (TTS, display)
+            # self._xlog.info("Delivering outcome...")
+            # main.deliver_outcome(question=question, answer=answer)
+
+            # # Delay a bit so we can see the loop stopping itself
+            # await asyncio.sleep(2)
+
+            # And now close everything down
+            self._xlog.info("Closing Main...")
+            main.close_nicely()
+
+            self._xlog.info("test_one_run completed successfully.")
+
+        except Exception:
+            print(full_stack())
+    
+    async def test_status_idle(self):
+        try:
+            from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.canvas_v2.visualizer import Visualizer
+            from pitxu.lib.objects.point import Point
+            from pitxu.lib.utils.system import System
+            from pitxu.lib.microservice.client import Client
+
+            # Delegate the run to Main
+            self._xlog.debug("Testing the Status Idle Screen")
+
+            self._xparams = self._xparams.merge(Dictionary({
+                "screen_size": Point(int(self._xconfig.get("dsi_lcd.size.x")), int(self._xconfig.get("dsi_lcd.size.y"))),
+                "device_config_prefix": "dsi_lcd",
+                "shared_memory": self.shared_memory,
+                "interaction_delays": {
+                    "default_delay_between_frames": self._xconfig.get("dsi_lcd.delays.default_delay_between_frames"),
+                    "foreground_notifications": self._xconfig.get("dsi_lcd.delays.foreground_notifications"),
+                    "startup_splash": self._xconfig.get("dsi_lcd.delays.startup_splash"),
+                    "thinking": self._xconfig.get("dsi_lcd.delays.thinking"),
+                    "speaking": self._xconfig.get("dsi_lcd.delays.speaking"),
+                    "idle": self._xconfig.get("dsi_lcd.delays.idle"),
+                }
+            }))
+            device = DeviceWrapper(config=self._xconfig, params=self._xparams)
+            self._xparams.set("device", device)
+            visualizer = Visualizer(config=self._xconfig, params=self._xparams)
+
+            client = Client(config=self._xconfig, params=self._xparams)
+            execution_mode = "local_status"
+
+            self._xlog.debug("Gathering network information and server connection status to show in the idle screen...")
+            wifis = System.get_connected_wifi()
+            network = System.get_default_network_interface()
+            response = client.status() if execution_mode == "public" else {"status": "off"}
+            server_status = response.get("status", "off")
+            text = wifis[0].get("ssid", "Not connected") + "\n" + \
+                    network.get("ip", "Not connected") + "\n" + \
+                    ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}") + "\n"
+            
+            self._xlog.debug(f"Network info and server status to show: \n{text}")
+            
+            self._xlog.debug("Showing idle status screen with network info and server connection status...")
+            self.shared_memory.write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, True)
+            visualizer.arbitrary_text_while_idle(params={"text": text})
+            
+            self._xlog.debug("Showing image and pausing 5 seconds to let it show")
+            time.sleep(5)
+
+            self._xlog.debug("Closing visualizer...")
+            visualizer.close()
+
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
+        except Exception:
+            print(full_stack())
+    
+    async def test_github_files(self):
+        try:
+            from pitxu.lib.utils.github import Github
+
+           
+            self._xlog.debug("Testing the retrieval of files")
+
+            github = Github(config=self._xconfig, params=self._xparams)
+
+            files = github.get_files_involved_in_pr("https://github.com/XaviArnaus/pitxu/pull/35")
+            dd(files)
+
+            self._xlog.info("End of work.")
+
+        except RuntimeError as e:
+            print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())

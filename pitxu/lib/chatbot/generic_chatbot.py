@@ -7,7 +7,7 @@ from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
 from pitxu.lib.microservice.client import Client
 

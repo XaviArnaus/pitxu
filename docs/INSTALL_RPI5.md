@@ -151,7 +151,7 @@ NVME_CONTROLLER=1
 
 ### Set up your soundcard
 
-The sound setup depends of you, but it's mandatory. In my current installation I'm using a USB Soundcard ant everything is setup already out of the box.
+The sound setup depends of you, but it's mandatory. In my current installation I'm using a USB Soundcard and everything is setup already out of the box.
 I also tried the following soundcards and I leave some references here. Refer to your soundcard details to properly install it and leave it ready.
 
 Make sure that the system works through ALSA. Pitxu has Chatbot Tools to manage the audio that rely on `alsactl` shell commands.
@@ -193,48 +193,8 @@ https://forum.raspiaudio.com/t/ultra-installation-guide/21
   - https://sabrent.com/products/AU-MMSA
 
 ⚠️ Faced the issue that after several hours the microphone stops working, and therefore Pitxu does not wake up.
-❓ Tried to disable the USB auto power saving:
 
-1. Get the *Vendor ID*, the *Product ID* and the *Product* name of the USB sounbcard (for example, see line 4 here):
-```
-$ lsusb
-
-Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
-Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
-Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
-Bus 003 Device 002: ID 0d8c:0014 C-Media Electronics, Inc. Audio Adapter (Unitek Y-247A)
-Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
-```
-
-2. Confirm it with looking at the udev devices. First command shows the devices, second shows info about one (Bus-Device):
-```
-udevadm info -a --path /sys/bus/usb/devices/
-udevadm info -a --path /sys/bus/usb/devices/3-2
-```
-
-3. Create an `udev` rule
-```
-sudo nano /etc/udev/rules.d/10-usb-audio.rules
-```
-
-4. Add the following 3 lines. Edit with your *Vendor ID*, *Product ID* and *Product* name:
-```
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/control", ATTR{power/control}:="on"
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend", ATTR{power/autosuspend}:="-1"
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", ATTR{idProduct}=="0014", ATTR{product}=="USB Audio Device", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}:="-1"
-```
-
-⚠️ It did not really worked. Trying the next:
-
-5. Add a new modprobe rule:
-```
-sudo nano /etc/modprobe.d/audio_disable_powersave.conf
-```
-
-and add this content:
-```
-options snd_usb_audio power_save=0
-```
+Take a look at the dedicated document on how to fix this: [preprocess input samplerate](chunks_stop_being_received_after_some_hours.md)
 
 6. Reboot
 

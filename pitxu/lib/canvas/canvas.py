@@ -71,6 +71,12 @@ class Canvas(PyXavi):
             "RGB": (0, 255, 0),
             "RGBA": (0, 255, 0, 255)
         },
+        "dark_green": {
+            "1": 255,
+            "L": 0,
+            "RGB": (0, 128, 0),
+            "RGBA": (0, 128, 0, 255)
+        },
         "blue": {
             "1": 255,
             "L": 0,
@@ -82,6 +88,12 @@ class Canvas(PyXavi):
             "L": 0,
             "RGB": (255, 255, 0),
             "RGBA": (255, 255, 0, 255)
+        },
+        "dark_yellow": {
+            "1": 255,
+            "L": 0,
+            "RGB": (128, 128, 0),
+            "RGBA": (128, 128, 0, 255)
         },
         "orange": {
             "1": 255,
@@ -120,6 +132,14 @@ class Canvas(PyXavi):
     @property
     def COLOR_ORANGE(self) -> tuple | int:
         return self.COLOR_CODES["orange"][str(self.COLOR_MODE)]
+
+    @property
+    def COLOR_DARK_GREEN(self) -> tuple | int:
+        return self.COLOR_CODES["dark_green"][str(self.COLOR_MODE)]
+
+    @property
+    def COLOR_DARK_YELLOW(self) -> tuple | int:
+        return self.COLOR_CODES["dark_yellow"][str(self.COLOR_MODE)]
 
     @property
     def COLOR_FOREGROUND(self) -> tuple | int:

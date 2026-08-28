@@ -6,10 +6,10 @@
 app:
   # Application name
   name: "Pitxu"
-  # Which language to start with. Possible values "en-us", "ca", "de", "es"
+  # Which language to start with. Possible values "en", "ca", "de", "es"
   default_language: "ca"
   # Defines the supported languages. Must instersect STT, TTS and Gemini, and have definitions in this config.
-  supported_languages: ["en-us", "ca", "de", "es"]
+  supported_languages: ["en", "ca", "de", "es"]
   # [String] Defines the execution mode of the app. Possible values:
   #   "local": Run as normal. The server is NOT started based on its own configuration.
   #   "public": Run as normal, but also start the server in the same process. This is useful for development and testing, to avoid having to start the server separately.
@@ -80,6 +80,11 @@ fonts:
   path: "pitxu/fonts"
   # [String] Default font file
   default_filename: "Font_with_emojis.ttc"
+
+# Timings
+timings:
+  # [Integer] Minutes to wait before entering into Idle mode. Defaults to 120 seconds (2 minutes).
+  idle_minutes: 2
 
 ups:
   # Whether to enable UPS support

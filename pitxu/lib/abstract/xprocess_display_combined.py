@@ -2,11 +2,13 @@ import logging
 
 from pyxavi import Config
 
+from pitxu.lib.abstract.xprocess_display_common import XprocessDisplayCommon
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
+from pitxu.lib.abstract.xprocess_display_status import XprocessDisplayStatus
 from pitxu.lib.objects import XprocAction
 
-class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackground):
+class XprocessDisplayCombined(XprocessDisplayCommon, XprocessDisplayForeground, XprocessDisplayBackground, XprocessDisplayStatus):
     '''
     Class to define the protocol for Display foreground processes.
     '''
@@ -18,15 +20,21 @@ class XprocessDisplayCombined(XprocessDisplayForeground, XprocessDisplayBackgrou
         self._log_debug("XprocessDisplayCombined: Starting to process action, setting busy status.")
         self.set_busy()
 
+        # ---------- common interaction actions ----------
+
+        super(XprocessDisplayCombined, self)._run_common_interaction(config, logger, action, param)
+
         # ---------- foreground interaction actions ----------
 
         super(XprocessDisplayCombined, self)._run_foreground_interaction(config, logger, action, param)
 
-         # ---------- background interaction actions ----------
+        # ---------- background interaction actions ----------
 
         super(XprocessDisplayCombined, self)._run_background_interaction(config, logger, action, param)
 
-        # ---------- common interaction actions ----------
+        # ---------- status interaction actions ----------
+
+        super(XprocessDisplayCombined, self)._run_status_interaction(config, logger, action, param)
         
         # Now we're not
         self._log_debug("XprocessDisplayCombined: Finished processing action, unsetting busy status.")

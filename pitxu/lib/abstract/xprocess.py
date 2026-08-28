@@ -1,7 +1,7 @@
 from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
@@ -86,7 +86,9 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 self._current_action = action
 
                 # We mark the process as busy
-                self.set_busy()
+                # The initialization of the class should not be considered as busy.
+                if action != XprocAction.INITIALIZE:
+                    self.set_busy()
 
                 try:
                     # Run the context-aware run_with_context() first
@@ -118,7 +120,9 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 self.mark_input_queue_task_as_done()
 
                 # We're not busy anymore
-                self.unset_busy()
+                # The initialization of the class should not be considered as busy.
+                if action != XprocAction.INITIALIZE:
+                    self.unset_busy()
 
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")

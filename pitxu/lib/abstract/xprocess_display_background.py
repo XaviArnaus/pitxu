@@ -44,10 +44,6 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             self.interaction_holding_percentage(int(param))
         
-        # Clears the screen
-        if action == XprocAction.CLEAR:
-            self.clear()
-        
         # Clears the background screen only
         if action == XprocAction.BACKGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
             self._log_debug("XprocessDisplayBackground: Clearing background screen only.")

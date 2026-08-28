@@ -20,3 +20,10 @@ class ForegroundComm:
     ARBITRARY_ICON: str = "ARBITRARY_ICON"
 
     CLEAR: str = "CLEAR"
+
+class StatusComm:
+
+    CLEAR: str = "CLEAR"
+    STARTUP: str = "STARTUP"
+    STARTUP_WITH_PHASE: str = "STARTUP_WITH_PHASE"
+    ARBITRARY_ICON: str = "ARBITRARY_ICON"

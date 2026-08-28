@@ -3,13 +3,21 @@ from pitxu.lib.utils.api_request import ApiRequest
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.interaction.shortcuts.status import Status
 
 class WorldPosition(PyXavi, Command):
+
+    status_shortcuts: Status = None
 
     URL = f"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in WorldPosition initialization.")
 
     def get_latitude_and_longitude_from_location(self, location: str) -> dict | bool:
         '''
@@ -25,6 +33,7 @@ class WorldPosition(PyXavi, Command):
         while retries < 1:
             retries += 1
             self._xlog.debug(f"Getting geo coordinates for location: {location}. Try #{retries}")
+            self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting geo coordinates for location: [{location}]. Try #{retries}")
 
             url = WorldPosition.URL % location
             result = ApiRequest.do(url)
@@ -54,6 +63,7 @@ class WorldPosition(PyXavi, Command):
             dict | str: The latitude and longitude in JSON format, or an error message.
         '''
         self._xlog.debug("Getting geo coordinates for current location of the local system.")
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting geo coordinates for current location of the local system.")
 
         try:
             # Results are very bad (I'm not in Berlin...)
@@ -97,7 +107,7 @@ class WorldPosition(PyXavi, Command):
         Returns:
             dict | str: The latitude and longitude in JSON format, or an error message.
         '''
-
+        self.status_shortcuts.add_new_status_line(f"🔧 Tool: Getting geo coordinates for address: [{address}]")
         self._xlog.debug(f"Getting geo coordinates for address: [{address}]")
 
         try:

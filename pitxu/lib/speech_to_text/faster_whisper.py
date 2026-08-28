@@ -3,7 +3,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 import queue
@@ -45,9 +45,6 @@ class FasterWhisper(PyXavi):
         logging_parts = []
 
         language = self._xparams.get("language", "en")
-        if language == "en-us":
-            # I need to correct this Vosk language stupidity that is populated all around the code!!!
-            language = "en"
         logging_parts.append(("Language", language))
 
         if self._xconfig.get("speech-to-text.mock", True):

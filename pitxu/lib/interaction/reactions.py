@@ -77,37 +77,55 @@ class Reactions(PyXavi):
         if chat_response is None or not isinstance(chat_response, ChatbotResponse):
             return chat_response
         
-        # First we check if we have a Tool's response to react to.
-        function_call_pair = chat_response.function_call_history.get_last()
-        if function_call_pair.has_response():
-            self.react_on_function_call(function_call_pair)
+        # The whole logic for the code block needs to be reviewed.
+        # The code can come in 2 ways:
+        #   1. Inside the text, as part of the answer.
+        #       - the code is extracted from the text when parsing the answer from the chatbot.
+        #       - this should have priority over a function call with code.
+        #   2. As a callback from a Tool
+        #       - the code should be handled by the callback of the tool.
+        # TODO: This is too messy, should be unified.
 
-        # Then we check if the answer itself has any particularity that we need to react to.
-        # For example, if it has a code block, we show it in a particular way.
-        else:
+        # 1st. handle the case of having the code already post-processed as part of the answer.
+        if chat_response.has_code() and len(chat_response.code) > 0:
+
             try:
-
-                if chat_response.has_code():
-                    chat_response = self.handle_answer_with_code_block(chat_response)
-            
+                self._xlog.debug("⚡️ Reacting to an answer with code block inside the text")
+                chat_response = self.handle_answer_with_code_block(chat_response)
             except Exception as e:
                 self._xlog.error("🛑 Error reacting to an answer: " + str(e))
                 self._xlog.debug(full_stack())
+
+        # 2nd. handle the answer as an usual reaction.
+        else:
+
+            function_call_pair = chat_response.function_call_history.get_last()
+            callback_was_handled = False
+            if function_call_pair.has_response():
+                callback_was_handled = self.react_on_function_call(function_call_pair, text=chat_response.text)
+
+            if not callback_was_handled:
+                self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
+                self.interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=chat_response.text
+                )
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response
         
     
-    def react_on_function_call(self, function_call_pair: FunctionCallPair):
+    def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
         Reacts to the received function call response, meaning that a Tool was used,
         and we're supposed to show anything on the screen.
 
         Args:
             function_call_pair (FunctionCallPair): The last response from the chatbot with a function call.
+            text (str, optional): The text associated with the function call response. Defaults to None.
         
         Returns:
-            None
+            bool: True if the function call was handled, False otherwise.
         """
 
         # The idea here is to be able to use the hardware as part of the response, like moving eyes,
@@ -122,11 +140,12 @@ class Reactions(PyXavi):
         if function_call_pair is None or \
             not isinstance(function_call_pair, FunctionCallPair) or \
             not function_call_pair.has_response():
-            return None
+            return False
         
         self._xlog.debug("⚡️ Reacting to function call: " + str(function_call_pair.function_name))
 
         # Now distribute according to what we received.
+        result = True
         try:
 
             if function_call_pair.function_name == "error":
@@ -164,15 +183,19 @@ class Reactions(PyXavi):
                 # We got a client tool callback, treat it generically.
                 # Please note that this must go at the end of all possibilities, so we
                 #   can allow particular implementations like the shutdown and reboot above.
-                self.handle_client_callback(function_call_pair)
+                self.handle_client_callback(function_call_pair, text=text)
 
             else:
 
                 self._xlog.debug("⚡️ No reaction implemented for this function call, just ignoring it: " + str(function_call_pair.function_name))
+                result = False
+            
+            return result
         
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
             self._xlog.debug(full_stack())
+            return False
 
     def handle_error(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🚨  Showing an ERROR in the Foreground Display")
@@ -186,10 +209,15 @@ class Reactions(PyXavi):
             text=function_call_pair.function_response.response.get("result", "unknown"),
             font_size=self._get_canvas().FONT_SIZE_BIG)
     
-    def handle_client_callback(self, function_call_pair: FunctionCallPair):
+    def handle_client_callback(self, function_call_pair: FunctionCallPair, text: str = None):
         self._xlog.debug("↩️  Reacting to a function call with a client callback: " + str(function_call_pair.function_name))
         
-        value = function_call_pair.function_response.response.get("result", "unknown")
+        value = function_call_pair.function_response.response.get("result", None)
+        # This is meant to be temporary. The idea is to parse the text and extract info from it,
+        #   like the Markdown list that the Chatbot usualy answers, and show it.
+        if value is None:
+            self._xlog.warning("⚠️  The function call response does not have a 'result' field. Passing the chatbot response's 'text' field to the callback.")
+            value = text
         args = function_call_pair.function_call.arguments
         self._xlog.debug("📺 Executing callback with value: " + str(value))
         self.interaction.set_idle_mode_off()
@@ -312,7 +340,7 @@ class Reactions(PyXavi):
         self._unmute_microphone_if_needed()
     
     def handle_answer_with_code_block(self, chat_response: ChatbotResponse) -> ChatbotResponse:
-        self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response")
+        self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response for language [{self._xparams.get('language')}]")
 
         self.interaction.show_code_block_on_foreground_while_speaking(
             code=chat_response.code[0],

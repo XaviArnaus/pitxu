@@ -3,7 +3,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
@@ -12,8 +12,15 @@ from email.mime.text import MIMEText
 
 class ServiceMail(PyXavi, Command):
 
+    status_shortcuts: Status = None
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(ServiceMail, self).init_pyxavi(config=config, params=params)
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in ServiceMail initialization.")
     
     def send_email(self, subject: str, body: str) -> bool:
         '''
@@ -31,6 +38,9 @@ class ServiceMail(PyXavi, Command):
         # This solves the issue: https://stackoverflow.com/a/76439245
 
         try:
+
+            if self.status_shortcuts:
+                self.status_shortcuts.add_new_status_line(f"🔧 Mail: Sending with subject [{subject}]")
 
             server = self._xconfig.get("services.mail.host")
             port = self._xconfig.get("services.mail.port")

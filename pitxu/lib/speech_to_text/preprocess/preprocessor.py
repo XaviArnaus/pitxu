@@ -7,7 +7,7 @@ from pitxu.lib.speech_to_text.preprocess.filters import Filters
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.objects.xproc_action import XprocAction
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
 import numpy as np

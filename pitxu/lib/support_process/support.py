@@ -1,7 +1,7 @@
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.support_process.support_process import SupportProcess
 from pitxu.lib.objects import XprocAction
 
@@ -32,6 +32,7 @@ class Support(PyXavi):
         
         # Initialize the Support process in the pool, with the appropriate queues.
         initialized = self.process_pool.new_and_start(QUEUE_SUPPORT, SupportProcess, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
             "initialize_from_main": False,
             "use_output_queue": True
         }))
