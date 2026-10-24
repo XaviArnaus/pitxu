@@ -127,7 +127,7 @@ class Maintenance(PyXavi):
         try:
 
             # This data is only available under linux.
-            if System.is_linux():
+            if System.is_linux() and self._xconfig.get("gpio.mock", True) == False:
 
                 local_metrics["cpu"] = {
                     "temperature": System.get_cpu_temperature(),

@@ -1,8 +1,10 @@
+#!/bin/sh
+
 PYTHON = python3
 PIP = pip3
 POETRY ?= poetry
 
-ifeq (, $(shell which python ))
+ifeq (, $(shell command -v $(PYTHON)))
   $(error "PYTHON=$(PYTHON) not found in $(PATH)")
 endif
 PYTHON_VERSION_MIN=3.11
@@ -64,6 +66,10 @@ clear:
 .PHONY: battery_status
 battery_status:
 	@$(POETRY) run util -u battery_status
+
+.PHONY: migrate
+migrate:
+	@$(POETRY) run util -u migrate_db
 
 .PHONY: where-is-python
 where-is-python:

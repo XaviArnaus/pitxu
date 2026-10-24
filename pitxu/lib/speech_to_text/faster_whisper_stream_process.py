@@ -194,12 +194,14 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("Hot words count", len(self._hot_words)))
             self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
 
+            self._xlog.debug("Initializing Whisper Model")
             self._model = WhisperModel(model,
                                         device=device,
                                         download_root=download_root,
                                         compute_type=compute_type,
                                         cpu_threads=cpu_threads,
                                         )
+            self._xlog.debug("Whisper Model initialized")
             # Warm up the model by running a dummy transcription, to avoid the long loading time of the first transcription.
             self.warm_up_model()
         else:
