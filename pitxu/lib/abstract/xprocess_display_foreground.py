@@ -25,6 +25,10 @@ class XprocessDisplayForeground(Xprocess):
 
     def _run_foreground_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):
         
+        if action == XprocAction.INITIALIZE_ANIMATIONS:
+            self._log_debug("XprocessDisplayForeground: Initializing animations in Visualizer.")
+            self.initialize_animations()
+        
         # Shows the message received
         if action == XprocAction.SHOW and param != "":
             self.show(param)
@@ -77,9 +81,13 @@ class XprocessDisplayForeground(Xprocess):
         # Shows the Startup splash screen
         if action == XprocAction.STARTUP:
             if param is None or param == "":
-                self.splash_startup()
+                self.show_startup()
             else:
-                self.splash_startup(for_seconds=float(param))
+                self.show_startup(for_seconds=float(param))
+
+        # Show the Foreground version of the Init Step
+        if action == XprocAction.STARTUP_WITH_PHASE and param:
+            self.startup_with_phase(param)
         
         # Shows the Error screen
         if action == XprocAction.SHOW_ERROR:
@@ -92,18 +100,10 @@ class XprocessDisplayForeground(Xprocess):
                 for_seconds = param.get("for_seconds", 3.0)
                 self.show_error(text=text, for_seconds=for_seconds)
         
-        # Clears the screen
-        if action == XprocAction.CLEAR:
-            self.clear()
-        
         # Clears the foreground screen only
         if action == XprocAction.FOREGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
             self._log_debug("XprocessDisplayForeground: Clearing foreground screen only.")
             self.clear_foreground()
-        
-        # Clears the screen using a partial white
-        if action == XprocAction.SOFT_CLEAR:
-            self.soft_clear()
         
         # Now see if we need to do any extended action for the given action.
         self.extended_foreground_run(config, logger, action, param)
@@ -131,6 +131,9 @@ class XprocessDisplayForeground(Xprocess):
         raise NotImplementedError("get_canvas_handler() must be implemented in Display Foreground subclasses.")
 
     # ------- Foreground Interaction functions ---------
+
+    def initialize_animations(self):
+        raise NotImplementedError("initialize_animations() must be implemented in Display Foreground subclasses.")
     
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Foreground subclasses.")
@@ -177,8 +180,11 @@ class XprocessDisplayForeground(Xprocess):
     def idle(self):
         raise NotImplementedError("idle() must be implemented in Display Foreground subclasses.")
 
-    def splash_startup(self, for_seconds: float = 3.0):
-        raise NotImplementedError("splash_startup() must be implemented in Display Foreground subclasses.")
+    def show_startup(self, for_seconds: float = None):
+        raise NotImplementedError("show_startup() must be implemented in Display Foreground subclasses.")
+    
+    def startup_with_phase(self, param: dict):
+        raise NotImplementedError("startup_with_phase() must be implemented in Display Foreground subclasses.")
     
     def show_error(self, text: str, for_seconds: float = 3.0):
         raise NotImplementedError("show_error() must be implemented in Display Foreground subclasses.")

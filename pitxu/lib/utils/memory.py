@@ -28,6 +28,9 @@ class Memory(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
 
+        if not params.key_exists("api_key"):
+            raise ValueError("No API KEY received from params")
+
         # Set the log levels for the Gemini API client and httpcore libraries based on the configuration
         self.GENAI_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.gemini_chatbot.loglevel", self.GENAI_LIB_LOG_LEVEL)
         self.HTTPCORE_LIB_LOG_LEVEL = self._xconfig.get("libs_logger.httpcore.loglevel", self.HTTPCORE_LIB_LOG_LEVEL)
@@ -247,7 +250,6 @@ class Memory(PyXavi):
                         contents=prompt,
                         # config=types.GenerateContentConfig(
                         #     system_instruction=instructions[self._xparams.get('language')],
-                        #     # system_instruction=instructions["en-us"],
                         #     tools=tools
                         # )
                     )
@@ -303,3 +305,51 @@ class Memory(PyXavi):
         if self.db is not None:
             self.db.close()
         self._xlog.info("Memory closed")
+
+# 2026-07-13 17:32:01,888 [Support     MainThread            ] DEBUG    pitxu        Summarizing. Try #1 / 3
+# 2026-07-13 17:32:01,888 [Support     MainThread            ] ERROR    pitxu        🛑 Error summarizing chatbot history as a memory entry: Missing key inputs argument! To use the Google AI API, provide (`api_key`) arguments. To use the Google Cloud API, provide (`vertexai`, `project` & `location`) arguments.
+# 2026-07-13 17:32:01,896 [Support     MainThread            ] DEBUG    pitxu        Traceback (most recent call last):
+#   File "<string>", line 1, in <module>
+#     from multiprocessing.forkserver import main; main(12, 13, ['__main__'], **{'sys_path': ['/home/xavier/pitxu', '/usr/lib/python313.zip', '/usr/lib/python3.13', '/usr/lib/python3.13/lib-dynload', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages', '/home/xavier/pitxu', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/local/lib/python3.13/dist-packages', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3/dist-packages', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/dist-packages']})
+#   File "/usr/lib/python3.13/multiprocessing/forkserver.py", line 279, in main
+#     code = _serve_one(child_r, fds,
+#   File "/usr/lib/python3.13/multiprocessing/forkserver.py", line 319, in _serve_one
+#     code = spawn._main(child_r, parent_sentinel)
+#   File "/usr/lib/python3.13/multiprocessing/spawn.py", line 135, in _main
+#     return self._bootstrap(parent_sentinel)
+#   File "/usr/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
+#     self.run()
+#   File "/home/xavier/pitxu/pitxu/lib/abstract/xprocess.py", line 95, in run
+#     self.run_with_context(self._xconfig, self._xlog, action, param)
+#   File "/home/xavier/pitxu/pitxu/lib/support_process/support_process.py", line 77, in run_with_context
+#     self.summarize_and_store_in_memory(param)
+#   File "/home/xavier/pitxu/pitxu/lib/support_process/support_process.py", line 97, in summarize_and_store_in_memory
+#     self.summarizer.summarize_and_store_in_memory(chatbot_history)
+#   File "/home/xavier/pitxu/pitxu/lib/support_process/summarizer.py", line 30, in summarize_and_store_in_memory
+#     memory_entry = self.memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
+#   File "/home/xavier/pitxu/pitxu/lib/utils/memory.py", line 243, in summarize_chatbot_history_as_memory_entry
+#     client = genai.Client(api_key=self._xparams.get("api_key"))
+#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/client.py", line 426, in __init__
+#     self._api_client = self._get_api_client(
+#                        ~~~~~~~~~~~~~~~~~~~~^
+#         vertexai=vertexai,
+#         ^^^^^^^^^^^^^^^^^^
+#     ...<5 lines>...
+#         http_options=http_options,
+#         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+#     )
+#     ^
+#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/client.py", line 474, in _get_api_client
+#     return BaseApiClient(
+#         vertexai=vertexai,
+#     ...<4 lines>...
+#         http_options=http_options,
+#     )
+#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/_api_client.py", line 690, in __init__
+#     raise ValueError(
+#     ...<3 lines>...
+#     )
+# ValueError: Missing key inputs argument! To use the Google AI API, provide (`api_key`) arguments. To use the Google Cloud API, provide (`vertexai`, `project` & `location`) arguments.
+
+# 2026-07-13 17:32:01,897 [Support     MainThread            ] WARNING  pitxu        Chatbot history could not be summarized into a valid memory entry at exit.
+# 2026-07-13 17:32:01,897 [Support     MainThread            ] DEBUG    pitxu        ... all those moments will be lost in time, like tears in rain.

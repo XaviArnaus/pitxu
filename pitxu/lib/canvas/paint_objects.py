@@ -1,4 +1,4 @@
-from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
+from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm, StatusComm
 
 class Paint:
     
@@ -90,6 +90,34 @@ class BackgroundPaint(Paint):
                  start_callback: callable = None,
                  end_callback: callable = None):
         super(BackgroundPaint, self).__init__(
+            name=name,
+            interaction=interaction,
+            parameter=parameter,
+            delay_between_frames=delay_between_frames,
+            final_screen_clearing=final_screen_clearing,
+            remove_interaction_after_painting=remove_interaction_after_painting,
+            overwrite_current_interaction_with_same_type=overwrite_current_interaction_with_same_type,
+            start_callback=start_callback,
+            end_callback=end_callback
+        )
+        self.loop_iterations = loop_iterations
+
+class StatusPaint(Paint):
+    
+    loop_iterations: int = 1  # Number of loop iterations to paint the status interaction
+
+    def __init__(self, 
+                 name: str,
+                 interaction: StatusComm,
+                 parameter: any = None,
+                 delay_between_frames: float = 0.05,
+                 final_screen_clearing: bool = False,
+                 remove_interaction_after_painting: bool = True,
+                 overwrite_current_interaction_with_same_type: bool = False,
+                 loop_iterations: int = 1,
+                 start_callback: callable = None,
+                 end_callback: callable = None):
+        super(StatusPaint, self).__init__(
             name=name,
             interaction=interaction,
             parameter=parameter,
@@ -306,6 +334,20 @@ class StartupWithPhaseForegroundPaint(ForegroundPaint):
         if name is None:
             name = "StartupWithPhaseForegroundPaint"
         super(StartupWithPhaseForegroundPaint, self).__init__(
+            name=name,
+            interaction=ForegroundComm.STARTUP_WITH_PHASE,
+            parameter=parameter,
+            final_screen_clearing=True,
+            remove_interaction_after_painting=False,
+            overwrite_current_interaction_with_same_type = True
+        )
+
+class StartupWithPhaseCombinedPaint(ForegroundPaint):
+
+    def __init__(self, name = None, parameter: any = None):
+        if name is None:
+            name = "StartupWithPhaseCombinedPaint"
+        super(StartupWithPhaseCombinedPaint, self).__init__(
             name=name,
             interaction=ForegroundComm.STARTUP_WITH_PHASE,
             parameter=parameter,

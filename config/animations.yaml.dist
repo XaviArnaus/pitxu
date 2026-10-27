@@ -1,0 +1,19 @@
+# Configuration regarding the animations
+animations:
+  # [String] Path for animation files, from the root of the project
+  path: "pitxu/animations"
+  # Mapping between animation name and file
+  map:
+    sleeping: "sleeping.gif"
+    thinking: "thinking.gif"
+    bell: "bell.gif"
+    blush: "blush.gif"
+    check: "check.gif"
+    cross: "cross.gif"
+    ear: "ear.gif"
+    eyes: "eyes.gif"
+    no: "no.gif"
+    sad: "sad.gif"
+    silence: "silence.gif"
+    sorry: "sorry.gif"
+    yes: "yes.gif"

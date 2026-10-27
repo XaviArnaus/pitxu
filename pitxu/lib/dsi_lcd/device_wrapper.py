@@ -1,7 +1,7 @@
 
 from datetime import datetime
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -51,12 +51,15 @@ class DeviceWrapper(PyXavi, Device):
             file_path = self.path_for_mocked_images + "_latest.png"
             image.save(file_path)
     
-    def clear(self):
+    def clear(self, screen_size: tuple[int, int] | None = None):
         if (self.is_dsi_allowed()):
             # self.device._reset_lcd() -> Apparently this causes the LCD to stop working.
             self.device.clear()
         else:
-            pass
+            if screen_size is None:
+                self._xlog.debug("No screen size provided for clearing the mocked LCD, ignoring.")
+            else:
+                self.display(Image.new("RGBA", screen_size, "black"))
     
     def close(self):
         if (self.is_dsi_allowed()):

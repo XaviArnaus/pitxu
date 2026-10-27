@@ -63,6 +63,7 @@ class ServicePrint(PyXavi, Command):
         try:
             if value:
                 log.debug("🖨️ Text printed.")
+                interaction.add_new_status_line("🔧 Tool: Text sent to printer")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🖨️",
                     text="Text printed ✅",

@@ -5,9 +5,9 @@ from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisperStreamProcess
-from pitxu.lib.utils.xprocess_pool import XprocessPool
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_TRANSCRIBER_BUSY, \
                         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
@@ -79,7 +79,7 @@ class FasterWhisperStream(PyXavi):
     # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
     use_dynamic_rms_silence: bool = False
 
-    VERBOSE_DEBUG: bool = True
+    VERBOSE_DEBUG: bool = False
 
     THREAD_NAME = "TranscriptorManager"
 
@@ -93,11 +93,12 @@ class FasterWhisperStream(PyXavi):
         self._xlog.info("Initializing Faster Whisper Stream STT")
         logging_parts = []
 
-        self.language = self._xparams.get("language", "en-us")
-        # I need to correct this Vosk language stupidity that is populated all around the code!!!
-        # if self.language == "en-us":
-        #     self.language = "en"
-        logging_parts.append(("Language", self.language if self.language != "en-us" else "en"))
+        self.language = self._xparams.get("language", "en")
+        # ⚠️ I need to correct this Vosk language stupidity that is populated all around the code!!!
+        # The issue was that Pitxu RPi still had the language set to 'en-us' instead of 'en'
+        # language = self._xparams.get("language", "en")
+        # self.language = language if language != "en-us" else "en"
+        logging_parts.append(("Language", self.language))
 
         # Get the STT State Machine from params, fail otherwise.
         if self._xparams.key_exists("stt_state_machine"):
@@ -563,7 +564,7 @@ class FasterWhisperStream(PyXavi):
         
         if self.silence_input_queue is not None:
             # Joining queue to make sure that all tasks are done before closing.
-            self._xlog.debug("Joining FasterWhisper Stream silence input queue to make sure all tasks are done before closing.")
+            self._xlog.debug("Joining FasterWhisper Stream silence input queue.")
             if not self.silence_input_queue.empty():
                 while not self.silence_input_queue.empty():
                     discarded_chunk = self.silence_input_queue.get()

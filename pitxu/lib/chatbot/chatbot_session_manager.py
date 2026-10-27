@@ -38,6 +38,8 @@ class ChatbotSessionManager(PyXavi):
         # 2) map the function names to their related callbacks after the LLM calls them and get back to us.
         #
         # Therefore, ALL TOOLS MUST BE DEFINED HERE AS INSTANCES (no static method calling anymore in the tools list) 
+        #
+        # Also, the xparams contain the `status_schortcuts` so they can add status lines.
         self.clients = {
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),

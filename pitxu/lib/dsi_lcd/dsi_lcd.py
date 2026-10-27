@@ -1,24 +1,9 @@
-import time
-from PIL import Image
-
-from pyxavi import dd
-
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
 from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
-from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.canvas.macros import Macros
-from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
-                                            ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
-                                            ArbitraryContentWhileUserSpeakingForegroundPaint, \
-                                            StartupForegroundPaint, CodeBlockForegroundPaint, CodeBlockWhileSpeakingForegroundPaint, \
-                                            TextBlockForegroundPaint, TextBlockWhileSpeakingForegroundPaint, \
-                                            ErrorForegroundPaint, \
-                                            InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
-                                            ClearBackgroundPaint, ClearForegroundPaint
+from pitxu.lib.canvas_v2.canvas import Canvas
+from pitxu.lib.canvas_v2.painter.paint_object import *
+from pitxu.lib.canvas_v2.visualizer import Visualizer
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_DSI_LCD_IDLE_MODE
 
 class DsiLcd(XprocessDisplayCombined):
     '''
@@ -27,17 +12,10 @@ class DsiLcd(XprocessDisplayCombined):
 
     device: DeviceWrapper = None
     canvas: Canvas = None
-    macros: Macros = None
-    painter: Painter = None
+    visualizer: Visualizer = None
     _display_size: Point = None
 
     interaction_delays: dict[str, float] = None
-
-    # TODO: Move this into the interaction_delays
-    IDLE_EYES_CADENCE_SECONDS: float = 10.0
-    IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
-
-    LED_TO_LCD_OFFSET_X: int = 250
 
     VERBOSE_DEBUG: bool = False
 
@@ -56,28 +34,20 @@ class DsiLcd(XprocessDisplayCombined):
         self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
-        # Define which offset do we use IN EACH SIDE of the horizontal screen to emulate the LED Matrix
-        self._xparams.set("led_to_lcd_offset_x", self.LED_TO_LCD_OFFSET_X)
-        self._xparams.set("apply_led_to_lcd_offset_to_all", True)
-
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)
         self._xparams.set("device", self.device)
         # The canvas to draw on
         self.canvas = Canvas(config=self._xconfig, params=self._xparams)
         self._xparams.set("canvas", self.canvas)
-        # The macros to do higher level operations, require the device and the canvas via the Xparams
-        self._macros = Macros(config=self._xconfig, params=self._xparams)
-        self._xparams.set("macros", self._macros)
-        # Initialize the macros statics
-        # COMMENTED: This is tied with the Idle Mode. Will be revisited later.
-        # self._macros.load_or_create_statics()
 
         # Add the parent's shared memory manager to the params for the painter
         self._xparams.set("shared_memory", self._shared_memory)
 
-        # The Painter that will handle the actual drawing on the canvas and device
-        self.painter = Painter(config=self._xconfig, params=self._xparams)
+        # The Visualizer that will handle the painting of the interactions on the canvas and device, using the Painter.
+        # It expects in xparams:
+        #   - interaction_delays: dict[str, float]: the delays to use for the different interactions, to be passed to the Painter and used in the painting objects.
+        self.visualizer = Visualizer(config=self._xconfig, params=self._xparams)
 
         self.log_summary("DSI LCD Initialization", [
             ("Display Size", f"{self._display_size.x}x{self._display_size.y}")
@@ -101,9 +71,6 @@ class DsiLcd(XprocessDisplayCombined):
 
     def finish(self):
         self._xlog.info("Finalizing DSI LCD Worker")
-        self._log_debug("Closing DSI LCD Painter")
-        self.painter.close()
-        self.painter.join(0.5)
         self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
         self._log_debug("Closing DSI LCD Device")
@@ -112,221 +79,156 @@ class DsiLcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
-    def show(self, text: str):
-        # Draw the text bubble
-        self._xlog.info(f"👀 Showing text bubble on DSI LCD.")
-        self._macros.draw_text_bubble(text=text, font=self.canvas.FONT_MEDIUM)
-    
-    def show_arbitrary_image_while_speaking(self, image_bytes: dict):
-        # Show a given image on the DSI LCD display
-        self._xlog.info(f"👀 Showing arbitrary image on DSI LCD while speaking.")
-        image = Image.frombytes(
-            # self._display.get_image().mode,
-            # self._display.get_image().size,
-            image_bytes["mode"],
-            image_bytes["size"],
-            bytes.fromhex(image_bytes["image_data"]),
-            "raw"
-        )
-        self.device.display(image, partial=False)
-        while self.is_speaker_busy():
-            time.sleep(0.01)
-        time.sleep(1)  # small delay to ensure the user sees the image
-    
+    def initialize_animations(self):
+        self.visualizer.load_animations()
+
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
-        # Why and How about this approach:
-        #   - Have a before and after callback, wrapping the painting execution
-        #   - The before would wait for the flag to be set to something, in a simply non-blocking if. The loop may be painting the other interaction paint.
-        #   - The after would wait for the flag to be set to something else to finish the painting, basically to remove the interaction from the painter.
-        #
-        #   - This requires 2 sets of callbacks to check per iteration of the painting loop.
-        #   - This then allows to have a single painting loop managing multiple interactions with their own lifecycles.
-        #   - The downside is that the painting loop becomes more complex and heavier.
-        #   - Important to re-emphasize that does not introduce waiting loops, it's every iteration's IF that execute the callback or not.
-        #       - This allows the paint thread to keep on running while the other subprocesses are preparing, executing and finishing, freely communicating via busy flags.
-        self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=ArbitraryContentWhileSpeakingForegroundPaint(parameter=param))
+        self.visualizer.arbitrary_text_while_speaking(param)
     
     def show_arbitrary_text_while_thinking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while thinking.")
 
-        self.painter.paint_into_foreground_while_thinking(
-            foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
+        self.visualizer.arbitrary_text_while_thinking(param)
     
     def show_arbitrary_text_while_idle(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while idle.")
-        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("idle_status_foreground_notification", 15.0))
 
-        self.painter.paint_into_foreground_while_idle(
-            foreground_interaction=ArbitraryContentWhileIdleForegroundPaint(parameter=param, for_seconds=for_seconds))
+        if "for_seconds" not in param:
+            param["for_seconds"] = self.interaction_delays.get("idle_status_foreground_notification", 15.0)
+
+        self.visualizer.arbitrary_text_while_idle(param)
     
     def show_arbitrary_icon_on_foreground_while_user_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary icon on DSI LCD while the user is speaking.")
 
-        self.painter.paint_into_foreground_while_user_speaking(
-            foreground_interaction=ArbitraryContentWhileUserSpeakingForegroundPaint(parameter=param))
+        self.visualizer.arbitrary_while_user_speaking(param)
     
     def show_arbitrary_text_on_foreground(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD.")
-        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notification", 3.0))
-        self.painter.just_paint(
-            foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
+        
+        if "for_seconds" not in param:
+            param["for_seconds"] = self.interaction_delays.get("foreground_notification", 3.0)
 
-    def splash_ready(self):
-        # Draw the ready splash screen
-        self._xlog.info(f"👀 Showing ready splash screen on DSI LCD.")
-        self._macros.eyes_open()
+        self.visualizer.arbitrary_text(param)
 
     def idle(self):
         pass
-        # # Draw the idle screen
-        # self._xlog.info(f"👀 Showing idle screen on DSI LCD.")
-
-        # # Start with a soft clear
-        # self._macros.soft_clear()
-
-        # # It repeats until the speaker is busy
-        # should_stop_idle = False
-        # while not should_stop_idle and self.is_lcd_idle_mode():
-        #     # reset the counters and flags
-        #     seconds_waited = 0
-        #     are_eyes_open = False
-        #     # Repeat during the cadence time
-        #     while self.IDLE_EYES_CADENCE_SECONDS > seconds_waited:
-
-        #         # wait one second
-        #         if are_eyes_open:
-        #             time.sleep(1)
-        #             seconds_waited += 1
-
-        #         # quit if the idle mode is unset from outside
-        #         #   (because we also use the flag in the other direction)
-        #         if not self.is_lcd_idle_mode():
-        #             self._log_debug(f"Received a idle mode cancel (idle is now [{self.is_lcd_idle_mode()}]).")
-        #             should_stop_idle = True
-        #             break
-        #         # show eyes open if not already shown
-        #         if not are_eyes_open:
-        #             self._macros.eyes_open()
-        #             are_eyes_open = True
-
-        #     # We're here because the cadence time is over or because we should stop idle.
-        #     if not should_stop_idle:
-        #         # show the eyes closed
-        #         self._macros.eyes_closed()
-        #         # and wait a bit
-        #         time.sleep(self.IDLE_EYES_BLINK_DURATION_SECONDS)
-
-    def splash_startup(self, for_seconds: float = 3.0):
-        # Draw the startup splash screen
-        self._xlog.info(f"👀 Showing startup splash screen for {for_seconds} seconds")
-        # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
-        self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
     
     def show_error(self, text: str, for_seconds: float = 3.0):
         # Draw the error splash screen
         self._xlog.info(f"👀 Showing error screen for {for_seconds} seconds")
-        # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("error", for_seconds)
-        self.painter.just_paint(
-            foreground_interaction=ErrorForegroundPaint(
-                parameter={
-                    "text": text,
-                    "font_size": self.canvas.FONT_SIZE_MEDIUM,
-                    "font_header_size": self.canvas.FONT_SIZE_BIG}, 
-                for_seconds=show_for_seconds))
-    
+        
+        param = {
+            "text": text,
+            "font_size": self.canvas.FONT_SIZE_MEDIUM,
+            "font_header_size": self.canvas.FONT_SIZE_BIG
+        }
+        if for_seconds is None:
+            param["for_seconds"] = self.interaction_delays.get("error", 3.0)
+
+        self.visualizer.error(param)
+
     def show_code_block(self, param: dict):
         self._xlog.info(f"👀 Showing code block on DSI LCD.")
-        # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("code_block", param.get("for_seconds", 10.0))
-        self.painter.just_paint(
-            foreground_interaction=CodeBlockForegroundPaint(
-                parameter={"text": param.get("code", "")}, 
-                for_seconds=show_for_seconds))
+        
+        # We receive "code" but we want "text".
+        # If we fix this in the future (in the caller side), be prepared here.
+        if "code" in param and "text" not in param:
+            param["text"] = param["code"]
+        if "for_seconds" not in param:
+            param["for_seconds"] = self.interaction_delays.get("code_block", 10.0)
+
+        self.visualizer.code_block(param)
     
     def show_code_block_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing code block on DSI LCD while speaking.")
+
+        # We receive "code" but we want "text".
+        # If we fix this in the future (in the caller side), be prepared here.
+        if "code" in param and "text" not in param:
+            param["text"] = param["code"]
         
-        self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=CodeBlockWhileSpeakingForegroundPaint(parameter={"text": param.get("code", "")}))
+        self.visualizer.code_block_while_speaking(param)
     
     def show_text_block(self, param: dict):
         self._xlog.info(f"👀 Showing text block on DSI LCD.")
-        # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("text_block", param.get("for_seconds", 10.0))
-        self.painter.just_paint(
-            foreground_interaction=TextBlockForegroundPaint(
-                parameter={"text": param.get("text", "")}, 
-                for_seconds=show_for_seconds))
+        
+        if "for_seconds" not in param:
+            param["for_seconds"] = self.interaction_delays.get("text_block", 10.0)
+
+        self.visualizer.text_block(param)
     
     def show_text_block_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing text block on DSI LCD while speaking.")
         
-        self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=TextBlockWhileSpeakingForegroundPaint(parameter=param))
+        self.visualizer.text_block_while_speaking(param)
+    
+    def show_startup(self, for_seconds = None):
+        self._xlog.info(f"👀 Showing startup on DSI LCD.")
+
+        param = None
+        if for_seconds is not None:
+            param = {
+                "for_seconds": for_seconds
+            }
+        
+        self.visualizer.startup_initial(param)
+    
+    def startup_with_phase(self, param: dict):
+        phase = param.get("phase", 0)
+        text = param.get("text", None)
+        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
+        
+        self.visualizer.startup_with_phase(param)
 
     # ------- Common functions ---------
     
     def clear(self):
-        # Clear the display
-        self.device.clear()
+        # Clear the display.
+        # Passing the display size just in case we want to clear the mocked LCD, to have a black image of the correct size.
+        self.device.clear(screen_size=(self._display_size.x, self._display_size.y))
     
     def soft_clear(self):
-        # Clear the display using a white rectangle as a partial
-        self._macros.soft_clear()
+        self.clear_background()
+        self.clear_foreground()
     
-    # The new clear for background only
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
-        self.painter.just_paint(background_interaction=ClearBackgroundPaint())
+        self.visualizer.clear_background()
     
-    # The new clear for foreground only
     def clear_foreground(self):
         self._xlog.info("Clearing DSI LCD foreground interaction.")
-        self.painter.just_paint(foreground_interaction=ClearForegroundPaint())
+        self.visualizer.clear_foreground()
 
 
     # ------- Background functions ---------
     
     def show_kitt_mouth_while_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on DSI LCD.")
-        self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint(
-            delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
-        ))
+        self.visualizer.kitt_mouth_while_speaking()
     
     def show_kitt_scanner_while_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on DSI LCD.")
-        self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
-            delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
-        ))
-    def show(self, text: str):
-        self._xlog.info(f"🚥 Drawing on DSI LCD: {text}")
-        self._macros.draw_something()
+        self.visualizer.kitt_scanner_while_thinking()
 
-    def init_phase(self, phase: int, text: str = None):
-        self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on DSI LCD")
-        self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
-            "phase": phase,
-            "text": text
-        }))
-    
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")
-        self.painter.just_paint(background_interaction=HoldingPercentageBackgroundPaint(name=f"HoldingPercentageBackgroundPaint-{percentage}", parameter=percentage))
-    # ------- Communication with Flags ---------
+        param = {
+            "percentage": percentage
+        }
+        self.visualizer.holding_percentage(param)
     
-    # KITT mouth control: internally, even allowed, we only show it when the speaker is busy.
-    def is_speaker_busy(self):
-        return self.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
-    
-    def is_chatbot_busy(self):
-        return self.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
+    # ------- Status functions ---------
 
+    def show_status_line(self, param: dict):
+        text = param.get("text", "")
+        color = param.get("color", self.canvas.COLOR_FOREGROUND)
+        self._xlog.info(f"👀 Showing status line on DSI LCD: {text} (color: {color})")
 
-    # DSI LCD idle mode control: is it in idle mode?
-    def is_lcd_idle_mode(self):
-        return self.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)
+        param = {
+            "text": text,
+            "color": color
+        }
+        self.visualizer.show_status_line(param)

@@ -15,7 +15,7 @@ class FunctionCallHistory:
         if history is not None and isinstance(history, list):
             self.history = history
         else:
-            self.history = []
+            self.reset_history()
 
     @staticmethod
     def from_response(response: GenerateContentResponse, full_parse = False) -> FunctionCallHistory:
@@ -200,6 +200,12 @@ class FunctionCallHistory:
             pair: The FunctionCallPair to add.
         """
         self.history.append(pair)
+    
+    def reset_history(self):
+        """
+        Resets the function call history, clearing all pairs.
+        """
+        self.history = []
 
 class FunctionCallPair:
     """

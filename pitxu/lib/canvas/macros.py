@@ -1,11 +1,10 @@
 from PIL import ImageDraw,ImageFont, Image
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Rectangle, Line, Point
 from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.abstract.device import Device
-from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
 
 import time, math
 
@@ -20,8 +19,11 @@ class Macros(PyXavi):
     canvas: Canvas = None
     device: Device = None
 
+    layout_info: dict[str, Rectangle] = None
+    color_scheme_info: dict[str, dict[str, any]] = None
+
     # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
-    LED_TO_LCD_OFFSET_X: int = 40
+    LED_TO_LCD_OFFSET_X: int = 0
     APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
     VERBOSE_DEBUG: bool = False
@@ -55,6 +57,11 @@ class Macros(PyXavi):
             ("LED_TO_LCD_OFFSET_X", f"{self.LED_TO_LCD_OFFSET_X} pixels"),
             ("APPLY_LED_TO_LCD_OFFSET_TO_ALL", self.APPLY_LED_TO_LCD_OFFSET_TO_ALL)
         ])
+    
+        # Calculate the layout info. Make sure that the padding is consistent (it may need a refactor)
+        self.layout_info = self.get_layout_info(padding=10, corners_radius=10)
+        # Get the color scheme info
+        self.color_scheme_info = self.get_color_scheme_info()
 
     def get_canvas(self) -> Canvas:
         return self.canvas
@@ -168,13 +175,20 @@ class Macros(PyXavi):
     
     def draw_startup_splash(self, draw: ImageDraw.ImageDraw):
 
+        offset_x = self.layout_info["top_right"].point_1.x
+        offset_y = self.layout_info["top_right"].point_1.y
+        max_x = self.layout_info["top_right"].point_2.x
+        max_y = self.layout_info["top_right"].point_2.y
+        width = max_x - offset_x
+        height = max_y - offset_y
+
         # Configurations
         padding = 15
 
         # Main title
         title = self._xconfig.get("app.name")
         version = self._xparams.get("app_version")
-        draw.text(Point(self._display_size.x / 2, self._display_size.y / 4).to_image_point(),
+        draw.text(Point(offset_x + width / 2, offset_y + height / 4).to_image_point(),
                     text = title + "  v" + version, 
                     font = self.canvas.FONT_HUGE, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -184,8 +198,8 @@ class Macros(PyXavi):
         # Draw a line between the title and the subtitle
         draw.line(
             Rectangle(
-                Point(padding, (self._display_size.y / 2) - 10), 
-                Point(self._display_size.x - padding, (self._display_size.y / 2) - 10)
+                Point(offset_x + padding, offset_y + height / 2 - 10), 
+                Point(offset_x + width - padding, offset_y + height / 2 - 10)
             ).to_image_rectangle(),
             fill = self.canvas.COLOR_FOREGROUND,
             width = 1)
@@ -200,7 +214,7 @@ class Macros(PyXavi):
                     "\nUPS: " + ("mocked" if self._xconfig.get("ups.mock", True) else "real") + \
                     " | GPIO: " + ("mocked" if self._xconfig.get("gpio.mock", True) else "real")
                     
-        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 4) * 3).to_image_point(),
+        draw.text(Point(offset_x + width / 2, offset_y + (height / 4) * 3).to_image_point(),
                     text = subtitle, 
                     font = self.canvas.FONT_TINY, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -234,7 +248,14 @@ class Macros(PyXavi):
         self.device.display(self.canvas.get_image())
     
     def draw_arbitrary_text_centered(self, draw: ImageDraw.ImageDraw, text: str):
-        draw.text(Point(self._display_size.x / 2, self._display_size.y / 2).to_image_point(),
+        offset_x = self.layout_info["top_right"].point_1.x
+        offset_y = self.layout_info["top_right"].point_1.y
+        max_x = self.layout_info["top_right"].point_2.x
+        max_y = self.layout_info["top_right"].point_2.y
+        width = max_x - offset_x
+        height = max_y - offset_y
+    
+        draw.text(Point(offset_x + width / 2, offset_y + height / 2).to_image_point(),
                     text = text,
                     font = self.canvas.FONT_HUGE,
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -250,6 +271,10 @@ class Macros(PyXavi):
         self.device.display(self.canvas.get_image())
     
     def draw_code_block(self, draw: ImageDraw.ImageDraw, text: str):
+        """
+        Draws a full screen code block, with the biggest font that fits in width, and centered in the remaining space if it does not fill all the height.
+        Does not follow the layout, ot's an overlay over the whole screen, with a padding from the borders.
+        """
 
         padding_rectangle = 10
         padding_code_text = 5
@@ -321,6 +346,10 @@ class Macros(PyXavi):
         self.device.display(self.canvas.get_image())
     
     def draw_text_block(self, draw: ImageDraw.ImageDraw, text: str):
+        """
+        Draws a full screen text block, with the biggest font that fits in width, and centered in the remaining space if it does not fill all the height.
+        Does not follow the layout, ot's an overlay over the whole screen, with a padding from the borders.
+        """
 
         padding_rectangle = 10
         padding_text = 5
@@ -417,18 +446,25 @@ class Macros(PyXavi):
             header: str = None, 
             font_header_size: int = 32,
             padding: int = 5) -> str:
+        
+        offset_x = self.layout_info["top_right"].point_1.x
+        offset_y = self.layout_info["top_right"].point_1.y
+        max_x = self.layout_info["top_right"].point_2.x
+        max_y = self.layout_info["top_right"].point_2.y
+        width = max_x - offset_x
+        height = max_y - offset_y
 
         # calculate anchor points and emojis for header and text
         if header and text:
-            header_anchor = Point(self._display_size.x / 2, self._display_size.y / 3)
-            text_anchor = Point(self._display_size.x / 2, (self._display_size.y / 4) * 3)
+            header_anchor = Point(offset_x + width / 2, offset_y + height / 3)
+            text_anchor = Point(offset_x + width / 2, offset_y + (height / 4) * 3)
             header_emoji = icon + " " if icon else ""
             text_emoji = ""
         elif header and not text:
-            header_anchor = Point(self._display_size.x / 2, self._display_size.y / 2)
+            header_anchor = Point(offset_x + width / 2, offset_y + height / 2)
             header_emoji = icon + " " if icon else ""
         elif not header and text:
-            text_anchor = Point(self._display_size.x / 2, self._display_size.y / 2)
+            text_anchor = Point(offset_x + width / 2, offset_y + height / 2)
             text_emoji = icon + " " if icon else ""
 
         if header:
@@ -445,7 +481,7 @@ class Macros(PyXavi):
             value = self.wrap_text_if_needed(
                 canvas=draw,
                 text=f"{text_emoji}{text}",
-                max_width=self._display_size.x - (2 * padding),
+                max_width=width - (2 * padding),
                 font=font
             )
             draw.multiline_text(text_anchor.to_image_point(),
@@ -537,30 +573,60 @@ class Macros(PyXavi):
         # Return the canvas with the drawn eyes
         return canvas
     
-    def soft_clear(self):
+    def soft_clear(self, display_area: str = "full_screen"):
 
         # First create a canvas
         draw = self.canvas.get_canvas()
 
         # Create a background color rectangle with the sizes of the screen
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area=display_area)
 
         # Flush the image (generated from the canvas) to the device
         self.device.display(self.canvas.get_image())
 
-    def _soft_clear_rectangle(self, draw: ImageDraw.ImageDraw, color: str = None):
+    def _soft_clear_rectangle(self, draw: ImageDraw.ImageDraw, display_area: str = "full_screen", color: str = None):
         '''
         Draws a rectangle over the given canvas.
         '''
         if color is None:
             color = self.canvas.COLOR_BACKGROUND
-
-        point_1 = Point(0, 0)
-        point_2 = Point(self._display_size.x, self._display_size.y)
-        draw.rectangle(
-            Rectangle(point_1, point_2).to_image_rectangle(),
-            outline=color,
-            fill=color)
+        
+        # Set the default, which is non-RGBA.
+        outline = color
+        fill = color
+        rectangle: Rectangle = None
+        
+        found_area = False
+        if display_area == "full_screen":
+            offset_x = 0
+            offset_y = 0
+            max_x = self._display_size.x
+            max_y = self._display_size.y
+            rectangle = Rectangle(Point(offset_x, offset_y), Point(max_x, max_y))
+            found_area = True
+        else:
+            if display_area in self.layout_info:
+                rectangle = self.layout_info[display_area]
+                outline = self.color_scheme_info[display_area]["outline"]
+                fill = self.color_scheme_info[display_area]["fill"]
+                found_area = True
+            
+        if not found_area:
+            self._xlog.warning(f"Unrecognized display area [{display_area}] for soft clear.")
+            return
+        else:
+            if self.canvas.COLOR_MODE == "RGBA":
+                draw.rounded_rectangle(
+                    rectangle.to_image_rectangle(),
+                    radius=self.layout_info["corners_radius"],
+                    outline=outline,
+                    fill=fill,
+                    corners=(True, True, True, True))
+            else:
+                draw.rectangle(
+                    rectangle.to_image_rectangle(),
+                    outline=outline,
+                    fill=fill)
     
     # ------ Background effects adapted to LCD -------
 
@@ -568,7 +634,7 @@ class Macros(PyXavi):
         self._log_debug("Starting KITT effect")
 
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         image = self.canvas.get_image()
 
         # Move right
@@ -590,7 +656,7 @@ class Macros(PyXavi):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -606,7 +672,7 @@ class Macros(PyXavi):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -625,7 +691,7 @@ class Macros(PyXavi):
         needs to be closed afterwards.
         '''
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         # The "draw" object is linked to the canvas, so we can get the image from there
         # It gets updated as we draw on it, so is more efficient than getting it each time
         image = self.canvas.get_image()
@@ -695,7 +761,7 @@ class Macros(PyXavi):
         for drawing_frame in range(1, 5):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
             # Every iteration here is a full frame to be drawn
             self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
@@ -715,7 +781,7 @@ class Macros(PyXavi):
         for drawing_frame in range(3, -1, -1):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self._soft_clear_rectangle(draw=draw)
+            self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
             # Every iteration here is a full frame to be drawn
             self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
@@ -739,7 +805,7 @@ class Macros(PyXavi):
     def draw_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
 
         # Initial Background Paint clear
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
         phase = parameter.get("phase", 0)
         text = parameter.get("text", None)
@@ -750,15 +816,31 @@ class Macros(PyXavi):
             cols = 8 if y < rows - 1 else phase % 8
             for x in range(0, cols):
                 self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x,  y))
+    
+    def draw_combined_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
+        '''
+        Draws the combined status (bottom-center) and foreground (top-right) for the init phase. 
+        It is meant to be used on the new Pitxu main, as it has more space to show both the progress and the details.
+        The old Pitxu client should still use the draw_foreground_init_phase() due to the small screen.
+        '''
+        fore_offset_x = self.layout_info["top_right"].point_1.x
+        fore_offset_y = self.layout_info["top_right"].point_1.y
+        fore_max_x = self.layout_info["top_right"].point_2.x
+        fore_max_y = self.layout_info["top_right"].point_2.y
+        fore_width = fore_max_x - fore_offset_x
+        fore_height = fore_max_y - fore_offset_y
 
-    def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
-        # Configurations
-        padding = 15
+        status_offset_x = self.layout_info["bottom_center"].point_1.x
+        status_offset_y = self.layout_info["bottom_center"].point_1.y
+        status_max_x = self.layout_info["bottom_center"].point_2.x
+        status_max_y = self.layout_info["bottom_center"].point_2.y
+        status_width = status_max_x - status_offset_x
+        status_height = status_max_y - status_offset_y
 
         # Main title
         title = self._xconfig.get("app.name")
         version = self._xparams.get("app_version")
-        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 1.5).to_image_point(),
+        draw.text(Point(fore_offset_x + fore_width / 2, fore_offset_y + fore_height / 3 * 1.5).to_image_point(),
                     text = title + "  v" + version, 
                     font = self.canvas.FONT_HUGE, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -767,7 +849,56 @@ class Macros(PyXavi):
         
         # Mocked features line
         mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
-        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 4).to_image_point(),
+        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 3).to_image_point(),
+                    text = mocked_line, 
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Phases
+        phase = parameter.get("phase", 0)
+        text = parameter.get("text", None)
+        draw.text(Point(status_offset_x + status_width / 2, status_offset_y + status_height / 8 * 6).to_image_point(),
+                    # text = f"{phase} - {text}", 
+                    text = text,
+                    font = self.canvas.FONT_SMALL, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+
+    def draw_foreground_init_phase(self, draw: ImageDraw.ImageDraw, parameter: dict):
+        '''
+        Draws the foreground if the init phase. 
+        This replaces the Background one used on Pitxu main. 
+        Pitxu client should still use it due to the small screen.
+        New Pitxu main should use a new status area (bottom-center) for the detailed, and the app name and version in the top-right
+
+        2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming full screen.
+        '''
+        offset_x = self.layout_info["padding"]
+        offset_y = self.layout_info["padding"]
+        max_x = self._display_size.x - self.layout_info["padding"]
+        max_y = self._display_size.y - self.layout_info["padding"]
+        width = max_x - offset_x
+        height = max_y - offset_y
+
+        # Configurations
+        padding_line = 15
+
+        # Main title
+        title = self._xconfig.get("app.name")
+        version = self._xparams.get("app_version")
+        draw.text(Point(offset_x + width / 2, offset_y + height / 8 * 1.5).to_image_point(),
+                    text = title + "  v" + version, 
+                    font = self.canvas.FONT_HUGE, 
+                    fill = self.canvas.COLOR_FOREGROUND,
+                    anchor = "mm",
+                    align = "center")
+        
+        # Mocked features line
+        mocked_line = "Chatbot, STT, TTS,\nFore, Back, UPS, GPIO"
+        draw.text(Point(offset_x + width / 2, offset_y + height / 8 * 4).to_image_point(),
                     text = mocked_line, 
                     font = self.canvas.FONT_SMALL, 
                     fill = self.canvas.COLOR_FOREGROUND,
@@ -777,8 +908,8 @@ class Macros(PyXavi):
         # Draw a line between the title and the subtitle
         draw.line(
             Rectangle(
-                Point(padding, (self._display_size.y / 3) * 2), 
-                Point(self._display_size.x - padding, (self._display_size.y / 3) * 2)
+                Point(offset_x + padding_line, offset_y + height / 3 * 2), 
+                Point(offset_x + width - padding_line, offset_y + height / 3 * 2)
             ).to_image_rectangle(),
             fill = self.canvas.COLOR_FOREGROUND,
             width = 1)
@@ -786,7 +917,7 @@ class Macros(PyXavi):
         # Phases
         phase = parameter.get("phase", 0)
         text = parameter.get("text", None)
-        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 8) * 6.5).to_image_point(),
+        draw.text(Point(offset_x + width / 2, offset_y + height / 8 * 6.5).to_image_point(),
                     # text = f"{phase} - {text}", 
                     text = text,
                     font = self.canvas.FONT_SMALL, 
@@ -795,18 +926,29 @@ class Macros(PyXavi):
                     align = "center")
     
     def draw_arbitrary_icon(self, draw: ImageDraw.ImageDraw, icon: str, text: str = None, color: str = None):
+        '''
+        Draws an arbitrary icon and text in the given color over the frame as is.
+
+        2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming top-right area.
+        '''
+        offset_x = self.layout_info["top_right"].point_1.x
+        offset_y = self.layout_info["top_right"].point_1.y
+        max_x = self.layout_info["top_right"].point_2.x
+        max_y = self.layout_info["top_right"].point_2.y
+        width = max_x - offset_x
+        height = max_y - offset_y
 
         if color is None:
             color = self.canvas.COLOR_FOREGROUND
 
-        draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) - (30 if text else 0)).to_image_point(),
+        draw.text(Point(offset_x + width / 2, offset_y + height / 2 - (30 if text else 0)).to_image_point(),
                     text = icon,
                     font = self.canvas.FONT_ULTRA, 
                     fill = color,
                     anchor = "mm",
                     align = "center")
         if text:
-            draw.text(Point(self._display_size.x / 2, (self._display_size.y / 2) + 30).to_image_point(),
+            draw.text(Point(offset_x + width / 2, offset_y + height / 2 + 30).to_image_point(),
                     text = f"{icon}\n{text}" if text else icon, 
                     font = self.canvas.FONT_BIG, 
                     fill = color,
@@ -815,7 +957,7 @@ class Macros(PyXavi):
     
     def show_cross(self):
         draw = self.canvas.get_canvas(reset_base_image = False)
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
         
         self.draw_cross(draw=draw)
 
@@ -852,17 +994,19 @@ class Macros(PyXavi):
         '''
 
         # Initial Background Paint clear
-        self._soft_clear_rectangle(draw=draw)
+        self._soft_clear_rectangle(draw=draw, display_area="top_left")
 
         # Calculate how many columns to light up
         columns_to_light = math.ceil((percentage / 100) * 8)
         for x in range(0, columns_to_light):
-            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7))
+            self.draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7), apply_offset=False)
 
     def draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
         '''
         Draws a point on the LCD canvas representing a round LED point,
         emulating a 8x8 Matrix LED.
+
+        2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming top-left area.
 
         Args:
             point: The point to draw.
@@ -871,19 +1015,39 @@ class Macros(PyXavi):
         if color is None:
             color = self.canvas.COLOR_RED
         
-        # Take in account the rounded shape of the LCD.
+        # Take in account the rounded shape of the LCD (this is only useful for physical rounded screens like PiSugar Whisplay).
         # The corners have 40 pixels (square of 40p with one edge very rounded), so the area usable needs to be adjusted.
         # Let's just shrink the width only for simplicity.
         offset_x = self.LED_TO_LCD_OFFSET_X if apply_offset else 0
+
+        # Now also take in account the layout info
+        padding = 2
+        temp_max_x = self.layout_info["top_left"].point_2.x
+        temp_max_y = self.layout_info["top_left"].point_2.y
+        max_x = min(temp_max_x, temp_max_y) + padding
+        max_y = min(temp_max_x, temp_max_y)
+        extra_offset_x = 0
+        extra_offset_y = 0
+        if max_x == temp_max_x + padding:
+            # We are limited by the width, the applied extra offset is over the height.
+            extra_offset_y = temp_max_y - max_y
+        elif max_y == temp_max_y:
+            # We are limited by the height, the applied extra offset is over the width.
+            extra_offset_x = temp_max_x - max_x
+            
+        offset_x += self.layout_info["top_left"].point_1.x + (padding * 2) + extra_offset_x + 1
+        offset_y = self.layout_info["top_left"].point_1.y + (padding * 2) + extra_offset_y + 1
+        width = max_x - offset_x
+        height = max_y - offset_y
 
         # Each LED is represented by a 8x8 square on the LCD
         radius = 4  # Half of 8
 
         # We need to convert the point from a 8x8 Matrix LED to LCD coordinates, based on the full LCD size.
         # And also correct the radius to be relative to the LCD size.
-        x = point.x * ((self._display_size.x - offset_x) // 8) + (offset_x // 2 + 1)
-        y = point.y * ((self._display_size.y - 1) // 8)
-        radius = min((self._display_size.x - offset_x) // 16, (self._display_size.y - 1) // 16)
+        x = point.x * ((width) // 8) + (offset_x)
+        y = point.y * ((height) // 8) + (offset_y)
+        radius = max((width) // 16, (height) // 16) - 2
 
         draw.circle(
             (x + radius, y + radius),
@@ -891,16 +1055,113 @@ class Macros(PyXavi):
             fill=color,
             outline=color)
     
-    # ------ Main method (and helpers) to show on LCD display -------
+    def get_layout_info(self, padding: int = 10, corners_radius: int = 10) -> dict[str, Rectangle]:
+        '''
+        Returns the layout information of the LCD display, based on the padding and the division in 2 rows.
+
+        It is meant to be used as a helper for drawing the foreground frame, but can be used for other purposes.
+        '''
+        useful_width = self._display_size.x - (2 * padding)
+        useful_height = self._display_size.y - (2 * padding)
+
+        rows_percentages = [0.6, 0.4]
+        top_columns_percentages = [0.3, 0.7]
+        bottom_columns_percentages = [0.10, 0.8, 0.10]
+
+        top_left = Rectangle(
+            Point(padding, padding),
+            Point(math.ceil(useful_width * top_columns_percentages[0]), (padding // 2) + math.ceil(useful_height * rows_percentages[0]))
+        )
+        top_right = Rectangle(
+            Point(padding + math.ceil(useful_width * top_columns_percentages[0]), padding),
+            Point(padding + useful_width, (padding // 2) + math.ceil(useful_height * rows_percentages[0]))
+        )
+        bottom_left = Rectangle(
+            Point(padding, padding + (padding // 2) + math.ceil(useful_height * rows_percentages[0])),
+            Point(padding + math.ceil(useful_width * bottom_columns_percentages[0]), padding + useful_height)
+        )
+        bottom_center = Rectangle(
+            Point((padding * 2) + math.ceil(useful_width * bottom_columns_percentages[0]), padding + (padding // 2) + math.ceil(useful_height * rows_percentages[0])),
+            Point((padding * 2) + math.ceil((useful_width - padding) * (bottom_columns_percentages[0] + bottom_columns_percentages[1])), padding + useful_height)
+        )
+        bottom_right = Rectangle(
+            Point((padding * 2) + math.ceil((useful_width * bottom_columns_percentages[0]) + (useful_width * bottom_columns_percentages[1])), padding + (padding // 2) + math.ceil(useful_height * rows_percentages[0])),
+            Point(padding + useful_width, padding + useful_height)
+        )
+
+        return {
+            "top_left": top_left,
+            "top_right": top_right,
+            "bottom_left": bottom_left,
+            "bottom_center": bottom_center,
+            "bottom_right": bottom_right,
+            "padding": padding,
+            "corners_radius": corners_radius,
+        }
     
-    def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
-        '''
-        Draws a foreground frame on the given canvas, except if the Color Mode is "1" (monochrome),
-        in which case it draws a solid empty rectangle.
+    def get_color_scheme_info(self, frame_color: str = None, opacity: float = 0.25) -> dict[str, dict[str, any]]:
+        """
+        Returns the color scheme information for the different areas of the LCD display, based on the color mode.
+        """
 
-        https://stackoverflow.com/a/43620169/1973860
-        '''
+        # -- Let's start by a simple default, no RGBA --
+        # This will be the outline color.
+        if frame_color is None:
+            frame_color = self.canvas.COLOR_ORANGE
+        # Now the fill color.
+        color = self.canvas.COLOR_BACKGROUND
+        # This is not needed by the non-RGBA modes, but we define it here to avoid having it undefined in the RGBA mode.
+        overlay: Image.Image = None
 
+        # -- Now, if we have RGBA --
+        if self.canvas.COLOR_MODE == "RGBA":
+            TINT_COLOR = frame_color
+            # Sorry, fellow reader, I understand "less transparency, more opaque", so 0.25 opacity is closer to no-transparent.
+            TRANSPARENCY = opacity  # Degree of transparency, 0-100%
+            OPACITY = int(255 * TRANSPARENCY)
+            color = (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], OPACITY)
+
+            # Create an overlay image for the transparency effect.
+            # ATTENTION: This is meant to be a template, copy it when using it!
+            #   overlay.copy() to use it, as we will need to draw on it and we don't want to modify the original one.
+            overlay = Image.new(
+                'RGBA', 
+                self._display_size.to_image_point(), 
+                (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
+
+        return {
+            "top_left": {
+                "outline": frame_color,
+                # We don't want any background in the top-left corner
+                "fill": self.canvas.COLOR_BACKGROUND
+            },
+            "top_right": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_left": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_center": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "bottom_right": {
+                "outline": frame_color,
+                "fill": color
+            },
+            "overlay_image": overlay,
+        }
+    
+    # ------ Main method (and helpers) to show on LCD display -------
+
+    def draw_overall_full_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
+        '''
+        Draws a full screen frame on the given canvas, with the given padding and radius.
+
+        It is meant to be used as an overlay for the whole screen, to show any specific interaction.
+        '''
         if frame_color is None:
             frame_color = self.canvas.COLOR_ORANGE
 
@@ -940,3 +1201,124 @@ class Macros(PyXavi):
                 Rectangle(point_1, point_2).to_image_rectangle(),
                 outline=frame_color,
                 fill=color)
+    
+    def draw_foreground_frame(self, draw: ImageDraw.ImageDraw, padding: int = 10, radius: int = 10, frame_color: str = None, opacity: float = 0.25):
+        '''
+        Draws a foreground frame on the given canvas, except if the Color Mode is "1" (monochrome),
+        in which case it draws a solid empty rectangle.
+
+        https://stackoverflow.com/a/43620169/1973860
+        '''
+
+        # The screen is divided in 2 rows:
+        #   - top: contains current interaction: mouth and text (question and answer)
+        #   - bottom: contains additional information or status: buttons/icons and current action being executed.
+        #
+        # Top-left:
+        #   - Interaction animation (mouth, emojis, etc.)
+        # Top-right:
+        #   - Current question and answer text (as has been fukll screen centered until now)
+        # Bottom-left:
+        #   - Status icons (Wifi, battery, etc.)
+        # Bottom-center:
+        #   - Current action being executed ("STT", "Chatbot", "External Tool (which)", etc.)
+        # Bottom-right:
+        #   - Action icons, color by action (STT grey: inactive, orange: transcribing but useless, green: transcribing to be used; Chatbot grey: inactive, blue: sent, orange: external tool, green: answering; Memory:...)
+        #
+        # Now defining the frame points
+        # TODO: All of this should be re-thought. This should be a template, stored externally
+
+
+        if self.canvas.COLOR_MODE == "RGBA":
+
+            overlay: Image.Image = self.color_scheme_info["overlay_image"]
+            overlay = overlay.copy()  # We copy it to avoid modifying the original one, which is stored in the color scheme info for re-use in other frames.
+            draw_overlay = ImageDraw.Draw(overlay)
+
+            # Draw all the rectangles given (they are already calculated to be inside the screen and with the padding)
+            for name, rectangle in self.layout_info.items():
+                if isinstance(rectangle, Rectangle):
+                    draw_overlay.rounded_rectangle(
+                        rectangle.to_image_rectangle(),
+                        radius=radius,
+                        outline=self.color_scheme_info[name]["outline"],
+                        fill=self.color_scheme_info[name]["fill"],
+                        corners=(True, True, True, True))
+
+            # Now composite the overlay onto the original image
+            self.canvas.combine_into_image(overlay)
+        else:
+            if frame_color is None:
+                frame_color = self.canvas.COLOR_ORANGE
+            color = self.canvas.COLOR_BACKGROUND
+
+            point_1 = Point(padding, padding)
+            point_2 = Point(self._display_size.x - padding - 1, self._display_size.y - padding - 1)
+            draw.rectangle(
+                Rectangle(point_1, point_2).to_image_rectangle(),
+                outline=frame_color,
+                fill=color)
+
+    def draw_status_button(self, draw: ImageDraw.ImageDraw, params: dict):
+        '''
+        Draws a status button in both buttons columns in the bottom row, based on the given parameters.
+
+        Args:
+            draw: The canvas to draw on.
+            params: The parameters for the button, which should include:
+                - column: "left" or "right", indicating in which column to draw the button.
+                - color: The color of the button, if None it will be red.
+        '''
+        # Which display area.
+        display_area = params.get("display_area", "bottom-left")
+        # There is space for 4 buttons each column. Position starts by 1
+        position = params.get("position", 1)
+        # Radius of the button.
+        radius = params.get("radius", 5)
+        # Padding to apply to the buttons related to the display_area
+        padding_buttons = params.get("padding_buttons", 10)
+        # Padding to apply to the text related to the button
+        # COMMENTED: This should be centered
+        # padding_text = params.get("padding_text", 5)
+        # Text to show
+        text = params.get("text", None)
+        # Colors
+        text_color = params.get("text_color", self.canvas.COLOR_BLACK)
+        button_color = params.get("button_color", self.canvas.COLOR_YELLOW)
+
+        # The gathered layout info.
+        display_area_layout: Rectangle = self.layout_info.get(display_area, None)
+
+        # Calculations
+        position = position - 1 if position > 0 else 0
+        button_offset_x = display_area_layout.point_1.x + padding_buttons
+        button_offset_y = display_area_layout.point_1.y + padding_buttons + (padding_buttons // 2 * position)
+        button_max_x = display_area_layout.point_2.x - padding_buttons
+        button_max_y = display_area_layout.point_2.y - padding_buttons
+        button_width = button_max_x - button_offset_x
+        button_height = button_max_y - button_offset_y
+        button_center_x = (button_offset_x + button_max_x) // 2
+        # We divide the button area in 4, so we can have up to 4 buttons. 
+        # The position starts by 1, so we need to remove 1 to calculate the offset.
+        button_center_y = button_offset_y + (position * (button_height // 4)) + ((button_height // 4) // 2)
+
+        draw.rounded_rectangle(
+            Rectangle(
+                Point(button_offset_x, button_offset_y + (position * (button_height // 4))),
+                Point(button_max_x, button_offset_y + ((position + 1) * (button_height // 4)))
+            ).to_image_rectangle(),
+            radius=radius,
+            outline=button_color,
+            fill=button_color,
+            corners=(True, True, True, True))
+        
+        if text:
+            draw.text(
+                Point(button_center_x, button_center_y).to_image_point(),
+                text=text,
+                font=self.canvas.FONT_SMALL,
+                fill=text_color,
+                anchor="mm",
+                align="center")
+        
+        

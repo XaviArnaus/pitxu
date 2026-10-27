@@ -1,12 +1,12 @@
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.canvas.paint_objects import BackgroundPaint, ForegroundPaint
 
-from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END,\
+from definitions import FOREGROUND_CHANNEL, BACKGROUND_CHANNEL, LOOP_START, LOOP_END, SHARED_MICROPHONE_MUTED,\
                         SHARED_SPEAKER_BUSY, SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_LCD_BUSY, \
                         SHARED_DSI_LCD_BUSY, SHARED_CHATBOT_BUSY, SHARED_NETWORK_BUSY, SHARED_IDLE_MODE, \
-                        SHARED_VAD_DETECTED
+                        SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
 
 class PainterBusyFlags(PyXavi):
 
@@ -31,7 +31,11 @@ class PainterBusyFlags(PyXavi):
         SHARED_CHATBOT_BUSY,
         SHARED_NETWORK_BUSY,
         SHARED_IDLE_MODE,
-        SHARED_VAD_DETECTED
+        SHARED_VAD_DETECTED,
+        SHARED_SUPPORT_BUSY,
+        SHARED_STT_BUSY,
+        SHARED_TRANSCRIBER_BUSY,
+        SHARED_MICROPHONE_MUTED
     ]
 
     MANDATORY_FULL_CYCLE_BUSY_FLAGS = [
@@ -199,3 +203,12 @@ class PainterBusyFlags(PyXavi):
                                 #     "callback": callback
                                 # })
         return result
+    
+    def is_transcriber_busy(self) -> bool:
+        return self.shared_memory.read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
+    
+    def is_chatbot_busy(self) -> bool:
+        return self.shared_memory.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
+    
+    def is_microphone_muted(self) -> bool:
+        return self.shared_memory.read_shared_memory_flag(SHARED_MICROPHONE_MUTED)

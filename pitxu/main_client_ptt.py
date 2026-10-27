@@ -70,7 +70,7 @@ class MainClientPTT(PyXavi):
     _trigger_words: list = []
     _tokens_counter: int = 0
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
