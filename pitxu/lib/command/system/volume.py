@@ -18,14 +18,17 @@ class SystemVolume(PyXavi, Command):
     # Whatever the volume we want, we add this to avoid being too low
     SINK_VOLUME_ADDITION = 50
 
-    #Soundcards output to be parsed for speaker volume and mute status. It can be "Speaker" or "Master" depending on the soundcard configuration.
+    # Soundcards output to be parsed for speaker volume and mute status. It can be "Speaker" or "Master" depending on the soundcard configuration.
     ALSA_SPEAKER_CONTROL_NAME: str = "Speaker"
 
-    #Soundcards output to be parsed for microphone volume and mute status. It can be "Mic" or "Capture" depending on the soundcard configuration.
+    # Soundcards output to be parsed for microphone volume and mute status. It can be "Mic" or "Capture" depending on the soundcard configuration.
     ALSA_MIC_CONTROL_NAME: str = "Mic"
 
     # Soundcards output to be parsed for microphone volume and mute status. It can be "Mono" or "Left" depending on the soundcard configuration.
     ALSA_IS_MIC_MONO: bool = True
+
+    # Initial volume level for the microphone, in percentage.
+    ALSA_INITIAL_MIC_VOLUME: int = 60
 
     VERBOSE_DEBUG: bool = False
 
@@ -36,12 +39,13 @@ class SystemVolume(PyXavi, Command):
         self.ALSA_SPEAKER_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_speaker_control_name", self.ALSA_SPEAKER_CONTROL_NAME)
         self.ALSA_MIC_CONTROL_NAME = self._xconfig.get("text-to-speech.alsa_mic_control_name", self.ALSA_MIC_CONTROL_NAME)
         self.ALSA_IS_MIC_MONO = self._xconfig.get("text-to-speech.alsa_is_mic_mono", self.ALSA_IS_MIC_MONO)
+        self.ALSA_INITIAL_MIC_VOLUME = int(self._xconfig.get("text-to-speech.alsa_initial_mic_volume", self.ALSA_INITIAL_MIC_VOLUME))
 
 
         # This class gets loaded at ChatbotSessionManager initialization time.
         # Therefore, tecnically we can also introduce here any initialization code if needed.
         # We want to set up the microphone volume to a known level: 100
-        self.set_local_system_microphone_volume_level(100)
+        self.set_local_system_microphone_volume_level(self.ALSA_INITIAL_MIC_VOLUME)
 
     def get_local_system_speaker_volume_level(self) -> int:
         '''
