@@ -37,6 +37,7 @@ SHARED_TRANSCRIBER_BUSY = 15
 SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
 # const = index(int)
 SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
+SHARED_VAD_HEARTBEAT = 1
 
 # Painter
 LOOP_START: str = "start"

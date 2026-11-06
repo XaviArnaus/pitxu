@@ -8,7 +8,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_IDLE_MODE, SHARED_LCD_IDLE_MODE, \
     SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
     SHARED_TRANSCRIBER_BUSY, \
-    SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
+    SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_VAD_HEARTBEAT
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -55,7 +55,8 @@ class SharedMemoryManager(PyXavi):
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_value: dict[int, str] = {
-        SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold"
+        SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold",
+        SHARED_VAD_HEARTBEAT: "vad_heartbeat"
     }
 
     WAITING_SLEEP_SECONDS: float = 0.01
