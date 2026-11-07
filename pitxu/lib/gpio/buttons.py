@@ -43,7 +43,7 @@ class Buttons(PyXavi):
         if self.mocked_buttons_manager is not None:
             self.mocked_buttons_manager.start_listening()
         else:
-            self._xlog.debug("Not starting mocked buttons listener, we're not mocked")
+            self._xlog.debug("Not starting mocked buttons listener: we're not mocked")
     
     def get_buttons(self) -> dict[str, MockedButton]:
         """"

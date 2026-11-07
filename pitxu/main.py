@@ -1357,13 +1357,13 @@ class Main(PyXavi):
                         cls.main_execution_on_transcription_finished(final_transcription=transcription), 
                         cls._capture_handler.get_main_event_loop())
 
-                # Set the action as the release callback, so the app wakes up when the user releases the button.
-                self._buttons.set_released_callback(
+                # Set the action as the pressed callback, so the app wakes up when the user presses the button.
+                self._buttons.set_pressed_callback(
                     button_name=wake_up_button_name, 
                     callback=wake_up_button_callback,
                     kargs={
                         "cls": self,
-                        "button_name": self.WAKE_UP_BUTTON_NAME,
+                        "button_name": wake_up_button_name,
                         "flags": {}
                     })
             else:
