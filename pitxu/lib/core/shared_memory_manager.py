@@ -8,7 +8,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_IDLE_MODE, SHARED_LCD_IDLE_MODE, \
     SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
     SHARED_TRANSCRIBER_BUSY, \
-    SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
+    SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_WAKE_UP_BUTTON_PRESSED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -29,7 +29,8 @@ class SharedMemoryManager(PyXavi):
         "vad_detected": SHARED_VAD_DETECTED,
         "support_busy": SHARED_SUPPORT_BUSY,
         "stt_busy": SHARED_STT_BUSY,
-        "transcriber_busy": SHARED_TRANSCRIBER_BUSY
+        "transcriber_busy": SHARED_TRANSCRIBER_BUSY,
+        "wake_up_button_request": SHARED_WAKE_UP_BUTTON_PRESSED
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_flag: dict[int, str] = {
@@ -48,7 +49,8 @@ class SharedMemoryManager(PyXavi):
         SHARED_VAD_DETECTED: "vad_detected",
         SHARED_SUPPORT_BUSY: "support_busy",
         SHARED_STT_BUSY: "stt_busy",
-        SHARED_TRANSCRIBER_BUSY: "transcriber_busy"
+        SHARED_TRANSCRIBER_BUSY: "transcriber_busy",
+        SHARED_WAKE_UP_BUTTON_PRESSED: "wake_up_button_request"
     }
     _shared_values: dict[str, int] = {
         "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
@@ -117,6 +119,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # support is busy
                 False,  # stt is busy
                 False,  # transcriber is busy
+                False,  # wake up button is pressed
             ], name=SHARED_MEMORY_FLAGS)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

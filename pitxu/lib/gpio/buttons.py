@@ -45,6 +45,12 @@ class Buttons(PyXavi):
         else:
             self._xlog.debug("Not starting mocked buttons listener, we're not mocked")
     
+    def get_buttons(self) -> dict[str, MockedButton]:
+        """"
+        Get the buttons dictionary.
+        """
+        return self.buttons
+    
     def set_pressed_callback(self, button_name: str, callback: callable, kargs: dict = {}):
         if self.is_mocked():
             if self.mocked_buttons_manager.buttons_by_name.get(button_name) is None:

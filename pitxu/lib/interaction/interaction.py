@@ -2,6 +2,7 @@ from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper
@@ -22,7 +23,7 @@ from multiprocessing import JoinableQueue
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
-                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
+                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED
 
 class Interaction(PyXavi):
     """
@@ -239,6 +240,34 @@ class Interaction(PyXavi):
         # This is a clear candidate to be moved to the display class, but for now we keep it here because it's the only interaction we have that needs to be triggered after the initialization.
         self._xlog.info("Initializing animations in Visualizer through Interaction.")
         self.process_pool.send(self.background.get_queue(), XprocAction.INITIALIZE_ANIMATIONS)
+    
+    def is_wake_up_voice_wanted(self) -> bool:
+        """
+        Check if the wake up voice interaction is wanted.
+
+        Returns:
+            bool: True if the wake up voice interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") in ["voice", "both"]
+    
+    def is_wake_up_button_wanted(self) -> bool:
+        """
+        Check if the wake up button interaction is wanted.
+
+        Returns:
+            bool: True if the wake up button interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") in ["button", "both"]
+    
+    def is_wake_up_button_wanted_exclusively(self) -> bool:
+        """
+        Check if the wake up button interaction is wanted.
+
+        Returns:
+            bool: True if the wake up button interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") == "button"
+        
     
     def displays_are_combined(self) -> bool:
         """
@@ -778,6 +807,15 @@ class Interaction(PyXavi):
     
     def is_transcriber_busy(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
+    
+    def set_wake_up_button_pressed(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, True)
+    
+    def unset_wake_up_button_pressed(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, False)
+    
+    def is_wake_up_button_pressed(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED)
 
     # --------- Internal helper functions ---------
 

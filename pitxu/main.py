@@ -2,7 +2,9 @@ from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
 
 import signal
 
+from definitions import SHARED_WAKE_UP_BUTTON_PRESSED
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.system import System
@@ -52,6 +54,7 @@ class Main(PyXavi):
     _server: Server = None
     _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
+    _buttons: Buttons = None
 
     _audio_parameters: dict = None
 
@@ -94,6 +97,8 @@ class Main(PyXavi):
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
+
+    WAKE_UP_BUTTON_NAME: str = "WAKE_UP"
 
     SCHEDULER_LIB_LOGLEVEL = logging.WARNING
     TZLOCAL_LIB_LOGLEVEL = logging.INFO
@@ -1294,13 +1299,82 @@ class Main(PyXavi):
                 # Callback for when the app goes idle
                 ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
-                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False)
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
+                # Callback for when the wake up button is pressed (released, actually)
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, lambda: self._interaction.add_new_status_line("🕹️ Wake up button pressed"), False)
             ]
         }))
+
+        # Load the wake up button support in case that is wanted by the configuration.
+        # It will be used to wake up the app from idle mode.
+        if self._interaction.is_wake_up_button_wanted():
+            self.initialize_wake_up_button()
 
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
+    
+    def initialize_wake_up_button(self):
+        """
+        Initializes the wake up button.
+        """
+
+        if self._interaction.is_wake_up_button_wanted():
+            self._xlog.info("🕹️  Wake up button is wanted, initializing it.")
+
+            # Initialises the buttons defined in the config.
+            # Hold the name of them, it's how you refer to them.
+            self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+            self._buttons.initialize_buttons()
+
+            # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
+            wake_up_button_name = self.WAKE_UP_BUTTON_NAME
+            if wake_up_button_name in self._buttons.get_buttons().keys():
+
+                self._xlog.info("Wake up button is defined, setting the callback to wake up the app from idle mode.")
+
+                def wake_up_button_callback(button, cls: Main = None, button_name: str = None, flags: dict = None):
+                    """
+                    Callback for the wake up button.
+                    """
+                    cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
+                    
+                    # Set the shared memory flag for the wake up button pressed, so the main process can react to it.
+                    cls._interaction.set_wake_up_button_pressed()
+
+                    # Enter into the main execution flow, as if the user had spoken the trigger words.
+                    # The idea is that:
+                    #   - This way we can emulate in the future anything else (with the obvious extra implementation)
+                    #   - The main execution flow will handle the rest of the interaction, including the microphone unmuting, idle management, etc.
+                    if not cls.is_there_running_loop():
+                        # This should never happen... we have an event loop registered in the Capture Handler.
+                        cls._xlog.debug("No running loop detected, creating a new one for the wake up button callback.")
+                        asyncio.set_event_loop(asyncio.new_event_loop())
+
+                    transcription = cls._xconfig.get("language.trigger_words." + cls._xparams.get("language"))[0] % cls._xconfig.get("chatbot.name")
+                    cls._xlog.debug("Triggering Main Execution on Transcription Finished with final transcription: " + transcription)
+                    asyncio.run_coroutine_threadsafe(
+                        cls.main_execution_on_transcription_finished(final_transcription=transcription), 
+                        cls._capture_handler.get_main_event_loop())
+
+                # Set the action as the release callback, so the app wakes up when the user releases the button.
+                self._buttons.set_released_callback(
+                    button_name=wake_up_button_name, 
+                    callback=wake_up_button_callback,
+                    kargs={
+                        "cls": self,
+                        "button_name": self.WAKE_UP_BUTTON_NAME,
+                        "flags": {}
+                    })
+            else:
+                self._xlog.warning("Wake up button is not defined, cannot set the callback to wake up the app from idle mode.")
+            
+            # Start the listener for the buttons, if any button is defined.
+            # This is only needed for the buttons mocked, because
+            if self._buttons.get_buttons():
+                self._buttons.start_listening()
+            else:
+                self._xlog.warning("No buttons defined, cannot initialize the buttons.")
     
     def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
         """
@@ -1545,6 +1619,11 @@ class Main(PyXavi):
                         self._last_interaction_paused_seconds = 0
                         # And then we clean the display completely, as we go to idle soon.
                         self._interaction.clear_device()
+                        # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                        #   as the user is not speaking and we don't want to react to anything else.
+                        if self._interaction.is_wake_up_button_wanted_exclusively():
+                            self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
+                            self._interaction.mute_microphone(self._threaded_input_stream.get_input_stream())
                         # if not self._interaction.is_background_display_busy():
                         #     self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
                         #     self._interaction.clear_background_display()
@@ -1559,4 +1638,19 @@ class Main(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
+    
+
+    # ------------- Others -------------
+
+    def is_there_running_loop(self) -> bool:
+        """
+        Checks if there is a running loop in the current thread.
+        """
+        try:
+            if self._capture_handler.get_main_event_loop().is_running():
+                return True
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
                     
