@@ -1520,7 +1520,7 @@ class Main(PyXavi):
                     # then put the Mic on, and reset the transcription (if streaming), so at leat the user can try
                     #   to trigger the interaction again.
                     # ⚠️ Still... it shouldn't happen!
-                    if self._interaction.is_microphone_muted():
+                    if self._interaction.is_microphone_muted() and not self._interaction.is_wake_up_button_wanted_exclusively():
                         self._log_debug("Microphone is muted while in idle mode, unmuting it to allow the user to trigger an interaction.")
                         self._interaction.unmute_microphone(input_stream=input_stream)
                         if self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
@@ -1528,6 +1528,7 @@ class Main(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+                    self._xlog.debug(full_stack())
             
             # COMMENTED: Idea unfinished.
             # # If we're in idle mode and the dictation is in a weird state, force a reset.
