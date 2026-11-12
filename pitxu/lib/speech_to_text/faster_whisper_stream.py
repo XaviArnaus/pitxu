@@ -8,6 +8,7 @@ from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisper
 from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.compat import QueueShutDown
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT_BUSY, QUEUE_TRANSCRIBER, SHARED_TRANSCRIBER_BUSY, \
                         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
@@ -478,7 +479,7 @@ class FasterWhisperStream(PyXavi):
 
             except queue.Empty:
                 continue
-            except queue.ShutDown as e:
+            except QueueShutDown as e:
                 self.is_active = False
                 raise SpeechToTextException("Queue Shutdown detected in FasterWhisper Stream recognize(): " + str(e))
             except SpeechToTextException as ve:

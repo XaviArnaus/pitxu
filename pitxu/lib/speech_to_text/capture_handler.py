@@ -142,8 +142,8 @@ class CaptureHandler(PyXavi):
             ("Release", f"{release} seconds"),
             ("Sample Rate", f"{self.target_samplerate} Hz"),
             ("Chunk Size", f"{chunksize} samples"),
-            ("Dynamic RMS Silence Detection Active", f"{"Yes" if self._is_silence_dynamic_rms_active() else "No"}"),
-            ("Emit Start Marker", f"{"Yes" if self.emit_start_marker else "No"}")
+            ("Dynamic RMS Silence Detection Active", "Yes" if self._is_silence_dynamic_rms_active() else "No"),
+            ("Emit Start Marker", "Yes" if self.emit_start_marker else "No")
         ])
 
         self.resampler = samplerate.Resampler(converter_type='sinc_best')
