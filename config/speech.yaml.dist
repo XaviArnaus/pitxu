@@ -172,6 +172,10 @@ speech-to-text:
     chunks_window: 200
     # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
     sleep_when_no_chunks: 0.1
+    # [Float] The time in seconds to wait for a transcription to be completed before considering it abandoned.
+    transcription_timeout: 20.0
+    # [Float] RMS (0..1 scale) below which the NEW audio of a window is considered silence and not decoded. 0 = disabled.
+    silent_window_rms: 0.0
     # [List of Strings] Hot words to add to the Faster Whisper model for each language.
     # The name of the bot and its possible aliases will be added automatically.
     hot_words:

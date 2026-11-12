@@ -72,6 +72,8 @@ class FasterWhisperStreamProcess(Xprocess):
     # Values over 1.0 reduce repetitions. Too high values can cause missing words, so we need to find a good balance.
     # It was 1.5, and some words were missing. Lowering down to 1.2.
     _repetition_penalty = 1.2
+    # RMS (0..1 scale) below which the NEW audio of a window is considered silence and not decoded. 0 = disabled.
+    _silent_window_rms = 0.0
 
     # Identify and correct hallucinations: If we have "n" consecutive segments with low confidence,
     #   we can consider that the model is hallucinating and reset the context.
@@ -172,6 +174,7 @@ class FasterWhisperStreamProcess(Xprocess):
             hallucination_low_confidence_segments_max_occurrences = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_max_occurrences", 3))
             samplerate = int(self._xconfig.get("speech-to-text.target_samplerate", self._samplerate))
             repetition_penalty = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.repetition_penalty", self._repetition_penalty))
+            silent_window_rms = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.silent_window_rms", self._silent_window_rms))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
@@ -187,6 +190,7 @@ class FasterWhisperStreamProcess(Xprocess):
             self._hot_words = self._load_hot_words()
             self._samplerate = samplerate
             self._repetition_penalty = repetition_penalty
+            self._silent_window_rms = silent_window_rms
 
             logging_parts.append(("Model from config", model))
             logging_parts.append(("Device for Faster Whisper", device))
@@ -210,6 +214,9 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
             logging_parts.append(("Hot words count", len(self._hot_words)))
             logging_parts.append(("Samplerate for Faster Whisper", self._samplerate))
+            logging_parts.append(("Repetition penalty", self._repetition_penalty))
+            logging_parts.append(("Silent window RMS", self._silent_window_rms))
+
             self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
 
             self._model = WhisperModel(model,
@@ -271,7 +278,6 @@ class FasterWhisperStreamProcess(Xprocess):
 
         if self._output_queue is not None:
             self._xlog.debug("Deleting FasterWhisper Stream output queue")
-            self._output_queue.join()
             del self._output_queue
         
         if self._sentinel_output_queue is not None:
@@ -293,18 +299,27 @@ class FasterWhisperStreamProcess(Xprocess):
         self._xlog.debug("Done finishing FasterWhisperStream Worker")
     
     def run_with_context(self, config: Config, logger: logging, action: XprocAction, param: any):
+
+        try:
         
-        if action == XprocAction.RESET_TRANSCRIPTION:
-            self.reset_context()
-        
-        if action == XprocAction.TRANSCRIBE_CHUNK_WINDOW:
-            if isinstance(param, list) and all(isinstance(chunk, bytes) for chunk in param):
-                self.process_chunks(param)
-            else:
-                raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
-        
-        if action == XprocAction.RETRIEVE_TRANSCRIPTION_RESULT:
-            return self.get_transcription()
+            if action == XprocAction.RESET_TRANSCRIPTION:
+                self.reset_context()
+            
+            if action == XprocAction.TRANSCRIBE_CHUNK_WINDOW:
+                if isinstance(param, list) and all(isinstance(chunk, bytes) for chunk in param):
+                    self.process_chunks(param)
+                else:
+                    raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
+            
+            if action == XprocAction.RETRIEVE_TRANSCRIPTION_RESULT:
+                return self.get_transcription()
+
+        except Exception as e:
+            self._xlog.error(f"🛑 FasterWhisperStream action [{action}] failed, dropping it: {e}")
+            self._xlog.debug(full_stack())
+            if action == XprocAction.TRANSCRIBE_CHUNK_WINDOW:
+                # Still ack the window, so the one-in-flight gate reopens.
+                self._emit_transcription(partial_transcription=self._current_partial())
     
     def reset_context(self):
         self._last_overlap = np.array([], dtype=np.float32)
@@ -312,6 +327,8 @@ class FasterWhisperStreamProcess(Xprocess):
         self._final_transcription = ""
         self._should_disable_next_prompt = False
         self._samples_fed = 0
+        self._consecutive_low_confidence_segments = 0
+        self._last_segment_text_for_repetition = ""
     
     def process_chunks(self, chunk_list: list[bytes]) -> str:
         result = ""
@@ -325,6 +342,7 @@ class FasterWhisperStreamProcess(Xprocess):
             # No chunks, no work.
             self._log_debug("FasterWhisper Stream: No valid audio chunks to process after preprocessing, returning empty result.")
             result = ""
+            self._emit_transcription(partial_transcription=self._current_partial())
 
         else:
             # 2. Prepare audio for transcription
@@ -361,31 +379,38 @@ class FasterWhisperStreamProcess(Xprocess):
             # 4. Transcription
             audio_s = len(audio_to_process) / self._samplerate
             max_new_tokens = min(int(audio_s * 10) + 20, 200)    # ~40 tokens max for a 2 s window
+            # Measure only the NEW audio. The overlap holds old speech and would hide the silence.
+            new_audio_rms = float(np.sqrt(np.mean(new_audio ** 2)))
             self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
-            segments, _ = self._model.transcribe(
-                audio_to_process,
-                beam_size=self._beam_size,
-                temperature=self._temperature,
-                language=self.language,
-                initial_prompt=prompt,
-                word_timestamps=True,
-                repetition_penalty=self._repetition_penalty,
-                # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, 
-                #   to avoid losing context and to let the model decide how to split it.
-                # COMMENTED: For windows under 30 s the behaviour is identical (still a single clip). 
-                #   Longer windows are now split correctly instead of trimmed.
-                # chunk_length=audio_to_process.shape[0],
-                # Forcing the model to not condition on previous text, as it can cause hallucinations and repetitions.
-                condition_on_previous_text=False,
-                hallucination_silence_threshold=self._hallucination_silence_threshold,
-                hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None,
-                # This stops repetition loops from running to 448 tokens. 
-                # The prompt is at most about 100 tokens, so the model’s combined-length ValueError can’t trigger.
-                max_new_tokens=max_new_tokens
-            )
 
-            # The transcription is returned as a generator. Get the segments themselves.
-            segments = list(segments)
+            if self._silent_window_rms > 0 and new_audio_rms < self._silent_window_rms:
+                self._log_debug(f"FasterWhisper Stream: Silent window (RMS {new_audio_rms:.4f} < {self._silent_window_rms}), skipping decode.")
+                segments = []
+            else:
+                segments, _ = self._model.transcribe(
+                    audio_to_process,
+                    beam_size=self._beam_size,
+                    temperature=self._temperature,
+                    language=self.language,
+                    initial_prompt=prompt,
+                    word_timestamps=True,
+                    repetition_penalty=self._repetition_penalty,
+                    # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, 
+                    #   to avoid losing context and to let the model decide how to split it.
+                    # COMMENTED: For windows under 30 s the behaviour is identical (still a single clip). 
+                    #   Longer windows are now split correctly instead of trimmed.
+                    # chunk_length=audio_to_process.shape[0],
+                    # Forcing the model to not condition on previous text, as it can cause hallucinations and repetitions.
+                    condition_on_previous_text=False,
+                    hallucination_silence_threshold=self._hallucination_silence_threshold,
+                    hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None,
+                    # This stops repetition loops from running to 448 tokens. 
+                    # The prompt is at most about 100 tokens, so the model’s combined-length ValueError can’t trigger.
+                    max_new_tokens=max_new_tokens
+                )
+
+                # The transcription is returned as a generator. Get the segments themselves.
+                segments = list(segments)
 
             # Trying to identify hallucinations by looking at the confidence of the segments,
             # and if we have "n" consecutive low confidence segments, we consider that the model is hallucinating 
@@ -479,10 +504,13 @@ class FasterWhisperStreamProcess(Xprocess):
             
             # At this point, this is what we have, even it's going to be corrected on-the-go.
             # Emit it, so the caller can see a partial.
-            self._emit_transcription(partial_transcription=self._final_transcription.strip() + " " + " ".join([w['word'] for w in self._ongoing_transcription]))
+            self._emit_transcription(partial_transcription=self._current_partial())
 
         self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
+
+    def _current_partial(self) -> str:
+        return (self._final_transcription.strip() + " " + " ".join(w["word"] for w in self._ongoing_transcription)).strip()
     
     def _emit_transcription(self, final_transcription: str = None, partial_transcription: str = None):
         # It's a tuple: (partial, final)
@@ -608,32 +636,37 @@ class FasterWhisperStreamProcess(Xprocess):
                 self._consecutive_low_confidence_segments = 0
                 self._should_disable_next_prompt = True
 
-    
-    def get_transcription(self) -> str:
+    def get_transcription(self):
         """
         This method just retrieves the transcription done per chunks.
         """
+        
+        final_transcription = ""
+        try:
+            # We may still have some ongoing transcription that is not yet committed, so we add them to the final transcription,
+            # As we don't expect more partials to correct it.
+            leftover_transcription = " ".join(w['word'] for w in self._ongoing_transcription)
+            if leftover_transcription:
+                self._final_transcription += " " + leftover_transcription if self._final_transcription else leftover_transcription
 
-        # We may still have some ongoing transcription that is not yet committed, so we add them to the final transcription,
-        # As we don't expect more partials to correct it.
-        leftover_transcription = " ".join([w['word'] for w in self._ongoing_transcription])
-        if leftover_transcription:
-            self._final_transcription += " " + leftover_transcription if self._final_transcription else leftover_transcription
+            # We get the final transcription and use the moment to clean it.
+            final_transcription = self._clean_transcription(self._final_transcription)
 
-        # We get the final transcription and use the moment to clean it.
-        final_transcription = self._clean_transcription(self._final_transcription)
+            self._xlog.debug(f"✏️ Final transcription: \n\n{TerminalColor.RED}{final_transcription}{TerminalColor.END}\n")
+        except Exception as e:
+            self._xlog.error(f"🛑 Failed to build the final transcription, emitting an empty one: {e}")
+            self._xlog.debug(full_stack())
+        finally:
+            # Whatever happened, the other side is waiting for this item.
+            if self._output_queue is not None:
+                # We put the transcription in the output queue, to be retrieved by the Main process.
+                self._emit_transcription(final_transcription=final_transcription)
+                self._log_debug("Final transcription put in the output queue.")
+            else:
+                self._xlog.error("🛑 Output queue not available, cannot put the final transcription in the output queue.")
 
-        self._xlog.debug(f"✏️ Final transcription: \n\n{TerminalColor.RED}{final_transcription}{TerminalColor.END}\n")
-
-        # We put the transcription in the output queue, to be retrieved by the Main process.
-        if self._output_queue is not None:
-            self._emit_transcription(final_transcription=final_transcription)
-            # self._output_queue.put(self._output_queue_sentinel)
-            self._log_debug("Final transcription put in the output queue.")
             # Reset the context to avoid issues if the start does not trigger well
             self.reset_context()
-        else:
-            self._xlog.error("🛑 Output queue not available, cannot put the final transcription in the output queue.")
     
     def warm_up_model(self):
         """
@@ -653,413 +686,3 @@ class FasterWhisperStreamProcess(Xprocess):
         num_samples = int(duration_seconds * sample_rate)
         silent_chunk = np.zeros(num_samples, dtype=dtype)
         return silent_chunk
-
-# ISSUE 1
-# The with or the noise at the end of the trancription makes him allucinate.
-#   1. I implemented a silence removeal that appeared strict when wront chunk merging was implemented
-#   2. I deactivated it, indoors shown not needed, and produced bugs (maybe wrong overlap timestamp calculation)
-#   3. Tested outdoors again, shows that wind/noise creates hallucinations at the end of the transcription
-
-# 2026-06-04 18:25:38,232 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [RESET_TRANSCRIPTION]
-# 2026-06-04 18:25:38,262 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from START_CONTEXT to ONGOING_PROCESS_CHUNK
-# 2026-06-04 18:25:39,164 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:39,182 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: 
-# 2026-06-04 18:25:40,164 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:40,175 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: 
-# 2026-06-04 18:25:41,191 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:41,197 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: 
-# 2026-06-04 18:25:41,289 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:41,302 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:41,308 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:41,321 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:41,322 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:41,410 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 51201 samples, with an overlap of 0 samples from the previous chunk.
-# 2026-06-04 18:25:41,411 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.200
-# 2026-06-04 18:25:42,179 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:42,190 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: 
-# 2026-06-04 18:25:42,830 [FWhisperStr MainThread            ] DEBUG    pitxu        -------------------------------------------------------------
-# 2026-06-04 18:25:42,831 [FWhisperStr MainThread            ] DEBUG    pitxu        |                       Segments info                       |
-# 2026-06-04 18:25:42,831 [FWhisperStr MainThread            ] DEBUG    pitxu        -------------------------------------------------------------
-# 2026-06-04 18:25:42,831 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Goodbye: start: 0.0 (0.0), end: 0.86 (0.86), prob: -0.95 |
-# 2026-06-04 18:25:42,832 [FWhisperStr MainThread            ] DEBUG    pitxu        -------------------------------------------------------------
-# 2026-06-04 18:25:42,832 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------
-# 2026-06-04 18:25:42,832 [FWhisperStr MainThread            ] DEBUG    pitxu        |                        Words info                        |
-# 2026-06-04 18:25:42,833 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------
-# 2026-06-04 18:25:42,833 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Goodbye: start: 0.0 (0.0), end: 0.86 (0.86), prob: 0.56 |
-# 2026-06-04 18:25:42,833 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------
-# 2026-06-04 18:25:42,834 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# Goodbye
-
-# 2026-06-04 18:25:42,834 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-
-
-# 2026-06-04 18:25:43,150 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:43,163 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye
-# 2026-06-04 18:25:44,152 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:44,158 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye
-# 2026-06-04 18:25:44,627 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:44,639 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:44,645 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:44,653 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:44,653 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:44,703 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 53200 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:25:44,703 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.325
-# 2026-06-04 18:25:45,170 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:45,187 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye
-# 2026-06-04 18:25:46,158 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:46,158 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye
-# 2026-06-04 18:25:47,162 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:47,169 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye
-# 2026-06-04 18:25:47,655 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:47,656 [FWhisperStr MainThread            ] DEBUG    pitxu        |                              Segments info                              |
-# 2026-06-04 18:25:47,656 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:47,656 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 1.0 (1.86), end: 2.62 (3.48), prob: -0.88 |
-# 2026-06-04 18:25:47,657 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:47,657 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------
-# 2026-06-04 18:25:47,657 [FWhisperStr MainThread            ] DEBUG    pitxu        |                          Words info                         |
-# 2026-06-04 18:25:47,658 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------
-# 2026-06-04 18:25:47,658 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 1.66 (3.52), end: 2.04 (3.9), prob: 0.7  |
-# 2026-06-04 18:25:47,658 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 2.04 (3.9), end: 2.62 (4.48), prob: 0.96 |
-# 2026-06-04 18:25:47,659 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------
-# 2026-06-04 18:25:47,659 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:47,659 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:25:47,659 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:47,660 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.008684676140546799 |
-# 2026-06-04 18:25:47,660 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:47,660 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# Goodbye for watching!
-
-# 2026-06-04 18:25:47,661 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-#  Goodbye
-
-# 2026-06-04 18:25:47,836 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:47,836 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:47,842 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:47,861 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:47,862 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:47,907 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 53200 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:25:47,908 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.325
-# 2026-06-04 18:25:48,170 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:48,193 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching!
-# 2026-06-04 18:25:49,164 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:49,176 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching!
-# 2026-06-04 18:25:49,235 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:49,235 [FWhisperStr MainThread            ] DEBUG    pitxu        |                              Segments info                              |
-# 2026-06-04 18:25:49,236 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:49,236 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 0.0 (4.48), end: 3.06 (7.54), prob: -0.71 |
-# 2026-06-04 18:25:49,236 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:49,237 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------
-# 2026-06-04 18:25:49,237 [FWhisperStr MainThread            ] DEBUG    pitxu        |                          Words info                          |
-# 2026-06-04 18:25:49,237 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------
-# 2026-06-04 18:25:49,238 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 1.64 (6.12), end: 3.04 (7.52), prob: 0.21 |
-# 2026-06-04 18:25:49,238 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 3.04 (7.52), end: 3.06 (7.54), prob: 0.91 |
-# 2026-06-04 18:25:49,238 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------
-# 2026-06-04 18:25:49,239 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:49,239 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:25:49,239 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:49,239 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.010770720429718494 |
-# 2026-06-04 18:25:49,240 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:49,240 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# for watching! for watching!
-
-# 2026-06-04 18:25:49,241 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-#  Goodbye for watching!
-
-# 2026-06-04 18:25:50,168 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:50,204 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching!
-# 2026-06-04 18:25:51,163 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:51,169 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching!
-# 2026-06-04 18:25:51,195 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:51,201 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:51,213 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:51,225 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:51,226 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:51,270 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 53200 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:25:51,271 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.325
-# 2026-06-04 18:25:52,174 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:52,180 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching!
-# 2026-06-04 18:25:53,184 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:53,190 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching!
-# 2026-06-04 18:25:54,056 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:54,056 [FWhisperStr MainThread            ] DEBUG    pitxu        |                              Segments info                              |
-# 2026-06-04 18:25:54,057 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:54,057 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 1.9 (9.44), end: 2.96 (10.5), prob: -0.54 |
-# 2026-06-04 18:25:54,057 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------------------------------------------------
-# 2026-06-04 18:25:54,058 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:54,058 [FWhisperStr MainThread            ] DEBUG    pitxu        |                           Words info                           |
-# 2026-06-04 18:25:54,058 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:54,059 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 2.18 (11.62), end: 2.38 (11.82), prob: 0.25 |
-# 2026-06-04 18:25:54,059 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 2.38 (11.82), end: 2.96 (12.4), prob: 0.88  |
-# 2026-06-04 18:25:54,059 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:54,060 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:54,060 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:25:54,060 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:54,061 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.009013224393129349 |
-# 2026-06-04 18:25:54,061 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:54,061 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# for watching! for watching!
-
-# 2026-06-04 18:25:54,062 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-#  Goodbye for watching! for watching!
-
-# 2026-06-04 18:25:54,159 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:54,159 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching!
-# 2026-06-04 18:25:54,434 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:54,439 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:54,457 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:54,471 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:54,471 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:54,515 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 53200 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:25:54,516 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.325
-# 2026-06-04 18:25:55,172 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:55,178 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching!
-# 2026-06-04 18:25:56,152 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:56,169 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching!
-# 2026-06-04 18:25:57,156 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:57,169 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching!
-# 2026-06-04 18:25:57,258 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:25:57,259 [FWhisperStr MainThread            ] DEBUG    pitxu        |                              Segments info                               |
-# 2026-06-04 18:25:57,259 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:25:57,259 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 1.9 (14.3), end: 3.08 (15.48), prob: -0.54 |
-# 2026-06-04 18:25:57,260 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:25:57,260 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:57,260 [FWhisperStr MainThread            ] DEBUG    pitxu        |                           Words info                           |
-# 2026-06-04 18:25:57,261 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:57,261 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 2.92 (17.22), end: 2.92 (17.22), prob: 0.47 |
-# 2026-06-04 18:25:57,261 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 2.92 (17.22), end: 3.08 (17.38), prob: 0.9  |
-# 2026-06-04 18:25:57,261 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:25:57,262 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:57,262 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:25:57,262 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:57,263 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.002600264037027955 |
-# 2026-06-04 18:25:57,263 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:25:57,263 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# for watching! for watching!
-
-# 2026-06-04 18:25:57,264 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-#  Goodbye for watching! for watching! for watching!
-
-# 2026-06-04 18:25:57,683 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Ongoing chunk window exceeded the limit of 150 chunks. Processing.
-# 2026-06-04 18:25:57,696 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got 150 audio chunks from the queue to process.
-# 2026-06-04 18:25:57,702 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:57,716 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:25:57,716 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:25:57,761 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 150 audio chunks with a total of 53200 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:25:57,762 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:03.325
-# 2026-06-04 18:25:58,167 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:58,167 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching!
-# 2026-06-04 18:25:58,277 [MainProcess VADWorker             ] WARNING  pitxu        🟠 VAD detected speech chunk in unexpected IDLE, discarding 2 ongoing chunks. Expected one of: ['START_CONTEXT', 'ONGOING_PROCESS_CHUNK']
-# 2026-06-04 18:25:58,277 [MainProcess VADWorker             ] DEBUG    pitxu        🗣️ VAD detected speech end
-# 2026-06-04 18:25:58,329 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Received None data from the queue, It should be the end of the stream.
-# 2026-06-04 18:25:58,339 [Support     MainThread            ] DEBUG    pitxu        💾 Dumped audio [614402 bytes] of [int16] at [16000 Hz] to file: storage/audio/input/audio_2026-06-04-18-25-58-337783.wav
-# 2026-06-04 18:25:58,342 [Support     MainThread            ] DEBUG    pitxu        💾 Dumped audio [614402 bytes] of [int16] at [16000 Hz] to file: storage/audio/preprocessed_input/audio_2026-06-04-18-25-58-337783.wav
-# 2026-06-04 18:25:58,349 [Support     MainThread            ] DEBUG    matplotlib.pyplot Loaded backend Agg version v2.2.
-# 2026-06-04 18:25:58,349 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from ONGOING_PROCESS_CHUNK to LEFTOVER_CHUNK_PROCESSING
-# 2026-06-04 18:25:58,366 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Still 31 leftover audio chunks from the queue to process.
-# 2026-06-04 18:25:58,372 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Sending chunks window to be transcribed into the process
-# 2026-06-04 18:25:58,383 [MainProcess TranscriptorManager   ] DEBUG    pitxu        Requesting transcription result from the process
-# 2026-06-04 18:25:58,389 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from LEFTOVER_CHUNK_PROCESSING to REQUESTED_TRANSCRIPTION
-# 2026-06-04 18:25:59,150 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:25:59,163 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:00,157 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:26:00,157 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:01,153 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:26:01,161 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:02,154 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:26:02,160 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:02,832 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------------------
-# 2026-06-04 18:26:02,833 [FWhisperStr MainThread            ] DEBUG    pitxu        |                               Segments info                                |
-# 2026-06-04 18:26:02,834 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------------------
-# 2026-06-04 18:26:02,834 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 2.48 (19.86), end: 2.88 (20.26), prob: -0.62 |
-# 2026-06-04 18:26:02,834 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------------------
-# 2026-06-04 18:26:02,835 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:26:02,835 [FWhisperStr MainThread            ] DEBUG    pitxu        |                           Words info                           |
-# 2026-06-04 18:26:02,836 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:26:02,836 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 2.48 (22.34), end: 2.86 (22.72), prob: 0.44 |
-# 2026-06-04 18:26:02,836 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 2.86 (22.72), end: 2.88 (22.74), prob: 0.91 |
-# 2026-06-04 18:26:02,837 [FWhisperStr MainThread            ] DEBUG    pitxu        ------------------------------------------------------------------
-# 2026-06-04 18:26:02,837 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:02,837 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:26:02,837 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:02,838 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.006220690440386534 |
-# 2026-06-04 18:26:02,838 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:02,839 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# for watching! for watching!
-
-# 2026-06-04 18:26:02,839 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-#  Goodbye for watching! for watching! for watching! for watching!
-
-# 2026-06-04 18:26:02,839 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [TRANSCRIBE_CHUNK_WINDOW: <class 'list'>]
-# 2026-06-04 18:26:02,840 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 31 audio chunks with the context of the last overlap and the ongoing transcription.
-# 2026-06-04 18:26:02,850 [FWhisperStr MainThread            ] DEBUG    pitxu        FasterWhisper Stream: Processing 31 audio chunks with a total of 12581 samples, with an overlap of 2000 samples from the previous chunk.
-# 2026-06-04 18:26:02,850 [FWhisperStr MainThread            ] INFO     faster_whisper Processing audio with duration 00:00.786
-# 2026-06-04 18:26:03,120 [MainProcess VADWorker             ] WARNING  pitxu        🟠 VAD detected speech start but the current state is not IDLE: REQUESTED_TRANSCRIPTION
-# 2026-06-04 18:26:03,173 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:26:03,184 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:04,169 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 Speech-to-Text is processing, pausing interaction holding time counter.
-# 2026-06-04 18:26:04,179 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:26:04,180 [FWhisperStr MainThread            ] DEBUG    pitxu        |                              Segments info                               |
-# 2026-06-04 18:26:04,180 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:26:04,181 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks for watching!: start: 0.0 (22.74), end: 0.4 (23.14), prob: -0.65 |
-# 2026-06-04 18:26:04,181 [FWhisperStr MainThread            ] DEBUG    pitxu        ----------------------------------------------------------------------------
-# 2026-06-04 18:26:04,181 [FWhisperStr MainThread            ] DEBUG    pitxu        -----------------------------------------------------------------
-# 2026-06-04 18:26:04,182 [FWhisperStr MainThread            ] DEBUG    pitxu        |                           Words info                          |
-# 2026-06-04 18:26:04,182 [FWhisperStr MainThread            ] DEBUG    pitxu        -----------------------------------------------------------------
-# 2026-06-04 18:26:04,182 [FWhisperStr MainThread            ] DEBUG    pitxu        |  for      : start: 0.0 (22.74), end: 0.28 (23.02), prob: 0.54 |
-# 2026-06-04 18:26:04,183 [FWhisperStr MainThread            ] DEBUG    pitxu        |  watching!: start: 0.28 (23.02), end: 0.4 (23.14), prob: 0.91 |
-# 2026-06-04 18:26:04,183 [FWhisperStr MainThread            ] DEBUG    pitxu        -----------------------------------------------------------------
-# 2026-06-04 18:26:04,183 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:04,184 [FWhisperStr MainThread            ] DEBUG    pitxu        |   Low confidence words (0.1)  |
-# 2026-06-04 18:26:04,184 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:04,184 [FWhisperStr MainThread            ] DEBUG    pitxu        |  Thanks: 0.005382917821407318 |
-# 2026-06-04 18:26:04,185 [FWhisperStr MainThread            ] DEBUG    pitxu        ---------------------------------
-# 2026-06-04 18:26:04,185 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current ongoing transcription: 
-
-# for watching! for watching!
-
-# 2026-06-04 18:26:04,186 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Current committed transcription: 
-
-
-
-# 2026-06-04 18:26:04,186 [FWhisperStr MainThread            ] DEBUG    pitxu        Xprocess [FWhisperStr] run() received a [RETRIEVE_TRANSCRIPTION_RESULT]
-# 2026-06-04 18:26:04,186 [FWhisperStr MainThread            ] DEBUG    pitxu        ✏️ Final transcription: 
-
-# Goodbye for watching! for watching! for watching! for watching! for watching! for watching!
-
-# 2026-06-04 18:26:04,187 [FWhisperStr MainThread            ] DEBUG    pitxu        Final transcription put in the output queue.
-# 2026-06-04 18:26:04,182 [MainProcess ThreadPoolExecutor-0_0] DEBUG    pitxu        🎤 STT processing: ongoing transcription: Goodbye for watching! for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:04,274 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from REQUESTED_TRANSCRIPTION to FINAL_TRANSCRIPTION
-# 2026-06-04 18:26:04,287 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got transcription result from the Process: Goodbye for watching! for watching! for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:04,293 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Merging transcription result with the final transcription.
-# 2026-06-04 18:26:04,311 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from FINAL_TRANSCRIPTION to DONE
-# 2026-06-04 18:26:04,317 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.
-# 2026-06-04 18:26:04,335 [MainProcess TranscriptorManager   ] DEBUG    pitxu        👁️‍🗨️ Transitioning from DONE to IDLE
-# 2026-06-04 18:26:04,342 [MainProcess MainThread            ] INFO     pitxu        Main execution triggered by user finishing speaking, via Transcription callback.
-# 2026-06-04 18:26:04,468 [MainProcess MainThread            ] DEBUG    pitxu        Getting transcription from STT after VAD detected speech finished, for streaming engine...
-# 2026-06-04 18:26:04,480 [MainProcess MainThread            ] DEBUG    pitxu        💬 Recognised dictate: Goodbye for watching! for watching! for watching! for watching! for watching! for watching!
-# 2026-06-04 18:26:04,492 [MainProcess MainThread            ] DEBUG    pitxu        ⏱️  Dictate 0: 0.0246
-# 2026-06-04 18:26:04,504 [MainProcess MainThread            ] DEBUG    pitxu        Checking if text has exit intention: 'Goodbye for watching! for watching! for watching! for watching! for watching! for watching!' -> 'goodbye for watching! for watching! for watching! for watching! for watching! for watching!': False
-# 2026-06-04 18:26:04,517 [MainProcess MainThread            ] DEBUG    pitxu        Detection: Text intends to trigger or continue an interaction.
-# 2026-06-04 18:26:04,517 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Triggering thinking interaction on background display.
-# 2026-06-04 18:26:04,523 [DsiLcd      MainThread            ] INFO     pitxu        🤖 Showing KITT thinking on DSI LCD.
-# 2026-06-04 18:26:04,530 [DsiLcd      MainThread            ] INFO     pitxu        👀 Showing arbitrary text on DSI LCD while thinking.
-# 2026-06-04 18:26:04,542 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 0 elements.
-# 2026-06-04 18:26:04,573 [MainProcess MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0s.
-# 2026-06-04 18:26:04,585 [MainProcess MainThread            ] INFO     pitxu        ❓ Question in Chatbot: 
-
-# >> Goodbye for watching! for watching! for watching! for watching! for watching! for watching!
-
-# ISSUE 2
-# At the very end of the conversation, I expected to be able to say GoodBye and close the app, but
-# apparently the callback "user_intends_to_end_conversation" may have anything to do for the wronf state of the STT. 
-
-# 2026-05-31 22:09:55,283 [FasterWhisperStream MainThread            ] DEBUG    pitxu        Xprocess [FasterWhisperStream] run() received a [RETRIEVE_TRANSCRIPTION_RESULT]
-# 2026-05-31 22:09:55,284 [FasterWhisperStream MainThread            ] DEBUG    pitxu        Final transcription put in the output queue with the sentinel.
-# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Got transcription result from the Process: This is the end for tonight. Thank you very much.
-# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Merging transcription result with the final transcription.
-# 2026-05-31 22:09:55,388 [MainProcess TranscriptorManager   ] DEBUG    pitxu        ✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.
-# 2026-05-31 22:09:55,388 [MainProcess MainThread            ] INFO     pitxu        Main execution triggered by user finishing speaking, via Transcription callback.
-# 2026-05-31 22:09:55,388 [MainProcess MainThread            ] DEBUG    pitxu        🔇 Stopping the input stream as microphone is muting.
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        🔇 Muting the microphone. Now mute is [True]
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Getting transcription from STT after VAD detected speech finished, for streaming engine...
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        💬 Recognised dictate: This is the end for tonight. Thank you very much.
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        ⏱️  Dictate 10: 0.0001
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Checking if text has exit intention: 'This is the end for tonight. Thank you very much.' -> 'this is the end for tonight thank you very much': False
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Detection: Text intends to trigger or continue an interaction.
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        💤  Setting idle mode off.
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Triggering thinking interaction on background display.
-# 2026-05-31 22:09:55,494 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 1 elements.
-# 2026-05-31 22:09:55,506 [DsiLcd      MainThread            ] INFO     pitxu        🤖 Showing KITT thinking on DSI LCD.
-# 2026-05-31 22:09:55,518 [DsiLcd      MainThread            ] INFO     pitxu        👀 Showing arbitrary text on DSI LCD while thinking.
-# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0.5s.
-# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Setting Chatbot as busy.
-# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] INFO     pitxu        ❓ Question: 
-
-# >> This is the end for tonight. Thank you very much.
-
-# 2026-05-31 22:09:56,000 [MainProcess MainThread            ] INFO     google_genai.models AFC is enabled with max remote calls: 10.
-# 2026-05-31 22:09:57,632 [MainProcess MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent "HTTP/1.1 200 OK"
-# 2026-05-31 22:09:57,634 [MainProcess asyncio_0             ] INFO     pitxu        User intends to end the conversation.
-# 2026-05-31 22:10:00,071 [MainProcess MainThread            ] INFO     httpx        HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent "HTTP/1.1 200 OK"
-# 2026-05-31 22:10:00,072 [MainProcess MainThread            ] INFO     pitxu        🗣️  Answer: 
-
-# >> You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
-
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        🤖 Unsetting Chatbot as busy.
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] INFO     pitxu        Reacting to a Chatbot answer: 
-#         - Text: You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
-#         - Function Calls: ['user_intends_to_end_conversation']
-#         - Code blocks: 0
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        ⚡️ Reacting to function call: user_intends_to_end_conversation
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        🏁 Handling end of conversation request...
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] INFO     pitxu        🏁 End of conversation request handled successfully.
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for queue dsi_lcd_queue to empty. Has now: 0 elements.
-# 2026-05-31 22:10:00,073 [MainProcess MainThread            ] DEBUG    pitxu        The queue dsi_lcd_queue is empty now. I've sleept 0s.
-# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Triggering speech interaction: You're very welcome, Xavi. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.
-# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Background display
-# 2026-05-31 22:10:00,077 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Sending SAY command to Speaker
-# 2026-05-31 22:10:00,078 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Waiting for Speaker and Display to start and finish speaking
-# 2026-05-31 22:10:00,078 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to be busy. It's now: IDLE.
-# 2026-05-31 22:10:00,078 [DsiLcd      MainThread            ] INFO     pitxu        👄 Showing KITT mouth on DSI LCD.
-# 2026-05-31 22:10:00,078 [Piper       MainThread            ] DEBUG    pitxu        Saying [You're very welcome, Chabee. It was a productive day. Sleep well, and I'll be here whenever you need me next. Good night.]
-# 2026-05-31 22:10:00,088 [MainProcess MainThread            ] DEBUG    pitxu        The process speaker_busy is busy now. I've slept 0.01s.
-# 2026-05-31 22:10:00,088 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process speaker_busy to idle. It's now: BUSY.
-# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        The process speaker_busy is idle now. I've slept 5.9s.
-# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        Waiting for the process dsi_lcd_busy to idle. It's now: IDLE.
-# 2026-05-31 22:10:06,975 [MainProcess MainThread            ] DEBUG    pitxu        The process dsi_lcd_busy is idle now. I've slept 0s.
-# 2026-05-31 22:10:06,976 [MainProcess MainThread            ] DEBUG    pitxu        ⏱️  Answer 10: 6.8983
-# 2026-05-31 22:10:06,976 [MainProcess MainThread            ] DEBUG    pitxu        🔊 Starting the input stream as microphone is unmuting.
-# 2026-05-31 22:10:07,027 [MainProcess MainThread            ] DEBUG    pitxu        🔊 Unmuting the microphone. Now mute is [False]
-# 2026-05-31 22:10:07,844 [MainProcess ThreadPoolExecutor-0_1] DEBUG    pitxu        ⏳ Waiting for an user interaction. 94% (paused 0s) time left.
-# 2026-05-31 22:10:07,844 [MainProcess ThreadPoolExecutor-0_1] DEBUG    pitxu        🚥 Showing interaction holding percentage 94% on background display
-# 2026-05-31 22:10:07,850 [DsiLcd      MainThread            ] INFO     pitxu        🚥 Showing interaction holding percentage 94% on DSI LCD
-# 2026-05-31 22:10:08,180 [MainProcess Dummy-17              ] DEBUG    pitxu        🗣️ VAD detected speech start
-# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] INFO     pitxu        VAD detected speech, via VAD callback.
-# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] DEBUG    pitxu        🗣️ Resetting Dictate context on VAD detected speech start.
-# 2026-05-31 22:10:08,181 [MainProcess MainThread            ] WARNING  pitxu        🟠 Trying to reset context while the transcription is not in IDLE or DONE state. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,182 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,284 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,285 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,390 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,493 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,599 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,701 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,702 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,807 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.
-# 2026-05-31 22:10:08,807 [MainProcess TranscriptorManager   ] WARNING  pitxu        🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: ONGOING_PROCESS_CHUNK.

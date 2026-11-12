@@ -1,4 +1,4 @@
-from pyxavi import Dictionary, Config, TerminalColor, full_stack, dd
+from pyxavi import Dictionary, Config
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.conversors import Conversors
@@ -13,7 +13,6 @@ from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_STT
                         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 
 import threading
-import numpy as np
 import queue
 import time
 import asyncio
@@ -43,6 +42,7 @@ class FasterWhisperStream(PyXavi):
     _shared_memory: SharedMemoryManager = None
     _stt_state_machine: SttStateMachine = None
     _discarded_chunks: int = 0
+    _windows_in_flight: int = 0
 
     process_pool: XprocessPool = None
 
@@ -65,6 +65,11 @@ class FasterWhisperStream(PyXavi):
 
     _chunks_window = 10
     _sleep_when_no_chunks = 0.1
+
+    # Watchdog
+    _transcription_timeout: float = 20.0
+    _requested_at: float = 0.0
+    _abandoned_finals: int = 0
 
     _ongoing_chunk_window = []
     _worker_thread: threading.Thread = None
@@ -156,12 +161,15 @@ class FasterWhisperStream(PyXavi):
         else:
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
+            transcription_timeout = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.transcription_timeout", 20.0))
 
             self._chunks_window = chunks_window
             self._sleep_when_no_chunks = sleep_when_no_chunks
+            self._transcription_timeout = transcription_timeout
 
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
+            logging_parts.append(("Transcription timeout", transcription_timeout))
             logging_parts.append(("Dynamic RMS silence active", self.is_dynamic_rms_silence_active()))
             logging_parts.append(("Dynamic RMS max level", self.dynamic_rms_max_level))
             logging_parts.append(("Dynamic RMS hysteresis multiply", self.hysteresis_multiply))
@@ -229,6 +237,7 @@ class FasterWhisperStream(PyXavi):
         self.final_transcription = ""
         self.ongoing_transcription = ""
         self.allow_chunk_consumption = True
+        self._windows_in_flight = 0
         self.request_reset_context()
     
     def reset_context_and_state_in_transcription_thread(self):
@@ -240,6 +249,7 @@ class FasterWhisperStream(PyXavi):
         self._ongoing_chunk_window = []
         self.final_transcription = ""
         self.ongoing_transcription = ""
+        self._windows_in_flight = 0
         self.request_reset_context()
     
     def get_transcription(self) -> str:
@@ -335,6 +345,9 @@ class FasterWhisperStream(PyXavi):
                         # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
                         self.request_transcription()
 
+                        # Reset the watchdog timer for the transcription result.
+                        self._requested_at = time.monotonic()  
+
                         # Update the transcription state
                         if not self._stt_state_machine.transition_to(TrascriptionState.REQUESTED_TRANSCRIPTION, expected_current_states=[TrascriptionState.LEFTOVER_CHUNK_PROCESSING, TrascriptionState.ONGOING_PROCESS_CHUNK]):
                             current_state = self._stt_state_machine.get_transcription_state()
@@ -370,7 +383,7 @@ class FasterWhisperStream(PyXavi):
                             self._xlog.warning(f"🟠 Failed to transition to ONGOING_PROCESS_CHUNK. Current state: {current_state}.")
 
                         # Prepare the set of chunks to process
-                        if len(self._ongoing_chunk_window) >= self._chunks_window:
+                        if len(self._ongoing_chunk_window) >= self._chunks_window and self._windows_in_flight == 0:
                             self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
                             chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
                             self._ongoing_chunk_window = []
@@ -398,6 +411,19 @@ class FasterWhisperStream(PyXavi):
                     # It's a tuple: (partial, final).
                     # Both may be None.
                     partial_transcription, final_transcription = self.transcriptor_output_queue.get()
+
+                    if self._abandoned_finals > 0:
+                        # Output from a context we gave up on. Drop everything up to and including its final.
+                        if final_transcription is not None:
+                            self._abandoned_finals -= 1
+                            self._xlog.warning("🟠 Dropped the late final of an abandoned context.")
+                        self.transcriptor_output_queue.task_done()
+                        continue
+
+                    # If we have a partial transcription, we can decrement the windows in flight counter, 
+                    #   as it means that the Process has finished processing a window and returned a result.
+                    if partial_transcription is not None:
+                        self._windows_in_flight = max(0, self._windows_in_flight - 1)
 
                     # If we have a partial, share it in the values to be caught by whoever wants it.
                     if partial_transcription is not None and len(partial_transcription) > 0:
@@ -472,6 +498,12 @@ class FasterWhisperStream(PyXavi):
                         silence_chunk = self.silence_input_queue.get()
                         self.process_silence_chunk(silence_chunk)
                         self.silence_input_queue.task_done()
+
+                if self._stt_state_machine.get_transcription_state() == TrascriptionState.REQUESTED_TRANSCRIPTION \
+                        and time.monotonic() - self._requested_at > self._transcription_timeout:
+                    self._xlog.error(f"🛑 No final transcription after {self._transcription_timeout}s, abandoning this context.")
+                    self._abandoned_finals += 1
+                    self.reset_context_and_state_in_transcription_thread()
                 
                 if is_chunks_queue_empty and is_transcription_result_queue_empty and is_silence_input_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
@@ -629,6 +661,7 @@ class FasterWhisperStream(PyXavi):
     
     def process_chunks(self, chunks: list[bytes]) -> str:
         self._log_debug("Sending chunks window to be transcribed into the process")
+        self._windows_in_flight += 1
         self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.TRANSCRIBE_CHUNK_WINDOW, chunks)
     
     def process_leftover_chunks(self) -> str:
