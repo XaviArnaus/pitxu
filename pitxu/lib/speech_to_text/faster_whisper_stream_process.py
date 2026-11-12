@@ -80,7 +80,7 @@ class FasterWhisperStreamProcess(Xprocess):
     _samples_fed: int = 0
     # The samplerate we use here inside
     _samplerate: int = 16000
-    # What is the stability threshold for the merging process, in seconds. It can be dynamic based on the activity of the model.
+    # What is the stability threshold for the merging process, in seconds.
     _stability_threshold: float = 2.0
 
     # List of human expressions that do not add any value, just noise.
@@ -160,7 +160,7 @@ class FasterWhisperStreamProcess(Xprocess):
             hallucination_low_confidence_segments_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_threshold", -0.8))
             hallucination_low_confidence_reset_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_reset_threshold", -1))
             hallucination_low_confidence_segments_max_occurrences = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_max_occurrences", 3))
-            samplerate = int(self._xconfig.get("speech-to-text.target_samplerate", 16000))
+            samplerate = int(self._xconfig.get("speech-to-text.target_samplerate", self._samplerate))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
@@ -184,7 +184,7 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("Temperature", temperature))
             logging_parts.append(("CPU threads", cpu_threads))
             logging_parts.append(("Overlap size", overlap_size))
-            logging_parts.append(("Overlapping chunks duration at 16kHz (ms)", round(overlap_size / 16000 * 1000, 2)))
+            logging_parts.append((f"Overlapping chunks duration at {self._samplerate} Hz (ms)", round(overlap_size / self._samplerate * 1000, 2)))
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
             logging_parts.append(("Word low confidence threshold", word_low_confidence_threshold))
@@ -287,11 +287,6 @@ class FasterWhisperStreamProcess(Xprocess):
         
         if action == XprocAction.TRANSCRIBE_CHUNK_WINDOW:
             if isinstance(param, list) and all(isinstance(chunk, bytes) for chunk in param):
-                # ⚠️ What is this return? If it puts partials into the queue... whouldn't be this
-                #   the repetitions that I see? I don't expect elements in the queue but the very final one!
-                # Still not sure whe this return, but the repetitions came from bad timestamp calculation,
-                #   forghetting the overlap extra duration.
-                # REMOVED THE RETURN.
                 self.process_chunks(param)
             else:
                 raise ValueError("Invalid parameter for TRANSCRIBE_CHUNK_WINDOW action, expected a list of bytes (audio chunks).")
@@ -617,7 +612,7 @@ class FasterWhisperStreamProcess(Xprocess):
         Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
         """
         self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
-        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", 16000))
+        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", self._samplerate))
         self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
         self._log_debug("Faster Whisper model warmed up successfully.")
 
