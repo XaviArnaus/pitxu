@@ -339,15 +339,13 @@ class FasterWhisperStreamProcess(Xprocess):
                 prompt = ""
                 self._should_disable_next_prompt = False
             else:
-                # Prompt logic: Use the last "n" characters of the ongoing transcription as a prompt
-                if len(self._ongoing_transcription) > 0:
-                    text_in_ongoing_transcription = " ".join([t["word"] for t in self._ongoing_transcription])
-                    if len(text_in_ongoing_transcription) < self._max_prompt_buffer_size_in_chars:
-                        prompt = text_in_ongoing_transcription
-                    elif len(text_in_ongoing_transcription) >= self._max_prompt_buffer_size_in_chars:
-                        prompt = text_in_ongoing_transcription[-self._max_prompt_buffer_size_in_chars:]
-                else:
-                    prompt = ""
+                # Committed text + buffered words that END before this window's audio starts.
+                # Words inside the overlap are in the audio itself, so they must not be in the prompt.
+                context_words = [w["word"] for w in self._ongoing_transcription if w["end"] <= window_start]
+                prompt = (self._final_transcription + " " + " ".join(context_words)).strip()
+                if len(prompt) > self._max_prompt_buffer_size_in_chars:
+                    prompt = prompt[-self._max_prompt_buffer_size_in_chars:]
+                    prompt = prompt.split(" ", 1)[1] if " " in prompt else ""   # drop the cut-in-half first word
 
             # 4. Transcription
             self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
@@ -412,8 +410,11 @@ class FasterWhisperStreamProcess(Xprocess):
 
                     # Keep track of the new transcribed words, to be able to use them in the merging process,
                     # as they may be more accurate than the previous ongoing transcription.
+                    cleaned = self._clean_word(word.word)
+                    if not cleaned:
+                        continue
                     new_transcribed_words.append({
-                        'word': self._clean_word(word.word), 
+                        'word': cleaned, 
                         'start': word_start,
                         'end': word_end,
                         'confidence': word.probability
@@ -430,7 +431,9 @@ class FasterWhisperStreamProcess(Xprocess):
             # 5. Update state
             self._ongoing_transcription = self._merge_and_correct_transcription(
                 self._ongoing_transcription,
-                new_transcribed_words
+                new_transcribed_words,
+                window_start,
+                overlap_len / self._samplerate,
             )
 
             ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
@@ -461,41 +464,39 @@ class FasterWhisperStreamProcess(Xprocess):
         )
         self._output_queue.put(queue_item)
 
-    # def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
-    #     """
-    #     Merges new words into the buffer. If a new word overlaps with the end of the
-    #     current buffer, it replaces the old word (assuming the new one is a correction).
-    #     """
-    #     if not new_words:
-    #         return current_buffer
+    @staticmethod
+    def _norm(word: str) -> str:
+        return word.lower().strip(" .,!?;:…\"'")
 
-    #     # 1. Find the cut-off point: where the new words start
-    #     first_new_word_start = new_words[0]['start']
-
-    #     # 2. Keep words from the buffer that end BEFORE the new words start
-    #     #    These are "stable" and won't be corrected.
-    #     stable_words = [w for w in current_buffer if w['end'] <= first_new_word_start]
-
-    #     # 3. The new words effectively replace everything in the buffer
-    #     #    that started after the cut-off point.
-    #     return stable_words + new_words
-
-    def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
+    @staticmethod
+    def _merge_and_correct_transcription(buffer: list, new_words: list,
+                                        window_start: float, overlap_s: float) -> list:
         """
-        Appends only new words that start after the last word in the current buffer.
-        This prevents the model from re-transcribing and duplicating words.
+        Both decodes cover the overlap region. Old words before its midpoint are kept, new words after it
+        replace the rest. Each decode's edge artefacts (truncated last word / cut first word) sit at
+        least overlap/2 from the cut. Words are assigned by their midpoint time.
         """
         if not new_words:
-            return current_buffer
+            return buffer
 
-        # Get the timestamp of the last word we already have in the buffer
-        last_accepted_timestamp = current_buffer[-1]['end'] if current_buffer else 0.0
+        cut = window_start + (overlap_s / 2 if buffer else 0.0)
+        mid = lambda w: (w["start"] + w["end"]) / 2
+        keep = [w for w in buffer if mid(w) < cut]
+        fresh = [w for w in new_words if mid(w) >= cut]
 
-        # Only add words that start AFTER the last accepted timestamp.
-        # This is the key to stopping the "Goodbye for watching! for watching!" loop.
-        filtered_new_words = [w for w in new_words if w['start'] >= last_accepted_timestamp]
+        # Conservative: if the new decode produced nothing past the cut, don't discard the old tail.
+        if not fresh:
+            return buffer
 
-        return current_buffer + filtered_new_words
+        # A word straddling the cut can be decoded in both windows with slightly different midpoints.
+        # Only treated as a duplicate if the text matches AND the times overlap, so "no no" survives.
+        if keep:
+            last, first = keep[-1], fresh[0]
+            n_last = FasterWhisperStreamProcess._norm(last["word"])
+            if n_last and n_last == FasterWhisperStreamProcess._norm(first["word"]) and first["start"] < last["end"]:
+                fresh = fresh[1:]
+
+        return keep + fresh
     
     def _clean_word(self, word: str) -> str:
         """
