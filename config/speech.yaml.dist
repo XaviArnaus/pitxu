@@ -186,7 +186,7 @@ speech-to-text:
     # [Float] The hallucination threshold for silences, in seconds.
     hallucination_silence_threshold: 1.0
     # [Integer] The maximum number of characters to use from the ongoing transcription as a prompt for the next chunk.
-    max_prompt_buffer_size_in_chars: 100
+    max_prompt_buffer_size_in_chars: 400
     # [Float] The temperature to use for the inference. The higher, the more creative (and less accurate) the transcription will be.
     temperature: 0.2
     # [Float] The confidence threshold to consider that a word is low confidence

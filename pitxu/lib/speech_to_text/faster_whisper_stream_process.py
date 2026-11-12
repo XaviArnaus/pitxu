@@ -58,7 +58,7 @@ class FasterWhisperStreamProcess(Xprocess):
     _sleep_when_no_chunks = 0.1
     _word_low_confidence_threshold = 0.1
     _hallucination_silence_threshold = 1.0
-    _max_prompt_buffer_size_in_chars = 100
+    _max_prompt_buffer_size_in_chars = 400
     _hallucination_low_confidence_segments_threshold = -0.8
     _hallucination_low_confidence_reset_threshold = -1
     _hallucination_low_confidence_segments_max_occurrences = 3
@@ -152,7 +152,7 @@ class FasterWhisperStreamProcess(Xprocess):
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
             sleep_when_no_chunks = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.sleep_when_no_chunks", 0.1))
             word_low_confidence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.word_low_confidence_threshold", 0.1))
-            max_prompt_buffer_size_in_chars = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.max_prompt_buffer_size_in_chars", 100))
+            max_prompt_buffer_size_in_chars = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.max_prompt_buffer_size_in_chars", 400))
             hallucination_silence_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_silence_threshold", 1.0))
             hallucination_low_confidence_segments_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_threshold", -0.8))
             hallucination_low_confidence_reset_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_reset_threshold", -1))
@@ -445,7 +445,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
-            stability_threshold = 2.0
+            stability_threshold = self._calculate_dynamic_stability_threshold()
             self._last_committed_timestamp = word_real_end if len(new_transcribed_words) > 0 else self._last_committed_timestamp
 
             committed_words = [w for w in self._ongoing_transcription if w['end'] < (self._last_committed_timestamp - stability_threshold)]
@@ -465,6 +465,20 @@ class FasterWhisperStreamProcess(Xprocess):
 
         self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
+
+    def _calculate_dynamic_stability_threshold(self) -> float:
+        last_word_end = self._ongoing_transcription[-1]['end'] if self._ongoing_transcription else 0.0
+        time_since_last_word = self._last_committed_timestamp - last_word_end
+
+        # If the model is still actively producing words (recent activity),
+        # we use a longer stability threshold (5s) to be patient.
+        # If the model has been quiet for a while, we use a shorter threshold (2s) to commit.
+        if time_since_last_word < 1.0:
+            stability_threshold = 5.0
+        else:
+            stability_threshold = 2.0
+
+        return stability_threshold
     
     def _emit_transcription(self, final_transcription: str = None, partial_transcription: str = None):
         # It's a tuple: (partial, final)
