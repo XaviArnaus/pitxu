@@ -2,7 +2,7 @@ from pyxavi import Dictionary, Config, TerminalColor, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.utils.conversors import Conversors
-from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState, SttMarker
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.speech_to_text.faster_whisper_stream_process import FasterWhisperStreamProcess
 from pitxu.lib.core.xprocess_pool import XprocessPool
@@ -41,6 +41,7 @@ class FasterWhisperStream(PyXavi):
     _faster_whisper_stream_process: FasterWhisperStreamProcess = None
     _shared_memory: SharedMemoryManager = None
     _stt_state_machine: SttStateMachine = None
+    _discarded_chunks: int = 0
 
     process_pool: XprocessPool = None
 
@@ -209,30 +210,36 @@ class FasterWhisperStream(PyXavi):
         return self.silence_input_queue
     
     def reset_context(self):
+        self._queue.put(SttMarker.RESET)
 
-        # With this we:
-        #   - Validate that we're in IDLE. Otherwise the transition will fail.
-        #   - Validate that we want to go to START_CONTEXT. Otherwise the transition will fail.
-        #   - If the transition is valid, it will update the state and return True. Otherwise, it will return False and not update the state.
-        if self._stt_state_machine.transition_to(TrascriptionState.START_CONTEXT, expected_current_states=[TrascriptionState.IDLE]):
-            self.allow_chunk_consumption = True
-        else:
-            current_state = self._stt_state_machine.get_transcription_state()
-            self._xlog.warning(f"🟠 Reset Context invalid: Can't transition from {current_state}. Only IDLE state is allowed.")
-            self.allow_chunk_consumption = False
+    def _open_context_in_worker_thread(self):
+        if not self._stt_state_machine.transition_to(TrascriptionState.START_CONTEXT, expected_current_states=[TrascriptionState.IDLE]):
+            self._xlog.warning(f"🟠 New context requested but state is {self._stt_state_machine.get_transcription_state()}, not IDLE. Ignoring it.")
+            # don't wipe a context that is still alive
+            return
+        
+        self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, True)
 
-        # Other vars
+        if self._discarded_chunks:
+            self._xlog.warning(f"🟠 Discarded {self._discarded_chunks} chunks since the last context.")
+
+        self._discarded_chunks = 0
+        self._ongoing_chunk_window = []
+        self.final_transcription = ""
+        self.ongoing_transcription = ""
+        self.allow_chunk_consumption = True
+        self.request_reset_context()
+    
+    def reset_context_and_state_in_transcription_thread(self):
+
+        self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
+
+        self._stt_state_machine.reset()                  # -> IDLE
+        self.allow_chunk_consumption = False
         self._ongoing_chunk_window = []
         self.final_transcription = ""
         self.ongoing_transcription = ""
         self.request_reset_context()
-    
-    def reset_context_and_state_in_transcription_thread(self):
-        self._log_debug("Resetting transcription context and state in the transcription thread.")
-        self._stt_state_machine.reset()
-        self.allow_chunk_consumption = True
-        self._ongoing_chunk_window = []
-        self.final_transcription = ""
     
     def get_transcription(self) -> str:
 
@@ -278,12 +285,18 @@ class FasterWhisperStream(PyXavi):
                 else:
                     is_chunks_queue_empty = False
 
+                    # Check first for the markers
+                    item = self._queue.get()
+                    if isinstance(item, str):                        # control marker, never audio
+                        if item == SttMarker.START:
+                            self._open_context_in_worker_thread()
+                        elif item == SttMarker.RESET:
+                            self.reset_context_and_state_in_transcription_thread()
+                        self._queue.task_done()
+                        continue
+
                     # Get the next chunk from the queue.
-                    if self.add_timestamps_to_chunks:
-                        nanoseconds, data = self._queue.get()
-                    else:
-                        nanoseconds = None
-                        data = self._queue.get()
+                    nanoseconds, data = item if self.add_timestamps_to_chunks else (None, item)
 
                     if data is None:
 
@@ -326,6 +339,9 @@ class FasterWhisperStream(PyXavi):
                             current_state = self._stt_state_machine.get_transcription_state()
                             self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state} to REQUESTED_TRANSCRIPTION. Expected state was LEFTOVER_CHUNK_PROCESSING or ONGOING_PROCESS_CHUNK.")
 
+                        # Block the chunks from being consumed
+                        self.allow_chunk_consumption = False
+
                         # Reset the context in the Process, to be sure that the next transcription is not affected by the previous one.
                         self._ongoing_chunk_window = []
                         self.final_transcription = ""
@@ -338,7 +354,8 @@ class FasterWhisperStream(PyXavi):
                         #   to avoid breaking the current transcription.
                         if not self.allow_chunk_consumption:
                             current_state = self._stt_state_machine.get_transcription_state()
-                            self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
+                            # self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
+                            self._discarded_chunks += 1
                             self._queue.task_done()
                             continue
 
@@ -435,8 +452,8 @@ class FasterWhisperStream(PyXavi):
                             self._xlog.warning(f"🟠 Received transcription result but can't transition to IDLE. Current state: {current_state}. Expected one of: {[TrascriptionState.FINAL_TRANSCRIPTION, TrascriptionState.DONE]}")
 
 
-                        # And now we can set the flag to allow consuming chunks again, as we are in IDLE state.
-                        self.allow_chunk_consumption = True
+                        # Consumption stays blocked until a START marker arrives
+                        self.allow_chunk_consumption = False
                         self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
 
                     self.transcriptor_output_queue.task_done()

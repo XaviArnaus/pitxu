@@ -287,16 +287,7 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            
-            # Attention: only for Streaming engines!
-            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
-            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
-                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
-                self._dictate.reset_context()
-                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
-                # self._interaction.set_stt_busy()
-                self._interaction.set_transcriber_busy()
+            pass
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -361,7 +352,8 @@ class Main(PyXavi):
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -390,7 +382,8 @@ class Main(PyXavi):
                 self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
@@ -398,7 +391,8 @@ class Main(PyXavi):
 
             # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
             # self._interaction.unset_stt_busy()
-            self._interaction.unset_transcriber_busy()
+            # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+            # self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -1040,6 +1034,7 @@ class Main(PyXavi):
             # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
             self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
                 "capture_queue": input_audio_chunk_queue,
+                "emit_start_marker": self._xconfig.get("speech-to-text.engine") == "faster_whisper_streaming",
                 "silence_input_queue": silence_input_queue,
                 "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
                 "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),

@@ -13,6 +13,11 @@ class TrascriptionState:
     FINAL_TRANSCRIPTION = "FINAL_TRANSCRIPTION"
     DONE = "DONE"
 
+class SttMarker:
+    """Control items that travel through the capture queue, in order with the audio chunks."""
+    START = "__STT_START__"   # a new utterance begins; open a fresh context
+    RESET = "__STT_RESET__"   # forced reset back to IDLE, discarding everything
+
 class SttStateMachine(PyXavi):
 
     # Holds the current state of the transcription process.
