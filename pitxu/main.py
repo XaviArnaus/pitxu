@@ -25,7 +25,7 @@ from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
-from pitxu.lib.speech_to_text.threaded_input_stream import ThreadedInputStream, MockedInputStream
+from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 
 import sys
 import sounddevice
@@ -66,7 +66,7 @@ class Main(PyXavi):
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
-    _threaded_input_stream: ThreadedInputStream = None
+    _input_stream: InputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
     _shared_memory_monitor: SharedMemoryMonitor = None
@@ -168,7 +168,7 @@ class Main(PyXavi):
 
             # Initialize the Reactions class
             self._interaction.show_init_phases(9, text="⚡️ Reactions")
-            self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
+            self._initialize_reactions(input_stream=self._input_stream)
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
             #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
@@ -192,7 +192,7 @@ class Main(PyXavi):
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
             self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
@@ -354,7 +354,7 @@ class Main(PyXavi):
         we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        self._interaction.mute_microphone(input_stream=self._input_stream)
 
         try:
         
@@ -387,7 +387,7 @@ class Main(PyXavi):
                 # Nothing recognized, nothing to process.
 
                 # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
                 self._interaction.unset_transcriber_busy()
@@ -476,7 +476,7 @@ class Main(PyXavi):
                 return
 
             # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -535,7 +535,7 @@ class Main(PyXavi):
         #         self.reset_last_interaction_event_mark()
 
         #         # Turn on the microphone again, just in case, to allow the user to try again.
-        #         self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        #         self._interaction.unmute_microphone(input_stream=self._input_stream)
 
         # except Exception as e:
         #     if not self._is_pitxu_active:
@@ -768,9 +768,9 @@ class Main(PyXavi):
         if self._scheduler is not None:
             self._scheduler.shutdown()
 
-        # Close the Threaded Input Stream
-        if self._threaded_input_stream is not None:
-            self._threaded_input_stream.close()
+        # Close the Input Stream
+        if self._input_stream is not None:
+            self._input_stream.close()
 
         # Persist state
         self.persist_state()
@@ -1124,31 +1124,16 @@ class Main(PyXavi):
     
     def _instantiate_input_stream(self):
         """
-        Initialization of the Raw Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
-        It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
+        Initialization of the Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
         """
 
-        def finished_callback():
-            """
-            This is called (from a separate thread) when the audio stream is finished.
-            Will is used to restart it if needed.
-            """
-            self._xlog.warning("Audio input stream finished.")
-            self._capture_handler.get_callback_error_flag()
-            if self._capture_handler.get_callback_error_flag():
-                self._xlog.warning("Audio input stream finished due to an exception in the audio callback. Attempting to restart the audio stream...")
-                self._threaded_input_stream.start_recording()
-            else:
-                self._xlog.warning("Audio input stream finished without exceptions. Won't restart the audio stream.")
-
         if self._xparams.get("execution_mode") not in ["test"]:
-            self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
+            self._input_stream = InputStream(config=self._xconfig, params=Dictionary({
                 "audio_parameters": self._audio_parameters,
                 "capture_handler_callback": self._capture_handler.callback,
-                "finished_callback": finished_callback,
             }))
         else:
-            self._threaded_input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())
+            self._input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())
     
     async def _initialize_chatbot(self):
         """
@@ -1231,8 +1216,8 @@ class Main(PyXavi):
             self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
             # EVERY MINUTE
-            self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args={
-                "input_stream": self._threaded_input_stream.get_input_stream()})
+            self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, kwargs={
+                "input_stream": self._input_stream})
 
             # EVERY SECOND
             self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
@@ -1302,7 +1287,7 @@ class Main(PyXavi):
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
     
-    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+    def _initialize_reactions(self, input_stream: InputStream = None):
         """
         Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
         """
@@ -1368,7 +1353,7 @@ class Main(PyXavi):
 
     # ------- Stuff to do every minute -------
 
-    def do_every_minute_tasks(self, input_stream: sounddevice.RawInputStream = None):
+    def do_every_minute_tasks(self, input_stream: InputStream = None):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
