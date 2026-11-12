@@ -169,7 +169,7 @@ speech-to-text:
     #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
     overlap_size: 8000
     # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
-    chunks_window: 100
+    chunks_window: 200
     # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
     sleep_when_no_chunks: 0.1
     # [List of Strings] Hot words to add to the Faster Whisper model for each language.
@@ -188,7 +188,11 @@ speech-to-text:
     # [Integer] The maximum number of characters to use from the ongoing transcription as a prompt for the next chunk.
     max_prompt_buffer_size_in_chars: 400
     # [Float] The temperature to use for the inference. The higher, the more creative (and less accurate) the transcription will be.
-    temperature: 0.2
+    # Looking at the Faster Whisper official implementation, for any temperature above 0, generate_with_fallback forces beam_size=1 
+    #   and samples best_of=5 hypotheses. Then the beam_size: 2 is ignored. The overlap audio is therefore decoded randomly each time, 
+    #   which undermines merging. A single temperature also means no fallback retries happen, which is good for the hang risk
+    # Therefore, moving back to 0 and changing the settings in the config to set also 0.
+    temperature: 0.0
     # [Float] The confidence threshold to consider that a word is low confidence
     word_low_confidence_threshold: 0.1
     # [Float] The threshold of confidence over the segments to consider that the model is hallucinating.
@@ -198,6 +202,9 @@ speech-to-text:
     hallucination_low_confidence_reset_threshold: -1
     # [Integer] The maximum number of occurrences of low confidence segments before considering the transcription ashallucination.
     hallucination_low_confidence_segments_max_occurrences: 3
+    # [Float] The repetition penalty to use for the inference. The higher, the less likely the model is to repeat itself.
+    #   This is to avoid the model getting stuck in a loop of repeating the same words over and over again.
+    repetition_penalty: 1.2
 
 # Configurations for the Text-to-Speech
 text-to-speech:

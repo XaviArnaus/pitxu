@@ -54,7 +54,11 @@ class FasterWhisperStreamProcess(Xprocess):
     _beam_size = 5
     _overlap_size = 2000
     _chunks_window = 10
-    _temperature = 0.2
+    # Looking at the Faster Whisper official implementation, for any temperature above 0, generate_with_fallback forces beam_size=1 
+    #   and samples best_of=5 hypotheses. Then the beam_size: 2 is ignored. The overlap audio is therefore decoded randomly each time, 
+    #   which undermines merging. A single temperature also means no fallback retries happen, which is good for the hang risk
+    # Therefore, moving back to 0 and changing the settings in the config to set also 0.
+    _temperature = 0.0
     _sleep_when_no_chunks = 0.1
     _word_low_confidence_threshold = 0.1
     _hallucination_silence_threshold = 1.0
@@ -62,6 +66,12 @@ class FasterWhisperStreamProcess(Xprocess):
     _hallucination_low_confidence_segments_threshold = -0.8
     _hallucination_low_confidence_reset_threshold = -1
     _hallucination_low_confidence_segments_max_occurrences = 3
+    _segment_compression_ratio_max = 2.4
+    _segment_hard_drop_logprob = -1.5
+    _segment_no_speech_prob_min = 0.4
+    # Values over 1.0 reduce repetitions. Too high values can cause missing words, so we need to find a good balance.
+    # It was 1.5, and some words were missing. Lowering down to 1.2.
+    _repetition_penalty = 1.2
 
     # Identify and correct hallucinations: If we have "n" consecutive segments with low confidence,
     #   we can consider that the model is hallucinating and reset the context.
@@ -85,7 +95,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
     # List of human expressions that do not add any value, just noise.
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
-    expressions_to_remove: list = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm", "yeah,"]
+    expressions_to_remove: list = ["urn", "um", "ye", "uh", "uhm", "ahm", "umm", "hmm", "mm", "uh", "ah", "mhm", "uhhh", "ahhh", "ummm", "hmmm", "mmhmm"]
 
     # List of punctuations to add to the words when searching for them in the transcription buffer,
     #   as they can be added by Faster Whisper and cause problems when merging.
@@ -149,7 +159,7 @@ class FasterWhisperStreamProcess(Xprocess):
             download_root = str(os.path.join(self._xconfig.get("storage.path"), self._xconfig.get("speech-to-text.faster_whisper_streaming.download_root", None)))
             compute_type = str(self._xconfig.get("speech-to-text.faster_whisper_streaming.compute_type", "int8"))
             beam_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.beam_size", 5))
-            temperature = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.temperature", 0.2))
+            temperature = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.temperature", 0.0))
             cpu_threads = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.num_threads", 3))
             overlap_size = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.overlap_size", 2000))
             chunks_window = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.chunks_window", 10))
@@ -161,6 +171,7 @@ class FasterWhisperStreamProcess(Xprocess):
             hallucination_low_confidence_reset_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_reset_threshold", -1))
             hallucination_low_confidence_segments_max_occurrences = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_max_occurrences", 3))
             samplerate = int(self._xconfig.get("speech-to-text.target_samplerate", self._samplerate))
+            repetition_penalty = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.repetition_penalty", self._repetition_penalty))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
@@ -175,6 +186,7 @@ class FasterWhisperStreamProcess(Xprocess):
             self._hallucination_low_confidence_segments_max_occurrences = hallucination_low_confidence_segments_max_occurrences
             self._hot_words = self._load_hot_words()
             self._samplerate = samplerate
+            self._repetition_penalty = repetition_penalty
 
             logging_parts.append(("Model from config", model))
             logging_parts.append(("Device for Faster Whisper", device))
@@ -330,7 +342,6 @@ class FasterWhisperStreamProcess(Xprocess):
             self._last_overlap = audio_to_process[-self._overlap_size:] if self._overlap_size > 0 else audio_to_process[:0]
 
             # 3. Prepare prompt for the thranscription
-            condition_on_previous_text = self._should_disable_next_prompt
             if self._should_disable_next_prompt:
                 # The analysis of the confidence after transcription tells us that the model is hallucinating,
                 # so we disable the prompt for the next transcription call, to avoid conditioning it with a wrong prompt, 
@@ -348,6 +359,8 @@ class FasterWhisperStreamProcess(Xprocess):
                     prompt = prompt.split(" ", 1)[1] if " " in prompt else ""   # drop the cut-in-half first word
 
             # 4. Transcription
+            audio_s = len(audio_to_process) / self._samplerate
+            max_new_tokens = min(int(audio_s * 10) + 20, 200)    # ~40 tokens max for a 2 s window
             self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
             segments, _ = self._model.transcribe(
                 audio_to_process,
@@ -356,13 +369,19 @@ class FasterWhisperStreamProcess(Xprocess):
                 language=self.language,
                 initial_prompt=prompt,
                 word_timestamps=True,
-                # Values over 1.0 reduce repetitions. Too high values can cause missing words, so we need to find a good balance.
-                # It was 1.5, and some words were missing. Lowering down to 1.2.
-                repetition_penalty=1.2,
-                chunk_length=audio_to_process.shape[0], # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, to avoid losing context and to let the model decide how to split it.
-                condition_on_previous_text=condition_on_previous_text,
+                repetition_penalty=self._repetition_penalty,
+                # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, 
+                #   to avoid losing context and to let the model decide how to split it.
+                # COMMENTED: For windows under 30 s the behaviour is identical (still a single clip). 
+                #   Longer windows are now split correctly instead of trimmed.
+                # chunk_length=audio_to_process.shape[0],
+                # Forcing the model to not condition on previous text, as it can cause hallucinations and repetitions.
+                condition_on_previous_text=False,
                 hallucination_silence_threshold=self._hallucination_silence_threshold,
-                hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None
+                hotwords=" ".join(self._hot_words) if len(self._hot_words) > 0 else None,
+                # This stops repetition loops from running to 448 tokens. 
+                # The prompt is at most about 100 tokens, so the model’s combined-length ValueError can’t trigger.
+                max_new_tokens=max_new_tokens
             )
 
             # The transcription is returned as a generator. Get the segments themselves.
@@ -386,8 +405,16 @@ class FasterWhisperStreamProcess(Xprocess):
                     self._xlog.debug(f"Discarding hallucinated segment: {segment.text}")
                     continue
 
-                # Confidence Guard: If the segment confidence is extremely low, skip it
-                if segment.avg_logprob < self._hallucination_low_confidence_segments_threshold:
+                # Repetition Guard: faster-whisper only uses the compression ratio to trigger a
+                # temperature fallback, which we don't have (single temperature), so drop loops here.
+                if segment.compression_ratio > self._segment_compression_ratio_max:
+                    self._xlog.debug(f"Discarding repetitive segment: {segment.text}")
+                    continue
+
+                # Confidence Guard: drop it if it is very unsure, or fairly unsure AND likely not speech.
+                if segment.avg_logprob < self._segment_hard_drop_logprob or \
+                   (segment.avg_logprob < self._hallucination_low_confidence_segments_threshold
+                    and segment.no_speech_prob > self._segment_no_speech_prob_min):
                     self._xlog.debug(f"Discarding low confidence segment: {segment.text}")
                     continue
 
