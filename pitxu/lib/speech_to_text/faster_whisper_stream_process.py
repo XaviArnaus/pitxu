@@ -389,6 +389,16 @@ class FasterWhisperStreamProcess(Xprocess):
 
             for segment in segments:
 
+                # Hallucination Guard: Check if segment is a known hallucination phrase
+                if any(phrase in segment.text.lower() for phrase in self.phrases_to_remove):
+                    self._xlog.debug(f"Discarding hallucinated segment: {segment.text}")
+                    continue
+
+                # Confidence Guard: If the segment confidence is extremely low, skip it
+                if segment.avg_logprob < self._hallucination_low_confidence_segments_threshold:
+                    self._xlog.debug(f"Discarding low confidence segment: {segment.text}")
+                    continue
+
                 current_segment_starting_time = current_segment_starting_time + segment.start
                 current_segment_ending_time = current_segment_ending_time + segment.end
                 seg_infos.append((segment.text, f"start: {round(segment.start, 2)} ({round(current_segment_starting_time, 2)}), end: {round(segment.end, 2)} ({round(current_segment_ending_time, 2)}), prob: {round(segment.avg_logprob, 2)}"))
@@ -463,24 +473,41 @@ class FasterWhisperStreamProcess(Xprocess):
         )
         self._output_queue.put(queue_item)
 
+    # def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
+    #     """
+    #     Merges new words into the buffer. If a new word overlaps with the end of the
+    #     current buffer, it replaces the old word (assuming the new one is a correction).
+    #     """
+    #     if not new_words:
+    #         return current_buffer
+
+    #     # 1. Find the cut-off point: where the new words start
+    #     first_new_word_start = new_words[0]['start']
+
+    #     # 2. Keep words from the buffer that end BEFORE the new words start
+    #     #    These are "stable" and won't be corrected.
+    #     stable_words = [w for w in current_buffer if w['end'] <= first_new_word_start]
+
+    #     # 3. The new words effectively replace everything in the buffer
+    #     #    that started after the cut-off point.
+    #     return stable_words + new_words
+
     def _merge_and_correct_transcription(self, current_buffer: list, new_words: list) -> list:
         """
-        Merges new words into the buffer. If a new word overlaps with the end of the
-        current buffer, it replaces the old word (assuming the new one is a correction).
+        Appends only new words that start after the last word in the current buffer.
+        This prevents the model from re-transcribing and duplicating words.
         """
         if not new_words:
             return current_buffer
 
-        # 1. Find the cut-off point: where the new words start
-        first_new_word_start = new_words[0]['start']
+        # Get the timestamp of the last word we already have in the buffer
+        last_accepted_timestamp = current_buffer[-1]['end'] if current_buffer else 0.0
 
-        # 2. Keep words from the buffer that end BEFORE the new words start
-        #    These are "stable" and won't be corrected.
-        stable_words = [w for w in current_buffer if w['end'] <= first_new_word_start]
+        # Only add words that start AFTER the last accepted timestamp.
+        # This is the key to stopping the "Goodbye for watching! for watching!" loop.
+        filtered_new_words = [w for w in new_words if w['start'] >= last_accepted_timestamp]
 
-        # 3. The new words effectively replace everything in the buffer
-        #    that started after the cut-off point.
-        return stable_words + new_words
+        return current_buffer + filtered_new_words
     
     def _clean_word(self, word: str) -> str:
         """
