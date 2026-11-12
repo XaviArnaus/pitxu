@@ -69,16 +69,19 @@ class FasterWhisperStreamProcess(Xprocess):
     _should_disable_next_prompt = False # Flag to disable the prompt for the next transcribe call
     _last_segment_text_for_repetition = "" # Stores text of last segment for basic repetition check
 
-    _last_committed_timestamp = 0.0
-    _current_chunk_start_time = 0.0
-    # _current_transcription_start_time = 0.0
-
     # The last "n" samples of the previous chunk, to be used as context for the next chunk, to help the transcription model.
     _last_overlap = np.array([], dtype=np.float32)
     # The current (or final) transcription buffer, as a list of dict with "text", "start" and "end" of the transcription, 
     #   to be able to correct previous partials with newer partials, and to have timestamps for the merging process.
     _ongoing_transcription:list[dict] = []
     _final_transcription = ""
+
+    # The total new samples already given to the model, excluding overlap
+    _samples_fed: int = 0
+    # The samplerate we use here inside
+    _samplerate: int = 16000
+    # What is the stability threshold for the merging process, in seconds. It can be dynamic based on the activity of the model.
+    _stability_threshold: float = 2.0
 
     # List of human expressions that do not add any value, just noise.
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
@@ -157,6 +160,7 @@ class FasterWhisperStreamProcess(Xprocess):
             hallucination_low_confidence_segments_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_threshold", -0.8))
             hallucination_low_confidence_reset_threshold = float(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_reset_threshold", -1))
             hallucination_low_confidence_segments_max_occurrences = int(self._xconfig.get("speech-to-text.faster_whisper_streaming.hallucination_low_confidence_segments_max_occurrences", 3))
+            samplerate = int(self._xconfig.get("speech-to-text.target_samplerate", 16000))
 
             self._beam_size = beam_size
             self._overlap_size = overlap_size
@@ -170,6 +174,7 @@ class FasterWhisperStreamProcess(Xprocess):
             self._hallucination_low_confidence_reset_threshold = hallucination_low_confidence_reset_threshold
             self._hallucination_low_confidence_segments_max_occurrences = hallucination_low_confidence_segments_max_occurrences
             self._hot_words = self._load_hot_words()
+            self._samplerate = samplerate
 
             logging_parts.append(("Model from config", model))
             logging_parts.append(("Device for Faster Whisper", device))
@@ -192,6 +197,7 @@ class FasterWhisperStreamProcess(Xprocess):
             logging_parts.append(("HTTPX logging level", logging.getLevelName(httpx_logger_level)))
             logging_parts.append(("HTTPCore logging level", logging.getLevelName(httpcore_logger_level)))
             logging_parts.append(("Hot words count", len(self._hot_words)))
+            logging_parts.append(("Samplerate for Faster Whisper", self._samplerate))
             self.log_summary("Faster Whisper Stream Model Initialization", logging_parts)
 
             self._model = WhisperModel(model,
@@ -297,10 +303,8 @@ class FasterWhisperStreamProcess(Xprocess):
         self._last_overlap = np.array([], dtype=np.float32)
         self._ongoing_transcription = []
         self._final_transcription = ""
-        self._last_committed_timestamp = 0.0
-        self._current_chunk_start_time = 0.0
-        self._current_transcription_start_time = 0.0
         self._should_disable_next_prompt = False
+        self._samples_fed = 0
     
     def process_chunks(self, chunk_list: list[bytes]) -> str:
         result = ""
@@ -317,12 +321,18 @@ class FasterWhisperStreamProcess(Xprocess):
 
         else:
             # 2. Prepare audio for transcription
-            preprocessed_chunks = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
-            audio_to_process = np.concatenate([self._last_overlap, preprocessed_chunks]).flatten()
+            new_audio = np.concatenate(preprocessed_chunks).flatten().astype(np.float32) / 32768.0
+            overlap_len = len(self._last_overlap)
+            audio_to_process = np.concatenate([self._last_overlap, new_audio]).flatten()
 
-            # Calculate chunk duration for the offset
-            chunk_duration = (len(preprocessed_chunks) / self._xconfig.get("speech-to-text.target_samplerate", 16000)) \
-                                if len(preprocessed_chunks) > 0 else 0.0
+            # audio_to_process[0] sits `overlap_len` samples before the first new sample.
+            window_start = (self._samples_fed - overlap_len) / self._samplerate
+            self._samples_fed += len(new_audio)
+            head = self._samples_fed / self._samplerate        # stream time at the end of this window
+
+            # Overlap is always the tail of the fed stream. Update it now, before decoding,
+            # so the timeline stays consistent even if transcribe() raises.
+            self._last_overlap = audio_to_process[-self._overlap_size:] if self._overlap_size > 0 else audio_to_process[:0]
 
             # 3. Prepare prompt for the thranscription
             condition_on_previous_text = self._should_disable_next_prompt
@@ -374,18 +384,7 @@ class FasterWhisperStreamProcess(Xprocess):
             seg_infos = []  # This is just for logging.
             words_info = [] # This is just for logging.
             low_probability_words = [] # This is just for logging, to keep track of the words that are below the confidence threshold.
-            # new_words = []  # Here will be the commited words after comparing via timestamp.
             new_transcribed_words = []
-            # The offsets of the word are from the segment, not the chunk.
-            # we need to add the segment offset to the word time.
-            current_segment_starting_time = self._last_committed_timestamp
-            current_segment_ending_time = self._last_committed_timestamp
-            # We need a correction factor related to the overlap that we add in front. 
-            # Otherwise, the merger thinks that the firs word starts at 0s, but in reality it starts from -overlap_duration.
-            # Also, the overlap size may be smaller than the chunk duration, for example in very small chunks.
-            # COMMENTED: The merging is eating some words. Commented for now to see if it improves.
-            # real_overlap_duration = min(self._overlap_size / self._xconfig.get("speech-to-text.target_samplerate", 16000), chunk_duration)
-            # current_segment_starting_time = current_segment_starting_time - real_overlap_duration
 
             for segment in segments:
 
@@ -399,9 +398,8 @@ class FasterWhisperStreamProcess(Xprocess):
                     self._xlog.debug(f"Discarding low confidence segment: {segment.text}")
                     continue
 
-                current_segment_starting_time = current_segment_starting_time + segment.start
-                current_segment_ending_time = current_segment_ending_time + segment.end
-                seg_infos.append((segment.text, f"start: {round(segment.start, 2)} ({round(current_segment_starting_time, 2)}), end: {round(segment.end, 2)} ({round(current_segment_ending_time, 2)}), prob: {round(segment.avg_logprob, 2)}"))
+                # Prepare the real offsets for the segments.
+                seg_infos.append((segment.text, f"start: {window_start + segment.start:.2f}, end: {window_start + segment.end:.2f}, prob: {segment.avg_logprob:.2f}"))
 
                 # Now, every word in this segment.
                 for word in segment.words:
@@ -413,16 +411,16 @@ class FasterWhisperStreamProcess(Xprocess):
 
                     # Still here? count on it.
                     # Prepare the real offsets for the words.
-                    word_real_start = current_segment_starting_time + word.start
-                    word_real_end = current_segment_starting_time + word.end
-                    words_info.append((word.word, f"start: {round(word.start, 2)} ({round(word_real_start, 2)}), end: {round(word.end, 2)} ({round(word_real_end, 2)}), prob: {round(word.probability, 2)}"))
+                    word_start = window_start + word.start      # word.start is relative to the audio you passed, not to the segment
+                    word_end = window_start + word.end
+                    words_info.append((word.word, f"start: {word_start:.2f}, end: {word_end:.2f}, prob: {word.probability:.2f}"))
 
                     # Keep track of the new transcribed words, to be able to use them in the merging process,
                     # as they may be more accurate than the previous ongoing transcription.
                     new_transcribed_words.append({
-                        'word': self._clean_word(word.word),
-                        'start': word_real_start,
-                        'end': word_real_end,
+                        'word': self._clean_word(word.word), 
+                        'start': word_start,
+                        'end': word_end,
                         'confidence': word.probability
                     })
 
@@ -445,11 +443,9 @@ class FasterWhisperStreamProcess(Xprocess):
 
             # 6. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
-            stability_threshold = self._calculate_dynamic_stability_threshold()
-            self._last_committed_timestamp = word_real_end if len(new_transcribed_words) > 0 else self._last_committed_timestamp
-
-            committed_words = [w for w in self._ongoing_transcription if w['end'] < (self._last_committed_timestamp - stability_threshold)]
-            self._ongoing_transcription = [w for w in self._ongoing_transcription if w['end'] >= (self._last_committed_timestamp - stability_threshold)]
+            cutoff = head - self._stability_threshold
+            committed_words = [w for w in self._ongoing_transcription if w['end'] < cutoff]
+            self._ongoing_transcription = [w for w in self._ongoing_transcription if w['end'] >= cutoff]
 
             if committed_words:
                 # Emit the committed words (e.g., put them in the output queue)
@@ -460,25 +456,8 @@ class FasterWhisperStreamProcess(Xprocess):
             # Emit it, so the caller can see a partial.
             self._emit_transcription(partial_transcription=self._final_transcription.strip() + " " + " ".join([w['word'] for w in self._ongoing_transcription]))
 
-            # Keep the last defined samples as overlap
-            self._last_overlap = audio_to_process[-self._overlap_size:]
-
         self._xlog.debug(f"✏️ Current committed transcription: \n\n{TerminalColor.ORANGE_BRIGHT}{result}{TerminalColor.END}\n")
         return result
-
-    def _calculate_dynamic_stability_threshold(self) -> float:
-        last_word_end = self._ongoing_transcription[-1]['end'] if self._ongoing_transcription else 0.0
-        time_since_last_word = self._last_committed_timestamp - last_word_end
-
-        # If the model is still actively producing words (recent activity),
-        # we use a longer stability threshold (5s) to be patient.
-        # If the model has been quiet for a while, we use a shorter threshold (2s) to commit.
-        if time_since_last_word < 1.0:
-            stability_threshold = 5.0
-        else:
-            stability_threshold = 2.0
-
-        return stability_threshold
     
     def _emit_transcription(self, final_transcription: str = None, partial_transcription: str = None):
         # It's a tuple: (partial, final)
