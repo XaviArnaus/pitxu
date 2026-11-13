@@ -27,6 +27,7 @@ from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 
+from difflib import SequenceMatcher
 import sys
 import sounddevice
 import time
@@ -287,16 +288,7 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            
-            # Attention: only for Streaming engines!
-            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
-            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
-                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
-                self._dictate.reset_context()
-                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
-                # self._interaction.set_stt_busy()
-                self._interaction.set_transcriber_busy()
+            pass
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -361,7 +353,8 @@ class Main(PyXavi):
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -390,7 +383,8 @@ class Main(PyXavi):
                 self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
@@ -398,7 +392,8 @@ class Main(PyXavi):
 
             # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
             # self._interaction.unset_stt_busy()
-            self._interaction.unset_transcriber_busy()
+            # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+            # self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -460,6 +455,7 @@ class Main(PyXavi):
 
             # Anything else is ignored.
             else:
+                self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
                 question = ""
@@ -699,13 +695,24 @@ class Main(PyXavi):
     
     def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        # first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        first_words = " ".join(self._normalize_name_mishearings(question).split(" ")[0:5])
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower().strip() in first_words:
+            if Text.remove_accents(trigger_word).replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
         return False
+
+    def _normalize_name_mishearings(self, text: str, threshold: float = 0.8) -> str:
+        """Cleans the text and replaces words in the first 3 that sound like the chatbot name by the real name."""
+        name = self._xconfig.get("chatbot.name").lower()
+        names = {n.lower() for n in [self._xconfig.get("chatbot.name")] + (self._xconfig.get("chatbot.name_variations") or [])}
+        words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
+        return " ".join(
+            name if i < 3 and len(w) >= 4 and w not in names
+            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
         """
@@ -713,9 +720,10 @@ class Main(PyXavi):
         """
 
         # Clean minimally the user input
-        all_user_input = Text.remove_accents(question)
-        all_user_input = Text.remove_punctuation(all_user_input)
-        all_user_input = all_user_input.lower().strip()
+        # all_user_input = Text.remove_accents(question)
+        # all_user_input = Text.remove_punctuation(all_user_input)
+        # all_user_input = all_user_input.lower().strip()
+        all_user_input = self._normalize_name_mishearings(question)
         # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
         if all_user_input == "":
             return False
@@ -1040,6 +1048,7 @@ class Main(PyXavi):
             # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
             self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
                 "capture_queue": input_audio_chunk_queue,
+                "emit_start_marker": self._xconfig.get("speech-to-text.engine") == "faster_whisper_streaming",
                 "silence_input_queue": silence_input_queue,
                 "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
                 "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
@@ -1329,7 +1338,7 @@ class Main(PyXavi):
             self._server.initialize()
         else:
             self._xlog.info(f"Server is disabled by configuration (" +
-                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
+                            f"enabled: {'TRUE' if self._xconfig.get('server.enabled', False) else 'FALSE'}, " +
                             f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
                             ") > not initializing it.")
     def _greeting_interaction(self):
