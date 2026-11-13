@@ -15,8 +15,8 @@ class TrascriptionState:
 
 class SttMarker:
     """Control items that travel through the capture queue, in order with the audio chunks."""
-    START = "__STT_START__"   # a new utterance begins; open a fresh context
-    RESET = "__STT_RESET__"   # forced reset back to IDLE, discarding everything
+    START: str = "__STT_START__"   # a new utterance begins; open a fresh context
+    RESET: str = "__STT_RESET__"   # forced reset back to IDLE, discarding everything
 
 class SttStateMachine(PyXavi):
 
