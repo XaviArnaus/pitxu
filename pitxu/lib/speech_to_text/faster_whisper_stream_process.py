@@ -19,23 +19,26 @@ import re
 
 class FasterWhisperStreamProcess(Xprocess):
     """
-    Class to transcribe audio chunks in a separate process, 
-    to avoid blocking the Main thread, after trying a separate thread in a previous version.
+    Transcribes windows of audio chunks in a separate process, so the Main process is never blocked by the model.
 
-    The idea is to send the audio chunks to this process, and then retrieve the transcription results from it, 
-    in a streaming way, to be able to have mostly all transcription done by the time the user finishes talking,
-    to improve user experience.
+    How it works:
+    - The caller sends windows of chunks (TRANSCRIBE_CHUNK_WINDOW). Each window is decoded together with the last
+      `overlap_size` samples of the previous one, with word timestamps in absolute stream time.
+    - Words from both decodes of the overlap are merged at the overlap midpoint. Only words older than
+      `_stability_threshold` seconds are committed; the rest stay in a buffer that later windows can still correct.
+    - Every window is acknowledged with exactly one partial, and RETRIEVE_TRANSCRIPTION_RESULT always ends with one
+      final, even when decoding fails. The caller relies on both (one-window-in-flight gate, watchdog).
+    - Decoding is deterministic (temperature 0) and does not condition on previous text. Hallucinations are handled
+      with segment guards (known phrases, compression ratio, confidence) and an optional silent-window gate.
 
-    We don't want to react on partials, that's why the transcription gets accumulated until requested.
-
-    Improvements ideas:
-    - Add a timeout for the transcription, to avoid getting stuck in case of problems with the model.
-    - Some comment that we should not keep a "previous chunks window" because it conditions current chunk's outcome,
-        so if the previous chunk has any issue, current chunk's transcription may be an hallucination. That could be the 
-        source of our lack of accuracy in the RPi, as it is more prone to have issues due to lack of resources.
-    - Limit the amount of threads / processes used by the model to avoid overloading the CPU, especially in the RPi.
-        This can be done by setting the OMP_NUM_THREADS environment variable, 
-        and also by controlling the number of threads used by the model itself if it has that option.
+    Ideas not done yet:
+    - Restart this process if it dies. A crash outside run_with_context() ends its loop, and the caller only
+      recovers when its watchdog abandons the context.
+    - Buffer speech that starts while a result is still pending, instead of discarding it.
+    - Filter the audio once per window instead of once per ~21 ms chunk, and lower the band-pass low cut
+      (300 Hz removes the fundamental of most voices).
+    - Add a dedicated wake-word detector (e.g. openWakeWord), so Whisper only runs after a wake.
+    - Re-tune CPU limits (num_threads / OMP_NUM_THREADS) on the RPi with real measurements.
     """
 
     _model: WhisperModel = None
@@ -359,7 +362,7 @@ class FasterWhisperStreamProcess(Xprocess):
             # so the timeline stays consistent even if transcribe() raises.
             self._last_overlap = audio_to_process[-self._overlap_size:] if self._overlap_size > 0 else audio_to_process[:0]
 
-            # 3. Prepare prompt for the thranscription
+            # 3. Prepare prompt for the transcription
             if self._should_disable_next_prompt:
                 # The analysis of the confidence after transcription tells us that the model is hallucinating,
                 # so we disable the prompt for the next transcription call, to avoid conditioning it with a wrong prompt, 
@@ -395,11 +398,7 @@ class FasterWhisperStreamProcess(Xprocess):
                     initial_prompt=prompt,
                     word_timestamps=True,
                     repetition_penalty=self._repetition_penalty,
-                    # We process the whole chunk with the context, as it is not splitted in smaller chunks for the transcription, 
-                    #   to avoid losing context and to let the model decide how to split it.
-                    # COMMENTED: For windows under 30 s the behaviour is identical (still a single clip). 
-                    #   Longer windows are now split correctly instead of trimmed.
-                    # chunk_length=audio_to_process.shape[0],
+                    # chunk_length is not set: windows over 30 s are split by faster-whisper instead of trimmed.
                     # Forcing the model to not condition on previous text, as it can cause hallucinations and repetitions.
                     condition_on_previous_text=False,
                     hallucination_silence_threshold=self._hallucination_silence_threshold,
@@ -417,7 +416,7 @@ class FasterWhisperStreamProcess(Xprocess):
             # and we reset the context.
             self._validate_last_segment_confidence_to_avoid_hallucination(segments)
 
-            # 4. Timestamp-based Merging
+            # 5. Timestamp-based Merging
             seg_infos = []  # This is just for logging.
             words_info = [] # This is just for logging.
             low_probability_words = [] # This is just for logging, to keep track of the words that are below the confidence threshold.
@@ -480,7 +479,7 @@ class FasterWhisperStreamProcess(Xprocess):
             if low_probability_words:
                 self.log_summary(f"Low confidence words ({self._word_low_confidence_threshold})", low_probability_words, attend_verbose_debug_flag=True)
 
-            # 5. Update state
+            # 6. Update state
             self._ongoing_transcription = self._merge_and_correct_transcription(
                 self._ongoing_transcription,
                 new_transcribed_words,
@@ -491,7 +490,7 @@ class FasterWhisperStreamProcess(Xprocess):
             ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
             self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{ongoing_transcription_text}{TerminalColor.END}\n")
 
-            # 6. Commit logic: Only emit words that are older than the stability threshold
+            # 7. Commit logic: Only emit words that are older than the stability threshold
             #    (e.g., 2 seconds old relative to the latest processed audio)
             cutoff = head - self._stability_threshold
             committed_words = [w for w in self._ongoing_transcription if w['end'] < cutoff]
@@ -588,7 +587,7 @@ class FasterWhisperStreamProcess(Xprocess):
         # Remove multiple consecutive dots that can appear at the end of the transcription, 
         # as they do not add value and can cause problems in the post-processing.
         cleaned_text = re.sub(r'\.{2,}', ' ', cleaned_text)
-        # Remove all punctuations.
+        # Collapse whitespace.
         cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
         # Remove underscores
         cleaned_text = cleaned_text.replace("_", " ")
@@ -646,7 +645,7 @@ class FasterWhisperStreamProcess(Xprocess):
 
     def get_transcription(self):
         """
-        This method just retrieves the transcription done per chunks.
+        Builds the final text from the committed words plus the buffer, always emits it as the final result, and resets the context.
         """
         
         final_transcription = ""

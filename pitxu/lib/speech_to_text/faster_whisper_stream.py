@@ -25,20 +25,19 @@ except ModuleNotFoundError:
 
 class FasterWhisperStream(PyXavi):
     """
-    STT with Faster Whisper, with Streaming Window, partial merging and threading.
+    Streaming STT front end for Faster Whisper.
 
-    - Works
-    - Processes the audio chunks in the queue with a sliding window approach, while the user is still speaking.
-    - Chunks are accummulated in a window of 40/50 chunks, overlapping last "n" samples (4000 samples = 250ms at 16kHz), merging text with some sort of string diff.
-    - Fast enough. 
-    - Way less accurate, some words are repeated, some words are cut, some words are wrong, ... 
-        But the model afterwards understands it mostly (I want to avoid that it corrects it as much as possible).
-    - Pitxu suggested to move to a Thread worker approach (2026-05-23).
+    - A worker thread consumes the capture queue (audio chunks and SttMarker control items, in order), groups chunks
+      into windows of `chunks_window`, and sends them to FasterWhisperStreamProcess.
+    - Only one window is in flight at a time. While the model is busy, chunks accumulate and go out in the next,
+      larger window, so the backlog adapts to the model's speed.
+    - A None chunk ends the utterance: leftovers are flushed and the final transcription is requested. If no final
+      arrives within `transcription_timeout`, the context is abandoned and its late output is dropped.
+    - The worker thread owns all STT context state (state machine, windows, flags).
     """
 
     _queue: queue.Queue = None
     _support: Support = None
-    _faster_whisper_stream_process: FasterWhisperStreamProcess = None
     _shared_memory: SharedMemoryManager = None
     _stt_state_machine: SttStateMachine = None
     _discarded_chunks: int = 0
@@ -117,25 +116,25 @@ class FasterWhisperStream(PyXavi):
         if self._xparams.key_exists("on_transcription_finished_callback"):
             self.on_transcription_finished_callback = self._xparams.get("on_transcription_finished_callback")
         else:
-            raise ValueError("No callback provided for when the transcription finishes in params to CaptureHandler")
+            raise ValueError("No callback provided for when the transcription finishes in params to FasterWhisperStream class")
         
         # Get the callback's context for when the user finishes speaking, or use defaults.
         if self._xparams.key_exists("main_event_loop"):
             self.main_event_loop = self._xparams.get("main_event_loop")
         else:
-            raise ValueError("No main event loop provided for when the user finishes speaking in params to CaptureHandler")
+            raise ValueError("No main event loop provided for when the user finishes speaking in params to FasterWhisperStream class")
         
         # Get the process pool from params, fail otherwise.
         if self._xparams.key_exists("support"):
             self._support = self._xparams.get("support")
         else:
-            raise ValueError("No Support class provided in params to FasterWhisperStreamV4 class")
+            raise ValueError("No Support class provided in params to FasterWhisperStream class")
         
         # Get the process pool from params, fail otherwise.
         if self._xparams.key_exists("process_pool"):
             self.process_pool = self._xparams.get("process_pool")
         else:
-            raise ValueError("No XprocessPool provided in params to Support class")
+            raise ValueError("No XprocessPool provided in params to FasterWhisperStream class")
         
         # The Silence Input Queue is created here, passed to the Transcriber Process (so it's forwarded to the PreProcessor)
         # and kept available here for the Main to retreive it and pass it to the CaptureHandler.
@@ -258,7 +257,7 @@ class FasterWhisperStream(PyXavi):
             self._log_debug("Returning final transcription from cache.")
             return self.final_transcription
         else:
-            self._xlog.warning("No transcription result available yet, you should not call this method from V4.")
+            self._xlog.warning("No transcription result available yet, you should not call this method from FasterWhisperStream.")
     
     def get_transcription_status(self) -> str:
         return self._stt_state_machine.get_transcription_state()
@@ -288,7 +287,7 @@ class FasterWhisperStream(PyXavi):
                 # Also, we get the transcription result if available.
                 #   - When receiving a None chunk, we requuest the transcription result from the Process, and expect to receive it in the output queue. 
                 #
-                # So this loop is consuming 2 queues.
+                # So this loop is consuming 3 queues.
 
                 # Work to be done if we have chunks in the chunks queue.
                 if self._queue.empty():
@@ -313,9 +312,7 @@ class FasterWhisperStream(PyXavi):
                     if data is None:
 
                         # We need to make sure that the chunks that we receive belong to the current context.
-                        # This is checked in the reset_context() method, that sets a flag to avoid consuming 
-                        #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
-                        #   to avoid breaking the current transcription.
+                        # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
                         if not self.allow_chunk_consumption:
                             self._xlog.warning(f"🟠 Received audio chunk [None] while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
                             self._queue.task_done()
@@ -357,16 +354,14 @@ class FasterWhisperStream(PyXavi):
                         # Block the chunks from being consumed
                         self.allow_chunk_consumption = False
 
-                        # Reset the context in the Process, to be sure that the next transcription is not affected by the previous one.
+                        # Local state only. The process resets itself after emitting the final.
                         self._ongoing_chunk_window = []
                         self.final_transcription = ""
 
                     else:
 
                         # We need to make sure that the chunks that we receive belong to the current context.
-                        # This is checked in the reset_context() method, that sets a flag to avoid consuming 
-                        #   the chunks in the queue while we are in ONGOING_PROCESS_CHUNK or LEFTOVER_CHUNK_PROCESSING state, 
-                        #   to avoid breaking the current transcription.
+                        # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
                         if not self.allow_chunk_consumption:
                             current_state = self._stt_state_machine.get_transcription_state()
                             # self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
@@ -599,17 +594,6 @@ class FasterWhisperStream(PyXavi):
             else:
                 self._xlog.debug("FasterWhisper Stream thread finished successfully.")
         
-        if self._faster_whisper_stream_process is not None:
-            self._xlog.debug("Closing FasterWhisper Stream process and deleting it")
-            self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.FINISH)
-            self.process_pool.wait_for_queue_to_empty(QUEUE_TRANSCRIBER)
-            self._shared_memory.wait_for_busy_process_to_idle(SHARED_STT_BUSY)
-
-            self._faster_whisper_stream_process.join(timeout=2)
-            if self._faster_whisper_stream_process.is_alive():
-                self._xlog.warning("FasterWhisper Stream process did not finish in time, it may be stuck. Moving on with closing.")
-            del self._faster_whisper_stream_process
-        
         if self._queue is not None:
             self._xlog.debug("Deleting FasterWhisper Stream queue")
             del self._queue
@@ -665,10 +649,6 @@ class FasterWhisperStream(PyXavi):
         self._log_debug("Sending chunks window to be transcribed into the process")
         self._windows_in_flight += 1
         self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.TRANSCRIBE_CHUNK_WINDOW, chunks)
-    
-    def process_leftover_chunks(self) -> str:
-        self._log_debug("Sending leftover chunks to be transcribed into the process")
-        self.process_pool.send(QUEUE_TRANSCRIBER, XprocAction.TRANSCRIBE_LEFTOVER_CHUNKS)
     
     def request_transcription(self) -> str:
         self._log_debug("Requesting transcription result from the process")
