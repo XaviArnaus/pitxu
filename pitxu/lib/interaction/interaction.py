@@ -12,12 +12,12 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from pitxu.lib.utils.text import Text
+from pitxu.lib.speech_to_text.input_stream import InputStream
 
 from pitxu.lib.interaction.shortcuts.background import Background
 from pitxu.lib.interaction.shortcuts.foreground import Foreground
 from pitxu.lib.interaction.shortcuts.status import Status
 
-from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
@@ -704,14 +704,14 @@ class Interaction(PyXavi):
     
     # --------- Proxy functions for Shared Memory Management ---------
 
-    def mute_microphone(self, input_stream: RawInputStream = None):
+    def mute_microphone(self, input_stream: InputStream = None):
         if input_stream:
             self._log_debug("🔇 Stopping the input stream as microphone is muting.")
             input_stream.stop()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
-    def unmute_microphone(self, input_stream: RawInputStream = None):
+    def unmute_microphone(self, input_stream: InputStream = None):
         if input_stream:
             self._log_debug("🔊 Starting the input stream as microphone is unmuting.")
             input_stream.start()

@@ -461,7 +461,7 @@ class Painter(PyXavi, Thread):
         
         # callback_template for the loop start section
         def start_callback_template():
-            self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
+            self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {'with' if extra_callback is not None else 'without'} extra callback.")
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: interaction.is_expecting_end_callback = {interaction.is_expecting_end_callback}.")
 
             info_to_return = {}
@@ -480,7 +480,7 @@ class Painter(PyXavi, Thread):
 
         # callback_template for the loop end section
         def end_callback_template():
-            self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
+            self._log_debug(f"Painter [{when}] Callback for [{channel}]: [{self.painter_busy_flags._flag_string(flag_name)}] busy flag changed to [{for_value}], {'with' if extra_callback is not None else 'without'} extra callback.")
             self._log_debug(f"Painter [{when}] Callback for [{channel}]: interaction.is_expecting_end_callback = {getattr(interaction, 'is_expecting_end_callback', 'N/A')}.")
 
             info_to_return = {}
@@ -616,8 +616,8 @@ class Painter(PyXavi, Thread):
                     self._log_debug(f"Painter Loop: Current interactions and busy flags status BEFORE triggering callbacks at START.")
                     self._log_debug(f"  - Current Foreground Interaction: [{self.get_current_foreground_interaction().name if self.get_current_foreground_interaction() is not None else 'None'}].")
                     self._log_debug(f"  - Current Background Interaction: [{self.get_current_background_interaction().name if self.get_current_background_interaction() is not None else 'None'}].")
-                    self._log_debug(f"  - Callbacks at START pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
-                    self._log_debug(f"  - Callbacks at END pre-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
+                    self._log_debug(f"  - Callbacks at START pre-trigger [{', '.join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
+                    self._log_debug(f"  - Callbacks at END pre-trigger [{', '.join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
                     self._log_debug(f"  - Busy Flags: ")
                     for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
                         self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")
@@ -632,8 +632,8 @@ class Painter(PyXavi, Thread):
                     self._log_debug(f"Painter Loop: Current interactions and busy flags status AFTER triggering callbacks at START.")
                     self._log_debug(f"  - Current Foreground Interaction: [{current_foreground_interaction.name if current_foreground_interaction is not None else 'None'}].")
                     self._log_debug(f"  - Current Background Interaction: [{current_background_interaction.name if current_background_interaction is not None else 'None'}].")
-                    self._log_debug(f"  - Callbacks at START post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
-                    self._log_debug(f"  - Callbacks at END post-trigger [{", ".join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
+                    self._log_debug(f"  - Callbacks at START post-trigger [{', '.join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_START))}].")
+                    self._log_debug(f"  - Callbacks at END post-trigger [{', '.join(self.painter_busy_flags.get_registered_callbacks_list(when=LOOP_END))}].")
                     self._log_debug(f"  - Busy Flags: ")
                     for busy_flag in self.painter_busy_flags.AVAILABLE_BUSY_FLAGS:
                         self._log_debug(f"    - {self.painter_busy_flags._flag_string(busy_flag)}: {self.painter_busy_flags.shared_memory.read_shared_memory_flag(int(busy_flag))}")

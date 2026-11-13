@@ -2,23 +2,6 @@ from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.xprocess_pool import XprocessPool
-from pitxu.lib.objects import XprocAction
-
-from pitxu.lib.text_to_speech.piper import Piper
-from pitxu.lib.text_to_speech.text_to_speech import TextToSpeech
-from pitxu.lib.eink.display import Display as eInk
-from pitxu.lib.matrix_led import MatrixLed
-from pitxu.lib.lcd.lcd import Lcd
-from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
-from pitxu.lib.utils.text import Text
-
-from sounddevice import RawInputStream
-from multiprocessing import JoinableQueue
-
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
-                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
-                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
-                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
 
 class ShortcutBase(PyXavi):
 

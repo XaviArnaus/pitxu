@@ -1,6 +1,7 @@
 from pyxavi import Config, Dictionary, Storage, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
+from pitxu.lib.speech_to_text.input_stream import InputStream
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
@@ -9,7 +10,6 @@ from pitxu.lib.canvas.canvas import Canvas
 from functools import partial
 from subprocess import call
 import sys
-import sounddevice
 
 class Reactions(PyXavi):
 
@@ -26,7 +26,7 @@ class Reactions(PyXavi):
     end_of_conversation_callback: callable = None
 
     # Support to behave with the microphone.
-    input_stream: sounddevice.RawInputStream = None
+    input_stream: InputStream = None
 
     # Support to store state.
     state: Storage = None
@@ -49,7 +49,7 @@ class Reactions(PyXavi):
         if params.key_exists("end_of_conversation_callback") and callable(params.get("end_of_conversation_callback")):
             self.end_of_conversation_callback = params.get("end_of_conversation_callback")
 
-        if params.key_exists("input_stream") and isinstance(params.get("input_stream"), sounddevice.RawInputStream):
+        if params.key_exists("input_stream") and isinstance(params.get("input_stream"), InputStream):
             self.input_stream = params.get("input_stream")
         
         self.initialize()

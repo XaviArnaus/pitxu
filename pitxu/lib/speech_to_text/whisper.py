@@ -4,6 +4,7 @@ from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.compat import QueueShutDown
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 import queue
@@ -155,7 +156,7 @@ class Whisper(PyXavi):
                 self._log_debug(f"Whisper: Finished processing all audio chunks from the queue, final result: {result}")
                 return result
 
-        except queue.ShutDown as e:
+        except QueueShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in Whisper recognize(): " + str(e))
         except SpeechToTextException as ve:

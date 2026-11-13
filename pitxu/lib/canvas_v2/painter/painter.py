@@ -987,7 +987,7 @@ class Painter(PyXavi):
         # the template itself
         def callback_template():
             flag_name = self.painter_shared_memory.shared_memory._map_index_to_flag.get(flag, f"Unknown flag index [{flag}]")
-            self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: [{flag_name.upper()}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
+            self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: [{flag_name.upper()}] busy flag changed to [{for_value}], {'with' if extra_callback is not None else 'without'} extra callback.")
 
             # Set the interactions if provided
             if interaction is not None:

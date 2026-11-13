@@ -5,6 +5,7 @@ from pyxavi import Dictionary, Config, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.client import Client
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.compat import QueueShutDown
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 import sounddevice as sd
 
@@ -72,7 +73,7 @@ class SpeechToText(PyXavi):
                 audio_bytes = self.build_recorded_audio_bytes()
                 self._log_debug(f"Transcribing {len(audio_bytes)} bytes of audio data from the queue")
                 return self.get_transcription(audio_bytes)
-        except queue.ShutDown as e:
+        except QueueShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in SpeechToText recognize(): " + str(e))
         except SpeechToTextException as stte:

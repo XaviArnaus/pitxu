@@ -7,6 +7,7 @@ from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.compat import QueueShutDown
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
@@ -140,7 +141,7 @@ class Vosk(PyXavi):
                     # Process the audio chunk without VAD, so we rely on the CaptureHandler to send us the chunks and the `None` marker at the end of the speech.
                     return self.process_audio_input_without_vad(data)
 
-        except queue.ShutDown as e:
+        except QueueShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in Vosk recognize(): " + str(e))
         except SpeechToTextException as ve:
@@ -197,7 +198,7 @@ class Vosk(PyXavi):
                 self._log_debug(f"Vosk: Finished processing all audio chunks from the queue, final result: {result}")
                 return result
 
-        except queue.ShutDown as e:
+        except QueueShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in Vosk recognize(): " + str(e))
         except SpeechToTextException as ve:

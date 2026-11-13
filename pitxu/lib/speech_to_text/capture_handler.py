@@ -1,18 +1,15 @@
 from pyxavi import Config, Dictionary, dd, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState
+from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState, SttMarker
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED, SHARED_TRANSCRIBER_BUSY
 
-import sys
 import queue as Queue
 from rms_vad import RmsVAD, VADConfig
 from rms_vad.events import VADEventType, VADEvent
-import numpy as np
-import logging
 import samplerate
 import asyncio
 import threading
@@ -35,11 +32,10 @@ class CaptureHandler(PyXavi):
     main_event_loop: asyncio.AbstractEventLoop = None
     stt_state_machine: SttStateMachine = None
 
+    _speech_context_open: bool = False
+    emit_start_marker: bool = False
+
     is_active: bool = True
-    # The counter of ongoing chunks discarded IN THIS CLASS. Should match discarded_ongoing_chunks_in_stt_state_machine.
-    discarded_ongoing_chunks_by_stt_state_machine: dict = {}
-    # The counter of ongoing chunks discarded in the STAGE MACHINE. Should match discarded_ongoing_chunks_by_stt_state_machine
-    discarded_ongoing_chunks_in_stt_state_machine: dict = {}
 
     vad_thread: threading.Thread = None
 
@@ -48,11 +44,6 @@ class CaptureHandler(PyXavi):
 
     # We intend to control the size of the internal queue, as it seems that it may get full and make the sounddevice to stop sending chunks
     max_queue_size_reached: int = 20
-
-    # We try to remember that there was an error rose inside the audio callback,
-    #   basically to know (by now) that we want to restart the audio stream if it finishes, 
-    #   as that callback may stop being called if an exception is raised inside it.
-    audio_callback_raised_exception: bool = False
 
     VERBOSE_DEBUG: bool = False
     THREAD_NAME = "VADWorker"
@@ -116,6 +107,11 @@ class CaptureHandler(PyXavi):
         else:
             raise ValueError("No main event loop provided for when the user finishes speaking in params to CaptureHandler")
 
+        if params.key_exists("emit_start_marker"):
+            self.emit_start_marker = params.get("emit_start_marker")
+        else:
+            raise ValueError("No emit_start_marker flag provided in params to CaptureHandler")
+
         # Control for `is_vad_detected` flag.
         self.shared_memory = SharedMemoryManager(config=config, params=params)
         self.shared_memory.initialize_existing_shared_memory_flags()
@@ -146,7 +142,8 @@ class CaptureHandler(PyXavi):
             ("Release", f"{release} seconds"),
             ("Sample Rate", f"{self.target_samplerate} Hz"),
             ("Chunk Size", f"{chunksize} samples"),
-            ("Dynamic RMS Silence Detection Active", f"{"Yes" if self._is_silence_dynamic_rms_active() else "No"}")
+            ("Dynamic RMS Silence Detection Active", "Yes" if self._is_silence_dynamic_rms_active() else "No"),
+            ("Emit Start Marker", "Yes" if self.emit_start_marker else "No")
         ])
 
         self.resampler = samplerate.Resampler(converter_type='sinc_best')
@@ -172,18 +169,13 @@ class CaptureHandler(PyXavi):
         while not self.internal_queue.empty():
             try:
                 self.internal_queue.get_nowait()
-                self.internal_queue.task_done()
             except Queue.Empty:
                 pass
-
-        # Now join the queue
-        self._xlog.debug("Joining internal queue of Capture Handler...")
-        self.internal_queue.join()
 
         # Now joing the thread
         self._xlog.debug("Joining VAD worker thread of Capture Handler...")
         if self.vad_thread is not None:
-            self.vad_thread.join()
+            self.vad_thread.join(timeout=2)
 
         # Now finish the VAD
         self._xlog.debug("Closing VAD of Capture Handler...")
@@ -204,13 +196,6 @@ class CaptureHandler(PyXavi):
         #     del self.shared_memory
 
         self._log_debug("🗣️ Done Closing Capture Handler for Speech-to-Text")
-    
-    def get_callback_error_flag(self) -> bool:
-        """
-        Gets the flag that indicates if the audio callback raised an exception in its last execution.
-        This can be useful to know if we want to restart the audio stream when it finishes, as the callback may stop being called if an exception is raised inside it.
-        """
-        return self.audio_callback_raised_exception
     
     def _is_silence_dynamic_rms_active(self) -> bool:
         return self.silence_input_queue is not None
@@ -235,10 +220,6 @@ class CaptureHandler(PyXavi):
                 self._xlog.debug(f"🗣️ Internal queue length: {self.internal_queue.qsize()}")
                 # print(status, file=sys.stderr)
             
-            # Just reset the flag that indicates that the audio callback raised an exception, 
-            # as we are receiving audio blocks again, so it seems to be working again.
-            self.audio_callback_raised_exception = False
-            
             # Now we simply put the chunk in an intermediate queue to be processed by the VAD worker, 
             # to avoid doing heavy processing in this callback and risking to block the audio input.
             chunk = bytes(indata[:])
@@ -257,9 +238,6 @@ class CaptureHandler(PyXavi):
         except Exception as e:
             self._xlog.error(f"Exception in audio input callback: {e}")
             self._xlog.debug(full_stack())
-            # We don't raise the exception, as it would stop the callback from being called again, and we want to keep trying to capture audio even if some blocks fail.
-            # raise e
-            self.audio_callback_raised_exception = True
     
     def _process_raw_chunks_worker(self):
         """
@@ -268,10 +246,14 @@ class CaptureHandler(PyXavi):
         """
         while self.is_active:
 
-            if self.internal_queue.empty():
-                continue  # No chunk to process, loop again
+            # We don't want to use a `internal_queue.empty(): continue` check because it spins the CPU at 100%.
+            # Instead, we use a blocking get with a timeout, so the thread sleeps until a chunk is available or the timeout is reached,
+            # capturing a possible Queue.Empty exception, which is expected and we just continue the loop.
+            try:
+                chunk = self.internal_queue.get(timeout=0.5)  # Wait for a chunk for up to 0.5 seconds
+            except Queue.Empty:
+                continue  # No chunk available, loop again
 
-            chunk = self.internal_queue.get(timeout=1)  # Wait for a chunk for up to 1 second
             if chunk is None:
                 continue  # Skip if we receive a None chunk, which can be used as a signal to stop the worker
             
@@ -311,8 +293,6 @@ class CaptureHandler(PyXavi):
                     # we put it in the silence input queue for the Preprocessor to analyze its RMS.
                     # self._xlog.debug("🗣️ VAD did not detect speech in this chunk, putting it in the silence input queue for dynamic RMS calculation")
                     self.silence_input_queue.put(bytes(chunk))
-            
-            self.internal_queue.task_done()
     
     def _vad_event_is_speech_chunk(self, events: list[VADEvent]) -> bool:
         if len(events) == 0 or events is None:
@@ -330,12 +310,14 @@ class CaptureHandler(PyXavi):
         if not self.stt_state_machine.is_expected_current_state(TrascriptionState.IDLE):
             self._xlog.warning(f"🟠 VAD detected speech start but the current state is not IDLE: {self.stt_state_machine.get_transcription_state()}")
             return
-        
-        # Reset the discarding ongoing chunks counter, as we are starting a new speech segment.
-        self.discarded_ongoing_chunks_by_stt_state_machine = {}
 
         self._xlog.debug("🗣️ VAD detected speech start")
         self.set_vad_detected()
+        self._speech_context_open = True
+        if self.emit_start_marker:
+            # BEFORE the pre-buffer, so the worker opens the context first
+            self.queue.put(SttMarker.START)
+
         for frame in pre_buffer:
             if self.add_timestamps_to_chunks:
                 queue_data = (Xtime.now_as_milliseconds(), bytes(frame))
@@ -354,13 +336,7 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD detected speech chunk, but CaptureHandler is not active, ignoring.")
             return
         
-        if not self.stt_state_machine.is_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK], where_am_i="vad_on_speech_chunk"):
-            # Avoid logging so many times. Just count them
-            state = self.stt_state_machine.get_transcription_state()
-            if state not in self.discarded_ongoing_chunks_by_stt_state_machine:
-                self.discarded_ongoing_chunks_by_stt_state_machine[state] = 0
-            self.discarded_ongoing_chunks_by_stt_state_machine[state] += 1
-            # self._xlog.warning(f"🟠 VAD detected speech chunk but current state is {self.stt_state_machine.get_transcription_state()}. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}. Ignoring this chunk.")
+        if not self._speech_context_open:
             return
 
         # self._xlog.debug(f"🗣️ VAD detected speech chunk of {len(chunk)} bytes")
@@ -381,15 +357,10 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD detected speech end, but CaptureHandler is not active, ignoring.")
             return
         
-        # Show how many ongoing chunks were discarded due to the STT State Machine not being in the expected states, 
-        # as that can indicate that the thresholds for the VAD are too aggressive and are cutting the speech too early, 
-        # so the STT State Machine is not receiving the expected flow of events.
-        for state, count in self.discarded_ongoing_chunks_by_stt_state_machine.items():
-            self._xlog.warning(f"🟠 VAD detected speech chunk in unexpected {state}, discarding {count} ongoing chunks. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}")
-        
-        if not self.stt_state_machine.is_expected_current_states([TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK], where_am_i="vad_on_speech_end"):
-            self._xlog.warning(f"🟠 VAD detected speech end but current state is {self.stt_state_machine.get_transcription_state()}. Expected one of: {[TrascriptionState.START_CONTEXT, TrascriptionState.ONGOING_PROCESS_CHUNK]}. Ignoring this event.")
+        if not self._speech_context_open:
+            self._xlog.debug("🗣️ VAD speech end without an open context, ignoring.")
             return
+        self._speech_context_open = False
 
         self._xlog.debug("🗣️ VAD detected speech end")
         self.unset_vad_detected()
