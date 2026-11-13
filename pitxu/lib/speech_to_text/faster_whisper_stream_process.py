@@ -543,13 +543,21 @@ class FasterWhisperStreamProcess(Xprocess):
         if not fresh:
             return buffer
 
-        # A word straddling the cut can be decoded in both windows with slightly different midpoints.
-        # Only treated as a duplicate if the text matches AND the times overlap, so "no no" survives.
+        # A word straddling the cut can be decoded in both windows with slightly different midpoints:
+        #   - identical text: plain duplicate, keep the old one.
+        #   - the old word is a prefix of the new one ("trans" / "transcription"): the old decode was
+        #     truncated at its window edge, so replace it with the full word.
+        # Only applied if the times overlap too, so a genuine "no no" or "I it" survives.
         if keep:
             last, first = keep[-1], fresh[0]
             n_last = FasterWhisperStreamProcess._norm(last["word"])
-            if n_last and n_last == FasterWhisperStreamProcess._norm(first["word"]) and first["start"] < last["end"]:
-                fresh = fresh[1:]
+            n_first = FasterWhisperStreamProcess._norm(first["word"])
+            # Same acoustic region: the new word starts before the old one ends.
+            if n_last and first["start"] < last["end"]:
+                if n_last == n_first:
+                    fresh = fresh[1:]            # plain duplicate, keep the old one
+                elif n_first.startswith(n_last):
+                    keep = keep[:-1]             # old word was cut at the window edge, use the full one
 
         return keep + fresh
     
