@@ -27,6 +27,7 @@ from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 
+from difflib import SequenceMatcher
 import sys
 import sounddevice
 import time
@@ -454,6 +455,7 @@ class Main(PyXavi):
 
             # Anything else is ignored.
             else:
+                self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
                 question = ""
@@ -693,13 +695,24 @@ class Main(PyXavi):
     
     def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        # first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        first_words = " ".join(self._normalize_name_mishearings(question).split(" ")[0:5])
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower().strip() in first_words:
+            if Text.remove_accents(trigger_word).replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
         return False
+
+    def _normalize_name_mishearings(self, text: str, threshold: float = 0.8) -> str:
+        """Cleans the text and replaces words in the first 3 that sound like the chatbot name by the real name."""
+        name = self._xconfig.get("chatbot.name").lower()
+        names = {n.lower() for n in [self._xconfig.get("chatbot.name")] + (self._xconfig.get("chatbot.name_variations") or [])}
+        words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
+        return " ".join(
+            name if i < 3 and len(w) >= 4 and w not in names
+            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
         """
@@ -707,9 +720,10 @@ class Main(PyXavi):
         """
 
         # Clean minimally the user input
-        all_user_input = Text.remove_accents(question)
-        all_user_input = Text.remove_punctuation(all_user_input)
-        all_user_input = all_user_input.lower().strip()
+        # all_user_input = Text.remove_accents(question)
+        # all_user_input = Text.remove_punctuation(all_user_input)
+        # all_user_input = all_user_input.lower().strip()
+        all_user_input = self._normalize_name_mishearings(question)
         # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
         if all_user_input == "":
             return False
