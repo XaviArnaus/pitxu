@@ -326,7 +326,7 @@ class MacrosBackground(MacrosBase):
         height = self.layout_info["relative"]["top_left"].point_2.y - self.layout_info["relative"]["top_left"].point_1.y
 
         # Also, we want to keep the aspect ratio of the original GIF, but resized to fit inside the given width and height.
-        original_width, original_height = animation.frames[0].size
+        original_width, original_height = animation.get_original_size()
         aspect_ratio = (original_width / original_height)
         if width / height > aspect_ratio:
             # We are limited by the height, we need to calculate the width based on the aspect ratio.

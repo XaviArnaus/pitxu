@@ -230,8 +230,15 @@ class Visualizer(PyXavi):
     
     def _prepare_animation_sizes(self):
 
+        # Only the display areas that draw animations need their frames prepared (and cached on disk).
+        # A size that was not prepared still works, but it is resized on demand and kept in memory only.
+        display_areas_with_animations = self._xconfig.get("animations.display_areas", ["top_left"])
+
         animation_sizes_per_display_area = {}
         for display_area, rectangle in self.layout_info["relative"].items():
+            if display_area not in display_areas_with_animations:
+                continue
+
             # Calculate the size to draw the frame, based on the layout info and the size of the frame.
             width = rectangle.point_2.x - rectangle.point_1.x
             height = rectangle.point_2.y - rectangle.point_1.y
