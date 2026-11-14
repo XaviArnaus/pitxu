@@ -1,3 +1,5 @@
+import time
+
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -24,7 +26,8 @@ from definitions import SHARED_SPEAKER_BUSY, \
                         SHARED_VAD_DETECTED, \
                         SHARED_SUPPORT_BUSY, \
                         SHARED_STT_BUSY, \
-                        SHARED_TRANSCRIBER_BUSY
+                        SHARED_TRANSCRIBER_BUSY, \
+                        SHARED_SPEAKER_LEVEL
 from pitxu.lib.objects.rectangle import Rectangle
 from pitxu.lib.objects.size import Size
 
@@ -652,7 +655,56 @@ class Visualizer(PyXavi):
     
     # ---- BACKGROUND PAINTS ----
 
+    def _speaking_animation_follows_audio(self) -> bool:
+        """
+        The speaking animation can follow the level of the audio being played (VU meter) instead of looping on a timer.
+        Config: text-to-speech.speaking_animation = loop | vu. A mocked TTS has no audio to follow, so it always loops.
+        """
+        return self._xconfig.get("text-to-speech.speaking_animation", "loop") == "vu" \
+            and not self._xconfig.get("text-to-speech.mock", True)
+
+    def _speaker_level_provider(self) -> callable:
+        """
+        Builds the callable the painter evaluates on every iteration to get the speaker level,
+        quantized to 0-4 (the mouth frames), so it can be used as a cache key.
+        The shared memory values are attached lazily, once, the first time the level is read.
+        """
+        shared_memory = self.painter.get_painter_shared_memory().get_shared_memory_manager()
+        attached = {"done": False}
+        last = {"frame": None, "time": time.monotonic()}
+
+        def provider() -> int:
+            if not attached["done"]:
+                shared_memory.initialize_existing_shared_memory_values()
+                attached["done"] = True
+            level = shared_memory.read_shared_memory_value(SHARED_SPEAKER_LEVEL) or 0.0
+            frame = max(0, min(4, round(level * 4)))
+            # Tuning aid: only logs when the frame changes, with the time since the previous change.
+            if frame != last["frame"]:
+                now = time.monotonic()
+                self._log_debug(f"Speaker level read by the painter: frame {last['frame']} -> {frame} "
+                                f"(raw {level:.2f}, {now - last['time']:.3f}s since last change)")
+                last["frame"], last["time"] = frame, now
+            return frame
+
+        return provider
+
     def kitt_mouth_while_speaking(self):
+
+        follows_audio = self._speaking_animation_follows_audio()
+        if follows_audio:
+            # The level is read live on every painting iteration. Only 5 different images, so the cache does the work.
+            drawing_callback = self.macros_background.draw_kitt_speaking_level
+            cache_control_parameters = ["speaker_level"]
+            dynamic_parameters = {"speaker_level": self._speaker_level_provider()}
+        else:
+            # The parameters on this call are added during the painting stage.
+            #   - current_loop_iteration
+            #   - max_loop_iterations
+            # They are used by the macro method to calculate the phase to draw.
+            drawing_callback = self.macros_background.draw_kitt_speaking_effect
+            cache_control_parameters = ["current_loop_iteration"]
+            dynamic_parameters = {}
 
         self.painter.paint(
             PaintObject(
@@ -664,13 +716,10 @@ class Visualizer(PyXavi):
                         while_shared_memory_flag=SHARED_SPEAKER_BUSY,
                         while_shared_memory_flag_value=True,
 
-                        # The parameters on this call are added during the painting stage.
-                        #   - current_loop_iteration
-                        #   - max_loop_iterations
-                        # They are used by the macro method to calculate the phase to draw.
-                        drawing_callback=self.macros_background.draw_kitt_speaking_effect,
+                        drawing_callback=drawing_callback,
                         drawing_callback_parameters={},
-                        cache_control_parameters=["current_loop_iteration"],
+                        cache_control_parameters=cache_control_parameters,
+                        dynamic_parameters=dynamic_parameters,
 
                         loop_iterations=8,
                         delay_between_frames=self.interaction_delays.get("speaking", 

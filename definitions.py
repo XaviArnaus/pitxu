@@ -38,6 +38,8 @@ SHARED_WAKE_UP_BUTTON_PRESSED = 16
 SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
 # const = index(int)
 SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
+# Current level (0.0 - 1.0) of the audio being played by the speaker, published by the TTS to drive the speaking animation.
+SHARED_SPEAKER_LEVEL = 1
 
 # Painter
 LOOP_START: str = "start"
