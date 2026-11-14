@@ -50,7 +50,7 @@ speech-to-text:
     # attack: 0.060 # Working in RPi
     attack: 0.050
     # [Float] Seconds of silence before speech end
-    release: 2.0
+    release: 1.2
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
     # [Bool] Preprocessor is activated or not.
