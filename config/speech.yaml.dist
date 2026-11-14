@@ -143,9 +143,9 @@ speech-to-text:
       # Spanish
       es: small
       # English
-      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
-      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
-      en: small.en
+      #en: tiny.en
+      en: base.en
+      #en: small.en
       # German
       de: small
     # [String] The location where the offline faster whisper files are stored.
