@@ -381,6 +381,9 @@ class CaptureHandler(PyXavi):
     def get_vad_handler(self):
         return self.vad
     
+    def get_main_event_loop(self):
+        return self.main_event_loop
+    
     def should_skip_audio_input(self):
         '''
         Checks if the microphone is muted OR if the speaker is busy via the shared memory flags

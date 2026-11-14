@@ -20,6 +20,11 @@ app:
   #   "client": Run only as client. The server is expected to be running separately,
   #     and the client will connect to it to get STT, TTS and Chatbot interaction. 
   execution_mode: "local_status"
+  # [String] Defines the wake up method. Possible values:
+  #   "button": The user must press a button to wake up the app.
+  #   "voice": The app will listen for a wake up word to wake up the app.
+  #   "both": The app will listen for a wake up word and also allow the user to press a button to wake up the app.
+  wake_up_method: "both" 
 
 # Filesystem definition
 storage:

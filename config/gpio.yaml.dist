@@ -8,8 +8,9 @@ gpio:
     # [Bool] Ignores GPIO hardware and uses Pyinput module to simulate button presses from the keyboard.
     mock: True
     # Defined buttons
+    # Use WAKE_UP as the name of the button to be used as wake up button.
     devices:
-      - name: side
+      - name: WAKE_UP
         pin: 17
         mocked_as: "space"
   
