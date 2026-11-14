@@ -128,6 +128,7 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_signal_plots()
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
+            self._maintenance.clean_stale_animation_cache()
             self._maintenance.execute_memory_preload()
 
             # Register that we just did a new start

@@ -2,6 +2,17 @@
 animations:
   # [String] Path for animation files, from the root of the project
   path: "pitxu/animations"
+  # [List] Animations to load when starting. The rest are loaded the first time they are used.
+  # If this key is not set, all the animations in the map are loaded at start.
+  preload:
+    - sleeping
+  # Prepared frames (already resized to the sizes in use) stored on disk, so they are not computed on every start.
+  # They are generated the first time, and regenerated if the GIF changes. Stale entries are cleaned at start.
+  cache:
+    # [Bool] Disabling it computes everything on every start.
+    enabled: True
+    # [String] Where to store them. By default: `animations/` inside `storage.path`.
+    # path: "storage/animations/"
   # Mapping between animation name and file
   map:
     sleeping: "sleeping.gif"
