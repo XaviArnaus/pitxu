@@ -81,11 +81,20 @@ class Animations(PyXavi):
             sizes_to_cache = list(self._xparams.get("animation_sizes", []))
 
             started = time.monotonic()
-            animation = Animation(
-                animation_name,
-                animation_full_path,
-                list_of_sizes_to_cache=sizes_to_cache,
-                cache_root=get_cache_root(self._xconfig))
+            try:
+                animation = Animation(
+                    animation_name,
+                    animation_full_path,
+                    list_of_sizes_to_cache=sizes_to_cache,
+                    cache_root=get_cache_root(self._xconfig))
+            except Exception as e:
+                # The cache is an optimization, it must never prevent an animation from being available.
+                self._xlog.error(f"Could not load animation '{animation_name}' using the cache: {e}. Retrying without it.")
+                animation = Animation(
+                    animation_name,
+                    animation_full_path,
+                    list_of_sizes_to_cache=sizes_to_cache,
+                    cache_root=None)
             self._animations[animation_name] = animation
 
             self._xlog.info(f"Loaded animation '{animation_name}' from '{animation_full_path}': "
