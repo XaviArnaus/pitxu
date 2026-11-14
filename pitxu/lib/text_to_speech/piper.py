@@ -77,7 +77,8 @@ class Piper(Xprocess):
                 slice_seconds=self._xconfig.get(vu_config + "slice_seconds", 0.03),
                 floor_db=self._xconfig.get(vu_config + "floor_db", -45.0),
                 ceil_db=self._xconfig.get(vu_config + "ceil_db", -8.0),
-                latency_offset=float(self._output_stream.latency) + self._xconfig.get(vu_config + "latency_offset", 0.0)
+                latency_offset=float(self._output_stream.latency) + self._xconfig.get(vu_config + "latency_offset", 0.0),
+                log=self._xlog.info if self._xconfig.get(vu_config + "log_levels", True) else None
             )
             self._xlog.info("Speaker level meter enabled for the speaking animation")
 

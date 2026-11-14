@@ -25,8 +25,10 @@ class SpeakerLevelMeter:
                  ceil_db: float = -8.0,
                  latency_offset: float = 0.0,
                  attack: float = 0.6,
-                 release: float = 0.2):
+                 release: float = 0.2,
+                 log: Callable[[str], None] = None):
         self._publish = publish
+        self._log = log
         self._slice = slice_seconds
         self._floor = floor_db
         self._ceil = ceil_db
@@ -51,6 +53,14 @@ class SpeakerLevelMeter:
         rms = np.sqrt(np.mean(blocks ** 2, axis=1))
         db = 20 * np.log10(np.maximum(rms, 1e-6))
         raw = np.clip((db - self._floor) / (self._ceil - self._floor), 0.0, 1.0)
+
+        # Tuning aid: the dBFS distribution of each chunk (one sentence), against the current window.
+        # Good values are roughly: floor_db near the p10, ceil_db near the p95.
+        if self._log is not None:
+            p10, p50, p95 = np.percentile(db, [10, 50, 95])
+            self._log(f"SpeakerLevelMeter chunk of {len(db)} slices: dBFS p10={p10:.1f} p50={p50:.1f} "
+                      f"p95={p95:.1f} max={db.max():.1f} | window floor={self._floor} ceil={self._ceil} "
+                      f"| mean raw level={raw.mean():.2f}")
 
         # Fast attack, slow release, so the bars jump up with the speech and fall gently.
         levels = []
