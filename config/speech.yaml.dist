@@ -244,7 +244,7 @@ text-to-speech:
     # In the mouth, frames 2-4 only grow the two centre columns. The outer ones only move between frames 0-2,
     # so the median speech (about -15 dBFS) should land around frame 2 and only the peaks reach frame 4.
     floor_db: -22.0
-    ceil_db: -8.0
+    ceil_db: -10.0
     # [Float 0-1] How fast the level follows the audio per slice. Higher is faster.
     # A high release lets the bars fall in the short dips between syllables. Lower is smoother.
     attack: 0.7

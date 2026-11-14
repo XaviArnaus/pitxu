@@ -87,11 +87,14 @@ class MacrosBackground(MacrosBase):
             else:
                 counter += 1
     
-    def _draw_kitt_mouth_frame(self, draw: ImageDraw.ImageDraw, frame: int):
+    def _draw_kitt_mouth_frame(self, draw: ImageDraw.ImageDraw, frame: int, outer_columns_lag: int = 0):
         '''
         Draws the KITT mouth frame on the given canvas.
 
         It is meant to be used as a base for the speaking effect.
+
+        outer_columns_lag: how many rows the outer columns (the ones with the lower maximum) are behind the frame.
+            0 keeps the original shape. With 1, the outer columns show one row less than the centre ones for the same frame.
         '''
         # It was set as False, but we want to also follow the class instance setting, that gets it defined from params
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
@@ -108,7 +111,7 @@ class MacrosBackground(MacrosBase):
             # We go through each column to see if we need to light it at this row
             for col_key, col_value in max_values.items():
                 if col_key == "col_3":
-                    if col_value > y:
+                    if col_value > y and y < frame - outer_columns_lag:
                         # Column 2, 3 (left, -1 for a separation column), 6 and 7 (right, +1 for a separation column)
                         self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 3 - y), apply_offset=apply_offset)
                         self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(0, 4 + y), apply_offset=apply_offset)
@@ -153,7 +156,9 @@ class MacrosBackground(MacrosBase):
         frame = max(0, min(4, int(params.get("speaker_level", 0) or 0)))
 
         self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
-        self._draw_kitt_mouth_frame(draw=draw, frame=frame)
+        # The outer columns are one row behind the centre ones, so the three groups don't all move the same way:
+        #   frame 1: centre only | frame 2: outer 1 row | frame 3: outer full | frame 4: centre full too.
+        self._draw_kitt_mouth_frame(draw=draw, frame=frame, outer_columns_lag=1)
 
     def _draw_kitt_speaking_effect_increase(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
