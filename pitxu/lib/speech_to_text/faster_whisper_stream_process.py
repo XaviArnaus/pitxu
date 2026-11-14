@@ -384,7 +384,8 @@ class FasterWhisperStreamProcess(Xprocess):
             max_new_tokens = min(int(audio_s * 10) + 20, 200)    # ~40 tokens max for a 2 s window
             # Measure only the NEW audio. The overlap holds old speech and would hide the silence.
             new_audio_rms = float(np.sqrt(np.mean(new_audio ** 2)))
-            self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk.")
+            # The RMS of the new audio of every window is logged, to calibrate silent_window_rms with real speech and real silence.
+            self._log_debug(f"FasterWhisper Stream: Processing {len(chunk_list)} audio chunks with a total of {len(audio_to_process)} samples, with an overlap of {len(self._last_overlap)} samples from the previous chunk. New audio RMS: {new_audio_rms:.4f}")
 
             if self._silent_window_rms > 0 and new_audio_rms < self._silent_window_rms:
                 self._log_debug(f"FasterWhisper Stream: Silent window (RMS {new_audio_rms:.4f} < {self._silent_window_rms}), skipping decode.")
