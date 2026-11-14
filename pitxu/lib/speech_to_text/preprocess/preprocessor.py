@@ -13,13 +13,11 @@ from definitions import SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD
 import numpy as np
 from multiprocessing import JoinableQueue
 from datetime import datetime
-# from rms_vad import RmsVAD, VADConfig, compute_energy_db
-# import logging
 
 try:
     import audioop
 except ModuleNotFoundError:
-    import audioop_lts as audioop
+    import audioop_lts as audioop # type: ignore[import-not-found]
 
 class Preprocessor(PyXavi):
 
@@ -38,11 +36,6 @@ class Preprocessor(PyXavi):
     support_queue: JoinableQueue = None
 
     last_human_speaking_datetime: datetime = None
-    
-    # ENERGY_RATIO_THRESHOLD = 0.9
-
-    # How long to wait after the last detected human speaking before considering that the user has stopped speaking (in seconds)
-    # SPEAKING_SILENCE_TIMEOUT_SECONDS = 1
 
     # Control if we're currently in a "speaking" state, which can help to avoid false positives when the user is speaking continuously.
     user_is_speaking: bool = False
@@ -88,7 +81,6 @@ class Preprocessor(PyXavi):
         self.highcut_freq = params.get("audio_parameters.filter_highcut_freq")
         self.filter_order = params.get("audio_parameters.filter_order")
         self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
-        # self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
         self.should_accummulate_audio = self._should_accumulate_audio()
 
         self.filters = Filters(config=config, params=params)
@@ -101,7 +93,6 @@ class Preprocessor(PyXavi):
             ("Samplerate", f"{self.samplerate} Hz"),
             ("Should Accummulate Audio", f"{'Yes' if self.should_accummulate_audio else 'No'}"),
             # ("Dynamic RMS Silence Detection Active", f"{"Yes" if self.is_dynamic_rms_silence_active() else "No"}"),
-            # ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
             # ("VAD Threshold", threshold),
             # ("VAD Attack", f"{attack} seconds"),
             # ("VAD Release", f"{release} seconds")
@@ -163,68 +154,6 @@ class Preprocessor(PyXavi):
             return filtered_audio_np
         else:
             return Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
-
-        # # All calculations are done with numpy arrays for performance reasons, so convert it first.
-        # audio_data_np = Conversors.byte_chunk_to_numpy_array(indata)
-
-        # # Apply bandpass filter to isolate human voice frequencies
-        # filtered_audio_np = self.bandpass_filter(audio_data_np)
-        # filtered_audio_in_bytes = Conversors.numpy_array_to_byte_chunk(filtered_audio_np)
-
-        # # Get the energy ratio in human frequencies over the energy in all frequencies.
-        # audio_energy_ratio = self.get_energy_ratio(audio_data_np)
-
-        # # Is this chunk the first in a segment?
-        # if self.accummulated_signal.size == 0:
-        #     self._log_debug(f"🎤 🟢 VAD detected speech in the chunk.")
-
-        # self.log_summary(f"Chunk Analysis for {len(indata)} bytes", [
-        #     # ("Audio type", f"{type(indata)}, {audio_data_np.dtype}"),
-        #     # ("Filtered Audio type", f"{type(filtered_audio_np)}, {filtered_audio_np.dtype}"),
-        #     ("Filtered Audio Length", f"{len(filtered_audio_in_bytes)} bytes"), 
-        #     ("Filtered Audio Energy VAD", f"{compute_energy_db(filtered_audio_np):.2f} dB"),
-        #     ("Filtered Audio Enery Ratio", f"{audio_energy_ratio:.4f}"),
-        #     # ("Is VAD Speech?", f"{self.is_vad_speech(filtered_audio_in_bytes)}"),
-        #     (f"Energy Ratio >= Threshold ({self.ENERGY_RATIO_THRESHOLD})?", f"{audio_energy_ratio >= self.ENERGY_RATIO_THRESHOLD}"),
-        #     # ("Is user speaking?", f"{self.is_user_speaking()}")
-        #     ("Acc. signal length", f"{len(self.accummulated_signal.tobytes())} bytes"),
-        #     ("Acc. Filtered signal length", f"{len(self.accummulated_filtered_signal.tobytes())} bytes"),
-        # ])
-
-        # self.accummulated_signal = np.concatenate((self.accummulated_signal, audio_data_np))
-        # self.accummulated_filtered_signal = np.concatenate((self.accummulated_filtered_signal, filtered_audio_np))
-
-        # # If the VAD detects speech in the filtered chunk, we move on.
-        # if audio_energy_ratio >= self.ENERGY_RATIO_THRESHOLD:
-        # # if self.is_vad_speech(filtered_audio_in_bytes) and \
-        # #     audio_energy_ratio >= self.ENERGY_RATIO_THRESHOLD:
-        #     self._log_debug(f"🎤 🟢 VAD detected speech in the chunk.")
-
-        #     # We have a filtered audio that is likely to be a human speaking, why should we just add the original?
-        #     return bytes(filtered_audio_in_bytes)
-    
-        
-        # # VAD did not recognise this chunk as speech
-        # else:
-        #     # If we were speaking, give some time to allow human pauses.
-        #     self._log_debug(f"🗣️ 🟠 NOT human speaking detected, still in the human speaking window by VAD.")
-
-        #     # Check if we should unset the "user is speaking" state based on the silence timeout
-        #     # This is useless, as it's the VAD in the callback that decides the last pause length.
-        #     # if self.is_beyond_silence_threshold():
-        #         # self.plot_signals()
-        #         # self.accummulated_signal = np.array([], dtype=np.int16)
-        #         # self.accummulated_filtered_signal = np.array([], dtype=np.int16)
-        #         # self._log_debug(f"🗣️ 📈 Plotted at: {self.signal_plots_path_latest}")
-
-        #     # Keep adding this audio chunk to the queue.
-        #     # self.queue.put(bytes(indata))
-        #     # self.queue.put(filtered_audio_np.tobytes())
-        #     return bytes(filtered_audio_in_bytes)
-
-        # else:
-        #     # self._log_debug(f"🗣️ 🔴 NOT human speaking.")
-        #     return None
     
     def on_speech_end(self):
         # This is meant to be called from the VAD callback when it detects the end of speech, to reset the state and allow new detections.
@@ -260,45 +189,6 @@ class Preprocessor(PyXavi):
     #     is_speech = self.vad.is_speaking
     #     self.vad.reset()
     #     return is_speech
-
-    # def get_energy_ratio(self, audio_buffer: np.ndarray) -> float:
-    #     """
-    #     Calculate the ratio of energy in the human voice frequency range to the total energy of the audio signal.
-
-    #     NOT USED
-
-    #     Parameters:
-    #     audio_buffer (np.ndarray): The input audio data.
-
-    #     Returns:
-    #     float: The ratio of energy in the human voice frequency range to the total energy.
-    #     """
-    #     # This approach uses Discrete Fourier Transform to calculate the energy of the signal across different frequencies.
-    #     # This means that we have energy per frequency.
-    #     energy_per_frequencies = SignalTools.energy(audio_buffer, self.samplerate)
-
-    #     # Sum speech energy
-    #     speechenergy = 0
-    #     for f, e in energy_per_frequencies.items():
-    #         if self.LOWCUT_FREQ <= f <= self.HIGHCUT_FREQ:
-    #             speechenergy += e
-
-    #     # Calculate ratio of speech energy to total energy and return
-    #     ratio = speechenergy / sum(energy_per_frequencies.values())
-    #     return ratio
-    
-    # def is_beyond_silence_threshold(self, silence_timeout_seconds: int = SPEAKING_SILENCE_TIMEOUT_SECONDS) -> bool:
-    #     '''
-    #     Checks if the user should be considered as not speaking anymore, based on the last time we detected human speaking and a silence timeout.
-    #     This can be used to automatically unset the "user is speaking" state after a certain period of silence, which can help to keep the state accurate without requiring explicit signals for when the user stops speaking.
-
-    #     NOT USED
-    #     '''
-    #     if self.last_human_speaking_datetime is not None:
-    #         time_since_last_speaking = (datetime.now() - self.last_human_speaking_datetime).total_seconds()
-    #         if time_since_last_speaking > silence_timeout_seconds:
-    #             return True
-    #     return False
 
     def close(self):
         self._xlog.info("🎤 Closing Preprocess for Speech-to-Text")
