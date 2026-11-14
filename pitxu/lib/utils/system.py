@@ -6,7 +6,10 @@ class System:
     KILOBYTES: int = 1024
     MEGABYTES: int = 1024 * 1024
     GIGABYTES: int = 1024 * 1024 * 1024
-    
+
+    # psutil.Process objects by pid, kept between calls because cpu_percent() measures since the previous call on the same object.
+    _process_cache: dict = {}
+
     @staticmethod
     def get_dsi_backlight_status() -> bool:
         return "0" == System._run_command("cat /sys/class/backlight/11-0045/bl_power")
@@ -223,6 +226,60 @@ class System:
             # "data": mem_info.data, # Data + Stack: the amount of memory used by data and stack.
             # "dirty": mem_info.dirty # Dirty Pages: the amount of memory that is marked as dirty (modified but not yet written to disk).
         }
+
+    @staticmethod
+    def get_processes_usage(pids_by_name: dict[str, int]) -> dict:
+        """
+        CPU and memory of every given process, by name.
+
+        - cpu_percent: average since the previous call (so, since the previous metrics log). None the first time a process is seen.
+            100 is one full core, so it can go over 100 with several threads.
+        - cpu_time_seconds: cumulative user + system CPU time. Differences between logs also give the usage, and they don't hide bursts.
+        - rss: resident memory. Shared pages (libraries, forked memory) are counted in every process, so the sum overstates.
+        - pss: proportional memory, shared pages split between the processes using them. The sum of all pss is the real total.
+            Only on Linux. On macOS "uss" (memory only this process has) is given instead.
+        """
+        usage = {}
+        seen_pids = set()
+
+        for name, pid in pids_by_name.items():
+            if pid is None:
+                continue
+            try:
+                process = System._process_cache.get(pid)
+                first_time = process is None
+                if first_time:
+                    process = psutil.Process(pid)
+                    process.cpu_percent(None)  # Sets the baseline for the next call.
+                    System._process_cache[pid] = process
+                seen_pids.add(pid)
+
+                with process.oneshot():
+                    cpu_times = process.cpu_times()
+                    entry = {
+                        "pid": pid,
+                        "cpu_percent": None if first_time else process.cpu_percent(None),
+                        "cpu_time_seconds": round(cpu_times.user + cpu_times.system, 1),
+                        "threads": process.num_threads(),
+                        "rss": process.memory_info().rss,
+                    }
+                try:
+                    full = process.memory_full_info()
+                    for field in ("pss", "uss"):
+                        if hasattr(full, field):
+                            entry[field] = getattr(full, field)
+                except (psutil.AccessDenied, NotImplementedError):
+                    pass
+                usage[name] = entry
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                usage[name] = {"pid": pid, "error": type(e).__name__}
+
+        # Forget the processes that are gone.
+        for pid in [p for p in System._process_cache if p not in seen_pids]:
+            del System._process_cache[pid]
+
+        return usage
 
     @staticmethod
     def get_disk_usage() -> dict:

@@ -34,6 +34,9 @@ class Maintenance(PyXavi):
     # Client support for connecting to Pitxu
     _client: Client = None
 
+    # Gives the pids of the processes to report in the metrics, by name (the Process Pool, once it exists).
+    _process_pids_provider: callable = None
+
     # TODO: This has to be pre-loaded by param after collecting all running displays from Main.
     DEFAULT_STORAGE_PATH = "storage/"
     DEFAULT_MOCKED_EINK_PATH = "mocked/eink/"
@@ -108,6 +111,13 @@ class Maintenance(PyXavi):
     
     def get_last_gathered_metrics(self) -> Dictionary:
         return self._last_gathered_metrics
+
+    def set_process_pids_provider(self, provider: callable) -> None:
+        """
+        Sets a callable that returns {process name: pid} for the processes to report in the metrics.
+        Called on every metrics log, so it always reflects the processes running at that moment.
+        """
+        self._process_pids_provider = provider
     
     def is_pitxu_server_alive(self) -> bool:
         try:
@@ -176,6 +186,17 @@ class Maintenance(PyXavi):
                     local_metrics["network"] = {}
                 local_metrics["network"]["ip"] = ip
             
+            # CPU and memory per process, to know which one consumes what.
+            if System.is_linux() or System.is_macos():
+                pids_by_name = {"main": os.getpid()}
+                if self._process_pids_provider is not None:
+                    pids_by_name.update(self._process_pids_provider())
+                local_metrics["processes"] = System.get_processes_usage(pids_by_name)
+                self._log_debug("📊 Processes (cpu% / rss MB / pss MB): " + ", ".join(
+                    f"{name}: {entry.get('cpu_percent')} / {round(entry.get('rss', 0) / System.MEGABYTES)} / "
+                    f"{round(entry.get('pss', entry.get('uss', 0)) / System.MEGABYTES)}"
+                    for name, entry in local_metrics["processes"].items()))
+
             if self._xconfig.get("app.execution_mode", "local") == "client":
                 local_metrics["pitxu_server_alive"] = "alive" if self.is_pitxu_server_alive() else "unreachable"
         

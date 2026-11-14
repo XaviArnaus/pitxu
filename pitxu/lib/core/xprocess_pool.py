@@ -183,6 +183,12 @@ class XprocessPool(PyXavi):
     
     def list_of_processes(self) -> list[str]:
         return list(self._process.keys())
+
+    def get_process_pids(self) -> dict[str, int]:
+        """
+        The OS pid of every started process in the pool, by name.
+        """
+        return {name: process.pid for name, process in self._process.items() if process.pid is not None}
     
     def send(self, queue_name: str, action: XprocAction, param: str = None):
         if queue_name in self._queue:

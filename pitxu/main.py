@@ -139,6 +139,8 @@ class Main(PyXavi):
             # With the Animations took forever, that's why the Animations initializon was moved out.
             # Maybe other visualization initializations should also be promoted to its own initialization step.
             self._initialize_core()
+            # The metrics report CPU and memory per process, so they need to know the pool's processes.
+            self._maintenance.set_process_pids_provider(self._interaction.get_process_pool().get_process_pids)
             # self._interaction.show_startup()
             # self._interaction.wait_for_foreground_display_queue_to_empty()
             # self._interaction.wait_for_busy_foreground_display_to_idle()
