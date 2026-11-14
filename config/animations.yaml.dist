@@ -6,6 +6,12 @@ animations:
   # If this key is not set, all the animations in the map are loaded at start.
   preload:
     - sleeping
+  # [List] Display areas (from the layout) that draw animations. ⚠️ REMEMBER: whenever a new feature draws an
+  # animation in another display area, add that area here. Only these areas get their frames prepared and cached on disk.
+  # Others still work, but the frames are resized on demand every run and kept in memory only.
+  # Today only `top_left` draws animations (see `merge_animation` in macros_background.py).
+  display_areas:
+    - top_left
   # Prepared frames (already resized to the sizes in use) stored on disk, so they are not computed on every start.
   # They are generated the first time, and regenerated if the GIF changes. Stale entries are cleaned at start.
   cache:
@@ -18,13 +24,15 @@ animations:
     sleeping: "sleeping.gif"
     thinking: "thinking.gif"
     bell: "bell.gif"
+    bubble: "bubble.gif"
     blush: "blush.gif"
     check: "check.gif"
     cross: "cross.gif"
     ear: "ear.gif"
     eyes: "eyes.gif"
-    no: "no.gif"
+    # `no` and `yes` need quotes, otherwise YAML reads them as booleans.
+    "no": "no.gif"
     sad: "sad.gif"
     silence: "silence.gif"
     sorry: "sorry.gif"
-    yes: "yes.gif"
+    "yes": "yes.gif"
