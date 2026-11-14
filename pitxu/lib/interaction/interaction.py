@@ -606,6 +606,13 @@ class Interaction(PyXavi):
         """
         self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
         self.background.show_interaction_holding_percentage(percentage)
+
+    def end_interaction_holding_percentage(self):
+        """
+        Ends the interaction holding percentage on the background display.
+        """
+        self._log_debug("🚥 Ending interaction holding percentage on background display")
+        self.background.end_interaction_holding_percentage()
     
     def add_new_status_line(self, text: str, color: str = None):
         """

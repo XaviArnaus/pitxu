@@ -1604,28 +1604,28 @@ class Main(PyXavi):
                         #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
                         # )
 
-                elif self._last_processed_interaction_percentage >= 0:
+                elif self._last_processed_interaction_percentage > 0:
+                    # The hold time is over but the bar still shows its last LED(s).
+                    # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
+                    self._last_processed_interaction_percentage = 0
+                    if not self._interaction.is_background_display_busy():
+                        self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
+                        self._interaction.show_interaction_holding_percentage(0)
+
+                elif self._last_processed_interaction_percentage == 0:
                     # We are meant to clean the display.
 
-                    # if not self._interaction.is_vad_detected():
-                        # Vad did not detect anything, and the time to hold the interaction is over.
-                        # We clear the background display and reset the percentage.
-                        self._last_processed_interaction_percentage = -1
-                        self._last_interaction_paused_seconds = 0
-                        # And then we clean the display completely, as we go to idle soon.
-                        self._interaction.clear_device()
-                        # If the Wake up button is wanted exclusivelly, we mute the microphone, 
-                        #   as the user is not speaking and we don't want to react to anything else.
-                        if self._interaction.is_wake_up_button_wanted_exclusively():
-                            self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
-                            self._interaction.mute_microphone(input_stream=self._input_stream)
-                        # if not self._interaction.is_background_display_busy():
-                        #     self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        #     self._interaction.clear_background_display()
-                        # else:
-                        #     self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
-                    # else:
-                    #     self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
+                    # The time to hold the interaction is over.
+                    # We clear the background display and reset the percentage.
+                    self._last_processed_interaction_percentage = -1
+                    self._last_interaction_paused_seconds = 0
+                    # And then we clean the display completely, as we go to idle soon.
+                    self._interaction.end_interaction_holding_percentage()
+                    # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                    #   as the user is not speaking and we don't want to react to anything else.
+                    if self._interaction.is_wake_up_button_wanted_exclusively():
+                        self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
+                        self._interaction.mute_microphone(input_stream=self._input_stream)
     
     # ------------- Stuff to do daily -------------
 

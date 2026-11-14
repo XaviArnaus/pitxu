@@ -43,6 +43,9 @@ class XprocessDisplayBackground(Xprocess):
         
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             self.interaction_holding_percentage(int(param))
+
+        if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE_END:
+            self.interaction_holding_percentage_end()
         
         # Clears the background screen only
         if action == XprocAction.BACKGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
@@ -96,9 +99,13 @@ class XprocessDisplayBackground(Xprocess):
 
     def init_phase(self, phase: int, text: str = None):
         raise NotImplementedError("init_phase() must be implemented in Display Background subclasses.")
-
+    
     def interaction_holding_percentage(self, percentage: int):
         raise NotImplementedError("interaction_holding_percentage() must be implemented in Display Background subclasses.")
+
+    def interaction_holding_percentage_end(self):
+        # Let's not affect the other displays currently implemented.
+        pass
 
     # ------- Communication with Flags ---------
 

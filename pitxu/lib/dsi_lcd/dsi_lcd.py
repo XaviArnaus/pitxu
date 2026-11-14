@@ -219,6 +219,10 @@ class DsiLcd(XprocessDisplayCombined):
             "percentage": percentage
         }
         self.visualizer.holding_percentage(param)
+
+    def interaction_holding_percentage_end(self):
+        self._xlog.info("🚥 Ending interaction holding percentage on DSI LCD")
+        self.visualizer.holding_percentage_end()
     
     # ------- Status functions ---------
 

@@ -743,6 +743,16 @@ class Visualizer(PyXavi):
                 }
             )
         )
+
+    def holding_percentage_end(self):
+        # Same name and command as the paint set by holding_percentage(), so the Painter can find it.
+        self.painter.request_removal(
+            BackgroundPaint(
+                name="HoldingPercentageBackgroundPaint",
+                command=BackgroundCommand(BackgroundCommand.HOLDER_PERCENTAGE),
+            ),
+            PainterQueue.BACKGROUND,
+            blank_screen=True)
     
     # ----- Status paints -----
 

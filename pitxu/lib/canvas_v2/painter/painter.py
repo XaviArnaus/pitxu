@@ -773,9 +773,7 @@ class Painter(PyXavi):
                 #   it only asks the Painter loop to do it, so there is a single writer.
                 self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
                 self._timer.pop(timer_key, None)
-                self.add_to_intermediate_queue(interaction, queue_name, IntermediatePainterQueueAction.REMOVE)
-                self._blank_screen_pending = True
-                self.resume_paint()
+                self.request_removal(interaction, queue_name, blank_screen=True)
 
             timer = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
             timer.daemon = True
@@ -792,6 +790,16 @@ class Painter(PyXavi):
         if current_paint is None:
             return None
         return current_paint
+
+    def request_removal(self, interaction: BasePaint, queue_name: PainterQueue, blank_screen: bool = False):
+        """
+        The thread-safe way to remove an interaction: it only asks the loop to do it.
+        With blank_screen=True the loop also blanks the screen if nothing else is drawn.
+        """
+        self.add_to_intermediate_queue(interaction, queue_name, IntermediatePainterQueueAction.REMOVE)
+        if blank_screen:
+            self._blank_screen_pending = True
+        self.resume_paint()
 
     def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
