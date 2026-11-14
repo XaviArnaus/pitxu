@@ -7,7 +7,8 @@ from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
+from pitxu.lib.text_to_speech.speaker_level_meter import SpeakerLevelMeter
+from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL
 
 class Piper(Xprocess):
 
@@ -16,6 +17,7 @@ class Piper(Xprocess):
     _model = None
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
+    _level_meter: SpeakerLevelMeter = None
 
     PIPER_LIB_LOG_LEVEL: int = logging.INFO
 
@@ -64,6 +66,21 @@ class Piper(Xprocess):
         #         dtype='int16'
         #     )
 
+        # Optional VU meter: publishes the level of the audio being played to drive the speaking animation.
+        # Only with real audio: the mocked TTS has nothing to measure.
+        if self._xconfig.get("text-to-speech.speaking_animation", "loop") == "vu" \
+                and not self._xconfig.get("text-to-speech.mock", True):
+            self._shared_memory.initialize_existing_shared_memory_values()
+            vu_config = "text-to-speech.vu."
+            self._level_meter = SpeakerLevelMeter(
+                publish=lambda level: self._shared_memory.write_shared_memory_value(SHARED_SPEAKER_LEVEL, level),
+                slice_seconds=self._xconfig.get(vu_config + "slice_seconds", 0.03),
+                floor_db=self._xconfig.get(vu_config + "floor_db", -45.0),
+                ceil_db=self._xconfig.get(vu_config + "ceil_db", -8.0),
+                latency_offset=float(self._output_stream.latency) + self._xconfig.get(vu_config + "latency_offset", 0.0)
+            )
+            self._xlog.info("Speaker level meter enabled for the speaking animation")
+
         self.log_summary("Piper Worker", [
             ("Language", language),
             ("Gender", gender),
@@ -72,6 +89,8 @@ class Piper(Xprocess):
         ])
 
     def finish(self):
+        if self._level_meter is not None:
+            self._level_meter.close()
         self._xlog.debug("Closing output stream")
         if self._output_stream is not None:
             self._output_stream.close()
@@ -114,6 +133,10 @@ class Piper(Xprocess):
                 #     self.get_logger().info("Speech interrupted.")
                 #     break
 
+                # Schedule the level of this chunk for the speaking animation (non blocking)
+                if self._level_meter is not None:
+                    self._level_meter.feed(int_data, self._voice.config.sample_rate)
+
                 # Make it to speak
                 self._log_debug("Writing audio bytes to output stream")
                 self._output_stream.write(int_data)
@@ -121,6 +144,10 @@ class Piper(Xprocess):
             self._log_debug("All audio chunks processed, stopping output stream")
             # Comment the following and tab properly for the with statement if used
             self._output_stream.stop()
+
+            # The stream has drained: bars back to zero
+            if self._level_meter is not None:
+                self._level_meter.stop()
         
         self._log_debug("Finished saying communication")
     

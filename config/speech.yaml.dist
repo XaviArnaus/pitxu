@@ -230,6 +230,20 @@ text-to-speech:
   alsa_initial_mic_volume: 60
   # [Integer] Volume addition to the volume level read from the system.
   add_to_output_volume: 0
+  # [String] How the KITT mouth animates while speaking (DSI LCD only).
+  #   loop: the bars move up and down on a timer, regardless of the audio.
+  #   vu:   the bars follow the level of the audio being played, like a VU meter. Ignored if `mock` is True.
+  # The refresh rate is the `speaking` delay in displays.yaml.
+  speaking_animation: loop
+  # Only used when speaking_animation is `vu`.
+  vu:
+    # [Float] Seconds of audio per measured slice.
+    slice_seconds: 0.03
+    # [Float] dBFS at or below which the bars are flat, and at or above which they are full.
+    floor_db: -45.0
+    ceil_db: -8.0
+    # [Float] Seconds added on top of the output stream latency. Positive delays the bars, negative advances them.
+    latency_offset: 0.0
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan

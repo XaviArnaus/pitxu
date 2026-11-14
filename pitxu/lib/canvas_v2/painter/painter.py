@@ -353,7 +353,12 @@ class Painter(PyXavi):
                                     current_interaction.drawing_callback_parameters = {}
                                 current_interaction.drawing_callback_parameters["current_loop_iteration"] = background_iteration_counter
                                 current_interaction.drawing_callback_parameters["max_loop_iterations"] = current_interaction.loop_iterations
-                            
+
+                            # Parameters that must be read live on every iteration (e.g. a level from the shared memory).
+                            # They go into the drawing parameters before the cache key is built from them.
+                            for param_name, param_provider in current_interaction.dynamic_parameters.items():
+                                current_interaction.drawing_callback_parameters[param_name] = param_provider()
+
                             # --- START painting the interaction, with cache support ---
 
                             self._log_debug(f"🎨 2️⃣ Actual painting section.")

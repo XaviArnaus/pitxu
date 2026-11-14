@@ -63,6 +63,11 @@ class BasePaint:
     # If empty, it will take only the interaction name and type as cache key,
     #   so different parameters will not lead to different cache entries.
     cache_control_parameters: list[str] = []
+    # Parameters whose value is not known when the paint is created, but needs to be read on every painting iteration
+    #  (for example a live level from the shared memory). Maps the parameter name to a callable that returns its value.
+    # The painter evaluates them and stores the result in drawing_callback_parameters before the cache key is built,
+    #  so they can also be listed in cache_control_parameters.
+    dynamic_parameters: dict = None
 
     # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
     # This defines which one (the definition is an integer)
@@ -83,6 +88,8 @@ class BasePaint:
                     # It should be a list of parameter names that refer to string or integer values, that will be stringified
                     #  and added to the cache key, so that different values of these parameters will lead to different cache entries.
                     cache_control_parameters: list[str] = [],
+                    # Parameters evaluated on every painting iteration. Parameter name -> callable returning its value.
+                    dynamic_parameters: dict = None,
                     # Painting desired flow control
                     delay_between_frames: float = 0.05,
                     final_area_clearing: bool = False,
@@ -108,6 +115,8 @@ class BasePaint:
         self.drawing_callback_parameters = drawing_callback_parameters if drawing_callback_parameters is not None else {}
         # Which of the drawing_callback_parameters are going to be used to control the painter cache.
         self.cache_control_parameters = cache_control_parameters if cache_control_parameters is not None else []
+        # Parameters evaluated on every painting iteration.
+        self.dynamic_parameters = dynamic_parameters if dynamic_parameters is not None else {}
         # Painting desired flow control
         self.delay_between_frames = delay_between_frames
         self.final_area_clearing = final_area_clearing

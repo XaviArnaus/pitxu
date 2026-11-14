@@ -143,6 +143,18 @@ class MacrosBackground(MacrosBase):
             self._log_debug(f"Painter Loop: Drawing Speaking Decrease screen on LCD display, frame [{frame}].")
             self._draw_kitt_speaking_effect_decrease(draw=draw, frame=frame)
 
+    def draw_kitt_speaking_level(self, draw: ImageDraw.ImageDraw, params: dict):
+        """
+        Draws the KITT mouth following a live audio level (VU meter style), instead of looping on a timer.
+        The parameter "speaker_level" (0.0 - 1.0) is read on every painting iteration by the painter.
+        It reuses the same mouth frames as the looping effect: 0 is the empty frame, 4 is the widest.
+        """
+        level = params.get("speaker_level", 0.0) or 0.0
+        frame = max(0, min(4, round(level * 4)))
+
+        self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
+        self._draw_kitt_mouth_frame(draw=draw, frame=frame)
+
     def _draw_kitt_speaking_effect_increase(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
 
