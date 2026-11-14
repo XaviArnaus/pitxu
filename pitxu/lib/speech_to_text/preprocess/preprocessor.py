@@ -47,6 +47,7 @@ class Preprocessor(PyXavi):
     # Control if we're currently in a "speaking" state, which can help to avoid false positives when the user is speaking continuously.
     user_is_speaking: bool = False
 
+    should_accummulate_audio: bool = False
     accummulated_signal: list = []
     accummulated_filtered_signal: list = []
 
@@ -88,6 +89,7 @@ class Preprocessor(PyXavi):
         self.filter_order = params.get("audio_parameters.filter_order")
         self.samplerate = params.get("audio_parameters.preprocessing_samplerate", self.samplerate)
         # self.SPEAKING_SILENCE_TIMEOUT_SECONDS = self._xconfig.get("speech-to-text.preprocessor.silence_timeout_seconds", self.SPEAKING_SILENCE_TIMEOUT_SECONDS)
+        self.should_accummulate_audio = self._should_accumulate_audio()
 
         self.filters = Filters(config=config, params=params)
 
@@ -97,6 +99,7 @@ class Preprocessor(PyXavi):
             ("High cut freq", f"{self.highcut_freq} Hz"),
             ("Filter order", f"{self.filter_order}"),
             ("Samplerate", f"{self.samplerate} Hz"),
+            ("Should Accummulate Audio", f"{'Yes' if self.should_accummulate_audio else 'No'}"),
             # ("Dynamic RMS Silence Detection Active", f"{"Yes" if self.is_dynamic_rms_silence_active() else "No"}"),
             # ("Speaking silence timeout", f"{self.SPEAKING_SILENCE_TIMEOUT_SECONDS} seconds"),
             # ("VAD Threshold", threshold),
@@ -226,9 +229,9 @@ class Preprocessor(PyXavi):
     def on_speech_end(self):
         # This is meant to be called from the VAD callback when it detects the end of speech, to reset the state and allow new detections.
 
-        self.dump_and_plot_all()
-
-        self.clear_accumulated_audio()
+        if self.should_accummulate_audio:
+            self.dump_and_plot_all()
+            self.clear_accumulated_audio()
 
         self._log_debug(f"🗣️ End speaking 🏁")
     
@@ -318,8 +321,28 @@ class Preprocessor(PyXavi):
         #     del self.shared_memory
         
         self._log_debug("🎤 Done Closing Preprocess for Speech-to-Text")
+
+    def _should_accumulate_audio(self):
+        """
+        Determines if the audio should be accumulated based on the current config parameters.
+        """
+        if self._xconfig.get("speech-to-text.save_input_audio", False):
+            return  True
+        if self._xconfig.get("speech-to-text.generate_signal_plots", False):
+            return True
+        if self._xconfig.get("speech-to-text.generate_spectrogram_plots", False):
+            return True
+        if self._xconfig.get("speech-to-text.generate_fourier_transform_plots", False):
+            return True
+        if self._xconfig.get("speech-to-text.preprocessor.enabled", False) and self._xconfig.get("speech-to-text.preprocessor.save_preprocessed_audio", False):
+            return True
+
+        return False
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
+        if not self.should_accummulate_audio:
+            return
+
         if self.support is not None:
             self.support.accumulate_audio(audio_data_np, preprocessed=preprocessed)
         elif self.support_queue is not None:
