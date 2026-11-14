@@ -62,6 +62,10 @@ class SpeakerLevelMeter:
                       f"p95={p95:.1f} max={db.max():.1f} | window floor={self._floor} ceil={self._ceil} "
                       f"| mean raw level={raw.mean():.2f}")
 
+        # If nothing was scheduled any more (a pause between sentences), the smoothing starts again from silence.
+        if time.monotonic() > self._scheduled_until:
+            self._smoothed = 0.0
+
         # Fast attack, slow release, so the bars jump up with the speech and fall gently.
         levels = []
         for x in raw:
@@ -74,6 +78,9 @@ class SpeakerLevelMeter:
             for i, level in enumerate(levels):
                 self._schedule.append((base + i * self._slice + self._offset, level))
             self._scheduled_until = base + len(levels) * self._slice
+            # When this audio ends, go back to silence. If the next chunk is scheduled right after it,
+            # its first level is due at the same time and wins, so there is no flicker between sentences.
+            self._schedule.append((self._scheduled_until + self._offset, 0.0))
             if self._thread is None:
                 self._thread = threading.Thread(target=self._run, name="SpeakerLevelMeter", daemon=True)
                 self._thread.start()
