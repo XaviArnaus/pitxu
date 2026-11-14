@@ -8,7 +8,7 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.text_to_speech.speaker_level_meter import SpeakerLevelMeter
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL
+from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP
 
 class Piper(Xprocess):
 
@@ -68,9 +68,11 @@ class Piper(Xprocess):
 
         # Optional VU meter: publishes the level of the audio being played to drive the speaking animation.
         # Only with real audio: the mocked TTS has nothing to measure.
+        # The shared values are needed for the first audio timestamp (latency log) and the VU meter.
+        self._shared_memory.initialize_existing_shared_memory_values()
+
         if self._xconfig.get("text-to-speech.speaking_animation", "loop") == "vu" \
                 and not self._xconfig.get("text-to-speech.mock", True):
-            self._shared_memory.initialize_existing_shared_memory_values()
             vu_config = "text-to-speech.vu."
             self._level_meter = SpeakerLevelMeter(
                 publish=lambda level: self._shared_memory.write_shared_memory_value(SHARED_SPEAKER_LEVEL, level),
@@ -128,6 +130,7 @@ class Piper(Xprocess):
             self._output_stream.start()
             # with self._output_stream:
             self._log_debug("Output stream started")
+            first_chunk = True
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
@@ -139,6 +142,15 @@ class Piper(Xprocess):
                 # Schedule the level of this chunk for the speaking animation (non blocking)
                 if self._level_meter is not None:
                     self._level_meter.feed(int_data, self._voice.config.sample_rate)
+
+                # The very first write of this speech is when the user starts to hear it (give or take the stream latency).
+                # Published for the latency log in Main. It must never get in the way of the speech.
+                if first_chunk:
+                    first_chunk = False
+                    try:
+                        self._shared_memory.write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, time.time())
+                    except Exception as e:
+                        self._log_debug(f"Could not publish the first audio timestamp: {e}")
 
                 # Make it to speak
                 self._log_debug("Writing audio bytes to output stream")

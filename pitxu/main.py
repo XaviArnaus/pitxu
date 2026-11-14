@@ -2,11 +2,12 @@ from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
 
 import signal
 
-from definitions import SHARED_WAKE_UP_BUTTON_PRESSED
+from definitions import SHARED_WAKE_UP_BUTTON_PRESSED, SHARED_FIRST_AUDIO_TIMESTAMP
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.utils.system import System
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
@@ -139,6 +140,8 @@ class Main(PyXavi):
             # With the Animations took forever, that's why the Animations initializon was moved out.
             # Maybe other visualization initializations should also be promoted to its own initialization step.
             self._initialize_core()
+            # The metrics report CPU and memory per process, so they need to know the pool's processes.
+            self._maintenance.set_process_pids_provider(self._interaction.get_process_pool().get_process_pids)
             # self._interaction.show_startup()
             # self._interaction.wait_for_foreground_display_queue_to_empty()
             # self._interaction.wait_for_busy_foreground_display_to_idle()
@@ -346,6 +349,7 @@ class Main(PyXavi):
         """
 
         self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
+        LatencyTimeline.mark("transcript")
 
         # As we want to try to recover from any error, we need to control a possible error state we fall into.
         #   This will be set to True when an exception is caught.
@@ -555,6 +559,8 @@ class Main(PyXavi):
         It was directly in the main_execution_on_vad_detected_finished() method, contained as an IO clock.
         """
 
+        LatencyTimeline.mark("chatbot_start")
+
         # An interaction comes, stop the idle mode.
         self._interaction.set_idle_mode_off()
 
@@ -571,7 +577,9 @@ class Main(PyXavi):
         )
         self._interaction.wait_for_background_display_queue_to_empty()
         self._interaction.set_chatbot_busy()
+        LatencyTimeline.mark("llm_sent")
         chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+        LatencyTimeline.mark("llm_answer")
         self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
         self._interaction.unset_chatbot_busy()
 
@@ -601,8 +609,36 @@ class Main(PyXavi):
         # - Uncommenting again because seems like the block happens in interaction.say() instead.
         self._interaction.wait_for_foreground_display_queue_to_empty()
 
+        LatencyTimeline.mark("answer_ready")
         return answer
     
+    # ------------- Latency log -------------
+
+    def _reset_first_audio_timestamp(self):
+        """
+        Clears the timestamp that Piper publishes at the first audio write, so an old one is never mistaken for the new speech.
+        """
+        try:
+            self._interaction.get_process_pool().get_memory_manager().write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, 0.0)
+        except Exception as e:
+            self._log_debug(f"Could not reset the first audio timestamp: {e}")
+
+    def _log_latency_breakdown(self):
+        """
+        Logs where the time went between the end of the user's speech and the first audio of the answer.
+        Called once the speech finished. It must never interfere with the interaction.
+        """
+        try:
+            LatencyTimeline.mark("say_end")
+            first_audio = self._interaction.get_process_pool().get_memory_manager().read_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP)
+            if first_audio:
+                LatencyTimeline.mark("first_audio", first_audio)
+            lines = LatencyTimeline.breakdown(silence_wait_seconds=self._xconfig.get("speech-to-text.vad.release", None))
+            if lines is not None:
+                self.log_summary("Latency after the VAD speech end", lines, log_level=logging.INFO)
+        except Exception as e:
+            self._xlog.warning(f"Could not log the latency breakdown: {e}")
+
     # ------------- Abstraction for the Outcome interaction -------------
 
     def deliver_outcome(self, question:str, answer: str) -> bool:
@@ -636,7 +672,9 @@ class Main(PyXavi):
             # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
             self.reset_last_interaction_event_mark()
 
+            self._reset_first_audio_timestamp()
             self._interaction.say(answer)
+            self._log_latency_breakdown()
             self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
             self._answer_count += 1
 
