@@ -29,13 +29,13 @@ speech-to-text:
   #   as well as the one set in the Preprocessor.
   target_samplerate: 16000
   # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
-  save_input_audio: True
+  save_input_audio: False
   # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
-  generate_signal_plots: True
+  generate_signal_plots: False
   # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
-  generate_spectrogram_plots: True
+  generate_spectrogram_plots: False
   # [Bool] Generates plots for the audio Fourier transforms (original and filtered) for debugging purposes.
-  generate_fourier_transform_plots: True
+  generate_fourier_transform_plots: False
   # Configurtion for the Voice Activity Detection (VAD) module
   vad:
     # [Bool] VAD is activated or not.
@@ -67,7 +67,7 @@ speech-to-text:
     # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.
     samplerate: 16000
     # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
-    save_preprocessed_audio: True
+    save_preprocessed_audio: False
   # Specific configuration for Vosk, when applicable.
   vosk:
     # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
