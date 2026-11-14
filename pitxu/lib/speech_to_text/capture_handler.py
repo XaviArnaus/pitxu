@@ -4,6 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState, SttMarker
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager, \
     SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED, SHARED_TRANSCRIBER_BUSY
 
@@ -361,6 +362,10 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD speech end without an open context, ignoring.")
             return
         self._speech_context_open = False
+
+        # A new interaction starts here for the latency log: the previous marks are not valid anymore.
+        LatencyTimeline.reset()
+        LatencyTimeline.mark("vad_end")
 
         self._xlog.debug("🗣️ VAD detected speech end")
         self.unset_vad_detected()

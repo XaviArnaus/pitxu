@@ -40,6 +40,8 @@ SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"
 SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
 # Current level (0.0 - 1.0) of the audio being played by the speaker, published by the TTS to drive the speaking animation.
 SHARED_SPEAKER_LEVEL = 1
+# Epoch timestamp (time.time()) of the first audio written by the TTS in the current speech, for the latency log. 0.0 when not set.
+SHARED_FIRST_AUDIO_TIMESTAMP = 2
 
 # Painter
 LOOP_START: str = "start"

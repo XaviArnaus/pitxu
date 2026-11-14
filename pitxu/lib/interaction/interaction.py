@@ -12,6 +12,7 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from pitxu.lib.utils.text import Text
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.speech_to_text.input_stream import InputStream
 
 from pitxu.lib.interaction.shortcuts.background import Background
@@ -313,6 +314,7 @@ class Interaction(PyXavi):
         """
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
+        LatencyTimeline.mark("say_start")
 
         # If we're in client mode, this is going to the server, so it may take time.
         # Show the thinking effect while grabbing the TTS response from the server.
@@ -338,6 +340,7 @@ class Interaction(PyXavi):
 
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending PLAY_TTS command to Speaker")
+            LatencyTimeline.mark("speaker_sent")
             self.process_pool.send(QUEUE_SPEAKER, XprocAction.PLAY_TTS)
 
             # We want that the main thread waits until the actions finished in the subprocesses
@@ -357,6 +360,7 @@ class Interaction(PyXavi):
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending SAY command to Speaker")
             tts_message = Text.replace_known_text(message, self._xconfig.get("language.tts_text_replacements." + self._xparams.get("language"), {}))
+            LatencyTimeline.mark("speaker_sent")
             self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, tts_message)
 
             # We want that the main thread waits until the actions finished in the subprocesses

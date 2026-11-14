@@ -9,7 +9,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
     SHARED_TRANSCRIBER_BUSY, \
     SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_WAKE_UP_BUTTON_PRESSED, \
-    SHARED_SPEAKER_LEVEL
+    SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -55,12 +55,14 @@ class SharedMemoryManager(PyXavi):
     }
     _shared_values: dict[str, int] = {
         "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD,
-        "speaker_level": SHARED_SPEAKER_LEVEL
+        "speaker_level": SHARED_SPEAKER_LEVEL,
+        "first_audio_timestamp": SHARED_FIRST_AUDIO_TIMESTAMP
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_value: dict[int, str] = {
         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold",
-        SHARED_SPEAKER_LEVEL: "speaker_level"
+        SHARED_SPEAKER_LEVEL: "speaker_level",
+        SHARED_FIRST_AUDIO_TIMESTAMP: "first_audio_timestamp"
     }
 
     WAITING_SLEEP_SECONDS: float = 0.01
@@ -170,6 +172,7 @@ class SharedMemoryManager(PyXavi):
             self._shared_memory_values = shared_memory.ShareableList([
                 0.0,    # dynamic RMS silence threshold
                 0.0,    # speaker level (0.0 - 1.0), drives the speaking animation
+                0.0,    # epoch timestamp of the first audio of the current speech, for the latency log
             ], name=SHARED_MEMORY_VALUES)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))
