@@ -604,14 +604,14 @@ class Interaction(PyXavi):
         Args:
             percentage (int): The percentage of time left for the interaction.
         """
-        self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
+        # No logging here: the Background shortcut already logs it.
         self.background.show_interaction_holding_percentage(percentage)
 
     def end_interaction_holding_percentage(self):
         """
         Ends the interaction holding percentage on the background display.
         """
-        self._log_debug("🚥 Ending interaction holding percentage on background display")
+        # No logging here: the Background shortcut already logs it.
         self.background.end_interaction_holding_percentage()
     
     def add_new_status_line(self, text: str, color: str = None):
