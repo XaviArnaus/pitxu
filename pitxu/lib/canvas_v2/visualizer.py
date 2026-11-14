@@ -1,3 +1,5 @@
+import time
+
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -669,13 +671,21 @@ class Visualizer(PyXavi):
         """
         shared_memory = self.painter.get_painter_shared_memory().get_shared_memory_manager()
         attached = {"done": False}
+        last = {"frame": None, "time": time.monotonic()}
 
         def provider() -> int:
             if not attached["done"]:
                 shared_memory.initialize_existing_shared_memory_values()
                 attached["done"] = True
             level = shared_memory.read_shared_memory_value(SHARED_SPEAKER_LEVEL) or 0.0
-            return max(0, min(4, round(level * 4)))
+            frame = max(0, min(4, round(level * 4)))
+            # Tuning aid: only logs when the frame changes, with the time since the previous change.
+            if frame != last["frame"]:
+                now = time.monotonic()
+                self._log_debug(f"Speaker level read by the painter: frame {last['frame']} -> {frame} "
+                                f"(raw {level:.2f}, {now - last['time']:.3f}s since last change)")
+                last["frame"], last["time"] = frame, now
+            return frame
 
         return provider
 

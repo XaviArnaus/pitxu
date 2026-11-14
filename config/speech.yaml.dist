@@ -240,8 +240,9 @@ text-to-speech:
     # [Float] Seconds of audio per measured slice.
     slice_seconds: 0.03
     # [Float] dBFS at or below which the bars are flat, and at or above which they are full.
-    floor_db: -45.0
-    ceil_db: -8.0
+    # Piper speech is loud and fairly compressed (about -20 to -8 dBFS), so the window is narrow and high.
+    floor_db: -28.0
+    ceil_db: -6.0
     # [Float] Seconds added on top of the output stream latency. Positive delays the bars, negative advances them.
     latency_offset: 0.0
     # [Bool] Logs the measured dBFS distribution of every sentence, to tune floor_db and ceil_db. Turn off when tuned.
