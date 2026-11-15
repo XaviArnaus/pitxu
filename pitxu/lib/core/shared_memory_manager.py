@@ -12,7 +12,8 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
     SHARED_MIC_VOLUME, SHARED_SPEAKER_VOLUME, SHARED_BATTERY_LEVEL, \
     SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED, \
-    SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED
+    SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED, \
+    SHARED_SPEECH_INTERRUPT_REQUESTED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -54,7 +55,8 @@ class SharedMemoryManager(PyXavi):
         SHARED_SUPPORT_BUSY: "support_busy",
         SHARED_STT_BUSY: "stt_busy",
         SHARED_TRANSCRIBER_BUSY: "transcriber_busy",
-        SHARED_WAKE_UP_BUTTON_PRESSED: "wake_up_button_request"
+        SHARED_WAKE_UP_BUTTON_PRESSED: "wake_up_button_request",
+        SHARED_SPEECH_INTERRUPT_REQUESTED: "speech_interrupt_requested"
     }
     _shared_values: dict[str, int] = {
         "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD,
@@ -146,6 +148,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # stt is busy
                 False,  # transcriber is busy
                 False,  # wake up button is pressed
+                False,  # speech interrupt requested
             ], name=SHARED_MEMORY_FLAGS)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

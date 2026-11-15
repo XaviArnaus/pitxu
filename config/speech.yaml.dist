@@ -221,6 +221,13 @@ text-to-speech:
   # [Integer] Index of the card to use, from the list in `make sounddevice`. Set [None] for autodetect
   # output_device: 5 # MacOS connected to the USB Hub
   output_device: 1 # MacOS alone
+  # [Float] The audio of every sentence is written to the sound card in slices of this many seconds,
+  #   so that an interruption (see app.button_interrupts_speech) takes effect within one slice.
+  #   0 writes the whole sentence at once: the interruption then waits for the end of the current sentence.
+  interrupt_slice_seconds: 0.1
+  # [Float] After an interruption the microphone stays closed this many seconds, so the click of the button,
+  #   the hand and the last sound in the air are not heard as the user starting to speak. 0 disables it.
+  interrupt_settle_seconds: 0.4
   # [String] ALSA control name for the speakers. Only used on Linux with ALSA.
   alsa_speaker_control_name: "Speaker"
   # alsa_speaker_control_name: "Master"

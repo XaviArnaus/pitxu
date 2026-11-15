@@ -25,6 +25,9 @@ app:
   #   "voice": The app will listen for a wake up word to wake up the app.
   #   "both": The app will listen for a wake up word and also allow the user to press a button to wake up the app.
   wake_up_method: "both" 
+  # [Bool] The button also cuts the speech while it is being said, to get back to listening.
+  #   It works whatever the wake_up_method is: the button is initialised for this alone if needed.
+  button_interrupts_speech: true
 
 # Filesystem definition
 storage:
