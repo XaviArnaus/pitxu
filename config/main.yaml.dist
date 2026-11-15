@@ -96,3 +96,12 @@ ups:
   mock: True
   # I2C address of the UPS
   i2c_address: 0x36
+  # [String] How to know whether the power cable is connected. 
+  #   "gpio": reads the power loss detection pin of the UPS (GPIO6).
+  #   "disabled": never reports it. The state is published as unknown, so the display does not claim anything.
+  #   Use "disabled" if the pin does not reach the Pi (the internal pull-up then makes it always read "connected").
+  power_cable_detection: gpio
+  # [Integer] Battery percentage below which the battery button turns yellow.
+  battery_warning_below: 40
+  # [Integer] Battery percentage below which the battery button turns red. Green otherwise.
+  battery_critical_below: 15

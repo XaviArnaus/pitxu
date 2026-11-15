@@ -229,3 +229,21 @@ class LayoutInfo(PyXavi):
             (TINT_COLOR[0], TINT_COLOR[1], TINT_COLOR[2], 0))
         
         return fill_color, overlay
+
+    @staticmethod
+    def split_into_slots(area: Rectangle, slots: int, padding: int = 6, gap: int = 4) -> list[Rectangle]:
+        '''
+        Splits an area into `slots` equal rows, from top to bottom, leaving `padding` around and `gap` between them.
+        The result is in the same coordinates as the given area.
+        '''
+        x1 = area.point_1.x + padding
+        y1 = area.point_1.y + padding
+        x2 = area.point_2.x - padding
+        y2 = area.point_2.y - padding
+        slot_height = (y2 - y1) // slots
+        return [
+            Rectangle(
+                Point(x1, y1 + (index * slot_height) + (gap // 2)),
+                Point(x2, y1 + ((index + 1) * slot_height) - (gap // 2)))
+            for index in range(slots)
+        ]

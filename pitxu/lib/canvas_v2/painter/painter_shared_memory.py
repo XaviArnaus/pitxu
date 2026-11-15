@@ -16,6 +16,8 @@ class PainterSharedMemory(PyXavi):
     _shared_memory: SharedMemoryManager = None
     _shared_memory_flag_to_callback: list[tuple[int, bool, callable]] = None
     _shared_memory_flag_previous_value: dict[int, bool] = None
+    _shared_memory_value_to_callback: list[tuple[str, int, callable]] = None
+    _shared_memory_value_previous: dict[int, float] = None
 
     # We need to be able to resume the painter, whenever we trigger a callback from the shared memory control worker, 
     #   to ensure that the interaction is painted as soon as possible.
@@ -47,6 +49,10 @@ class PainterSharedMemory(PyXavi):
         # Initialize the list of shared memory flags to control, empty otherwise.
         shared_memory_list_to_control = params.get("shared_memory_list_to_control", [])
         self.load_list_control(shared_memory_list_to_control)
+
+        # The values (not flags) to monitor, and the last value seen for each.
+        self._shared_memory_value_to_callback = []
+        self._shared_memory_value_previous = {}
         
         # We control the transitions of the shared_memory flags and values in a separate thread.
         self._worker_thread = threading.Thread(
@@ -159,7 +165,7 @@ class PainterSharedMemory(PyXavi):
                 self.get_shared_memory_flag_name_for(flag), 
                 activation_value, 
                 self.shared_memory.read_shared_memory_flag(flag),
-                callback.__name__ if callable(callback) else str(callback),
+                getattr(callback, "__name__", repr(callback)),
                 is_dependant
             ))
         return result
@@ -228,6 +234,54 @@ class PainterSharedMemory(PyXavi):
     
     def get_shared_memory_flag_name_for(self, shared_memory_flag: int) -> str:
         return self.shared_memory._map_index_to_flag.get(shared_memory_flag, f"UnknownFlag_{shared_memory_flag}").upper()
+
+    def set_callback_for_shared_memory_value(self, name: str, shared_memory_value: int, callback: callable):
+        """
+        Registers a callback that runs whenever the given shared memory value changes.
+        The first time the value is seen counts as a change, so the callback also runs once to sync the initial state.
+        Values are compared exactly, so publish integers if you don't want noise.
+        """
+        if shared_memory_value not in self.shared_memory._map_index_to_value:
+            raise ValueError(f"Invalid received shared memory value index: {shared_memory_value}.")
+        if not callable(callback):
+            raise ValueError(f"Callback must be callable. Got {type(callback)}.")
+
+        # The display process attaches to the values only when it needs them.
+        self.shared_memory.attach_shared_memory_values_if_needed()
+
+        self._shared_memory_value_to_callback.append((name, shared_memory_value, callback))
+
+    def _check_shared_memory_values(self):
+        """
+        Runs the callbacks of the monitored values that changed since the previous pass.
+        """
+        if not self._shared_memory_value_to_callback:
+            return
+
+        current_by_index: dict[int, float] = {}
+        callbacks_to_trigger = []
+        for name, value_index, callback in list(self._shared_memory_value_to_callback):
+            if value_index not in current_by_index:
+                current_by_index[value_index] = self.shared_memory.read_shared_memory_value(value_index)
+            current = current_by_index[value_index]
+            if current is None:
+                continue
+            if value_index not in self._shared_memory_value_previous or self._shared_memory_value_previous[value_index] != current:
+                callbacks_to_trigger.append((name, value_index, callback))
+
+        for name, value_index, callback in callbacks_to_trigger:
+            self._log_debug(f"🏳️  Shared memory value [{value_index}] changed to [{current_by_index[value_index]}]. Calling [{name}].")
+            try:
+                callback()
+            except Exception as e:
+                self._xlog.error(f"Callback [{name}] for a shared memory value failed: {e}")
+
+        for value_index, current in current_by_index.items():
+            if current is not None:
+                self._shared_memory_value_previous[value_index] = current
+
+        if callbacks_to_trigger:
+            self._painter_resume_callback()
     
     def _shared_memory_control_worker(self):
         """
@@ -273,6 +327,9 @@ class PainterSharedMemory(PyXavi):
                 if callbacks_to_trigger:
                     self._log_debug(f"🏳️  Resuming painter loop after triggering callbacks for shared memory flags.")
                     self._painter_resume_callback()
+
+            # The values are monitored in the same pass as the flags.
+            self._check_shared_memory_values()
 
             # If we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage, 
             # because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.

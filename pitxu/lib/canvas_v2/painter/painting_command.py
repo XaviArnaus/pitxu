@@ -17,7 +17,7 @@ class PaintingCommand:
     command: str = None
 
     def __init__(self, command: str, available_commands: list):
-        self.available_commands.extend(available_commands)
+        self.available_commands = [self.CLEAR, *available_commands]
         if command not in self.available_commands:
             raise ValueError(f"Invalid command: {command}. Available commands are: {self.available_commands}.")
         self.command = command
@@ -92,6 +92,22 @@ class StatusCommand(PaintingCommand):
             self.CLEAR,
         ]
         super(StatusCommand, self).__init__(command, available_commands)
+
+class ButtonsCommand(PaintingCommand):
+    """
+    Commands related to buttons painting.
+    They are meant to be used in the "bottom_left" or "bottom_right" areas of the screen.
+    """
+
+    # One paint draws the whole column of buttons.
+    BUTTONS_PANEL: str = "BUTTONS_PANEL"
+
+    def __init__(self, command: str):
+        available_commands = [
+            self.BUTTONS_PANEL,
+            self.CLEAR,
+        ]
+        super(ButtonsCommand, self).__init__(command, available_commands)
  
 class BackgroundCommand(PaintingCommand):
     """

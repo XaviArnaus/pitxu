@@ -68,6 +68,9 @@ class BasePaint:
     # The painter evaluates them and stores the result in drawing_callback_parameters before the cache key is built,
     #  so they can also be listed in cache_control_parameters.
     dynamic_parameters: dict = None
+    # Whether a change in this paint can trigger a draw while the screen is deliberately blank.
+    # False means "passive": it is updated in the queue, and shown at the next draw triggered by something else.
+    trigger_draw_when_blank: bool = True
 
     # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
     # This defines which one (the definition is an integer)
@@ -101,6 +104,8 @@ class BasePaint:
                     ignore_maintain_time: bool = False,
                     # Show the painting anyways even the app is in idle mode. Otherwise, the painting won't be flushed.
                     show_during_idle_mode: bool = False,
+                    # Whether a change in this paint can wake up a blank screen.
+                    trigger_draw_when_blank: bool = True,
                     # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
                     while_shared_memory_flag: int = None,
                     while_shared_memory_flag_value: bool = True,
@@ -128,6 +133,7 @@ class BasePaint:
         self.ignore_maintain_time = ignore_maintain_time
         # Show the painting anyways even the app is in idle mode. Otherwise, the painting won't be flushed.
         self.show_during_idle_mode = show_during_idle_mode
+        self.trigger_draw_when_blank = trigger_draw_when_blank
         # Allow to draw it under the activeness (or not) of a Shared Memory Flag.
         self.while_shared_memory_flag = while_shared_memory_flag
         self.while_shared_memory_flag_value = while_shared_memory_flag_value
@@ -180,6 +186,14 @@ class StatusPaint(BasePaint):
     def __init__(self, name: str, command: StatusCommand, **kwargs):
 
         super(StatusPaint, self).__init__(name=name, command=command, **kwargs)
+
+class ButtonsPaint(BasePaint):
+
+    def __init__(self, name: str, command: ButtonsCommand, **kwargs):
+
+        # Buttons reflect state, they must never wake up a blank screen by themselves.
+        kwargs.setdefault("trigger_draw_when_blank", False)
+        super(ButtonsPaint, self).__init__(name=name, command=command, **kwargs)
 
 class BackgroundPaint(BasePaint):
 

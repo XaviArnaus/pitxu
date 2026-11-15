@@ -29,6 +29,7 @@ from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
+from pitxu.lib.utils.levels_sampler import LevelsSampler
 
 from difflib import SequenceMatcher
 import sys
@@ -75,6 +76,7 @@ class Main(PyXavi):
     _interaction: Interaction = None
     _reactions: Reactions = None
     _shared_memory_monitor: SharedMemoryMonitor = None
+    _levels_sampler: LevelsSampler = None
 
     _support: Support = None
 
@@ -1261,6 +1263,13 @@ class Main(PyXavi):
                 if event.exception:
                     self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
 
+            # Samples the volumes, the battery and the power cable into the shared memory for the displays.
+            self._levels_sampler = LevelsSampler(config=self._xconfig, params=Dictionary({
+                "shared_memory": self._interaction.get_process_pool().get_memory_manager(),
+                # Resolved on every use: the Chatbot Session Manager may not exist yet, or may be closed.
+                "clients_provider": lambda: self._chatbot_session_manager.clients if self._chatbot_session_manager is not None else {},
+            }))
+
             self._scheduler = BackgroundScheduler(
                 job_defaults={
                     "coalesce": True
@@ -1586,6 +1595,10 @@ class Main(PyXavi):
             self._last_processed_second = current_second
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+
+            # Power cable every second, volumes and battery every minute: published for the displays.
+            if self._levels_sampler is not None:
+                self._levels_sampler.tick()
 
             # Control the fans according to the temperature, every some seconds is good enough for that.
             if self._fan_control_iterated_seconds < 0:

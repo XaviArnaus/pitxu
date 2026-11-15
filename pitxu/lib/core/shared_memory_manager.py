@@ -9,7 +9,9 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_DSI_LCD_IDLE_MODE, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
     SHARED_TRANSCRIBER_BUSY, \
     SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_WAKE_UP_BUTTON_PRESSED, \
-    SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP
+    SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
+    SHARED_MIC_VOLUME, SHARED_SPEAKER_VOLUME, SHARED_BATTERY_LEVEL, \
+    SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -56,13 +58,23 @@ class SharedMemoryManager(PyXavi):
     _shared_values: dict[str, int] = {
         "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD,
         "speaker_level": SHARED_SPEAKER_LEVEL,
-        "first_audio_timestamp": SHARED_FIRST_AUDIO_TIMESTAMP
+        "first_audio_timestamp": SHARED_FIRST_AUDIO_TIMESTAMP,
+        "mic_volume": SHARED_MIC_VOLUME,
+        "speaker_volume": SHARED_SPEAKER_VOLUME,
+        "battery_level": SHARED_BATTERY_LEVEL,
+        "speaker_muted": SHARED_SPEAKER_MUTED,
+        "power_cable_connected": SHARED_POWER_CABLE_CONNECTED
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_value: dict[int, str] = {
         SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD: "dynamic_rms_silence_threshold",
         SHARED_SPEAKER_LEVEL: "speaker_level",
-        SHARED_FIRST_AUDIO_TIMESTAMP: "first_audio_timestamp"
+        SHARED_FIRST_AUDIO_TIMESTAMP: "first_audio_timestamp",
+        SHARED_MIC_VOLUME: "mic_volume",
+        SHARED_SPEAKER_VOLUME: "speaker_volume",
+        SHARED_BATTERY_LEVEL: "battery_level",
+        SHARED_SPEAKER_MUTED: "speaker_muted",
+        SHARED_POWER_CABLE_CONNECTED: "power_cable_connected"
     }
 
     WAITING_SLEEP_SECONDS: float = 0.01
@@ -173,6 +185,11 @@ class SharedMemoryManager(PyXavi):
                 0.0,    # dynamic RMS silence threshold
                 0.0,    # speaker level (0.0 - 1.0), drives the speaking animation
                 0.0,    # epoch timestamp of the first audio of the current speech, for the latency log
+                -1.0,   # microphone volume (%), -1 = unknown
+                -1.0,   # speaker volume (%), -1 = unknown
+                -1.0,   # battery level (%), -1 = unknown
+                -1.0,   # speaker is muted (1 = yes, 0 = no), -1 = unknown
+                -1.0,   # power cable is connected (1 = yes, 0 = no), -1 = unknown
             ], name=SHARED_MEMORY_VALUES)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))
@@ -182,6 +199,13 @@ class SharedMemoryManager(PyXavi):
         self._shared_memory_values = shared_memory.ShareableList(name=SHARED_MEMORY_VALUES)
         if self._shared_memory_values is None:
             self._xlog.error("Shared Memory is None, cannot read values")
+
+    def attach_shared_memory_values_if_needed(self):
+        '''
+        Attaches to the existing shared memory values, only if this instance did not do it yet.
+        '''
+        if self._shared_memory_values is None:
+            self.initialize_existing_shared_memory_values()
     
     # --- END INIT SHARED MEM VALUES ---
 
