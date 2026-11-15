@@ -11,7 +11,8 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_MEMORY_VALUES, SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD, SHARED_WAKE_UP_BUTTON_PRESSED, \
     SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
     SHARED_MIC_VOLUME, SHARED_SPEAKER_VOLUME, SHARED_BATTERY_LEVEL, \
-    SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED
+    SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED, \
+    SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class SharedMemoryManager(PyXavi):
@@ -63,7 +64,11 @@ class SharedMemoryManager(PyXavi):
         "speaker_volume": SHARED_SPEAKER_VOLUME,
         "battery_level": SHARED_BATTERY_LEVEL,
         "speaker_muted": SHARED_SPEAKER_MUTED,
-        "power_cable_connected": SHARED_POWER_CABLE_CONNECTED
+        "power_cable_connected": SHARED_POWER_CABLE_CONNECTED,
+        "cpu_temperature": SHARED_CPU_TEMPERATURE,
+        "cpu_fan_rpm": SHARED_CPU_FAN_RPM,
+        "case_fan_1_speed": SHARED_CASE_FAN_1_SPEED,
+        "case_fan_2_speed": SHARED_CASE_FAN_2_SPEED
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_value: dict[int, str] = {
@@ -74,7 +79,11 @@ class SharedMemoryManager(PyXavi):
         SHARED_SPEAKER_VOLUME: "speaker_volume",
         SHARED_BATTERY_LEVEL: "battery_level",
         SHARED_SPEAKER_MUTED: "speaker_muted",
-        SHARED_POWER_CABLE_CONNECTED: "power_cable_connected"
+        SHARED_POWER_CABLE_CONNECTED: "power_cable_connected",
+        SHARED_CPU_TEMPERATURE: "cpu_temperature",
+        SHARED_CPU_FAN_RPM: "cpu_fan_rpm",
+        SHARED_CASE_FAN_1_SPEED: "case_fan_1_speed",
+        SHARED_CASE_FAN_2_SPEED: "case_fan_2_speed"
     }
 
     WAITING_SLEEP_SECONDS: float = 0.01
@@ -190,6 +199,10 @@ class SharedMemoryManager(PyXavi):
                 -1.0,   # battery level (%), -1 = unknown
                 -1.0,   # speaker is muted (1 = yes, 0 = no), -1 = unknown
                 -1.0,   # power cable is connected (1 = yes, 0 = no), -1 = unknown
+                -1.0,   # CPU temperature (Celsius), -1 = unknown
+                -1.0,   # CPU fan speed (RPM), -1 = unknown
+                -1.0,   # case fan 1 speed (0.0 - 1.0), -1 = no such fan
+                -1.0,   # case fan 2 speed (0.0 - 1.0), -1 = no such fan
             ], name=SHARED_MEMORY_VALUES)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

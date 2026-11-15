@@ -1,4 +1,5 @@
-from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Logger, Config, Dictionary, full_stack, dd
+from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
@@ -30,7 +31,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 class MainClientPTT(PyXavi):
 
-    _state: Storage = None
+    _state: AppState = None
     
     _last_processed_minute: int = -1
     _last_processed_second: int = -1
@@ -555,7 +556,7 @@ class MainClientPTT(PyXavi):
         The initialization of the MainClientPTT itself, what you would include in __init__()
         """
         # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        self._state = AppState(config=self._xconfig, params=self._xparams)
 
         # Initial Language. 1st from the state, then from the config, and last default to Catalan.
         language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
@@ -698,7 +699,8 @@ class MainClientPTT(PyXavi):
             "interaction": self._interaction,
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
-            "input_stream": input_stream
+            "input_stream": input_stream,
+            "state": self._state,
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
     
@@ -829,7 +831,6 @@ class MainClientPTT(PyXavi):
     def persist_state(self):
 
         self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
-        self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
 
     def clear_displays(self):
