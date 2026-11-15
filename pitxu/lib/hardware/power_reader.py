@@ -50,7 +50,8 @@ class PowerReader:
             # The gauge sends big endian, SMBus reads little endian.
             voltage_swapped = struct.unpack("<H", struct.pack(">H", voltage_read))[0]
             capacity_swapped = struct.unpack("<H", struct.pack(">H", capacity_read))[0]
-            return voltage_swapped * 1.25 / 1000 / 16, capacity_swapped / 256
+            # The gauge can report a bit over 100 % when the battery is full (e.g. 100.4), so we keep it in range.
+            return voltage_swapped * 1.25 / 1000 / 16, min(100.0, max(0.0, capacity_swapped / 256))
         except Exception as e:
             logger.debug(f"Could not read the battery gauge (bus {bus}, address {hex(address)}): {e}")
             return None
