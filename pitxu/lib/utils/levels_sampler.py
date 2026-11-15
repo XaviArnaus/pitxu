@@ -39,6 +39,11 @@ class LevelsSampler(PyXavi):
         self._clients_provider = params.get("clients_provider")
 
         self._ups_is_mocked: bool = bool(self._xconfig.get("ups.mock", True))
+        # How to detect the power cable: "gpio" reads the UPS pin, "disabled" always publishes unknown.
+        self._power_cable_detection: str = str(self._xconfig.get("ups.power_cable_detection", "gpio")).lower()
+        if self._power_cable_detection not in ("gpio", "disabled"):
+            self._xlog.warning(f"Unknown ups.power_cable_detection [{self._power_cable_detection}], using 'gpio'.")
+            self._power_cable_detection = "gpio"
         self._last_levels_sampled_at: float | None = None
         self._levels_thread: threading.Thread | None = None
         self._published: dict[int, int] = {}
@@ -64,6 +69,10 @@ class LevelsSampler(PyXavi):
     # ---- Sampling ----
 
     def _sample_power_cable(self):
+        if self._power_cable_detection == "disabled":
+            # Not trustworthy (or not wanted): publish it as unknown, so the display does not claim anything.
+            self._publish_value(SHARED_POWER_CABLE_CONNECTED, self.UNKNOWN)
+            return
         if self._ups_is_mocked:
             # The UPS class logs a warning on every read when mocked, so we don't read it at all.
             self._publish_value(SHARED_POWER_CABLE_CONNECTED, 1)
