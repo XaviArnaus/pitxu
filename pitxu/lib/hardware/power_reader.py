@@ -82,6 +82,22 @@ class PowerReader:
         return PowerReader._pmic_value("EXT5V_V")
 
     @staticmethod
+    def throttled_flags() -> int | None:
+        """
+        The raw bit field of `vcgencmd get_throttled` (under-voltage, frequency capping, throttling...).
+        Decoding the bits is up to the caller.
+        """
+        output = PowerReader._vcgencmd(["get_throttled"])
+        if output is None:
+            return None
+        try:
+            # "throttled=0x50005"
+            return int(output.split("=")[1].strip(), 0)
+        except (IndexError, ValueError):
+            logger.debug(f"Could not parse the throttled flags: [{output}]")
+            return None
+
+    @staticmethod
     def power_consumption_watts() -> float | None:
         """
         Sum of amperes x volts over every rail that has both.

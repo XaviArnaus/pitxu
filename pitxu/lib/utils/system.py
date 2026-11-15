@@ -1,5 +1,7 @@
 import psutil, os, platform
 
+from pitxu.lib.hardware import PowerReader, ThermalReader
+
 class System:
 
     BYTES: int = 1
@@ -99,41 +101,49 @@ class System:
         # dd(networks)
         return networks
     
+    # The CPU, fan and power readings come from the stateless readers of `lib/hardware`.
+    # These keep the contract of this class: 0.0 outside Linux, and an exception when the reading fails.
+
     @staticmethod
     def get_cpu_temperature() -> float:
         if not System.is_linux():
-            return 0.0 
-        return round(int(System._run_command("cat /sys/class/thermal/thermal_zone*/temp")) / 1000, 1)
-    
+            return 0.0
+        return System._required(ThermalReader.cpu_temperature(), "CPU temperature")
+
     @staticmethod
     def get_cpu_fan_speed() -> float:
         if not System.is_linux():
             return 0.0
-        return int(System._run_command("cat /sys/class/hwmon/hwmon*/fan1_input"))
-    
+        return System._required(ThermalReader.cpu_fan_rpm(), "CPU fan speed")
+
     @staticmethod
-    def get_cpu_volts() -> float: 
+    def get_cpu_volts() -> float:
         if not System.is_linux():
             return 0.0
-        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_V"], 'V')) # return current cpu voltage
+        return System._required(PowerReader.cpu_volts(), "CPU voltage")
 
     @staticmethod
     def get_cpu_amps() -> float:
         if not System.is_linux():
             return 0.0
-        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "VDD_CORE_A"], 'A')) # reurn current cpu amperage
+        return System._required(PowerReader.cpu_amps(), "CPU amperage")
 
     @staticmethod
     def get_cpu_temp() -> float:
-        if not System.is_linux():
-            return 0.0
-        return float(System._read_hardware_metric(["vcgencmd", "measure_temp"], "'C")) # return current cpu temp
+        # Same sensor that `vcgencmd measure_temp` reads.
+        return System.get_cpu_temperature()
 
     @staticmethod
     def get_input_voltage() -> float:
         if not System.is_linux():
             return 0.0
-        return float(System._read_hardware_metric(["vcgencmd", "pmic_read_adc", "EXT5V_V"], 'V')) # return input voltage
+        return System._required(PowerReader.input_voltage(), "input voltage")
+
+    @staticmethod
+    def _required(value, description: str):
+        if value is None:
+            raise Exception(f"Error reading hardware metric: could not read the {description}")
+        return value
     
     @staticmethod
     def get_power_throttle(test_bin_value = None) -> list[dict]:
@@ -165,8 +175,7 @@ class System:
             if test_bin_value is not None:
                 throttle_bin = bin(test_bin_value)
             else:
-                throttle_str = System._read_hardware_metric(["vcgencmd", "get_throttled"], '') # no characters to strip
-                throttle_bin = bin(int(throttle_str, 0)) # convert the cleaned-up string to an integer (base 16) and then to binary
+                throttle_bin = bin(System._required(PowerReader.throttled_flags(), "throttle state"))
 
             report = []
             for bit, description in map.items():
@@ -338,19 +347,6 @@ class System:
             raise Exception(f"Command failed: [{command}]")
 
         return result
-    
-    @staticmethod
-    def _read_hardware_metric(command_args, strip_chars) -> str: #(["command","arg1", "arg2",...],'strip_chars') ** not likely to be very useful outside of vcgencmd **
-        try:
-            output = System._run_command(" ".join(command_args)) # runs a command w/ args and captures its output converting to UTF-8 encoded string
-            metric_str = output.split("=")[1].strip().rstrip(strip_chars)
-                        # split output string into a list using "="
-                        # [1] selects the second element of the list
-                        # strip any leading/trailing whitespace
-                        # further strips specific characters (strip_chars) from result
-            return metric_str # converts the cleaned-up string to float and returns it.
-        except (Exception) as e: # command not found, command fails, ValueError could occur if converting cleaned string to float fails
-            raise Exception(f"Error reading hardware metric: {e}")
     
     @staticmethod
     def is_linux() -> bool:
