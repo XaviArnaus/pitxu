@@ -1,16 +1,20 @@
-import psutil, os, platform
+from pitxu.lib.hardware import NetworkReader, PowerReader, SystemReader, ThermalReader
 
-from pitxu.lib.hardware import PowerReader, ThermalReader
 
 class System:
+    """
+    Facade of the system readings, for the rest of the app.
 
-    BYTES: int = 1
-    KILOBYTES: int = 1024
-    MEGABYTES: int = 1024 * 1024
-    GIGABYTES: int = 1024 * 1024 * 1024
+    The readings themselves are done by the stateless readers of `lib/hardware`.
+    This class keeps the contract that the app already relies on: 0.0 outside Linux where it was so,
+    and an exception when a reading fails (the readers return None instead).
+    It also owns the display backlight, which is not a reading.
+    """
 
-    # psutil.Process objects by pid, kept between calls because cpu_percent() measures since the previous call on the same object.
-    _process_cache: dict = {}
+    BYTES: int = SystemReader.BYTES
+    KILOBYTES: int = SystemReader.KILOBYTES
+    MEGABYTES: int = SystemReader.MEGABYTES
+    GIGABYTES: int = SystemReader.GIGABYTES
 
     @staticmethod
     def get_dsi_backlight_status() -> bool:
@@ -24,83 +28,19 @@ class System:
     def set_dsi_backlight_off() -> None:
         System._run_command("sudo -E sh -c 'echo 1 > /sys/class/backlight/11-0045/bl_power'")
     
+    # ---- Network ----
+
     @staticmethod
     def get_default_network_interface() -> dict:
-        import ifcfg
+        return NetworkReader.default_interface()
 
-        data = ifcfg.default_interface()
-        if data is None:
-            return None
-        return {
-            "name": data.get("name"),
-            "ip": data.get("inet"),
-            "netmask": data.get("netmask"),
-            "broadcast": data.get("broadcast"),
-            "mac": data.get("ether"),
-        }
-    
     @staticmethod
     def get_connected_wifi() -> list[dict]:
         """
         Get the list of available WiFi networks
         """
-        os = platform.system()
-        networks = []
+        return System._required(NetworkReader.wifi_networks(), "WiFi networks")
 
-        if os.lower() == "linux":
-            # Use nmcli to get WiFi networks
-            result = System._run_command("nmcli -t -f SSID,SECURITY,SIGNAL dev wifi")
-            lines = result.strip().split('\n')
-            for line in lines:
-                parts = line.split(':')
-                if len(parts) >= 3:
-                    ssid = parts[0]
-                    security = parts[1]
-                    signal = parts[2]
-                    networks.append({
-                        "ssid": ssid,
-                        "security": security,
-                        "signal": signal
-                    })
-        elif os.lower() == "windows":
-            # Use netsh to get WiFi networks
-            wifi = System._run_command("netsh WLAN show interfaces")
-            # data = wifi.decode('utf-8')
-            lines = wifi.split('\n')
-            for line in lines:
-                if "SSID" in line:
-                    ssid = line.split(':')[1].strip()
-                    networks.append({
-                        "ssid": ssid
-                    })
-        elif os.lower() == "darwin":
-            # import macwifi
-
-            # data = macwifi.get_wifi_info()
-            # lines = data.split('\n')
-            # info = {}
-            # for line in lines:
-            #     if "SSID" in line and "BSSID" not in line:
-            #         ssid = line.split(':')[1].strip()
-            #         info["ssid"] = ssid
-            #     if "link auth" in line:
-            #         security = line.split(':')[1].strip()
-            #         info["security"] = security
-
-            # if info:
-            #     networks.append(info)
-            #     info = {}
-            networks.append({
-                "ssid": "Mocked WiFi Network",
-                "security": "WPA2",
-                "signal": "80"
-            })
-        else:
-            # Unsupported OS for WiFi scanning
-            pass
-        # dd(networks)
-        return networks
-    
     # The CPU, fan and power readings come from the stateless readers of `lib/hardware`.
     # These keep the contract of this class: 0.0 outside Linux, and an exception when the reading fails.
 
@@ -185,141 +125,40 @@ class System:
         except Exception as e:
             raise Exception(f"Error reading throttle state: {e}")
     
+    # ---- Host ----
+
     @staticmethod
     def get_system_uptime() -> float:
-        if System.is_linux():
-            return float(System._run_command("cat /proc/uptime").split()[0]) # returns system uptime in seconds
-        elif System.is_macos():
-            return float(System._run_command("sysctl -n kern.boottime").split('}')[0].split('=')[2].strip()) # returns system uptime in seconds
-        else:
-            raise Exception("Unsupported OS for getting system uptime")
-    
+        return System._required(SystemReader.uptime_seconds(), "system uptime")
+
     @staticmethod
     def get_system_load() -> list[float]:
-        if System.is_linux():
-            return [float(x) for x in System._run_command("cat /proc/loadavg").split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
-        elif System.is_macos():
-            return [float(x) for x in System._run_command("sysctl -n vm.loadavg").strip('{}\n ').split()[:3]] # returns the system load averages for the past 1, 5, and 15 minutes as a list of floats
-        else:
-            raise Exception("Unsupported OS for getting system load")
-    
+        return System._required(SystemReader.load_average(), "system load")
+
     @staticmethod
     def get_memory_usage() -> dict:
-        meminfo = System._run_command("cat /proc/meminfo")
-
-        # We only want the following fields from meminfo:
-        fields = ["MemTotal", "MemFree", "MemAvailable", "Buffers", "Cached", "SwapTotal", "SwapFree"]
-
-        meminfo_dict = {}
-        for line in meminfo.splitlines():
-            parts = line.split(':')
-            if len(parts) == 2:
-                key = parts[0].strip()
-                if key in fields:
-                    value = parts[1].strip().split()[0] # Get the numeric value, ignoring units
-                    meminfo_dict[key] = int(value) # Convert to integer (kilobytes)
-        return meminfo_dict
+        return System._required(SystemReader.memory_info(), "memory usage")
 
     @staticmethod
     def get_pitxu_memory_use() -> dict:
-
-        pid = os.getpid()
-        process = psutil.Process(pid)
-        mem_info = process.memory_info()
-        return {
-            "resident_set_size": mem_info.rss, # Resident Set Size: the non-swapped physical memory the process is using.
-            "virtual_memory_size": mem_info.vms, # Virtual Memory Size: the total amount of virtual memory used by the process.
-            # "shared_memory": mem_info.shared, # Shared Memory: the amount of memory shared with other processes.
-            # "text": mem_info.text, # Text (code): the amount of memory used by executable code.
-            # "library": mem_info.lib, # Library: the amount of memory used by loaded libraries.
-            # "data": mem_info.data, # Data + Stack: the amount of memory used by data and stack.
-            # "dirty": mem_info.dirty # Dirty Pages: the amount of memory that is marked as dirty (modified but not yet written to disk).
-        }
+        return System._required(SystemReader.process_memory(), "process memory")
 
     @staticmethod
     def get_processes_usage(pids_by_name: dict[str, int]) -> dict:
         """
-        CPU and memory of every given process, by name.
-
-        - cpu_percent: average since the previous call (so, since the previous metrics log). None the first time a process is seen.
-            100 is one full core, so it can go over 100 with several threads.
-        - cpu_time_seconds: cumulative user + system CPU time. Differences between logs also give the usage, and they don't hide bursts.
-        - rss: resident memory. Shared pages (libraries, forked memory) are counted in every process, so the sum overstates.
-        - pss: proportional memory, shared pages split between the processes using them. The sum of all pss is the real total.
-            Only on Linux. On macOS "uss" (memory only this process has) is given instead.
+        CPU and memory of every given process, by name. See SystemReader.processes_usage().
         """
-        usage = {}
-        seen_pids = set()
-
-        for name, pid in pids_by_name.items():
-            if pid is None:
-                continue
-            try:
-                process = System._process_cache.get(pid)
-                first_time = process is None
-                if first_time:
-                    process = psutil.Process(pid)
-                    process.cpu_percent(None)  # Sets the baseline for the next call.
-                    System._process_cache[pid] = process
-                seen_pids.add(pid)
-
-                with process.oneshot():
-                    cpu_times = process.cpu_times()
-                    entry = {
-                        "pid": pid,
-                        "cpu_percent": None if first_time else process.cpu_percent(None),
-                        "cpu_time_seconds": round(cpu_times.user + cpu_times.system, 1),
-                        "threads": process.num_threads(),
-                        "rss": process.memory_info().rss,
-                    }
-                try:
-                    full = process.memory_full_info()
-                    for field in ("pss", "uss"):
-                        if hasattr(full, field):
-                            entry[field] = getattr(full, field)
-                except (psutil.AccessDenied, NotImplementedError):
-                    pass
-                usage[name] = entry
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                usage[name] = {"pid": pid, "error": type(e).__name__}
-
-        # Forget the processes that are gone.
-        for pid in [p for p in System._process_cache if p not in seen_pids]:
-            del System._process_cache[pid]
-
-        return usage
+        return SystemReader.processes_usage(pids_by_name)
 
     @staticmethod
     def get_disk_usage() -> dict:
-        df_output = System._run_command("df -h /") # Get disk usage for root partition
-        lines = df_output.splitlines()
-        if len(lines) < 2:
-            raise Exception("Unexpected output from df command")
-        
-        # The second line contains the data we need
-        parts = lines[1].split()
-        if len(parts) < 6:
-            raise Exception("Unexpected output format from df command")
-        
-        return {
-            "filesystem": parts[0],
-            "size": parts[1],
-            "used": parts[2],
-            "available": parts[3],
-            "use_percent": parts[4],
-            "mounted_on": parts[5]
-        }
-    
+        return System._required(SystemReader.disk_usage("/"), "disk usage")
+
     @staticmethod
     def memory_use(scale: int = None) -> float:
-        if scale is None:
-            scale = System.MEGABYTES
-        
-        process = psutil.Process()
-        usage = process.memory_info().rss 
-        # Using memory_info() to check consumption. Returns bytes.
-        return float(usage / scale)
+        return System._required(SystemReader.process_rss(scale=scale if scale is not None else System.MEGABYTES), "process memory")
+
+    # ---- Internals ----
 
     @staticmethod
     def _run_command(command: str) -> str:
@@ -350,12 +189,12 @@ class System:
     
     @staticmethod
     def is_linux() -> bool:
-        return platform.system() == "Linux"
+        return SystemReader.is_linux()
     
     @staticmethod
     def is_macos() -> bool:
-        return platform.system() == "Darwin"
+        return SystemReader.is_macos()
     
     @staticmethod
     def is_windows() -> bool:
-        return platform.system() == "Windows"
+        return SystemReader.is_windows()
