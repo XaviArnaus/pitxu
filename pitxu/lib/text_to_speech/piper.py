@@ -184,6 +184,9 @@ class Piper(Xprocess):
                 self._xlog.info("🤐 Speech interrupted by the user.")
                 # abort() drops what is already in the sound card buffer, stop() would play it out.
                 self._output_stream.abort()
+                # The microphone stays closed (the speaker is still busy) for a moment: the button press, the hand
+                # and the sound that is still in the air must not be heard as if the user had started to speak.
+                time.sleep(float(self._xconfig.get("text-to-speech.interrupt_settle_seconds", 0.4)))
             else:
                 self._log_debug("All audio chunks processed, stopping output stream")
                 # Comment the following and tab properly for the with statement if used

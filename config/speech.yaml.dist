@@ -225,6 +225,9 @@ text-to-speech:
   #   so that an interruption (see app.button_interrupts_speech) takes effect within one slice.
   #   0 writes the whole sentence at once: the interruption then waits for the end of the current sentence.
   interrupt_slice_seconds: 0.1
+  # [Float] After an interruption the microphone stays closed this many seconds, so the click of the button,
+  #   the hand and the last sound in the air are not heard as the user starting to speak. 0 disables it.
+  interrupt_settle_seconds: 0.4
   # [String] ALSA control name for the speakers. Only used on Linux with ALSA.
   alsa_speaker_control_name: "Speaker"
   # alsa_speaker_control_name: "Master"
