@@ -159,7 +159,7 @@ class PainterSharedMemory(PyXavi):
                 self.get_shared_memory_flag_name_for(flag), 
                 activation_value, 
                 self.shared_memory.read_shared_memory_flag(flag),
-                callback.__name__ if callable(callback) else str(callback),
+                getattr(callback, "__name__", repr(callback)),
                 is_dependant
             ))
         return result

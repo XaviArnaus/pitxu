@@ -7,13 +7,15 @@ from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
+from pitxu.lib.canvas_v2.macros.macros_buttons import MacrosButtons
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
 from pitxu.lib.canvas_v2.macros.macros_status import MacrosStatus
 from pitxu.lib.canvas_v2.macros.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter.painter import Painter, PainterQueue
-from pitxu.lib.canvas_v2.painter.painting_command import *
-from pitxu.lib.canvas_v2.painter.paint_object import *
+from pitxu.lib.canvas_v2.painter.painting_command import OverallCommand, ForegroundCommand, StatusCommand, ButtonsCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, StatusPaint, AnimationPaint, ButtonsPaint
+from pitxu.lib.canvas_v2.buttons import BUTTONS, COLUMN_TO_DISPLAY_AREA
 from pitxu.lib.objects.point import Point
 
 from definitions import SHARED_SPEAKER_BUSY, \
@@ -46,6 +48,7 @@ class Visualizer(PyXavi):
     macros_foreground: MacrosForeground = None
     macros_status: MacrosStatus = None
     macros_background: MacrosBackground = None
+    macros_buttons: MacrosButtons = None
     animations: Animations = None
 
     interaction_delays: dict[str, float] = None
@@ -54,6 +57,11 @@ class Visualizer(PyXavi):
     animation_sizes_per_display_area: dict[str, Size] = None
 
     DEFAULT_FOREGROUND_MAINTAIN_SECONDS: float = 5.0
+
+    BUTTONS_COLUMN_TO_QUEUE: dict[str, str] = {
+        "left": PainterQueue.BUTTONS_LEFT,
+        "right": PainterQueue.BUTTONS_RIGHT,
+    }
 
     VERBOSE_DEBUG: bool = False
 
@@ -99,10 +107,9 @@ class Visualizer(PyXavi):
         self.animation_sizes_per_display_area = self._prepare_animation_sizes()
         params.set("animation_sizes", self.animation_sizes_per_display_area.values())
         self.animations = Animations(config, params)
-        # self.animations.load_animations()
         params.set("animations", self.animations)
 
-        # All Macros needs:
+        # All Macros need:
         #   - canvas: to know where to paint to.
         #   - layout_info_class: to know the layout of the screen and where to paint the different interactions.
         #   - animations: to be able to use the loaded animations in the macros that need them.
@@ -111,6 +118,7 @@ class Visualizer(PyXavi):
         self.macros_foreground = MacrosForeground(config, params)
         self.macros_status = MacrosStatus(config, params)
         self.macros_background = MacrosBackground(config, params)
+        self.macros_buttons = MacrosButtons(config, params)
 
         # The painter is the one that will control the painting loop and trigger the macros to paint.
         # It needs:
@@ -158,14 +166,20 @@ class Visualizer(PyXavi):
             "top_left": PainterQueue.BACKGROUND,
             "top_right": PainterQueue.FOREGROUND,
             "bottom_center": PainterQueue.STATUS,
+            "bottom_left": PainterQueue.BUTTONS_LEFT,
+            "bottom_right": PainterQueue.BUTTONS_RIGHT,
             "full_screen": PainterQueue.OVERALL
         })
-        # The order here is important. For sure, OVERALL has to be the last one to be painted.
+        # ⚠️ The ORDER here is the painting order, from the bottom layer to the top one.
+        #   - OVERALL has to be the LAST one: it covers the whole screen (overlays, code and text blocks).
+        #   - Anything new that has its own display area goes BEFORE OVERALL, otherwise it would paint over the overlays.
         params.set("painter_queues", [
             PainterQueue.BACKGROUND, 
             PainterQueue.STATUS, 
             PainterQueue.FOREGROUND, 
-            PainterQueue.OVERALL
+            PainterQueue.BUTTONS_LEFT,
+            PainterQueue.BUTTONS_RIGHT,
+            PainterQueue.OVERALL,
         ])
         params.set("painter_priorities", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]
@@ -173,7 +187,15 @@ class Visualizer(PyXavi):
         params.set("painter_exception_loop_interactions", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
         })
-        params.set("painter_queues_with_paints_that_slow_down_the_loop", [PainterQueue.FOREGROUND, PainterQueue.STATUS, PainterQueue.OVERALL])
+        # The queues in which a paint is static and don't need fast loop iterations.
+        # ⚠️ A persistent paint in any queue NOT listed here (like the buttons panel) prevents the loop from slowing down.
+        params.set("painter_queues_with_paints_that_slow_down_the_loop", [
+            PainterQueue.FOREGROUND,
+            PainterQueue.STATUS,
+            PainterQueue.OVERALL,
+            PainterQueue.BUTTONS_LEFT,
+            PainterQueue.BUTTONS_RIGHT
+        ])
         self.painter = Painter(config, params)
 
         self.interaction_delays = params.get("interaction_delays", {})
@@ -207,6 +229,7 @@ class Visualizer(PyXavi):
         #   - SHARED_NETWORK_BUSY: to trigger a network animation when the network is busy for too long.
         #   - other status-like flags that we want to monitor to trigger some visualization when they are activated.
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
+        self._setup_buttons_monitoring()
 
         self._xlog.debug("Initialized Visualizer.")
     
@@ -826,6 +849,69 @@ class Visualizer(PyXavi):
                         cache_control_parameters=["text"],
 
                         overwrite_current_interaction_with_same_type=False,
+
+                        final_screen_clearing=False,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
+    # ----- Buttons paints -----
+
+    def _setup_buttons_monitoring(self):
+        """
+        Registers, once and forever, the callbacks that refresh the buttons when any of their flags changes.
+        There is one callback per flag AND value, as the PainterSharedMemory only detects transitions to a given value.
+        The callbacks do not carry the new state: they just ask for a refresh, that reads the real flags.
+        Each flag that is already at one of the values at startup triggers its callback once, so the first paint comes for free.
+        """
+        painter_shared_memory = self.painter.get_painter_shared_memory()
+        for button in BUTTONS:
+            for value in (True, False):
+                painter_shared_memory.set_callback_for_shared_memory_flag(
+                    name=f"refresh_buttons_{button.name}_{value}",
+                    shared_memory_flag=button.flag,
+                    activation_value=value,
+                    # ⚠️ A plain lambda (with the default argument to bind the column), NOT a functools.partial:
+                    #   the Painter logs callback.__name__ on every loop iteration and a partial has none.
+                    callback=lambda column=button.column: self.refresh_buttons(column),
+                    is_dependant=False)
+
+    def refresh_buttons(self, column: str):
+        """
+        Reads the current flags of the buttons in the column, and paints the column. Safe to call from any thread.
+        """
+        shared_memory = self.painter.get_painter_shared_memory().get_shared_memory_manager()
+
+        buttons = []
+        states = []
+        for button in BUTTONS:
+            if button.column != column:
+                continue
+            active = shared_memory.read_shared_memory_flag(button.flag) == button.active_value
+            buttons.append({"slot": button.slot, "label": button.label, "color": button.color, "active": active})
+            states.append(f"{button.name}:{int(active)}")
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    self.BUTTONS_COLUMN_TO_QUEUE[column]: ButtonsPaint(
+                        name=f"Buttons{column.capitalize()}ButtonsPaint",
+                        command=ButtonsCommand(ButtonsCommand.BUTTONS_PANEL),
+
+                        drawing_callback=self.macros_buttons.draw_buttons_panel,
+                        drawing_callback_parameters={
+                            "display_area": COLUMN_TO_DISPLAY_AREA[column],
+                            "buttons": buttons,
+                            "states": "|".join(states),
+                        },
+                        cache_control_parameters=["states"],
+
+                        # Same pattern as the holding percentage: a new state replaces the previous panel.
+                        overwrite_current_interaction_with_same_type=True,
+                        # Draw state changes also in idle mode. Painting never wakes the app up.
+                        show_during_idle_mode=True,
 
                         final_screen_clearing=False,
                         remove_interaction_after_painting=False

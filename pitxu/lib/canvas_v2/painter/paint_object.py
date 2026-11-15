@@ -181,6 +181,12 @@ class StatusPaint(BasePaint):
 
         super(StatusPaint, self).__init__(name=name, command=command, **kwargs)
 
+class ButtonsPaint(BasePaint):
+
+    def __init__(self, name: str, command: ButtonsCommand, **kwargs):
+
+        super(ButtonsPaint, self).__init__(name=name, command=command, **kwargs)
+
 class BackgroundPaint(BasePaint):
 
     current_loop_iteration: int = 0  # Current loop iteration for the background interaction, useful for animations
