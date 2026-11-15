@@ -40,7 +40,7 @@ class SystemPowerManagement(PyXavi, Command):
                     self._xlog.warning(f"⚠️ Retry {retries}/{max_retries} reading UPS battery level due to error: {e}")
                     if retries >= max_retries:
                         raise e
-            self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
+            self._log_debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
             return math.ceil(capacity)
         except Exception as e:
             self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
