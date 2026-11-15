@@ -1596,7 +1596,7 @@ class Main(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
-             # Power cable every second, volumes and battery every minute: published for the displays.
+            # Power cable every second, volumes and battery every minute: published for the displays.
             if self._levels_sampler is not None:
                 self._levels_sampler.tick()
 

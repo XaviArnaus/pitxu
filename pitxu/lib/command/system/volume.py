@@ -77,7 +77,7 @@ class SystemVolume(PyXavi, Command):
         Get the local system speaker mute status.
 
         Returns:
-            bool: True if the local system speaker is muted, False otherwise
+            bool | int: True if the local system speaker is muted, False otherwise, -1 if unknown
         '''
         try:
             if not self._is_linux():
@@ -89,11 +89,16 @@ class SystemVolume(PyXavi, Command):
             #on
             is_muted_str = call_output.strip()
             self._log_debug(f"The local system speaker mute status using ALSA is: {is_muted_str}")
+            # ALSA prints the state as [on] or [off]. Anything else means that we could not read it
+            #   (control not found, another card, a mono control...), which is NOT the same as muted.
+            if is_muted_str.lower() not in ("on", "off"):
+                self._log_debug(f"The ALSA control [{self.ALSA_SPEAKER_CONTROL_NAME}] has no mute switch, returning unknown.")
+                return -1
             return is_muted_str.lower() != "on"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting speaker mute status: {e}")
             self._xlog.debug(f"Command: {command_to_send}")
-            return False
+            return -1
     
     def set_local_system_speaker_volume_level(self, volume: int) -> int:
         '''
@@ -128,6 +133,7 @@ class SystemVolume(PyXavi, Command):
             mute (bool): True to mute the system, False to unmute
         Returns:
             str: "muted" if the system is muted, "unmuted" otherwise
+        Returns -1 if the operation could not be performed.
         '''
         try:
             if not self._is_linux():
@@ -137,10 +143,18 @@ class SystemVolume(PyXavi, Command):
             mute_str = "mute" if mute else "unmute"
             command_to_send = f"amixer set {self.ALSA_SPEAKER_CONTROL_NAME} {mute_str}"
             check_output(command_to_send, shell=True)
-            return self.MUTED if self.get_local_system_speaker_mute_status() else self.UNMUTED
+            muted = self.get_local_system_speaker_mute_status()
+            if muted is True:
+                return self.MUTED
+            if muted is False:
+                return self.UNMUTED
+            # Unknown: this soundcard has no mute switch, so the command had no effect.
+            self._xlog.warning(f"The ALSA control [{self.ALSA_SPEAKER_CONTROL_NAME}] has no mute switch: could not mute or unmute.")
+            return -1
         except Exception as e:
             self._xlog.error(f"🛑 Error setting speaker mute status: {e}")
             self._xlog.debug(f"Command: {command_to_send}")
+            return -1
 
     def callback_speaker_volume_level(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """

@@ -50,7 +50,8 @@ def render_microphone_volume(value: int, extra: int | None, config) -> tuple[str
 
 
 def render_speaker_volume(value: int, extra: int | None, config) -> tuple[str, str, bool]:
-    if extra == 1:
+    # Some soundcards (like the WM8960) have no mute switch, only a volume: 0 is then the only way to silence them.
+    if extra == 1 or value == 0:
         # Muted: just the glyph, in a color that catches the eye.
         return "🔇", "orange", True
     return f"🔊 {_number(value)}", "white", value >= 0
