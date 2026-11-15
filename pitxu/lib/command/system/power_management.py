@@ -1,94 +1,57 @@
-from pitxu.lib.ups.ups import UPS
-from pyxavi import Config, Dictionary, full_stack, Storage
+from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.utils.system import System
+from pitxu.lib.utils.device_monitor import DeviceMonitor
+from pitxu.lib.hardware import DisplayControl
 
 import logging
 
 import math
 
 class SystemPowerManagement(PyXavi, Command):
+    """
+    Chatbot tools for the power, the temperature and the fans of the device.
 
-    ups: UPS = None
-    state: Storage = None
+    It does not touch the hardware: everything goes through the DeviceMonitor, that reads it
+    and publishes the values to the shared memory.
+    """
+
+    UNKNOWN = -1
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
-        self.ups = UPS(config=config, params=params)
-        self.state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        if self._xparams.key_exists("device_monitor") and self._xparams.get("device_monitor") is not None:
+            self._monitor: DeviceMonitor = self._xparams.get("device_monitor")
+        else:
+            self._xlog.warning("SystemPowerManagement did not receive the shared DeviceMonitor, creating its own.")
+            self._monitor = DeviceMonitor(config=self._xconfig, params=self._xparams)
 
     def get_battery_level(self) -> int:
         '''
         Get the current battery level
 
         Returns:
-            int: The current battery level as a percentage
+            int: The current battery level as a percentage. -1 if it can't be read.
         '''
-        try:
-            max_retries = 2
-            retries = 0
-            while retries < max_retries:
-                try:
-                    voltage, capacity = self.ups.read_voltage_and_capacity()
-                    break
-                except Exception as e:
-                    retries += 1
-                    self._xlog.warning(f"⚠️ Retry {retries}/{max_retries} reading UPS battery level due to error: {e}")
-                    if retries >= max_retries:
-                        raise e
-            self._log_debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
-            return math.ceil(capacity)
-        except Exception as e:
-            self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
-            self._xlog.debug(full_stack())
-            return -1
-    
-    def get_battery_level(self) -> int:
-        '''
-        Get the current battery level
+        level = self._monitor.get_battery_level()
+        return self.UNKNOWN if level is None else level
 
-        Returns:
-            int: The current battery level as a percentage
-        '''
-        try:
-            max_retries = 2
-            retries = 0
-            while retries < max_retries:
-                try:
-                    voltage, capacity = self.ups.read_voltage_and_capacity()
-                    break
-                except Exception as e:
-                    retries += 1
-                    self._xlog.warning(f"⚠️ Retry {retries}/{max_retries} reading UPS battery level due to error: {e}")
-                    if retries >= max_retries:
-                        raise e
-            self._xlog.debug(f"🔋 Current UPS battery level: {capacity} % (Voltage: {voltage} V)")
-            return math.ceil(capacity)
-        except Exception as e:
-            self._xlog.error(f"🛑 Error getting UPS battery level: {e}")
-            self._xlog.debug(full_stack())
-            return -1
-    
     def get_power_consumption(self) -> float:
         '''
         Get the current power consumption in watts.
 
         Returns:
-            float: The current power consumption in watts.
+            float: The current power consumption in watts. -1.0 if it can't be read.
         '''
-        try:
-            power_consumption = self.ups.power_consumption_watts()
-            self._xlog.debug(f"⚡️ Current power consumption: {power_consumption:.2f} W")
-            return round(power_consumption, 2)
-        except Exception as e:
-            self._xlog.error(f"🛑 Error getting UPS power consumption: {e}")
-            self._xlog.debug(full_stack())
+        watts = self._monitor.get_power_consumption()
+        if watts is None:
             return -1.0
-    
+        self._xlog.debug(f"⚡️ Current power consumption: {watts:.2f} W")
+        return watts
+
     def callback_get_power_consumption(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_power_consumption` that gets called AFTER chatbot from `main`.
@@ -115,8 +78,12 @@ class SystemPowerManagement(PyXavi, Command):
             int: The estimated time to full charge in minutes.
         '''
         try:
-            voltage, capacity = self.ups.read_voltage_and_capacity()
-            current = self.ups.read_cpu_amps()  # Convert mA to A
+            reading = self._monitor.get_battery_voltage_and_capacity()
+            current = self._monitor.get_cpu_amps()  # Convert mA to A
+            if reading is None or current is None:
+                self._xlog.warning("⚠️ Could not read the battery or the current, cannot estimate charging time.")
+                return -1
+            voltage, capacity = reading
             if current <= 0:
                 self._xlog.warning("⚠️ Current is zero or negative, cannot estimate charging time.")
                 return -1
@@ -132,7 +99,6 @@ class SystemPowerManagement(PyXavi, Command):
             return f"{f'{int(estimated_days)}d ' if estimated_days > 0 else ''}{int(estimated_hours)}h {int(estimated_minutes)}m"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
-            self._xlog.debug(full_stack())
             return -1
     
     def callback_get_total_charging_estimation_time(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -153,14 +119,15 @@ class SystemPowerManagement(PyXavi, Command):
         except Exception as e:
             log.error(f"🛑 Error showing estimated time to full charge on Foreground display: {e}")
 
-    def is_power_cable_connected(self) -> bool:
+    def is_power_cable_connected(self) -> bool | str:
         '''
         Check if the power cable is connected
 
         Returns:
-            bool: True if the power cable is connected, False otherwise
+            bool | str: True if the power cable is connected, False otherwise, "unknown" if this device can't tell.
         '''
-        return self.ups.is_power_cable_connected()
+        connected = self._monitor.is_power_cable_connected()
+        return "unknown" if connected is None else connected
 
     def get_system_temperature_and_fan_speed(self) -> dict:
         '''
@@ -169,25 +136,16 @@ class SystemPowerManagement(PyXavi, Command):
         Returns:
             dict: A dictionary with 'temperature' in Celsius and 'fan_speed' in RPM.
         '''
-        try:
-            temperature = System.get_cpu_temperature()
-            fan_speed = System.get_cpu_fan_speed()
-            case_fans = self.state.get("fan_case_status", {})
-            self._log_debug(f"🌡️ Current system temperature: {temperature} °C, 💨 Fan speed: {fan_speed} RPM")
-            return {
-                "cpu_temperature": temperature,
-                "cpu_fan_speed": fan_speed,
-                "case_fans": case_fans
-            }
-        except Exception as e:
-            self._xlog.error(f"🛑 Error getting system temperature and fan speed: {e}")
-            self._xlog.debug(full_stack())
-            return {
-                "cpu_temperature": -1,
-                "cpu_fan_speed": -1,
-                "case_fans": {}
-            }
-    
+        temperature = self._monitor.get_cpu_temperature()
+        fan_speed = self._monitor.get_cpu_fan_rpm()
+        case_fans = self._monitor.get_case_fans()
+        self._log_debug(f"🌡️ Current system temperature: {temperature} °C, 💨 Fan speed: {fan_speed} RPM")
+        return {
+            "cpu_temperature": self.UNKNOWN if temperature is None else temperature,
+            "cpu_fan_speed": self.UNKNOWN if fan_speed is None else fan_speed,
+            "case_fans": case_fans
+        }
+
     def callback_system_temperature_and_fan_speed(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for `get_system_temperature_and_fan_speed` that gets called AFTER chatbot from `main`.
@@ -283,46 +241,52 @@ class SystemPowerManagement(PyXavi, Command):
 
         """
         try:
-            if bool(value):
+            if value == "unknown":
+                icon = "❓"
+                text = "Unknown"
+            elif bool(value):
                 icon = "🔌"
+                text = "Connected"
             else:
                 icon = "❌"
+                text = "Disconnected"
             # New approach, using the existing display instance via main
             log.info(f"🔌 Showing Power Cable Connected: {value}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon=icon,
-                text=f"{'Connected' if value else 'Disconnected'}",
+                text=text,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing power cable connected status on eInk: {e}")
     
-    def is_screen_on(self) -> bool:
+    def is_screen_on(self) -> bool | str:
         '''
         Check if the DSI backlight is on.
 
         Returns:
-            bool: True if the DSI backlight is on, False otherwise.
+            bool | str: True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        return System.get_dsi_backlight_status()
+        is_on = DisplayControl.backlight_is_on()
+        return "unknown" if is_on is None else is_on
     
-    def turn_off_screen(self) -> bool:
+    def turn_off_screen(self) -> bool | str:
         '''
         Turn off the DSI backlight.
 
         Returns:
-            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+            bool | str: The current status of the screen after the command, True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        System.set_dsi_backlight_off()
+        DisplayControl.set_backlight(False)
         return self.is_screen_on()
     
-    def turn_on_screen(self) -> bool:
+    def turn_on_screen(self) -> bool | str:
         '''
         Turn on the DSI backlight.
 
         Returns:
-            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+            bool | str: The current status of the screen after the command, True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        System.set_dsi_backlight_on()
+        DisplayControl.set_backlight(True)
         return self.is_screen_on()
     
     def callback_is_screen_on(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -337,10 +301,11 @@ class SystemPowerManagement(PyXavi, Command):
 
         """
         try:
-            log.info(f"💡 Showing screen ON/OFF status on Foreground display: {'On' if value else 'Off'}")
+            state = "Unknown" if value == "unknown" else "On" if value else "Off"
+            log.info(f"💡 Showing screen ON/OFF status on Foreground display: {state}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="💡",
-                text=f"Screen is {'On' if value else 'Off'}",
+                text=f"Screen is {state}",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing screen status on Foreground display: {e}")

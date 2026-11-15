@@ -641,7 +641,7 @@ finally:
             from pitxu.lib.canvas.canvas import Canvas
             from pitxu.lib.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
-            from pitxu.lib.utils.system import System
+            from pitxu.lib.hardware import NetworkReader
             from pitxu.lib.microservice.client import Client
 
             # Delegate the run to Main
@@ -661,11 +661,11 @@ finally:
             execution_mode = "public"
 
             self._xlog.debug("Gathering network information and server connection status to show in the idle screen...")
-            wifis = System.get_connected_wifi()
-            network = System.get_default_network_interface()
+            wifi = NetworkReader.connected_wifi() or {}
+            network = NetworkReader.default_interface()
             response = client.status() if execution_mode == "public" else {"status": "off"}
             server_status = response.get("status", "off")
-            text = wifis[0].get("ssid", "Not connected") + "\n" + \
+            text = wifi.get("ssid", "Not connected") + "\n" + \
                     network.get("ip", "Not connected") + "\n" + \
                     ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}") + "\n"
             
@@ -822,7 +822,7 @@ finally:
             from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
             from pitxu.lib.canvas_v2.visualizer import Visualizer
             from pitxu.lib.objects.point import Point
-            from pitxu.lib.utils.system import System
+            from pitxu.lib.hardware import NetworkReader
             from pitxu.lib.microservice.client import Client
 
             # Delegate the run to Main
@@ -849,11 +849,11 @@ finally:
             execution_mode = "local_status"
 
             self._xlog.debug("Gathering network information and server connection status to show in the idle screen...")
-            wifis = System.get_connected_wifi()
-            network = System.get_default_network_interface()
+            wifi = NetworkReader.connected_wifi() or {}
+            network = NetworkReader.default_interface()
             response = client.status() if execution_mode == "public" else {"status": "off"}
             server_status = response.get("status", "off")
-            text = wifis[0].get("ssid", "Not connected") + "\n" + \
+            text = wifi.get("ssid", "Not connected") + "\n" + \
                     network.get("ip", "Not connected") + "\n" + \
                     ("✅ Connected" if server_status == "ok" else f"❌ Not Connected: {server_status}") + "\n"
             

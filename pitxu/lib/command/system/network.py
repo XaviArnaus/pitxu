@@ -5,7 +5,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import NetworkReader
 
 
 class SystemNetwork(PyXavi, Command):
@@ -23,7 +23,10 @@ class SystemNetwork(PyXavi, Command):
             str: The local network IP address or an error message if it cannot be retrieved.
         '''
         try:
-            return System.get_default_network_interface().get("ip")
+            network = NetworkReader.default_interface()
+            if network is None or network.get("ip") is None:
+                return "Error getting the IP address: there is no default network interface"
+            return network.get("ip")
         except Exception as e:
             self._xlog.error(f"🛑 Error getting current IP address: {e}")
             return "Error getting the IP address: " + str(e)

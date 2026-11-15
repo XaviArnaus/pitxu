@@ -1,5 +1,6 @@
-from pyxavi import Config, Dictionary, Storage, full_stack
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.speech_to_text.input_stream import InputStream
 from pitxu.lib.interaction.interaction import Interaction
@@ -29,7 +30,7 @@ class Reactions(PyXavi):
     input_stream: InputStream = None
 
     # Support to store state.
-    state: Storage = None
+    state: AppState = None
     
     def __init__(self, config: Config, params: Dictionary):
         super(Reactions, self).init_pyxavi(config=config, params=params)
@@ -57,8 +58,12 @@ class Reactions(PyXavi):
     def initialize(self):
         self._xlog.info("Initializing Reactions")
 
-        # Initialize State
-        self.state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        # The app state is shared with the whole app: a second one on the same file would overwrite it with stale data.
+        if self._xparams.key_exists("state") and self._xparams.get("state") is not None:
+            self.state = self._xparams.get("state")
+        else:
+            self._xlog.warning("Reactions did not receive the shared app state, creating its own.")
+            self.state = AppState(config=self._xconfig, params=self._xparams)
 
         self._log_debug("Done Initializing Reactions")
 
@@ -298,7 +303,6 @@ class Reactions(PyXavi):
             try:
                 # The very first thing is to set the language in the app's state.
                 self.state.set("language", result)
-                self.state.write_file()
                 self._xlog.debug(f"🌐 System language saved into app's state to [{result}].")
 
                 # If we close the app now, the microphone is still muted, and gets conserved.

@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 import signal
 
@@ -8,7 +8,7 @@ from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
@@ -29,7 +29,8 @@ from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
 from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
-from pitxu.lib.utils.levels_sampler import LevelsSampler
+from pitxu.lib.utils.device_monitor import DeviceMonitor
+from pitxu.lib.utils.app_state import AppState
 
 from difflib import SequenceMatcher
 import sys
@@ -43,7 +44,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 class Main(PyXavi):
 
-    _state: Storage = None
+    _state: AppState = None
     
     _last_processed_minute: int = -1
     _last_processed_second: int = -1
@@ -76,7 +77,7 @@ class Main(PyXavi):
     _interaction: Interaction = None
     _reactions: Reactions = None
     _shared_memory_monitor: SharedMemoryMonitor = None
-    _levels_sampler: LevelsSampler = None
+    _device_monitor: DeviceMonitor = None
 
     _support: Support = None
 
@@ -822,6 +823,10 @@ class Main(PyXavi):
         if self._scheduler is not None:
             self._scheduler.shutdown()
 
+        # Release the pin that the device monitor may have claimed.
+        if self._device_monitor is not None:
+            self._device_monitor.close()
+
         # Close the Input Stream
         if self._input_stream is not None:
             self._input_stream.close()
@@ -887,7 +892,7 @@ class Main(PyXavi):
         # Here comes anything that we want to do before leaving
         try:
             self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-            self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
+            self._xlog.info("💡  Memory used: " + str(SystemReader.process_rss(scale=SystemReader.MEGABYTES)) + " MB")
             self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
         except (Exception, RuntimeError) as e:
             self._xlog.error("🛑 Error while logging final stats: " + str(e))
@@ -903,26 +908,16 @@ class Main(PyXavi):
     
     def persist_state(self):
 
+        # The AppState writes the file by itself when something changes.
         self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
-        self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
-
-    # def clear_displays(self):
-    #     if self._interaction.displays_are_combined():
-    #         self._log_debug("Clearing the Combined Display.")
-    #         self._interaction.clear_combined_display()
-    #         return
-    #     self._log_debug("Clearing the Foreground Display.")
-    #     self._interaction.clear_foreground_display()
-    #     self._log_debug("Clearing the Background Display.")
-    #     self._interaction.clear_background_display()
 
     def _instantiate(self):
         """
         The initialization of the Main itself, what you would include in __init__()
         """
         # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        self._state = AppState(config=self._xconfig, params=self._xparams)
 
         # Initial Language. 1st from the state, then from the config, and last default to Catalan.
         language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
@@ -952,7 +947,7 @@ class Main(PyXavi):
             ("Execution Mode", self._xparams.get("execution_mode")),
             ("Initial Language", self._xparams.get("language")),
             ("state file", self._xconfig.get("storage.state_file")),
-            ("OS:", "linux" if System.is_linux() else "mac" if System.is_macos() else "windows" if System.is_windows() else "other"),
+            ("OS:", "linux" if SystemReader.is_linux() else "mac" if SystemReader.is_macos() else "windows" if SystemReader.is_windows() else "other"),
         ])
 
         # The Reminders functionality
@@ -985,6 +980,13 @@ class Main(PyXavi):
         self._fan_control = FanControl(config=self._xconfig, params=self._xparams)
         self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
         self._fan_control.toggle_all_fans_by_temperature()
+
+        # Initialize the device monitor: the one place that reads the volumes, battery, power cable, temperature and fans,
+        #   and publishes them to the shared memory. The chatbot commands use it too (see the Chatbot params).
+        self._device_monitor = DeviceMonitor(config=self._xconfig, params=Dictionary({
+            "shared_memory": self._interaction.get_process_pool().get_memory_manager(),
+            "fan_control": self._fan_control,
+        }))
 
         # Get all audio parameters in one place, to be used by the different components that need it
         #   (SST, TTS, preprocessing, dumper, ...).
@@ -1134,6 +1136,7 @@ class Main(PyXavi):
             "mail": self._xparams.get("mail"),
             "language": self._xparams.get("language"),
             "status_shortcuts": self._interaction.get_status_shortcuts(),
+            "device_monitor": self._device_monitor,
         }))
 
     def _load_language_statics(self):
@@ -1262,13 +1265,6 @@ class Main(PyXavi):
             def job_listener(event):
                 if event.exception:
                     self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
-
-            # Samples the volumes, the battery and the power cable into the shared memory for the displays.
-            self._levels_sampler = LevelsSampler(config=self._xconfig, params=Dictionary({
-                "shared_memory": self._interaction.get_process_pool().get_memory_manager(),
-                # Resolved on every use: the Chatbot Session Manager may not exist yet, or may be closed.
-                "clients_provider": lambda: self._chatbot_session_manager.clients if self._chatbot_session_manager is not None else {},
-            }))
 
             self._scheduler = BackgroundScheduler(
                 job_defaults={
@@ -1432,6 +1428,7 @@ class Main(PyXavi):
             "end_of_conversation_callback": self.on_end_of_conversation_requested,
             "input_stream": input_stream,
             "language": self._xparams.get("language"),
+            "state": self._state,
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
     
@@ -1596,9 +1593,10 @@ class Main(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
-            # Power cable every second, volumes and battery every minute: published for the displays.
-            if self._levels_sampler is not None:
-                self._levels_sampler.tick()
+            # Gather the device readings (power cable, fans, temperature, volumes, battery) into the shared memory.
+            #   It decides by itself how often it reads each one.
+            if self._device_monitor is not None:
+                self._device_monitor.tick()
 
             # Control the fans according to the temperature, every some seconds is good enough for that.
             if self._fan_control_iterated_seconds < 0:
@@ -1608,11 +1606,8 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds = -1
             else:
                 self._fan_control_iterated_seconds += 1
-            
-            self._state.set("fan_case_status", self._fan_control.get_fan_status())
-            self._state.write_file()
 
-            
+
             # Show the interaction holding percentage if we're expecting an interaction
             if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
                 

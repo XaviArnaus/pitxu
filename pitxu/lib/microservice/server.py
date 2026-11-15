@@ -5,7 +5,7 @@ from pitxu.lib.microservice.microservice_base import MicroserviceBase
 from pitxu.lib.microservice.flask_wrapper import FlaskWrapper
 from pitxu.lib.speech_to_text.vosk import Vosk
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import NetworkReader, PowerReader, SystemReader
 
 from flask import Flask, request, current_app
 import base64
@@ -77,7 +77,7 @@ class Server(PyXavi, MicroserviceBase):
         self._log_debug("End of Server initialization")
     
     def initialize(self):
-        from pitxu.lib.utils.system import System
+        from pitxu.lib.hardware import NetworkReader
 
         self._xlog.info("Starting Server")
 
@@ -111,7 +111,7 @@ class Server(PyXavi, MicroserviceBase):
 
         self._xlog.info(
             f"Server accepts connections now: " +
-            f"{self.PROTOCOL}://{System.get_default_network_interface().get('ip')}:{self._xconfig.get('server.port')}")
+            f"{self.PROTOCOL}://{(NetworkReader.default_interface() or {}).get('ip')}:{self._xconfig.get('server.port')}")
     
     def close(self):
         self._xlog.info("Closing Server")
@@ -142,7 +142,7 @@ class Server(PyXavi, MicroserviceBase):
     @server.route('/status')
     def status():
         from pitxu.lib.command import SystemPowerManagement
-        from pitxu.lib.utils.system import System
+        from pitxu.lib.hardware import PowerReader, SystemReader
 
         # Framework initialization.
         config = current_app.config['config']
@@ -173,6 +173,10 @@ class Server(PyXavi, MicroserviceBase):
             consumption_watts = "N/A"
             charging_eta = "N/A"
             cpu_temperature = "N/A"
+
+        uptime_seconds = SystemReader.uptime_seconds()
+        # An empty list means "no throttling", so only an unreadable report is "N/A".
+        power_throttle = PowerReader.throttle_report() if power_management is not None else None
 
         # TODO: we should check first the state AND THEN the config values.
         return {
@@ -213,11 +217,11 @@ class Server(PyXavi, MicroserviceBase):
                 "cpu_temperature": cpu_temperature["cpu_temperature"] if isinstance(cpu_temperature, dict) else "N/A",
                 "cpu_fan_speed": cpu_temperature["cpu_fan_speed"] if isinstance(cpu_temperature, dict) else "N/A",
                 "case_fans": cpu_temperature["case_fans"] if isinstance(cpu_temperature, dict) else "N/A",
-                "load": System.get_system_load(),
-                "uptime": Xtime.get_human_format_from_seconds(System.get_system_uptime())
+                "load": SystemReader.load_average() or "N/A",
+                "uptime": Xtime.get_human_format_from_seconds(uptime_seconds) if uptime_seconds is not None else "N/A"
             },
             "reports": {
-                "power_throttle": System.get_power_throttle() if power_management is not None else "N/A"
+                "power_throttle": power_throttle if power_throttle is not None else "N/A"
             }
         }
     

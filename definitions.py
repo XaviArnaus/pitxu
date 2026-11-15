@@ -42,7 +42,9 @@ SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD = 0
 SHARED_SPEAKER_LEVEL = 1
 # Epoch timestamp (time.time()) of the first audio written by the TTS in the current speech, for the latency log. 0.0 when not set.
 SHARED_FIRST_AUDIO_TIMESTAMP = 2
-# Levels (integer percentages, -1 = unknown) published by the LevelsSampler so the display can show them.
+# RULE: the runtime readings of the device (indexes 3 and up) are published ONLY by the DeviceMonitor (one writer per index),
+#   and read from here by anyone. -1 = unknown. Persistent data does not go here but in the AppState.
+# Levels (integer percentages, -1 = unknown) so the display can show them.
 SHARED_MIC_VOLUME = 3
 # The speaker's mixer setting (%, ALSA). Not the audio signal: see SHARED_SPEAKER_LEVEL.
 SHARED_SPEAKER_VOLUME = 4
@@ -50,6 +52,13 @@ SHARED_BATTERY_LEVEL = 5
 # Booleans published as values: 1 = yes, 0 = no, -1 = unknown.
 SHARED_SPEAKER_MUTED = 6
 SHARED_POWER_CABLE_CONNECTED = 7
+# CPU temperature in Celsius and CPU fan speed in RPM (-1 = unknown).
+SHARED_CPU_TEMPERATURE = 8
+SHARED_CPU_FAN_RPM = 9
+# Speed (0.0 - 1.0) of the case fans, in the order of `gpio.fans.devices`. -1 = no such fan.
+# Only two case fans are supported.
+SHARED_CASE_FAN_1_SPEED = 10
+SHARED_CASE_FAN_2_SPEED = 11
 
 # Painter
 LOOP_START: str = "start"
