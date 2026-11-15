@@ -96,3 +96,7 @@ ups:
   mock: True
   # I2C address of the UPS
   i2c_address: 0x36
+  # [Integer] Battery percentage below which the battery button turns yellow.
+  battery_warning_below: 40
+  # [Integer] Battery percentage below which the battery button turns red. Green otherwise.
+  battery_critical_below: 15

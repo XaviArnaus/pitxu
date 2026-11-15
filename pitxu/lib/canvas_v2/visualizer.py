@@ -705,7 +705,7 @@ class Visualizer(PyXavi):
 
         def provider() -> int:
             if not attached["done"]:
-                shared_memory.initialize_existing_shared_memory_values()
+                shared_memory.attach_shared_memory_values_if_needed()
                 attached["done"] = True
             level = shared_memory.read_shared_memory_value(SHARED_SPEAKER_LEVEL) or 0.0
             frame = max(0, min(4, round(level * 4)))
@@ -861,37 +861,64 @@ class Visualizer(PyXavi):
 
     def _setup_buttons_monitoring(self):
         """
-        Registers, once and forever, the callbacks that refresh the buttons when any of their flags changes.
-        There is one callback per flag AND value, as the PainterSharedMemory only detects transitions to a given value.
-        The callbacks do not carry the new state: they just ask for a refresh, that reads the real flags.
-        Each flag that is already at one of the values at startup triggers its callback once, so the first paint comes for free.
+        Registers, once and forever, the callbacks that refresh the buttons when any of the flags or values they depend on changes.
+        - Flags: one callback per flag AND value, as the PainterSharedMemory only detects transitions to a given value.
+        - Values: one callback that runs on any change.
+        The callbacks do not carry the new state: they just ask for a refresh, that reads the real flags and values.
+        Whatever is already there at startup triggers its callback once, so the first paint comes for free.
         """
         painter_shared_memory = self.painter.get_painter_shared_memory()
         for button in BUTTONS:
-            for value in (True, False):
-                painter_shared_memory.set_callback_for_shared_memory_flag(
-                    name=f"refresh_buttons_{button.name}_{value}",
-                    shared_memory_flag=button.flag,
-                    activation_value=value,
-                    # ⚠️ A plain lambda (with the default argument to bind the column), NOT a functools.partial:
-                    #   the Painter logs callback.__name__ on every loop iteration and a partial has none.
-                    callback=lambda column=button.column: self.refresh_buttons(column),
-                    is_dependant=False)
+
+            # ⚠️ A plain function (with the default argument to bind the column), NOT a functools.partial:
+            #   the Painter logs callback.__name__ on every loop iteration and a partial has none.
+            def refresh(column: str = button.column):
+                self.refresh_buttons(column)
+
+            if button.flag is not None:
+                for value in (True, False):
+                    painter_shared_memory.set_callback_for_shared_memory_flag(
+                        name=f"refresh_buttons_{button.name}_{value}",
+                        shared_memory_flag=button.flag,
+                        activation_value=value,
+                        callback=refresh,
+                        is_dependant=False)
+
+            if button.kind == "value":
+                for suffix, index in (("value", button.value), ("extra", button.extra_value)):
+                    if index is None:
+                        continue
+                    painter_shared_memory.set_callback_for_shared_memory_value(
+                        name=f"refresh_buttons_{button.name}_{suffix}",
+                        shared_memory_value=index,
+                        callback=refresh)
 
     def refresh_buttons(self, column: str):
         """
-        Reads the current flags of the buttons in the column, and paints the column. Safe to call from any thread.
+        Reads the current flags and values of the buttons in the column, and paints the column. Safe to call from any thread.
         """
         shared_memory = self.painter.get_painter_shared_memory().get_shared_memory_manager()
+        shared_memory.attach_shared_memory_values_if_needed()
 
         buttons = []
         states = []
         for button in BUTTONS:
             if button.column != column:
                 continue
-            active = shared_memory.read_shared_memory_flag(button.flag) == button.active_value
-            buttons.append({"slot": button.slot, "label": button.label, "color": button.color, "active": active})
-            states.append(f"{button.name}:{int(active)}")
+
+            if button.kind == "value":
+                raw_value = shared_memory.read_shared_memory_value(button.value)
+                value = int(round(raw_value)) if raw_value is not None else -1
+                raw_extra = shared_memory.read_shared_memory_value(button.extra_value) if button.extra_value is not None else None
+                extra = int(round(raw_extra)) if raw_extra is not None else None
+                label, color, active = button.render(value, extra, self._xconfig)
+            else:
+                label, color = button.label, button.color
+                active = shared_memory.read_shared_memory_flag(button.flag) == button.active_value
+
+            buttons.append({"slot": button.slot, "label": label, "color": color, "active": active})
+            # Everything that is drawn goes into the cache key, so any visible change is repainted.
+            states.append(f"{button.name}={label}/{color}/{int(active)}")
 
         self.painter.paint(
             PaintObject(

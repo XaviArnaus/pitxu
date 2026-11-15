@@ -62,10 +62,15 @@ class MacrosButtons(MacrosBase):
                 outline=color,
                 fill=color if active else None)
 
+            # One line with an emoji and a number: if it doesn't fit in the slot, use the smaller font.
+            font = self.canvas.FONT_SMALL
+            if draw.textlength(button["label"], font=font) > (slot.point_2.x - slot.point_1.x) - 4:
+                font = self.canvas.FONT_TINY
+
             draw.text(
                 Point((slot.point_1.x + slot.point_2.x) // 2, (slot.point_1.y + slot.point_2.y) // 2).to_image_point(),
                 text=button["label"],
-                font=self.canvas.FONT_SMALL,
+                font=font,
                 fill=self.canvas.COLOR_BLACK if active else color,
                 anchor="mm",
                 align="center",
