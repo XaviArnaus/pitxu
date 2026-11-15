@@ -8,7 +8,7 @@ from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
@@ -892,7 +892,7 @@ class Main(PyXavi):
         # Here comes anything that we want to do before leaving
         try:
             self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-            self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
+            self._xlog.info("💡  Memory used: " + str(SystemReader.process_rss(scale=SystemReader.MEGABYTES)) + " MB")
             self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
         except (Exception, RuntimeError) as e:
             self._xlog.error("🛑 Error while logging final stats: " + str(e))
@@ -947,7 +947,7 @@ class Main(PyXavi):
             ("Execution Mode", self._xparams.get("execution_mode")),
             ("Initial Language", self._xparams.get("language")),
             ("state file", self._xconfig.get("storage.state_file")),
-            ("OS:", "linux" if System.is_linux() else "mac" if System.is_macos() else "windows" if System.is_windows() else "other"),
+            ("OS:", "linux" if SystemReader.is_linux() else "mac" if SystemReader.is_macos() else "windows" if SystemReader.is_windows() else "other"),
         ])
 
         # The Reminders functionality

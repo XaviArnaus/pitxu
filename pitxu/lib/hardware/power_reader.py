@@ -21,6 +21,19 @@ class PowerReader:
 
     COMMAND_TIMEOUT_SECONDS: int = 5
 
+    # The meaning of the bits of `vcgencmd get_throttled`.
+    # https://www.raspberrypi.com/documentation/computers/os.html#get_throttled
+    THROTTLE_BITS: dict[int, str] = {
+        0: "Currently under-voltage",
+        1: "ARM frequency currently capped",
+        2: "Currently throttled",
+        3: "Soft temperature limit reached",
+        16: "Under-voltage has occurred since last reboot",
+        17: "ARM frequency capping has occurred since last reboot",
+        18: "Throttling has occurred since last reboot",
+        19: "Soft temperature reached since last reboot"
+    }
+
     # ---- UPS battery gauge ----
 
     @staticmethod
@@ -96,6 +109,23 @@ class PowerReader:
         except (IndexError, ValueError):
             logger.debug(f"Could not parse the throttled flags: [{output}]")
             return None
+
+    @staticmethod
+    def throttle_report(flags: int = None) -> list[dict] | None:
+        """
+        The active throttle conditions as [{"code": bit, "description": text}], an empty list if there are none.
+        None if the flags can't be read.
+
+        Args:
+            flags: The raw bit field to decode. Read from the Pi by default.
+        """
+        if flags is None:
+            flags = PowerReader.throttled_flags()
+        if flags is None:
+            return None
+        return [{"code": bit, "description": description}
+                for bit, description in PowerReader.THROTTLE_BITS.items()
+                if flags & (1 << bit)]
 
     @staticmethod
     def power_consumption_watts() -> float | None:

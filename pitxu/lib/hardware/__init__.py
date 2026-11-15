@@ -1,5 +1,5 @@
 """
-Stateless hardware readers, grouped by topic.
+Stateless hardware readers, grouped by topic (and the one actuator: DisplayControl).
 
 They are meant to be extractable into an external library:
     - Static methods only, no instances, no held resources (no GPIO claims, no open I2C buses).
@@ -12,9 +12,10 @@ They are meant to be extractable into an external library:
       the read just fails and returns None.
 """
 from .alsa_mixer import AlsaMixer
+from .display_control import DisplayControl
 from .network_reader import NetworkReader
 from .power_reader import PowerReader
 from .system_reader import SystemReader
 from .thermal_reader import ThermalReader
 
-__all__ = ["AlsaMixer", "NetworkReader", "PowerReader", "SystemReader", "ThermalReader"]
+__all__ = ["AlsaMixer", "DisplayControl", "NetworkReader", "PowerReader", "SystemReader", "ThermalReader"]

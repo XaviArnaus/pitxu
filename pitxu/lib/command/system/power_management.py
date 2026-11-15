@@ -4,7 +4,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.utils.device_monitor import DeviceMonitor
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import DisplayControl
 
 import logging
 
@@ -259,33 +259,34 @@ class SystemPowerManagement(PyXavi, Command):
         except Exception as e:
             log.error(f"🛑 Error showing power cable connected status on eInk: {e}")
     
-    def is_screen_on(self) -> bool:
+    def is_screen_on(self) -> bool | str:
         '''
         Check if the DSI backlight is on.
 
         Returns:
-            bool: True if the DSI backlight is on, False otherwise.
+            bool | str: True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        return System.get_dsi_backlight_status()
+        is_on = DisplayControl.backlight_is_on()
+        return "unknown" if is_on is None else is_on
     
-    def turn_off_screen(self) -> bool:
+    def turn_off_screen(self) -> bool | str:
         '''
         Turn off the DSI backlight.
 
         Returns:
-            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+            bool | str: The current status of the screen after the command, True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        System.set_dsi_backlight_off()
+        DisplayControl.set_backlight(False)
         return self.is_screen_on()
     
-    def turn_on_screen(self) -> bool:
+    def turn_on_screen(self) -> bool | str:
         '''
         Turn on the DSI backlight.
 
         Returns:
-            bool: The current status of the screen after the command, True if the DSI backlight is on, False otherwise.
+            bool | str: The current status of the screen after the command, True if the DSI backlight is on, False otherwise, "unknown" if it can't be read.
         '''
-        System.set_dsi_backlight_on()
+        DisplayControl.set_backlight(True)
         return self.is_screen_on()
     
     def callback_is_screen_on(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
@@ -300,10 +301,11 @@ class SystemPowerManagement(PyXavi, Command):
 
         """
         try:
-            log.info(f"💡 Showing screen ON/OFF status on Foreground display: {'On' if value else 'Off'}")
+            state = "Unknown" if value == "unknown" else "On" if value else "Off"
+            log.info(f"💡 Showing screen ON/OFF status on Foreground display: {state}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="💡",
-                text=f"Screen is {'On' if value else 'Off'}",
+                text=f"Screen is {state}",
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_HUGE)
         except Exception as e:
             log.error(f"🛑 Error showing screen status on Foreground display: {e}")

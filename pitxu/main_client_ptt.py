@@ -4,7 +4,7 @@ from pitxu.lib.utils.app_state import AppState
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
@@ -16,7 +16,6 @@ from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.utils.system import System
 from pitxu.lib.microservice.client import Client
 
 import signal
@@ -816,7 +815,7 @@ class MainClientPTT(PyXavi):
 
         # Here comes anything that we want to do before leaving
         self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
+        self._xlog.info("💡  Memory used: " + str(SystemReader.process_rss(scale=SystemReader.MEGABYTES)) + " MB")
         self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
 
         # If requested, avoid the final sys.exit()
