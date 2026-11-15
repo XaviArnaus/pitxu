@@ -78,6 +78,9 @@ class Painter(PyXavi):
 
     # Set by the maintain-time timers. Only the loop thread consumes it: the timers must never touch the canvas.
     _blank_screen_pending: bool = False
+    # True while the screen is deliberately blank. Only the loop thread touches it.
+    # It is set when a blank is requested and cleared by the next flush of a drawing.
+    _screen_is_blank: bool = False
     # Serialises resume_paint(), which is called from the shared memory worker, the timers and the loop itself.
     _resume_lock: threading.Lock = None
 
@@ -292,6 +295,9 @@ class Painter(PyXavi):
                 # A timed paint was removed: the screen must end up blank if nothing else is drawn.
                 blank_requested = self._blank_screen_pending
                 self._blank_screen_pending = False
+                # From here on, passive paints (like the buttons) can't wake the screen up until something else is drawn.
+                if blank_requested:
+                    self._screen_is_blank = True
 
                 # This is just some logging at the beginning of the loop iteration.
                 self._logging_start_painter_loop_iteration({
@@ -432,6 +438,8 @@ class Painter(PyXavi):
                     for queue_name in self.queue.keys():
                         self._log_debug(f"  - {queue_name} is {current_interaction_by_queue[queue_name].name if current_interaction_by_queue[queue_name] is not None else 'None'}.")
                     self.flush_drawing()
+                    # Something was drawn, so the screen is not blank any more.
+                    self._screen_is_blank = False
 
                     # Apply delay between frames if needed, based on the current interaction. There is a priority.
                     self.apply_delay_between_frames()
@@ -617,6 +625,12 @@ class Painter(PyXavi):
                 return True
             # If the current interaction is different than the previous one, in theory we should paint it.
             elif not self._current_interaction_by_queue_is_the_same_as_previous(queue_name):
+                # A passive paint (like the buttons) must not wake up a screen that is deliberately blank.
+                # The queue already has its new state, so it will be shown at the next draw triggered by anything else.
+                passive_candidate = self.get_current_interaction(queue_name)
+                if self._screen_is_blank and passive_candidate is not None and not passive_candidate.trigger_draw_when_blank:
+                    self._log_debug(f"🔄  Loop Control: Current Paint [{passive_candidate.name}] in [{queue_name}] changed, but the screen is blank and it is passive. Not drawing.")
+                    continue
                 # If we're not in idle mode, we just paint it.
                 if not self.get_painter_shared_memory().is_idle_mode_on():
                     # Careful, can be None.
