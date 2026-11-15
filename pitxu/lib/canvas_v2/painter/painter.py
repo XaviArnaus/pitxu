@@ -76,6 +76,11 @@ class Painter(PyXavi):
     _thread_event: threading.Event = None
     _timer: dict[str, threading.Timer] = {}
 
+    # Set by the maintain-time timers. Only the loop thread consumes it: the timers must never touch the canvas.
+    _blank_screen_pending: bool = False
+    # Serialises resume_paint(), which is called from the shared memory worker, the timers and the loop itself.
+    _resume_lock: threading.Lock = None
+
     THREAD_NAME: str = "Painter"
 
     # Controls if the loop should work. Set to False to exit the loop and finish the thread.
@@ -169,6 +174,9 @@ class Painter(PyXavi):
 
         # Before setting the worker, we create the event.
         self._thread_event = threading.Event()
+
+        self._resume_lock = threading.Lock()
+        self._timer = {}    # instance level, instead of the shared class-level dict
 
         # Here is the Painter thread.
         self._worker_thread = threading.Thread(
@@ -281,6 +289,10 @@ class Painter(PyXavi):
                 # which are triggered by the shared memory flags callbacks or other events.
                 self.process_intermediate_queue()
 
+                # A timed paint was removed: the screen must end up blank if nothing else is drawn.
+                blank_requested = self._blank_screen_pending
+                self._blank_screen_pending = False
+
                 # This is just some logging at the beginning of the loop iteration.
                 self._logging_start_painter_loop_iteration({
                     "background_iteration_counter": background_iteration_counter,
@@ -341,7 +353,12 @@ class Painter(PyXavi):
                                     current_interaction.drawing_callback_parameters = {}
                                 current_interaction.drawing_callback_parameters["current_loop_iteration"] = background_iteration_counter
                                 current_interaction.drawing_callback_parameters["max_loop_iterations"] = current_interaction.loop_iterations
-                            
+
+                            # Parameters that must be read live on every iteration (e.g. a level from the shared memory).
+                            # They go into the drawing parameters before the cache key is built from them.
+                            for param_name, param_provider in current_interaction.dynamic_parameters.items():
+                                current_interaction.drawing_callback_parameters[param_name] = param_provider()
+
                             # --- START painting the interaction, with cache support ---
 
                             self._log_debug(f"🎨 2️⃣ Actual painting section.")
@@ -458,9 +475,18 @@ class Painter(PyXavi):
                         self._log_debug("We have only paints that not need fast loop iterations. Slowing down the loop.")
                         time.sleep(0.5)
                 else:
+                    if blank_requested:
+                        # Same wipe the timers used to do, but now in the loop thread, so it can't interleave with a draw.
+                        self._log_debug("🎨 Blanking the screen after a timed interaction was removed.")
+                        self._full_clear()
+                        self.flush_drawing()
                     if not final_clearing_needed:
                         self._log_debug("No interactions to paint in any queue, pausing the painting loop.")
                         self.pause()
+                        # Something may have been enqueued between process_intermediate_queue() and pause(),
+                        #   and its resume_paint() saw the loop still running. Don't lose that wake-up.
+                        if self.intermediate_interactions_queue or self._blank_screen_pending:
+                            self.resume_paint()
         
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Painter loop.")
@@ -722,19 +748,42 @@ class Painter(PyXavi):
         
         # If we're meant to keep the interaction for an amount of seconds, set up a scheduler to remove it after the defined time.
         if interaction.maintain_paint_for_seconds is not None:
+            # COMMENTED: We change the approach, so we now use a timer to schedule the removal of the interaction after the defined time.
+            # PLEASE DELETE THIS COMMENTED BLOCK ONCE WE SEE THAT THE TIMER-BASED APPROACH WORKS AS EXPECTED.
+            # self._log_debug(f"{queue_name} interaction [{interaction.name}] is meant to be maintained for [{interaction.maintain_paint_for_seconds}] seconds. Setting up a scheduler to remove it after the defined time.")
+            # def remove_interaction_after_time():
+            #     self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
+            #     self._remove_interaction(interaction=interaction, queue_name=queue_name)
+            #     # The following lines are to clean the screen after removing the interaction.
+            #     # ⚠️ This does not stand for long. Any waiting_for_seconds besides idle will produce
+            #     #   a full screen clearing after the time is over, which is not ideal. 
+            #     # if interaction.final_screen_clearing:
+            #     #     self._log_debug(f"Scheduler for {queue_name} interaction [{interaction.name}] is performing a final screen clearing as requested by the interaction.")
+            #     self._full_clear()
+            #     self.flush_drawing()
+            # self._timer[interaction.get_cache_key()] = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
+            # self._timer[interaction.get_cache_key()].start()
+
             self._log_debug(f"{queue_name} interaction [{interaction.name}] is meant to be maintained for [{interaction.maintain_paint_for_seconds}] seconds. Setting up a scheduler to remove it after the defined time.")
+            timer_key = interaction.get_cache_key()
+
+            # A paint with the same key (the idle one repeats every minute) must not inherit an older timer,
+            #   otherwise the old one would remove the new paint too early.
+            previous_timer = self._timer.pop(timer_key, None)
+            if previous_timer is not None:
+                previous_timer.cancel()
+
             def remove_interaction_after_time():
+                # This runs in a Timer thread. It must NOT touch the queues or the canvas:
+                #   it only asks the Painter loop to do it, so there is a single writer.
                 self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
-                self._remove_interaction(interaction=interaction, queue_name=queue_name)
-                # The following lines are to clean the screen after removing the interaction.
-                # ⚠️ This does not stand for long. Any waiting_for_seconds besides idle will produce
-                #   a full screen clearing after the time is over, which is not ideal. 
-                # if interaction.final_screen_clearing:
-                #     self._log_debug(f"Scheduler for {queue_name} interaction [{interaction.name}] is performing a final screen clearing as requested by the interaction.")
-                self._full_clear()
-                self.flush_drawing()
-            self._timer[interaction.get_cache_key()] = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
-            self._timer[interaction.get_cache_key()].start()
+                self._timer.pop(timer_key, None)
+                self.request_removal(interaction, queue_name, blank_screen=True)
+
+            timer = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
+            timer.daemon = True
+            self._timer[timer_key] = timer
+            timer.start()
 
         # Now add the new interaction to the queue
         self.queue[queue_name].append(interaction)
@@ -746,6 +795,16 @@ class Painter(PyXavi):
         if current_paint is None:
             return None
         return current_paint
+
+    def request_removal(self, interaction: BasePaint, queue_name: PainterQueue, blank_screen: bool = False):
+        """
+        The thread-safe way to remove an interaction: it only asks the loop to do it.
+        With blank_screen=True the loop also blanks the screen if nothing else is drawn.
+        """
+        self.add_to_intermediate_queue(interaction, queue_name, IntermediatePainterQueueAction.REMOVE)
+        if blank_screen:
+            self._blank_screen_pending = True
+        self.resume_paint()
 
     def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
@@ -871,7 +930,7 @@ class Painter(PyXavi):
         else:
             self._xlog.debug("Painter worker thread is not alive or was never started.")
         
-        for interaction_cache_key, timer in self._timer.items():
+        for interaction_cache_key, timer in list(self._timer.items()):
             self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
             timer.cancel()
         self._timer = {}
@@ -891,18 +950,19 @@ class Painter(PyXavi):
         # And let the worker to start.
         self._worker_thread.start()
     
-    def resume_paint(self):
+    def resume_paint(self) -> None:
 
-        # If we're actually not running anything inside the thread, do it now.
-        if not self._thread_event.is_set():
-            self._log_debug("Painter thread not running, starting it now.")
+        with self._resume_lock:
+            # If we're actually not running anything inside the thread, do it now.
+            if not self._thread_event.is_set():
+                self._log_debug("Painter thread not running, starting it now.")
 
-            for queue_name in self.queue.keys():
-                self.image_per_queue[queue_name] = self._initialize_draw_for_queue(queue_name)
-                self._log_debug(f"Initialized drawing for queue [{queue_name}].")
+                for queue_name in self.queue.keys():
+                    self.image_per_queue[queue_name] = self._initialize_draw_for_queue(queue_name)
+                    self._log_debug(f"Initialized drawing for queue [{queue_name}].")
 
-            # Tell the worker that it can start painting.
-            self._thread_event.set()
+                # Tell the worker that it can start painting.
+                self._thread_event.set()
     
     def pause(self):
         # This pauses the loop, but doesn't stop it. It will wait for the _thread_event to be set again to resume painting.
@@ -987,7 +1047,7 @@ class Painter(PyXavi):
         # the template itself
         def callback_template():
             flag_name = self.painter_shared_memory.shared_memory._map_index_to_flag.get(flag, f"Unknown flag index [{flag}]")
-            self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: [{flag_name.upper()}] busy flag changed to [{for_value}], {"with" if extra_callback is not None else "without"} extra callback.")
+            self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: [{flag_name.upper()}] busy flag changed to [{for_value}], {'with' if extra_callback is not None else 'without'} extra callback.")
 
             # Set the interactions if provided
             if interaction is not None:

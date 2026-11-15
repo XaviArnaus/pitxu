@@ -22,20 +22,21 @@ speech-to-text:
   # -1 means that it will use the samplerate of the input device (Mic), inferred by the sounddevice library.
   # Note: this is not necessarily the same sample rate that the STT engine will use,
   #   as the audio will be resampled to match the one expected by the STT engine.
-  # input_samplerate: 16000
-  input_samplerate: -1
+  # Setting it to 16000 (if the card supports it) avoids the resampling altogether and gives 64 ms chunks at blocksize 1024.
+  # input_samplerate: -1 # Working in Mac (the built-in mic runs at 48 kHz, resampled to 16 kHz). Use chunks_window ~200 there.
+  input_samplerate: 16000 # Working in RPi
   # [Integer] The sample rate to resample to, before adding it into the processing queue of the STT engine.
   # This must match the sample rate expected by the STT engine (Vosk, Whisper, etc.),
   #   as well as the one set in the Preprocessor.
   target_samplerate: 16000
   # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
-  save_input_audio: True
+  save_input_audio: False
   # [Bool] Generates plots for the audio signal (original and filtered) for debugging purposes.
-  generate_signal_plots: True
+  generate_signal_plots: False
   # [Bool] Generates plots for the audio spectrograms (original and filtered) for debugging purposes.
-  generate_spectrogram_plots: True
+  generate_spectrogram_plots: False
   # [Bool] Generates plots for the audio Fourier transforms (original and filtered) for debugging purposes.
-  generate_fourier_transform_plots: True
+  generate_fourier_transform_plots: False
   # Configurtion for the Voice Activity Detection (VAD) module
   vad:
     # [Bool] VAD is activated or not.
@@ -50,7 +51,7 @@ speech-to-text:
     # attack: 0.060 # Working in RPi
     attack: 0.050
     # [Float] Seconds of silence before speech end
-    release: 2.0
+    release: 1.2
   # Configuration for the Preprocessor (filters noises, energy identification)
   preprocessor:
     # [Bool] Preprocessor is activated or not.
@@ -67,7 +68,7 @@ speech-to-text:
     # SpeechToText class. Understand this as a fallback value, in case the main SpeechToText class doesn't provide it.
     samplerate: 16000
     # [Bool] Whether to save the preprocessed audio data to a file for debugging purposes.
-    save_preprocessed_audio: True
+    save_preprocessed_audio: False
   # Specific configuration for Vosk, when applicable.
   vosk:
     # Model to use per language. If None (in a language), it will use the default SMALL one for the selected one.
@@ -143,9 +144,9 @@ speech-to-text:
       # Spanish
       es: small
       # English
-      # Attention: The rest of the app is still under "en-us", but all Whisper related uses just "en", 
-      # and should replace the current app setup (leaving Vosk as the single exception, not the other way around)
-      en: small.en
+      #en: tiny.en
+      en: base.en
+      #en: small.en
       # German
       de: small
     # [String] The location where the offline faster whisper files are stored.
@@ -169,9 +170,16 @@ speech-to-text:
     #   So pay attention to the parameter speech-to-text.bytes_per_chunk in the configuration above, as it will affect the optimal value for this parameter.
     overlap_size: 8000
     # [Integer] The number of chunks to accumulate before processing the audio with the Faster Whisper model. This is a tradeoff between latency and performance.
-    chunks_window: 100
+    #   With 1024-sample chunks at 16 kHz each chunk is 64 ms, so 72 chunks are about 4.6 s of audio per window.
+    #   If the mic is read at 48 kHz and resampled (input_samplerate: -1), each chunk is only ~21 ms, so ~200 chunks give a similar window.
+    # chunks_window: 200 # Working in Mac
+    chunks_window: 72 # Working in RPi
     # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
-    sleep_when_no_chunks: 0.1
+    sleep_when_no_chunks: 0.03
+    # [Float] The time in seconds to wait for a transcription to be completed before considering it abandoned.
+    transcription_timeout: 20.0
+    # [Float] RMS (0..1 scale) below which the NEW audio of a window is considered silence and not decoded. 0 = disabled.
+    silent_window_rms: 0.0
     # [List of Strings] Hot words to add to the Faster Whisper model for each language.
     # The name of the bot and its possible aliases will be added automatically.
     hot_words:
@@ -186,9 +194,13 @@ speech-to-text:
     # [Float] The hallucination threshold for silences, in seconds.
     hallucination_silence_threshold: 1.0
     # [Integer] The maximum number of characters to use from the ongoing transcription as a prompt for the next chunk.
-    max_prompt_buffer_size_in_chars: 100
+    max_prompt_buffer_size_in_chars: 400
     # [Float] The temperature to use for the inference. The higher, the more creative (and less accurate) the transcription will be.
-    temperature: 0.2
+    # Looking at the Faster Whisper official implementation, for any temperature above 0, generate_with_fallback forces beam_size=1 
+    #   and samples best_of=5 hypotheses. Then the beam_size: 2 is ignored. The overlap audio is therefore decoded randomly each time, 
+    #   which undermines merging. A single temperature also means no fallback retries happen, which is good for the hang risk
+    # Therefore, moving back to 0 and changing the settings in the config to set also 0.
+    temperature: 0.0
     # [Float] The confidence threshold to consider that a word is low confidence
     word_low_confidence_threshold: 0.1
     # [Float] The threshold of confidence over the segments to consider that the model is hallucinating.
@@ -198,6 +210,9 @@ speech-to-text:
     hallucination_low_confidence_reset_threshold: -1
     # [Integer] The maximum number of occurrences of low confidence segments before considering the transcription ashallucination.
     hallucination_low_confidence_segments_max_occurrences: 3
+    # [Float] The repetition penalty to use for the inference. The higher, the less likely the model is to repeat itself.
+    #   This is to avoid the model getting stuck in a loop of repeating the same words over and over again.
+    repetition_penalty: 1.2
 
 # Configurations for the Text-to-Speech
 text-to-speech:
@@ -219,6 +234,29 @@ text-to-speech:
   alsa_initial_mic_volume: 60
   # [Integer] Volume addition to the volume level read from the system.
   add_to_output_volume: 0
+  # [String] How the KITT mouth animates while speaking (DSI LCD only).
+  #   loop: the bars move up and down on a timer, regardless of the audio.
+  #   vu:   the bars follow the level of the audio being played, like a VU meter. Ignored if `mock` is True.
+  # The refresh rate is the `speaking` delay in displays.yaml.
+  speaking_animation: loop
+  # Only used when speaking_animation is `vu`.
+  vu:
+    # [Float] Seconds of audio per measured slice.
+    slice_seconds: 0.03
+    # [Float] dBFS at or below which the bars are flat, and at or above which they are full.
+    # Piper speech is loud and fairly compressed (about -20 to -8 dBFS), so the window is narrow and high.
+    # In the mouth, frames 2-4 only grow the two centre columns. The outer ones only move between frames 0-2,
+    # so the median speech (about -15 dBFS) should land around frame 2 and only the peaks reach frame 4.
+    floor_db: -22.0
+    ceil_db: -10.0
+    # [Float 0-1] How fast the level follows the audio per slice. Higher is faster.
+    # A high release lets the bars fall in the short dips between syllables. Lower is smoother.
+    attack: 0.7
+    release: 0.3
+    # [Float] Seconds added on top of the output stream latency. Positive delays the bars, negative advances them.
+    latency_offset: 0.0
+    # [Bool] Logs the measured dBFS distribution of every sentence, to tune floor_db and ceil_db. Turn off when tuned.
+    log_levels: False
   # Model per language. There has to be always 2 related files: *.onnx and *.onnx.json
   per_language:
     # Catalan

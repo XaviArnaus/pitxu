@@ -289,7 +289,7 @@ class StatefulMemory(PyXavi, Command):
                 for entry in value:
                     if isinstance(entry, dict) and "summary" in entry and "created_at" in entry:
                         date = entry.get("created_at", "").split("T")[0]  # Get only the date part
-                        summary_pieces.append(f"{counter}. [{date}] {entry.get("summary", "")}")
+                        summary_pieces.append(f"{counter}. [{date}] {entry.get('summary', '')}")
                         counter += 1
                 summary = "\n".join(summary_pieces)
             elif isinstance(value, str):

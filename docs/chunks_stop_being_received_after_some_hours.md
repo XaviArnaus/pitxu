@@ -75,6 +75,8 @@ I was doing a bunch of preparation work inside that initial callback:
 
 Turned out that this is too much for a "quick" callback, so I moved everything out into a threaded process. The callback now only feeds an internal queue and this gets processed by that threaded process, in a try to disconnect the direct work that the callback needs to do
 
+Note: the threaded process was removed (see the input_stream.py wrapper), as brought nothing because the Sounddevice InputStream is already in its own thread.
+
 ### 2. Implement Error handling inside the callback
 
 According to some research, Sounddevice, that uses the PortAudio backend behind the scenes, can stop delivering chunks if any exception bubbles up to it inside the callback, so I covered all work there with a try/except and try to add some debugging messages there.

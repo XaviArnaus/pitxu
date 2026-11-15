@@ -263,7 +263,7 @@ sudo nano /boot/firmware/config.txt
 
 4. Add the following line AT THE TOP OF THE FILE:
 ```
-dtoverlay=pwm,pin=13,func=4
+dtoverlay=pwm,pin=12,func=4
 ```
 
 5. Reboot.

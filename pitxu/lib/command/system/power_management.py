@@ -127,7 +127,8 @@ class SystemPowerManagement(PyXavi, Command):
             estimated = math.modf(estimated[0] * 24)
             estimated_hours = estimated[1]
             estimated_minutes = estimated[0] * 60
-            self._xlog.debug(f"⏳ Estimated time to full charge:{" " + f'{int(estimated_days)} days ' if estimated_days > 0 else ""} {int(estimated_hours)} hours {int(estimated_minutes)} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
+            days_part = f" {int(estimated_days)} days " if estimated_days > 0 else ""
+            self._xlog.debug(f"⏳ Estimated time to full charge:{days_part} {int(estimated_hours)} hours {int(estimated_minutes)} minutes (Voltage: {voltage} V, Current: {current:.2f} A)")
             return f"{f'{int(estimated_days)}d ' if estimated_days > 0 else ''}{int(estimated_hours)}h {int(estimated_minutes)}m"
         except Exception as e:
             self._xlog.error(f"🛑 Error getting total charging estimation time: {e}")
@@ -208,7 +209,8 @@ class SystemPowerManagement(PyXavi, Command):
                 text = "❌ Error reading values"
                 font_size = interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG
 
-            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM, {case_fans_text.replace('\n', ', ')}")
+            case_fans_inline = case_fans_text.replace("\n", ", ")
+            log.info(f"🌡️ Showing system temperature and fan speed on Foreground display: {temperature} °C, {fan_speed} RPM, {case_fans_inline}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🌡️",
                 text=text,

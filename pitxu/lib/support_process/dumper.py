@@ -220,6 +220,7 @@ class Dumper(PyXavi):
 
         if self._xconfig.get("speech-to-text.generate_signal_plots", False):
             preprocessor_enabled = self._xconfig.get("speech-to-text.preprocessor.enabled", False)
+            timestamp_str = Xtime.current_time_str() if self.unified_timestamp_str is None else self.unified_timestamp_str
 
             audio_graph = AudioGraph(config=self._xconfig, params=self._xparams)
             audio_graph.plot_waveform_comparison(
@@ -232,9 +233,7 @@ class Dumper(PyXavi):
                     if self.unified_timestamp_key is None \
                         else self.signal_plots_path_name % self.unified_timestamp_key,
                 also_latest=True,
-                main_title=f"Original vs {'(Disabled) ' if not preprocessor_enabled else ''}Filtered Audio Signal - {Xtime.current_time_str() \
-                    if self.unified_timestamp_str is None \
-                    else self.unified_timestamp_str}",
+                main_title=f"Original vs {'(Disabled) ' if not preprocessor_enabled else ''}Filtered Audio Signal - {timestamp_str}",
                 signal_name_1=f"Original at {self.input_samplerate} Hz",
                 signal_name_2=f"{'(Disabled) ' if not preprocessor_enabled else ''}Butterworth bandpass {self.lowcut_freq}-{self.highcut_freq} Hz")
 

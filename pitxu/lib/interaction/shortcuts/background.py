@@ -58,6 +58,10 @@ class Background(ShortcutBase):
         self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
         self.process_pool.send(self.get_queue(), XprocAction.INTERACTION_HOLDING_PERCENTAGE, percentage)
 
+    def end_interaction_holding_percentage(self):
+        self._log_debug("🚥 Ending interaction holding percentage on background display")
+        self.process_pool.send(self.get_queue(), XprocAction.INTERACTION_HOLDING_PERCENTAGE_END)
+
 
     # --------- (Proxy) Functions to clear screens ---------
 

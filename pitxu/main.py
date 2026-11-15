@@ -2,9 +2,12 @@ from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
 
 import signal
 
+from definitions import SHARED_WAKE_UP_BUTTON_PRESSED, SHARED_FIRST_AUDIO_TIMESTAMP
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.utils.system import System
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
@@ -25,8 +28,9 @@ from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
-from pitxu.lib.speech_to_text.threaded_input_stream import ThreadedInputStream, MockedInputStream
+from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 
+from difflib import SequenceMatcher
 import sys
 import sounddevice
 import time
@@ -52,6 +56,7 @@ class Main(PyXavi):
     _server: Server = None
     _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
+    _buttons: Buttons = None
 
     _audio_parameters: dict = None
 
@@ -66,7 +71,7 @@ class Main(PyXavi):
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
-    _threaded_input_stream: ThreadedInputStream = None
+    _input_stream: InputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
     _shared_memory_monitor: SharedMemoryMonitor = None
@@ -95,6 +100,8 @@ class Main(PyXavi):
     GERMAN: str = "de"
     SPANISH: str = "es"
 
+    WAKE_UP_BUTTON_NAME: str = "WAKE_UP"
+
     SCHEDULER_LIB_LOGLEVEL = logging.WARNING
     TZLOCAL_LIB_LOGLEVEL = logging.INFO
 
@@ -122,6 +129,7 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_signal_plots()
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
+            self._maintenance.clean_stale_animation_cache()
             self._maintenance.execute_memory_preload()
 
             # Register that we just did a new start
@@ -132,6 +140,8 @@ class Main(PyXavi):
             # With the Animations took forever, that's why the Animations initializon was moved out.
             # Maybe other visualization initializations should also be promoted to its own initialization step.
             self._initialize_core()
+            # The metrics report CPU and memory per process, so they need to know the pool's processes.
+            self._maintenance.set_process_pids_provider(self._interaction.get_process_pool().get_process_pids)
             # self._interaction.show_startup()
             # self._interaction.wait_for_foreground_display_queue_to_empty()
             # self._interaction.wait_for_busy_foreground_display_to_idle()
@@ -168,7 +178,7 @@ class Main(PyXavi):
 
             # Initialize the Reactions class
             self._interaction.show_init_phases(9, text="⚡️ Reactions")
-            self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
+            self._initialize_reactions(input_stream=self._input_stream)
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
             #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
@@ -192,7 +202,7 @@ class Main(PyXavi):
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
             self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
@@ -287,16 +297,7 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            
-            # Attention: only for Streaming engines!
-            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
-            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
-                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
-                self._dictate.reset_context()
-                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
-                # self._interaction.set_stt_busy()
-                self._interaction.set_transcriber_busy()
+            pass
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -348,20 +349,22 @@ class Main(PyXavi):
         """
 
         self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
+        LatencyTimeline.mark("transcript")
 
         # As we want to try to recover from any error, we need to control a possible error state we fall into.
         #   This will be set to True when an exception is caught.
         we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        self._interaction.mute_microphone(input_stream=self._input_stream)
 
         try:
         
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -387,10 +390,11 @@ class Main(PyXavi):
                 # Nothing recognized, nothing to process.
 
                 # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
@@ -398,7 +402,8 @@ class Main(PyXavi):
 
             # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
             # self._interaction.unset_stt_busy()
-            self._interaction.unset_transcriber_busy()
+            # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+            # self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -460,6 +465,7 @@ class Main(PyXavi):
 
             # Anything else is ignored.
             else:
+                self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
                 question = ""
@@ -476,7 +482,7 @@ class Main(PyXavi):
                 return
 
             # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -535,7 +541,7 @@ class Main(PyXavi):
         #         self.reset_last_interaction_event_mark()
 
         #         # Turn on the microphone again, just in case, to allow the user to try again.
-        #         self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        #         self._interaction.unmute_microphone(input_stream=self._input_stream)
 
         # except Exception as e:
         #     if not self._is_pitxu_active:
@@ -553,6 +559,8 @@ class Main(PyXavi):
         It was directly in the main_execution_on_vad_detected_finished() method, contained as an IO clock.
         """
 
+        LatencyTimeline.mark("chatbot_start")
+
         # An interaction comes, stop the idle mode.
         self._interaction.set_idle_mode_off()
 
@@ -569,7 +577,9 @@ class Main(PyXavi):
         )
         self._interaction.wait_for_background_display_queue_to_empty()
         self._interaction.set_chatbot_busy()
+        LatencyTimeline.mark("llm_sent")
         chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+        LatencyTimeline.mark("llm_answer")
         self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
         self._interaction.unset_chatbot_busy()
 
@@ -599,8 +609,36 @@ class Main(PyXavi):
         # - Uncommenting again because seems like the block happens in interaction.say() instead.
         self._interaction.wait_for_foreground_display_queue_to_empty()
 
+        LatencyTimeline.mark("answer_ready")
         return answer
     
+    # ------------- Latency log -------------
+
+    def _reset_first_audio_timestamp(self):
+        """
+        Clears the timestamp that Piper publishes at the first audio write, so an old one is never mistaken for the new speech.
+        """
+        try:
+            self._interaction.get_process_pool().get_memory_manager().write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, 0.0)
+        except Exception as e:
+            self._log_debug(f"Could not reset the first audio timestamp: {e}")
+
+    def _log_latency_breakdown(self):
+        """
+        Logs where the time went between the end of the user's speech and the first audio of the answer.
+        Called once the speech finished. It must never interfere with the interaction.
+        """
+        try:
+            LatencyTimeline.mark("say_end")
+            first_audio = self._interaction.get_process_pool().get_memory_manager().read_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP)
+            if first_audio:
+                LatencyTimeline.mark("first_audio", first_audio)
+            lines = LatencyTimeline.breakdown(silence_wait_seconds=self._xconfig.get("speech-to-text.vad.release", None))
+            if lines is not None:
+                self.log_summary("Latency after the VAD speech end", lines, log_level=logging.INFO)
+        except Exception as e:
+            self._xlog.warning(f"Could not log the latency breakdown: {e}")
+
     # ------------- Abstraction for the Outcome interaction -------------
 
     def deliver_outcome(self, question:str, answer: str) -> bool:
@@ -634,7 +672,9 @@ class Main(PyXavi):
             # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
             self.reset_last_interaction_event_mark()
 
+            self._reset_first_audio_timestamp()
             self._interaction.say(answer)
+            self._log_latency_breakdown()
             self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
             self._answer_count += 1
 
@@ -699,13 +739,24 @@ class Main(PyXavi):
     
     def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        # first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        first_words = " ".join(self._normalize_name_mishearings(question).split(" ")[0:5])
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower().strip() in first_words:
+            if Text.remove_accents(trigger_word).replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
         return False
+
+    def _normalize_name_mishearings(self, text: str, threshold: float = 0.8) -> str:
+        """Cleans the text and replaces words in the first 3 that sound like the chatbot name by the real name."""
+        name = self._xconfig.get("chatbot.name").lower()
+        names = {n.lower() for n in [self._xconfig.get("chatbot.name")] + (self._xconfig.get("chatbot.name_variations") or [])}
+        words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
+        return " ".join(
+            name if i < 3 and len(w) >= 4 and w not in names
+            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
         """
@@ -713,9 +764,10 @@ class Main(PyXavi):
         """
 
         # Clean minimally the user input
-        all_user_input = Text.remove_accents(question)
-        all_user_input = Text.remove_punctuation(all_user_input)
-        all_user_input = all_user_input.lower().strip()
+        # all_user_input = Text.remove_accents(question)
+        # all_user_input = Text.remove_punctuation(all_user_input)
+        # all_user_input = all_user_input.lower().strip()
+        all_user_input = self._normalize_name_mishearings(question)
         # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
         if all_user_input == "":
             return False
@@ -768,9 +820,9 @@ class Main(PyXavi):
         if self._scheduler is not None:
             self._scheduler.shutdown()
 
-        # Close the Threaded Input Stream
-        if self._threaded_input_stream is not None:
-            self._threaded_input_stream.close()
+        # Close the Input Stream
+        if self._input_stream is not None:
+            self._input_stream.close()
 
         # Persist state
         self.persist_state()
@@ -1040,6 +1092,7 @@ class Main(PyXavi):
             # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
             self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
                 "capture_queue": input_audio_chunk_queue,
+                "emit_start_marker": self._xconfig.get("speech-to-text.engine") == "faster_whisper_streaming",
                 "silence_input_queue": silence_input_queue,
                 "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
                 "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
@@ -1124,31 +1177,16 @@ class Main(PyXavi):
     
     def _instantiate_input_stream(self):
         """
-        Initialization of the Raw Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
-        It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
+        Initialization of the Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
         """
 
-        def finished_callback():
-            """
-            This is called (from a separate thread) when the audio stream is finished.
-            Will is used to restart it if needed.
-            """
-            self._xlog.warning("Audio input stream finished.")
-            self._capture_handler.get_callback_error_flag()
-            if self._capture_handler.get_callback_error_flag():
-                self._xlog.warning("Audio input stream finished due to an exception in the audio callback. Attempting to restart the audio stream...")
-                self._threaded_input_stream.start_recording()
-            else:
-                self._xlog.warning("Audio input stream finished without exceptions. Won't restart the audio stream.")
-
         if self._xparams.get("execution_mode") not in ["test"]:
-            self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
+            self._input_stream = InputStream(config=self._xconfig, params=Dictionary({
                 "audio_parameters": self._audio_parameters,
                 "capture_handler_callback": self._capture_handler.callback,
-                "finished_callback": finished_callback,
             }))
         else:
-            self._threaded_input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())
+            self._input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())
     
     async def _initialize_chatbot(self):
         """
@@ -1231,8 +1269,8 @@ class Main(PyXavi):
             self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
             # EVERY MINUTE
-            self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args={
-                "input_stream": self._threaded_input_stream.get_input_stream()})
+            self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, kwargs={
+                "input_stream": self._input_stream})
 
             # EVERY SECOND
             self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
@@ -1294,15 +1332,84 @@ class Main(PyXavi):
                 # Callback for when the app goes idle
                 ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
-                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False)
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
+                # Callback for when the wake up button is pressed (released, actually)
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, lambda: self._interaction.add_new_status_line("🕹️ Wake up button pressed"), False)
             ]
         }))
+
+        # Load the wake up button support in case that is wanted by the configuration.
+        # It will be used to wake up the app from idle mode.
+        if self._interaction.is_wake_up_button_wanted():
+            self.initialize_wake_up_button()
 
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
     
-    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+    def initialize_wake_up_button(self):
+        """
+        Initializes the wake up button.
+        """
+
+        if self._interaction.is_wake_up_button_wanted():
+            self._xlog.info("🕹️  Wake up button is wanted, initializing it.")
+
+            # Initialises the buttons defined in the config.
+            # Hold the name of them, it's how you refer to them.
+            self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+            self._buttons.initialize_buttons()
+
+            # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
+            wake_up_button_name = self.WAKE_UP_BUTTON_NAME
+            if wake_up_button_name in self._buttons.get_buttons().keys():
+
+                self._xlog.info("Wake up button is defined, setting the callback to wake up the app from idle mode.")
+
+                def wake_up_button_callback(button, cls: Main = None, button_name: str = None, flags: dict = None):
+                    """
+                    Callback for the wake up button.
+                    """
+                    cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
+                    
+                    # Set the shared memory flag for the wake up button pressed, so the main process can react to it.
+                    cls._interaction.set_wake_up_button_pressed()
+
+                    # Enter into the main execution flow, as if the user had spoken the trigger words.
+                    # The idea is that:
+                    #   - This way we can emulate in the future anything else (with the obvious extra implementation)
+                    #   - The main execution flow will handle the rest of the interaction, including the microphone unmuting, idle management, etc.
+                    if not cls.is_there_running_loop():
+                        # This should never happen... we have an event loop registered in the Capture Handler.
+                        cls._xlog.debug("No running loop detected, creating a new one for the wake up button callback.")
+                        asyncio.set_event_loop(asyncio.new_event_loop())
+
+                    transcription = cls._xconfig.get("language.trigger_words." + cls._xparams.get("language"))[0] % cls._xconfig.get("chatbot.name")
+                    cls._xlog.debug("Triggering Main Execution on Transcription Finished with final transcription: " + transcription)
+                    asyncio.run_coroutine_threadsafe(
+                        cls.main_execution_on_transcription_finished(final_transcription=transcription), 
+                        cls._capture_handler.get_main_event_loop())
+
+                # Set the action as the pressed callback, so the app wakes up when the user presses the button.
+                self._buttons.set_pressed_callback(
+                    button_name=wake_up_button_name, 
+                    callback=wake_up_button_callback,
+                    kargs={
+                        "cls": self,
+                        "button_name": wake_up_button_name,
+                        "flags": {}
+                    })
+            else:
+                self._xlog.warning("Wake up button is not defined, cannot set the callback to wake up the app from idle mode.")
+            
+            # Start the listener for the buttons, if any button is defined.
+            # This is only needed for the buttons mocked, because
+            if self._buttons.get_buttons():
+                self._buttons.start_listening()
+            else:
+                self._xlog.warning("No buttons defined, cannot initialize the buttons.")
+    
+    def _initialize_reactions(self, input_stream: InputStream = None):
         """
         Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
         """
@@ -1344,7 +1451,7 @@ class Main(PyXavi):
             self._server.initialize()
         else:
             self._xlog.info(f"Server is disabled by configuration (" +
-                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
+                            f"enabled: {'TRUE' if self._xconfig.get('server.enabled', False) else 'FALSE'}, " +
                             f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
                             ") > not initializing it.")
     def _greeting_interaction(self):
@@ -1368,7 +1475,7 @@ class Main(PyXavi):
 
     # ------- Stuff to do every minute -------
 
-    def do_every_minute_tasks(self, input_stream: sounddevice.RawInputStream = None):
+    def do_every_minute_tasks(self, input_stream: InputStream = None):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
@@ -1446,7 +1553,7 @@ class Main(PyXavi):
                     # then put the Mic on, and reset the transcription (if streaming), so at leat the user can try
                     #   to trigger the interaction again.
                     # ⚠️ Still... it shouldn't happen!
-                    if self._interaction.is_microphone_muted():
+                    if self._interaction.is_microphone_muted() and not self._interaction.is_wake_up_button_wanted_exclusively():
                         self._log_debug("Microphone is muted while in idle mode, unmuting it to allow the user to trigger an interaction.")
                         self._interaction.unmute_microphone(input_stream=input_stream)
                         if self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
@@ -1454,6 +1561,7 @@ class Main(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+                    self._xlog.debug(full_stack())
             
             # COMMENTED: Idea unfinished.
             # # If we're in idle mode and the dictation is in a weird state, force a reset.
@@ -1535,23 +1643,28 @@ class Main(PyXavi):
                         #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
                         # )
 
-                elif self._last_processed_interaction_percentage >= 0:
+                elif self._last_processed_interaction_percentage > 0:
+                    # The hold time is over but the bar still shows its last LED(s).
+                    # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
+                    self._last_processed_interaction_percentage = 0
+                    if not self._interaction.is_background_display_busy():
+                        self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
+                        self._interaction.show_interaction_holding_percentage(0)
+
+                elif self._last_processed_interaction_percentage == 0:
                     # We are meant to clean the display.
 
-                    # if not self._interaction.is_vad_detected():
-                        # Vad did not detect anything, and the time to hold the interaction is over.
-                        # We clear the background display and reset the percentage.
-                        self._last_processed_interaction_percentage = -1
-                        self._last_interaction_paused_seconds = 0
-                        # And then we clean the display completely, as we go to idle soon.
-                        self._interaction.clear_device()
-                        # if not self._interaction.is_background_display_busy():
-                        #     self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                        #     self._interaction.clear_background_display()
-                        # else:
-                        #     self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
-                    # else:
-                    #     self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
+                    # The time to hold the interaction is over.
+                    # We clear the background display and reset the percentage.
+                    self._last_processed_interaction_percentage = -1
+                    self._last_interaction_paused_seconds = 0
+                    # And then we clean the display completely, as we go to idle soon.
+                    self._interaction.end_interaction_holding_percentage()
+                    # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                    #   as the user is not speaking and we don't want to react to anything else.
+                    if self._interaction.is_wake_up_button_wanted_exclusively():
+                        self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
+                        self._interaction.mute_microphone(input_stream=self._input_stream)
     
     # ------------- Stuff to do daily -------------
 
@@ -1559,4 +1672,19 @@ class Main(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
+    
+
+    # ------------- Others -------------
+
+    def is_there_running_loop(self) -> bool:
+        """
+        Checks if there is a running loop in the current thread.
+        """
+        try:
+            if self._capture_handler.get_main_event_loop().is_running():
+                return True
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
                     

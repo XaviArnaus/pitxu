@@ -27,6 +27,10 @@ storage/tmp/*.png
 storage/tmp/*.html
 storage/db/*.db
 
+# Prepared animation frames, generated at runtime
+storage/animations/*
+!storage/animations/.keep
+
 # No Wisper models
 storage/whisper/*.pt
 

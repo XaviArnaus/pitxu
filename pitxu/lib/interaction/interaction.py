@@ -2,6 +2,7 @@ from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper
@@ -11,18 +12,19 @@ from pitxu.lib.matrix_led import MatrixLed
 from pitxu.lib.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from pitxu.lib.utils.text import Text
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
+from pitxu.lib.speech_to_text.input_stream import InputStream
 
 from pitxu.lib.interaction.shortcuts.background import Background
 from pitxu.lib.interaction.shortcuts.foreground import Foreground
 from pitxu.lib.interaction.shortcuts.status import Status
 
-from sounddevice import RawInputStream
 from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
-                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
+                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED
 
 class Interaction(PyXavi):
     """
@@ -240,6 +242,34 @@ class Interaction(PyXavi):
         self._xlog.info("Initializing animations in Visualizer through Interaction.")
         self.process_pool.send(self.background.get_queue(), XprocAction.INITIALIZE_ANIMATIONS)
     
+    def is_wake_up_voice_wanted(self) -> bool:
+        """
+        Check if the wake up voice interaction is wanted.
+
+        Returns:
+            bool: True if the wake up voice interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") in ["voice", "both"]
+    
+    def is_wake_up_button_wanted(self) -> bool:
+        """
+        Check if the wake up button interaction is wanted.
+
+        Returns:
+            bool: True if the wake up button interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") in ["button", "both"]
+    
+    def is_wake_up_button_wanted_exclusively(self) -> bool:
+        """
+        Check if the wake up button interaction is wanted.
+
+        Returns:
+            bool: True if the wake up button interaction is wanted, False otherwise.
+        """
+        return self._xconfig.get("app.wake_up_method", "both") == "button"
+        
+    
     def displays_are_combined(self) -> bool:
         """
         Check if the foreground and background displays are the same.
@@ -284,6 +314,7 @@ class Interaction(PyXavi):
         """
 
         self._xlog.debug(f"🗣️ Triggering speech interaction: {message}")
+        LatencyTimeline.mark("say_start")
 
         # If we're in client mode, this is going to the server, so it may take time.
         # Show the thinking effect while grabbing the TTS response from the server.
@@ -309,6 +340,7 @@ class Interaction(PyXavi):
 
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending PLAY_TTS command to Speaker")
+            LatencyTimeline.mark("speaker_sent")
             self.process_pool.send(QUEUE_SPEAKER, XprocAction.PLAY_TTS)
 
             # We want that the main thread waits until the actions finished in the subprocesses
@@ -328,6 +360,7 @@ class Interaction(PyXavi):
             # Speech is a direct process command.
             self._log_debug(f"🗣️ Sending SAY command to Speaker")
             tts_message = Text.replace_known_text(message, self._xconfig.get("language.tts_text_replacements." + self._xparams.get("language"), {}))
+            LatencyTimeline.mark("speaker_sent")
             self.process_pool.send(QUEUE_SPEAKER, XprocAction.SAY, tts_message)
 
             # We want that the main thread waits until the actions finished in the subprocesses
@@ -575,8 +608,15 @@ class Interaction(PyXavi):
         Args:
             percentage (int): The percentage of time left for the interaction.
         """
-        self._log_debug(f"🚥 Showing interaction holding percentage {percentage}% on background display")
+        # No logging here: the Background shortcut already logs it.
         self.background.show_interaction_holding_percentage(percentage)
+
+    def end_interaction_holding_percentage(self):
+        """
+        Ends the interaction holding percentage on the background display.
+        """
+        # No logging here: the Background shortcut already logs it.
+        self.background.end_interaction_holding_percentage()
     
     def add_new_status_line(self, text: str, color: str = None):
         """
@@ -675,14 +715,14 @@ class Interaction(PyXavi):
     
     # --------- Proxy functions for Shared Memory Management ---------
 
-    def mute_microphone(self, input_stream: RawInputStream = None):
+    def mute_microphone(self, input_stream: InputStream = None):
         if input_stream:
             self._log_debug("🔇 Stopping the input stream as microphone is muting.")
             input_stream.stop()
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_MICROPHONE_MUTED, True)
         self._log_debug("🔇 Muting the microphone. Now mute is [" + str(self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)) + "]")
 
-    def unmute_microphone(self, input_stream: RawInputStream = None):
+    def unmute_microphone(self, input_stream: InputStream = None):
         if input_stream:
             self._log_debug("🔊 Starting the input stream as microphone is unmuting.")
             input_stream.start()
@@ -778,6 +818,15 @@ class Interaction(PyXavi):
     
     def is_transcriber_busy(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
+    
+    def set_wake_up_button_pressed(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, True)
+    
+    def unset_wake_up_button_pressed(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, False)
+    
+    def is_wake_up_button_pressed(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED)
 
     # --------- Internal helper functions ---------
 
