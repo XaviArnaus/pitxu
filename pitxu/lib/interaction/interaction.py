@@ -24,7 +24,8 @@ from multiprocessing import JoinableQueue
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
                         SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
-                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED
+                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED, \
+                        SHARED_SPEECH_INTERRUPT_REQUESTED
 
 class Interaction(PyXavi):
     """
@@ -259,6 +260,16 @@ class Interaction(PyXavi):
             bool: True if the wake up button interaction is wanted, False otherwise.
         """
         return self._xconfig.get("app.wake_up_method", "both") in ["button", "both"]
+    
+    def is_speech_interrupt_by_button_wanted(self) -> bool:
+        """
+        Check if the button can cut the speech while it is being said.
+        It does not depend on the wake up method: the button may exist only for this.
+
+        Returns:
+            bool: True if the button interrupts the speech, False otherwise.
+        """
+        return bool(self._xconfig.get("app.button_interrupts_speech", True))
     
     def is_wake_up_button_wanted_exclusively(self) -> bool:
         """
@@ -825,6 +836,15 @@ class Interaction(PyXavi):
     def unset_wake_up_button_pressed(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, False)
     
+    def request_speech_interrupt(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, True)
+
+    def is_speech_interrupt_requested(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED)
+
+    def unset_speech_interrupt_requested(self):
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
+
     def is_wake_up_button_pressed(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED)
 

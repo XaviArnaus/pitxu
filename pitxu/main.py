@@ -1344,8 +1344,8 @@ class Main(PyXavi):
         }))
 
         # Load the wake up button support in case that is wanted by the configuration.
-        # It will be used to wake up the app from idle mode.
-        if self._interaction.is_wake_up_button_wanted():
+        # It will be used to wake up the app from idle mode, and to cut the speech while it is being said.
+        if self._interaction.is_wake_up_button_wanted() or self._interaction.is_speech_interrupt_by_button_wanted():
             self.initialize_wake_up_button()
 
         # We start with the microphone muted.
@@ -1357,7 +1357,7 @@ class Main(PyXavi):
         Initializes the wake up button.
         """
 
-        if self._interaction.is_wake_up_button_wanted():
+        if self._interaction.is_wake_up_button_wanted() or self._interaction.is_speech_interrupt_by_button_wanted():
             self._xlog.info("🕹️  Wake up button is wanted, initializing it.")
 
             # Initialises the buttons defined in the config.
@@ -1375,6 +1375,18 @@ class Main(PyXavi):
                     """
                     Callback for the wake up button.
                     """
+                    # While the speech is being said, the button only cuts it, to get back to listening.
+                    # The speaker flag is the guard: a press when nothing is being said can never skip the next speech.
+                    if cls._interaction.is_speech_interrupt_by_button_wanted() and cls._interaction.is_speaker_busy():
+                        cls._xlog.info("Button pressed while speaking. Interrupting the speech.")
+                        cls._interaction.request_speech_interrupt()
+                        return
+
+                    # The button may exist only to interrupt the speech (wake up method "voice").
+                    if not cls._interaction.is_wake_up_button_wanted():
+                        cls._xlog.debug("Button pressed, but the wake up by button is not wanted. Ignoring.")
+                        return
+
                     cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
                     
                     # Set the shared memory flag for the wake up button pressed, so the main process can react to it.

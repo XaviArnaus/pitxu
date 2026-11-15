@@ -8,7 +8,8 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.text_to_speech.speaker_level_meter import SpeakerLevelMeter
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP
+from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
+                        SHARED_SPEECH_INTERRUPT_REQUESTED
 
 class Piper(Xprocess):
 
@@ -116,13 +117,23 @@ class Piper(Xprocess):
         # REMOVEME: This is now handled in the parent Xprocess
         # self.write_shared_memory_flag(SHARED_SPEAKER_BUSY, True)
 
+        # An old request (a press that came too late for the previous speech) must never cut this one.
+        self.write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
+
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. Should have said [" + text + "]")
             # Emulate that we're doing something by waiting a second per 10 words
             words = text.split(" ")
             wait_time = max(1, len(words) / 10)
             self._xlog.debug(f"Mocking TTS wait time for {wait_time} seconds")
-            time.sleep(wait_time)
+            # In slices, so that it can be interrupted like the real one.
+            waited = 0.0
+            while waited < wait_time:
+                if self._is_speech_interrupt_requested():
+                    self._xlog.info("🤐 Speech interrupted (mocked).")
+                    break
+                time.sleep(min(0.1, wait_time - waited))
+                waited += 0.1
 
         else:
             self._xlog.debug("Saying [" + text.replace("\n", "\\n") + "]")
@@ -131,17 +142,22 @@ class Piper(Xprocess):
             # with self._output_stream:
             self._log_debug("Output stream started")
             first_chunk = True
+            interrupted = False
+            sample_rate = self._voice.config.sample_rate
+            # 0 writes the whole sentence at once, so the interruption waits for the end of the sentence.
+            slice_size = int(sample_rate * float(self._xconfig.get("text-to-speech.interrupt_slice_seconds", 0.1)))
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
             for int_data in self.generate_audio_chunks(text):
-                # if self.interrupt_event.is_set():
-                #     self.get_logger().info("Speech interrupted.")
-                #     break
+                # The synthesis of this sentence may have taken a while.
+                if self._is_speech_interrupt_requested():
+                    interrupted = True
+                    break
 
                 # Schedule the level of this chunk for the speaking animation (non blocking)
                 if self._level_meter is not None:
-                    self._level_meter.feed(int_data, self._voice.config.sample_rate)
+                    self._level_meter.feed(int_data, sample_rate)
 
                 # The very first write of this speech is when the user starts to hear it (give or take the stream latency).
                 # Published for the latency log in Main. It must never get in the way of the speech.
@@ -152,19 +168,41 @@ class Piper(Xprocess):
                     except Exception as e:
                         self._log_debug(f"Could not publish the first audio timestamp: {e}")
 
-                # Make it to speak
+                # Make it to speak. The same samples, in order, in slices: the blocking write keeps pacing
+                # the playback like before, but we get the chance to look at the interruption between slices.
                 self._log_debug("Writing audio bytes to output stream")
-                self._output_stream.write(int_data)
+                step = slice_size if slice_size > 0 else len(int_data)
+                for start in range(0, len(int_data), step):
+                    if self._is_speech_interrupt_requested():
+                        interrupted = True
+                        break
+                    self._output_stream.write(int_data[start:start + step])
+                if interrupted:
+                    break
 
-            self._log_debug("All audio chunks processed, stopping output stream")
-            # Comment the following and tab properly for the with statement if used
-            self._output_stream.stop()
+            if interrupted:
+                self._xlog.info("🤐 Speech interrupted by the user.")
+                # abort() drops what is already in the sound card buffer, stop() would play it out.
+                self._output_stream.abort()
+            else:
+                self._log_debug("All audio chunks processed, stopping output stream")
+                # Comment the following and tab properly for the with statement if used
+                self._output_stream.stop()
 
-            # The stream has drained: bars back to zero
+            # The stream has drained (or was cut): bars back to zero, and the schedule of the levels not played is dropped.
             if self._level_meter is not None:
                 self._level_meter.stop()
-        
+
+        # Done, interrupted or not: the request is consumed.
+        self.write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
         self._log_debug("Finished saying communication")
+
+    def _is_speech_interrupt_requested(self) -> bool:
+        try:
+            return bool(self.read_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED))
+        except Exception as e:
+            self._log_debug(f"Could not read the speech interrupt flag: {e}")
+            return False
     
     def synthesize_and_return_through_output_queue(self, text: str):
         if self._output_queue is not None:
