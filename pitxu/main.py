@@ -925,6 +925,8 @@ class Main(PyXavi):
         self._maintenance = Maintenance(config=self._xconfig, params=Dictionary({
             "maintenance_logger_name": self._xconfig.get("json_logger.name", "system_log"),
             "maintenance_logger_directory": self._xconfig.get("json_logger.path", "log"),
+            # The Memory preload that Maintenance executes needs it.
+            "api_key": self._xparams.get("api_key"),
         }))
 
         # Supported Languages
