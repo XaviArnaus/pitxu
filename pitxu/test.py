@@ -73,7 +73,7 @@ class Test(PyXavi):
 
     def test_matrix(self):
         try:
-            from pitxu.lib.matrix_led import Max7219
+            from pitxu.lib.legacy.matrix_led import Max7219
 
             # Delegate the run to Main
             self._xlog.debug("Testing LED Matrix display")

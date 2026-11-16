@@ -1,5 +1,5 @@
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
-from pitxu.lib.matrix_led import Max7219, Macros, HandableCanvas, HandableEmulatedCanvas
+from pitxu.lib.legacy.matrix_led import Max7219, Macros, HandableCanvas, HandableEmulatedCanvas
 from pitxu.lib.objects.point import Point
 from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR
 
