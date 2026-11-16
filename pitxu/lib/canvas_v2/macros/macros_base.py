@@ -3,7 +3,7 @@ from PIL import ImageDraw,ImageFont
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.animations import Animations
-from pitxu.lib.canvas_v2.layout_info import LayoutInfo
+from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
 
@@ -100,7 +100,7 @@ class MacrosBase(PyXavi):
             That's why the coordinates are relative to the display area, not to the full screen.
         '''
 
-        display_area = params.get("display_area", "full_screen")
+        display_area = params.get("display_area", DisplayArea.OVERALL)
         
         # Set the default, which is non-RGBA.
         outline = params.get("color", self.canvas.COLOR_BACKGROUND)
@@ -154,7 +154,7 @@ class MacrosBase(PyXavi):
     #     Draws a rectangle over the given canvas.
     #     '''
 
-    #     display_area = params.get("display_area", "full_screen")
+    #     display_area = params.get("display_area", DisplayArea.OVERALL)
 
     #     if display_area in self.layout_info["relative"]:
     #         rectangle = self.layout_info["relative"][display_area]

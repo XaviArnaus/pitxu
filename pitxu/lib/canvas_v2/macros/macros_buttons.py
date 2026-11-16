@@ -3,14 +3,14 @@ from PIL import ImageDraw
 from pyxavi import Config, Dictionary
 from pitxu.lib.objects import Point
 
-from pitxu.lib.canvas_v2.layout_info import LayoutInfo
+from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.buttons import SLOTS_PER_COLUMN
 
 
 class MacrosButtons(MacrosBase):
     """
-    Drawings that take place in the buttons areas: "bottom_left" and "bottom_right" of the layout.
+    Drawings that take place in the the left and right buttons areas of the layout.
     """
 
     SLOT_PADDING: int = 6
@@ -29,12 +29,12 @@ class MacrosButtons(MacrosBase):
         '''
         Draws a whole column of buttons.
          The params should include:
-            - display_area (str): "bottom_left" or "bottom_right".
+            - display_area (str): DisplayArea.BUTTONS_LEFT or DisplayArea.BUTTONS_RIGHT (the layout key).
             - buttons (list[dict]): one per button, with slot (1-based), label, color (a name) and active (bool).
         Active buttons are filled, inactive ones only outlined, so the layout never jumps.
         '''
 
-        display_area: str = params.get("display_area", "bottom_left")
+        display_area: str = params.get("display_area", DisplayArea.BUTTONS_LEFT)
         buttons: list[dict] = params.get("buttons", [])
 
         # Frame of the area, same as the other macros do.

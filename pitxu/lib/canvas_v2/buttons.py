@@ -4,14 +4,15 @@ from typing import Callable
 from definitions import SHARED_MICROPHONE_MUTED, SHARED_TRANSCRIBER_BUSY, SHARED_CHATBOT_BUSY, \
                         SHARED_MIC_VOLUME, SHARED_SPEAKER_VOLUME, SHARED_BATTERY_LEVEL, \
                         SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED
+from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 # How many buttons fit in a column. Free slots simply stay empty.
 SLOTS_PER_COLUMN: int = 4
 
 # The display area where each column of buttons is drawn.
 COLUMN_TO_DISPLAY_AREA: dict[str, str] = {
-    "left": "bottom_left",
-    "right": "bottom_right",
+    "left": DisplayArea.BUTTONS_LEFT,
+    "right": DisplayArea.BUTTONS_RIGHT,
 }
 
 # What a value button shows when the value is unknown.

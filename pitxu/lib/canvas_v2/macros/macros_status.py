@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary, dd
 from pitxu.lib.objects import Point
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosStatus(MacrosBase):
     """
@@ -23,14 +24,14 @@ class MacrosStatus(MacrosBase):
         '''
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "bottom_center"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.STATUS})
 
         # This is wrong, should be in the StatusQueue, so in a new MacrosStatus.
         #   That's why it's not shown, its out of the merging image frame.
-        status_offset_x = self.layout_info["relative"]["bottom_center"].point_1.x
-        status_offset_y = self.layout_info["relative"]["bottom_center"].point_1.y
-        status_max_x = self.layout_info["relative"]["bottom_center"].point_2.x
-        status_max_y = self.layout_info["relative"]["bottom_center"].point_2.y
+        status_offset_x = self.layout_info["relative"][DisplayArea.STATUS].point_1.x
+        status_offset_y = self.layout_info["relative"][DisplayArea.STATUS].point_1.y
+        status_max_x = self.layout_info["relative"][DisplayArea.STATUS].point_2.x
+        status_max_y = self.layout_info["relative"][DisplayArea.STATUS].point_2.y
         status_width = status_max_x - status_offset_x
         status_height = status_max_y - status_offset_y
         
@@ -66,21 +67,21 @@ class MacrosStatus(MacrosBase):
          This is not meant to be used for showing arbitrary text or images, those should be shown in the foreground or background areas, not in the status line.
          '''
         
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "bottom_center"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.STATUS})
         
         text: str = params.get("text", "")
         color: tuple | int = params.get("color", self.canvas.COLOR_FOREGROUND)
 
         draw.multiline_text(
             Point(
-                # self.layout_info["relative"]["bottom_center"].point_1.x + (self.layout_info["relative"]["bottom_center"].point_2.x - self.layout_info["relative"]["bottom_center"].point_1.x) / 2,
-                # self.layout_info["relative"]["bottom_center"].point_1.y + (self.layout_info["relative"]["bottom_center"].point_2.y - self.layout_info["relative"]["bottom_center"].point_1.y) / 2).to_image_point(),
-                self.layout_info["relative"]["bottom_center"].point_1.x + 8,    # Add some padding from the left edge
-                self.layout_info["relative"]["bottom_center"].point_1.y + 6).to_image_point(),  # Add some padding from the top edge
+                # self.layout_info["relative"][DisplayArea.STATUS].point_1.x + (self.layout_info["relative"][DisplayArea.STATUS].point_2.x - self.layout_info["relative"][DisplayArea.STATUS].point_1.x) / 2,
+                # self.layout_info["relative"][DisplayArea.STATUS].point_1.y + (self.layout_info["relative"][DisplayArea.STATUS].point_2.y - self.layout_info["relative"][DisplayArea.STATUS].point_1.y) / 2).to_image_point(),
+                self.layout_info["relative"][DisplayArea.STATUS].point_1.x + 8,    # Add some padding from the left edge
+                self.layout_info["relative"][DisplayArea.STATUS].point_1.y + 6).to_image_point(),  # Add some padding from the top edge
             # text=self.wrap_text_if_needed(
             #     canvas=draw,
             #     text="\n".join(self.status_lines),
-            #     max_width=self.layout_info["relative"]["bottom_center"].point_2.x - self.layout_info["relative"]["bottom_center"].point_1.x - 20,
+            #     max_width=self.layout_info["relative"][DisplayArea.STATUS].point_2.x - self.layout_info["relative"][DisplayArea.STATUS].point_1.x - 20,
             #     font=self.canvas.FONT_SMALL
             #     ),
             text=text,

@@ -5,7 +5,7 @@ from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
-from pitxu.lib.canvas_v2.layout_info import LayoutInfo
+from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros.macros_buttons import MacrosButtons
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
@@ -150,7 +150,7 @@ class Visualizer(PyXavi):
             "base_frame_for_display_area": {
                 "callback": self.macros_layout.base_frame_for_display_area,
                 "parameters": {
-                    "display_area": "full_screen",
+                    "display_area": DisplayArea.OVERALL,
                 }
             },
             "soft_full_clear": {
@@ -163,12 +163,12 @@ class Visualizer(PyXavi):
             },
         })
         params.set("layout_position_to_queue_name", {
-            "top_left": PainterQueue.BACKGROUND,
-            "top_right": PainterQueue.FOREGROUND,
-            "bottom_center": PainterQueue.STATUS,
-            "bottom_left": PainterQueue.BUTTONS_LEFT,
-            "bottom_right": PainterQueue.BUTTONS_RIGHT,
-            "full_screen": PainterQueue.OVERALL
+            DisplayArea.EFFECTS: PainterQueue.BACKGROUND,
+            DisplayArea.MESSAGES: PainterQueue.FOREGROUND,
+            DisplayArea.STATUS: PainterQueue.STATUS,
+            DisplayArea.BUTTONS_LEFT: PainterQueue.BUTTONS_LEFT,
+            DisplayArea.BUTTONS_RIGHT: PainterQueue.BUTTONS_RIGHT,
+            DisplayArea.OVERALL: PainterQueue.OVERALL
         })
         # ⚠️ The ORDER here is the painting order, from the bottom layer to the top one.
         #   - OVERALL has to be the LAST one: it covers the whole screen (overlays, code and text blocks).
@@ -255,7 +255,7 @@ class Visualizer(PyXavi):
 
         # Only the display areas that draw animations need their frames prepared (and cached on disk).
         # A size that was not prepared still works, but it is resized on demand and kept in memory only.
-        display_areas_with_animations = self._xconfig.get("animations.display_areas", ["top_left"])
+        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.EFFECTS])
 
         animation_sizes_per_display_area = {}
         for display_area, rectangle in self.layout_info["relative"].items():
@@ -652,7 +652,7 @@ class Visualizer(PyXavi):
 
                     drawing_callback=self.macros_layout.base_frame_for_display_area,
                     drawing_callback_parameters={
-                        "display_area": "top_right",
+                        "display_area": DisplayArea.MESSAGES,
                     },
 
                         # final_screen_clearing=False,
@@ -673,7 +673,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_layout.base_frame_for_display_area,
                         drawing_callback_parameters={
-                            "display_area": "top_left",
+                            "display_area": DisplayArea.EFFECTS,
                         },
 
                         # final_screen_clearing=False,

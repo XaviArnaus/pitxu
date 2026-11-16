@@ -10,6 +10,24 @@ from pitxu.lib.canvas_v2.canvas import Canvas
 
 import math
 
+class DisplayArea:
+    """
+    The areas of the screen, named by what is shown in them. The value is the key of the area in the layout.
+    To move an intention to another area, change it here.
+    """
+    # Animations and effects
+    EFFECTS: str = "top_left"
+    # Texts, feedback and other messages
+    MESSAGES: str = "top_right"
+    # The status line
+    STATUS: str = "bottom_center"
+    # The columns of status buttons
+    BUTTONS_LEFT: str = "bottom_left"
+    BUTTONS_RIGHT: str = "bottom_right"
+    # Overlays that cover everything
+    OVERALL: str = "full_screen"
+
+
 class LayoutInfo(PyXavi):
     """
     Information about the layout, to be used across the app.
