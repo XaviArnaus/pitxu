@@ -34,7 +34,7 @@ class Test(PyXavi):
 
     def test_eink_multiline(self):
         try:
-            from pitxu.lib.eink.eink import EinkDisplay
+            from pitxu.lib.legacy.eink.eink import EinkDisplay
             from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.legacy.canvas.canvas import Canvas
 

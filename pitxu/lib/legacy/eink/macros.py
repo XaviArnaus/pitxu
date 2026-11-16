@@ -2,7 +2,7 @@
 
 # from pyxavi import Config, Dictionary
 # from pitxu.lib.abstract.pyxavi import PyXavi
-# from pitxu.lib.eink.eink import EinkDisplay
+# from pitxu.lib.legacy.eink.eink import EinkDisplay
 # from pitxu.lib.objects import Rectangle, Line, Point
 
 

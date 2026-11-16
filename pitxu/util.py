@@ -20,7 +20,7 @@ class Util(PyXavi):
         TODO: Replace this with main.clear_displays().
         """
         try:
-            from pitxu.lib.eink.eink import EinkDisplay
+            from pitxu.lib.legacy.eink.eink import EinkDisplay
             from pitxu.lib.matrix_led import Max7219
             from pitxu.lib.lcd.st7789 import ST7789
             from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper as DsiLcd
