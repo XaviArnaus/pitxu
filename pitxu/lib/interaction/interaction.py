@@ -52,17 +52,10 @@ class Interaction(PyXavi):
         - Therefore, Main calls Interaction.communicate() so it gets executed.
         - While this happen, busy state changes may happen, for example, the speaker
           becomes busy because it is speaking the text.
-        - Interaction listens to busy flags changes via BusyFlagsManager, and sees if any extra interaction
-          needs to be performed (background interaction).
-        - If so, Interaction triggers the background interaction (for example, showing the "speaking" icon on the display).
-        - If the background interaction is no longer needed, Interaction stops it, by listening to the busy flags changes.
-    
-    The idea is good, but the implementation is not yet done.
-    What we have is a simpler version focused on displays in canvas/painter_busy_flags.py.
-
-    UPDATE:
-    - There is a Painter's thread-based busy flags control that adds / removes interactions into the related queues
-        whenever the flags change the state according to the parameters.
+        - The Painter of the display listens to the busy flags (shared memory) and adds / removes the background
+          interactions in its queues whenever a flag changes to the state that the interaction waits for
+          (for example, showing the "speaking" effect while the speaker flag is busy).
+        - The SharedMemoryMonitor reacts to the flag transitions that need something else, like a status line.
     """
 
     # Shortcuts to trigger interactions in all queues.
@@ -319,7 +312,7 @@ class Interaction(PyXavi):
     
     def close(self):
         """
-        Close the Interaction, including the BusyFlagsManager.
+        Close the Interaction.
         """
         self._xlog.debug("Closing Interaction.")
 
@@ -462,7 +455,6 @@ class Interaction(PyXavi):
         Triggers a "thinking" interaction on the background display.
 
         This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
-        TODO: this is a clear candidate to the BusyFlagsManager automatic handling.
         """
         self.background.show_thinking()
     
@@ -471,7 +463,6 @@ class Interaction(PyXavi):
         Triggers a "networking" interaction on the background display.
 
         This needs the SHARED_NETWORK_BUSY flag to be set by the Communication/Main process.
-        TODO: this is a clear candidate to the BusyFlagsManager automatic handling.
         """
         self.background.show_networking()
 

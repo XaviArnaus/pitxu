@@ -24,7 +24,6 @@ class Background(ShortcutBase):
         Triggers a "thinking" interaction on the background display.
 
         This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
-        TODO: this is a clear candidate to the BusyFlagsManager automatic handling.
         """
 
         self._log_debug("🤖 Triggering thinking interaction on background display.")
@@ -36,7 +35,6 @@ class Background(ShortcutBase):
         Triggers a "networking" interaction on the background display.
 
         This needs the SHARED_NETWORK_BUSY flag to be set by the Communication/Main process.
-        TODO: this is a clear candidate to the BusyFlagsManager automatic handling.
         """
 
         self._log_debug("🤖 Triggering networking interaction on background display.")
