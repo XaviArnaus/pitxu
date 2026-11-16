@@ -108,7 +108,7 @@ class Lcd(XprocessDisplayCombined):
         #     self.show_arbitrary_icon(param)
         
         # if action == XprocAction.NETWORKING:
-        #     self.show_kitt_scanner_while_networking()
+        #     self.show_networking()
         pass
     
     def show_arbitrary_icon_on_foreground(self, param: dict):
@@ -275,7 +275,7 @@ class Lcd(XprocessDisplayCombined):
 
     # ------- Background functions ---------
     
-    def show_kitt_mouth_while_speaking(self):
+    def show_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on LCD.")
         self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
@@ -287,7 +287,7 @@ class Lcd(XprocessDisplayCombined):
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
-    def show_kitt_scanner_while_networking(self):
+    def show_networking(self):
         self._xlog.info(f"🤖 Showing KITT networking on LCD.")
         self.painter.paint_into_background_while_networking(background_interaction=NetworkingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("networking", self.interaction_delays.get("default_delay_between_frames", 0.05))

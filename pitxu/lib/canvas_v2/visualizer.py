@@ -719,12 +719,12 @@ class Visualizer(PyXavi):
 
         return provider
 
-    def kitt_mouth_while_speaking(self):
+    def speaking(self):
 
         follows_audio = self._speaking_animation_follows_audio()
         if follows_audio:
             # The level is read live on every painting iteration. Only 5 different images, so the cache does the work.
-            drawing_callback = self.macros_background.draw_kitt_speaking_level
+            drawing_callback = self.macros_background.draw_speaking_level
             cache_control_parameters = ["speaker_level"]
             dynamic_parameters = {"speaker_level": self._speaker_level_provider()}
         else:
@@ -732,7 +732,7 @@ class Visualizer(PyXavi):
             #   - current_loop_iteration
             #   - max_loop_iterations
             # They are used by the macro method to calculate the phase to draw.
-            drawing_callback = self.macros_background.draw_kitt_speaking_effect
+            drawing_callback = self.macros_background.draw_speaking_effect
             cache_control_parameters = ["current_loop_iteration"]
             dynamic_parameters = {}
 
@@ -740,7 +740,7 @@ class Visualizer(PyXavi):
             PaintObject(
                 paints_by_queue={
                     PainterQueue.BACKGROUND: BackgroundPaint(
-                        name="KittMouthWhileSpeakingBackgroundPaint",
+                        name="SpeakingBackgroundPaint",
                         command=BackgroundCommand(BackgroundCommand.SPEAKING),
 
                         while_shared_memory_flag=SHARED_SPEAKER_BUSY,
@@ -804,6 +804,40 @@ class Visualizer(PyXavi):
             )
         )
     
+    def networking(self):
+        """
+        Shows that the network is busy, while the network busy flag is on.
+        The effect is the scanner in blue, in the top left.
+        """
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name="ScannerWhileNetworkingBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.NETWORKING),
+
+                        while_shared_memory_flag=SHARED_NETWORK_BUSY,
+                        while_shared_memory_flag_value=True,
+
+                        # The parameters "current_loop_iteration" and "max_loop_iterations" are added during the painting stage.
+                        # They are used by the macro method to calculate the phase to draw.
+                        drawing_callback=self.macros_background.draw_scanner_effect,
+                        drawing_callback_parameters={"color": self.canvas.COLOR_BLUE},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        loop_iterations=16,
+                        delay_between_frames=self.interaction_delays.get("networking",
+                                                                        self.interaction_delays.get("default_delay_between_frames",
+                                                                                                    0.05)),
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
     def holding_percentage(self, param: dict):
 
         self.painter.paint(

@@ -38,9 +38,9 @@ class MacrosBackground(MacrosBase):
 
         self._xlog.debug("Initialized MacrosBackground.")
     
-    def draw_kitt_horizontal_effect(self, draw: ImageDraw.ImageDraw, params: dict):
+    def draw_scanner_effect(self, draw: ImageDraw.ImageDraw, params: dict):
         """
-        Draws the KITT horizontal effect on the LCD display, based on the given loop iterations counter and max value.
+        Draws the horizontal effect on the LCD display, based on the given loop iterations counter and max value.
         It is meant to be called directly from the painting loop, so it can control which frame to draw based on the loop iteration counter.
         """
         current_loop_iteration = params.get("current_loop_iteration", 0)
@@ -50,12 +50,12 @@ class MacrosBackground(MacrosBase):
         frame = current_loop_iteration % (max_loop_iterations // 2)
         if current_loop_iteration < (max_loop_iterations // 2):
             self._log_debug(f"Painter Loop: Drawing Thinking Right screen on LCD display, frame [{frame}].")
-            self._draw_kitt_horizontal_effect_right(draw=draw, frame=frame, color=color)
+            self._draw_scanner_effect_right(draw=draw, frame=frame, color=color)
         else:
             self._log_debug(f"Painter Loop: Drawing Thinking Left screen on LCD display, frame [{frame}].")
-            self._draw_kitt_horizontal_effect_left(draw=draw, frame=frame, color=color)
+            self._draw_scanner_effect_left(draw=draw, frame=frame, color=color)
     
-    def _draw_kitt_horizontal_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
+    def _draw_scanner_effect_right(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
@@ -71,7 +71,7 @@ class MacrosBackground(MacrosBase):
             else:
                 counter += 1
     
-    def _draw_kitt_horizontal_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
+    def _draw_scanner_effect_left(self, draw: ImageDraw.ImageDraw, frame: int = None, color: str = None):
         counter = 0
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
@@ -87,9 +87,9 @@ class MacrosBackground(MacrosBase):
             else:
                 counter += 1
     
-    def _draw_kitt_mouth_frame(self, draw: ImageDraw.ImageDraw, frame: int, outer_columns_lag: int = 0):
+    def _draw_mouth_frame(self, draw: ImageDraw.ImageDraw, frame: int, outer_columns_lag: int = 0):
         '''
-        Draws the KITT mouth frame on the given canvas.
+        Draws the mouth frame on the given canvas.
 
         It is meant to be used as a base for the speaking effect.
 
@@ -129,9 +129,9 @@ class MacrosBackground(MacrosBase):
                         self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 3 - y), apply_offset=apply_offset)
                         self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(4, 4 + y), apply_offset=apply_offset)
 
-    def draw_kitt_speaking_effect(self, draw: ImageDraw.ImageDraw, params: dict):
+    def draw_speaking_effect(self, draw: ImageDraw.ImageDraw, params: dict):
         """
-        Draws the KITT speaking effect on the given canvas, based on the given loop iterations counter and max value.
+        Draws the speaking effect on the given canvas, based on the given loop iterations counter and max value.
         It is meant to be called directly from the painting loop, so it can control which frame to draw based on the loop iteration counter.
         """
 
@@ -141,14 +141,14 @@ class MacrosBackground(MacrosBase):
         frame = current_loop_iteration % (max_loop_iterations // 2)
         if current_loop_iteration < (max_loop_iterations // 2):
             self._log_debug(f"Painter Loop: Drawing Speaking Increase screen on LCD display, frame [{frame}].")
-            self._draw_kitt_speaking_effect_increase(draw=draw, frame=frame)
+            self._draw_speaking_effect_increase(draw=draw, frame=frame)
         else:
             self._log_debug(f"Painter Loop: Drawing Speaking Decrease screen on LCD display, frame [{frame}].")
-            self._draw_kitt_speaking_effect_decrease(draw=draw, frame=frame)
+            self._draw_speaking_effect_decrease(draw=draw, frame=frame)
 
-    def draw_kitt_speaking_level(self, draw: ImageDraw.ImageDraw, params: dict):
+    def draw_speaking_level(self, draw: ImageDraw.ImageDraw, params: dict):
         """
-        Draws the KITT mouth following a live audio level (VU meter style), instead of looping on a timer.
+        Draws the mouth following a live audio level (VU meter style), instead of looping on a timer.
         The parameter "speaker_level" is read on every painting iteration by the painter, and it is already
         the mouth frame to draw (an integer, quantized by the visualizer so it can also be used as cache key).
         It reuses the same mouth frames as the looping effect: 0 is the empty frame, 4 is the widest.
@@ -158,9 +158,9 @@ class MacrosBackground(MacrosBase):
         self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
         # The outer columns are one row behind the centre ones, so the three groups don't all move the same way:
         #   frame 1: centre only | frame 2: outer 1 row | frame 3: outer full | frame 4: centre full too.
-        self._draw_kitt_mouth_frame(draw=draw, frame=frame, outer_columns_lag=1)
+        self._draw_mouth_frame(draw=draw, frame=frame, outer_columns_lag=1)
 
-    def _draw_kitt_speaking_effect_increase(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def _draw_speaking_effect_increase(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
 
         # We go row by row from the middle point to the top and bottom extremes
@@ -170,7 +170,7 @@ class MacrosBackground(MacrosBase):
             self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
 
             # Every iteration here is a full frame to be drawn
-            self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
+            self._draw_mouth_frame(draw=draw, frame=drawing_frame)
                 
             # We count which is the current step for the drawing.
             # If we have reached the frame, we stop drawing more.
@@ -180,7 +180,7 @@ class MacrosBackground(MacrosBase):
             else:
                 counter += 1
     
-    def _draw_kitt_speaking_effect_decrease(self, draw: ImageDraw.ImageDraw, frame: int = None):
+    def _draw_speaking_effect_decrease(self, draw: ImageDraw.ImageDraw, frame: int = None):
         counter = 0
 
         # We go row by row from the middle point to the top and bottom extremes
@@ -190,7 +190,7 @@ class MacrosBackground(MacrosBase):
             self.base_frame_for_display_area(draw=draw, params={"display_area": "top_left"})
 
             # Every iteration here is a full frame to be drawn
-            self._draw_kitt_mouth_frame(draw=draw, frame=drawing_frame)
+            self._draw_mouth_frame(draw=draw, frame=drawing_frame)
                 
             # We count which is the current step for the drawing.
             # If we have reached the frame, we stop drawing more.

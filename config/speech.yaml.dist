@@ -241,7 +241,7 @@ text-to-speech:
   alsa_initial_mic_volume: 60
   # [Integer] Volume addition to the volume level read from the system.
   add_to_output_volume: 0
-  # [String] How the KITT mouth animates while speaking (DSI LCD only).
+  # [String] How the speaking animation (the mouth) animates while speaking (DSI LCD only).
   #   loop: the bars move up and down on a timer, regardless of the audio.
   #   vu:   the bars follow the level of the audio being played, like a VU meter. Ignored if `mock` is True.
   # The refresh rate is the `speaking` delay in displays.yaml.
