@@ -6,6 +6,7 @@ animations:
   # If this key is not set, all the animations in the map are loaded at start.
   preload:
     - sleeping
+    - thinking
   # [List] Display areas (from the layout) that draw animations. ⚠️ REMEMBER: whenever a new feature draws an
   # animation in another display area, add that area here. Only these areas get their frames prepared and cached on disk.
   # Others still work, but the frames are resized on demand every run and kept in memory only.

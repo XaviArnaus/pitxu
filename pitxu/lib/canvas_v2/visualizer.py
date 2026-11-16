@@ -766,36 +766,39 @@ class Visualizer(PyXavi):
             )
         )
     
-    def kitt_scanner_while_thinking(self):
+    def thinking(self):
+        """
+        Shows that the chatbot is thinking, while the chatbot busy flag is on.
+        The effect is an animation in the top left, chosen per display: `<display>.effects.thinking`
+        is the name of one of the animations of `animations.map`.
+        """
+
+        animation_name = self._xconfig.get(f"{self.canvas.DEVICE_CONFIG_PREFIX}.effects.thinking", "thinking")
 
         self.painter.paint(
             PaintObject(
                 paints_by_queue={
-                    PainterQueue.BACKGROUND: BackgroundPaint(
-                        name="KittScannerWhileThinkingBackgroundPaint",
+                    PainterQueue.BACKGROUND: AnimationPaint(
+                        name="AnimationWhileThinkingBackgroundPaint",
                         command=BackgroundCommand(BackgroundCommand.THINKING),
 
                         while_shared_memory_flag=SHARED_CHATBOT_BUSY,
                         while_shared_memory_flag_value=True,
 
-                        # The parameters on this call are added during the painting stage.
-                        #   - current_loop_iteration
-                        #   - max_loop_iterations
-                        # They are used by the macro method to calculate the phase to draw.
-                        drawing_callback=self.macros_background.draw_kitt_horizontal_effect,
-                        drawing_callback_parameters={},
-                        cache_control_parameters=["current_loop_iteration"],
-
-                        loop_iterations=16,
+                        # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+                        loop_iterations=self.animations.get_animation(animation_name).get_frame_count() - 1,
                         delay_between_frames=self.interaction_delays.get("thinking", 
                                                                         self.interaction_delays.get("default_delay_between_frames", 
                                                                                                     0.05)),
 
+                        # The parameter "current_loop_iteration" is added during the painting stage,
+                        # and it is the index of the frame to draw.
+                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback_parameters={"animation": animation_name},
+                        cache_control_parameters=["current_loop_iteration"],
+
                         final_area_clearing=True,
                         remove_interaction_after_painting=False
-
-                        # TODO: Maybe we should do a soft clear after removing the interaction, 
-                        # to avoid the persistence of the last phase of the effect on the screen, which can be a bit weird.
                     )
                 }
             )

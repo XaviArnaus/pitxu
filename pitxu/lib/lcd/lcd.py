@@ -281,7 +281,7 @@ class Lcd(XprocessDisplayCombined):
             delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
-    def show_kitt_scanner_while_thinking(self):
+    def show_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
         self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))

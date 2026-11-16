@@ -209,9 +209,9 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info(f"👄 Showing KITT mouth on DSI LCD.")
         self.visualizer.kitt_mouth_while_speaking()
     
-    def show_kitt_scanner_while_thinking(self):
-        self._xlog.info(f"🤖 Showing KITT thinking on DSI LCD.")
-        self.visualizer.kitt_scanner_while_thinking()
+    def show_thinking(self):
+        self._xlog.info(f"🤖 Showing thinking animation on DSI LCD.")
+        self.visualizer.thinking()
 
     def interaction_holding_percentage(self, percentage: int):
         self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")
