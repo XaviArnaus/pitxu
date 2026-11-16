@@ -1,4 +1,4 @@
-from PIL import ImageDraw, ImageFont
+from PIL import ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.device import Device

@@ -33,7 +33,6 @@ from pitxu.lib.utils.app_state import AppState
 
 from difflib import SequenceMatcher
 import sys
-import sounddevice
 import time
 import logging
 import asyncio

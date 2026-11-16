@@ -1,7 +1,3 @@
-from google import genai
-from google.genai import types
-from google.genai.errors import ServerError, ClientError, APIError
-from google.genai.chats import AsyncChat
 
 from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
@@ -13,7 +9,6 @@ from pitxu.lib.microservice.client import Client
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import anyio
 import fastmcp
 import logging
 

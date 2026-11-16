@@ -1,5 +1,5 @@
 
-from PIL import ImageDraw,ImageFont, Image, ImageText
+from PIL import Image
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi

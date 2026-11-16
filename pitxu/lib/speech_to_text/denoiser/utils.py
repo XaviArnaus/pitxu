@@ -13,7 +13,6 @@ from contextlib import contextmanager
 import inspect
 import time
 
-import torch
 
 logger = logging.getLogger(__name__)
 

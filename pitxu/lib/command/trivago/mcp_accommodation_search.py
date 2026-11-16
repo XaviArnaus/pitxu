@@ -2,7 +2,6 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 import nest_asyncio
 
-from google.genai import types
 
 from pyxavi import Dictionary, Config
 from pitxu.lib.abstract.pyxavi import PyXavi
