@@ -1,4 +1,4 @@
-from multiprocessing import set_start_method, JoinableQueue
+from multiprocessing import set_start_method, JoinableQueue, forkserver
 import signal
 from multiprocessing.managers import SyncManager
 from queue import Empty
@@ -81,6 +81,21 @@ class XprocessPool(PyXavi):
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
         # available in Mac.
         set_start_method('forkserver', force=True)  # For Mac M1/M2 compatibility. Works in RPi5
+
+        # The forkserver is the process that spawns all the children, and the SIGTERM that systemd sends to the whole
+        #   service reaches it too. If it dies, Main sees every child as dead (their sentinel breaks), so it does not
+        #   tell them to finish and they only leave when the queues vanish.
+        # An ignored signal is inherited through the exec, so we start the forkserver now with SIGTERM ignored,
+        #   and then give Main's own handling back.
+        try:
+            previous_sigterm_handler = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            try:
+                forkserver.ensure_running()
+            finally:
+                if previous_sigterm_handler is not None:
+                    signal.signal(signal.SIGTERM, previous_sigterm_handler)
+        except ValueError as e:  # not in the main thread: signals can not be set
+            self._xlog.warning(f"Could not protect the forkserver from SIGTERM: {e}")
     
     def close(self):
         self._xlog.debug("Closing XprocessPool")

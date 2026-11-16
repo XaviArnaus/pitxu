@@ -903,6 +903,10 @@ class Main(PyXavi):
         finally:
             # These two must always run, whatever happened before: otherwise the shared memory stays
             #   registered, and the Manager of the queues is never shut down.
+            # The monitor reads the shared memory in its own thread, so it must stop before the memory is closed.
+            if self._shared_memory_monitor is not None:
+                self._safe_step("shared memory monitor", self._shared_memory_monitor.close)
+
             self._xlog.debug("Closing Shared Memory Manager")
             self._safe_step("shared memory", lambda: self._interaction.get_process_pool().get_memory_manager().close())
 
