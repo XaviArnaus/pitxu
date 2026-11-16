@@ -1,10 +1,10 @@
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.compat import QueueShutDown
 
 import queue
 from faster_whisper import WhisperModel
@@ -45,9 +45,6 @@ class FasterWhisper(PyXavi):
         logging_parts = []
 
         language = self._xparams.get("language", "en")
-        if language == "en-us":
-            # I need to correct this Vosk language stupidity that is populated all around the code!!!
-            language = "en"
         logging_parts.append(("Language", language))
 
         if self._xconfig.get("speech-to-text.mock", True):
@@ -178,7 +175,7 @@ class FasterWhisper(PyXavi):
                 self._log_debug(f"FasterWhisper: Finished processing all audio chunks from the queue, final result: {result}")
                 return result
 
-        except queue.ShutDown as e:
+        except QueueShutDown as e:
             self.is_active = False
             raise SpeechToTextException("Queue Shutdown detected in FasterWhisper recognize(): " + str(e))
         except SpeechToTextException as ve:

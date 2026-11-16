@@ -1,21 +1,20 @@
-from pyxavi import Logger, Config, Dictionary, Storage, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
+from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
-from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToText, SpeechToTextException
 from pitxu.lib.chatbot.generic_chatbot import GenericChatbot
 from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.utils.system import System
 from pitxu.lib.microservice.client import Client
 
 import signal
@@ -30,7 +29,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 class MainClientPTT(PyXavi):
 
-    _state: Storage = None
+    _state: AppState = None
     
     _last_processed_minute: int = -1
     _last_processed_second: int = -1
@@ -70,7 +69,7 @@ class MainClientPTT(PyXavi):
     _trigger_words: list = []
     _tokens_counter: int = 0
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
@@ -555,7 +554,7 @@ class MainClientPTT(PyXavi):
         The initialization of the MainClientPTT itself, what you would include in __init__()
         """
         # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        self._state = AppState(config=self._xconfig, params=self._xparams)
 
         # Initial Language. 1st from the state, then from the config, and last default to Catalan.
         language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
@@ -698,7 +697,8 @@ class MainClientPTT(PyXavi):
             "interaction": self._interaction,
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
-            "input_stream": input_stream
+            "input_stream": input_stream,
+            "state": self._state,
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
     
@@ -814,7 +814,7 @@ class MainClientPTT(PyXavi):
 
         # Here comes anything that we want to do before leaving
         self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-        self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
+        self._xlog.info("💡  Memory used: " + str(SystemReader.process_rss(scale=SystemReader.MEGABYTES)) + " MB")
         self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
 
         # If requested, avoid the final sys.exit()
@@ -829,7 +829,6 @@ class MainClientPTT(PyXavi):
     def persist_state(self):
 
         self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
-        self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
 
     def clear_displays(self):
@@ -863,7 +862,7 @@ class MainClientPTT(PyXavi):
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📝",
                     text=reminder.get("text", ""),
-                    font_size=Canvas.FONT_SIZE_BIG)
+                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
                 self._interaction.mute_microphone(input_stream=input_stream)
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot

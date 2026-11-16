@@ -13,6 +13,8 @@ displays:
   # [String] The display to use for background notifications. Must be one of the available displays.
   # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
   background_display: dsi_lcd
+  # [String] Status display to show the status lines, log style. Must be one of the available displays.
+  status_display: dsi_lcd
   # [Bool] Avoid storing mocked images (avoids generating tons of PNGs while testing).
   # This is applied to all mocked displays, independently of the individual display configuration.
   discard_mocked_images: False
@@ -177,3 +179,11 @@ dsi_lcd:
     thinking: 0.08
     # [Float] Delay for the "speaking" animation frames. Defaults to default_delay_between_frames
     speaking: 0.05
+    # [Float] Delay for the "idle" animation frames. Defaults to default_delay_between_frames
+    idle: 0.02
+  # What this display shows for each state. Animations always go in the top left.
+  # Displays with less resources keep their own fixed effects and do not read this.
+  effects:
+    # [String] Name of the animation (one of `animations.map`) shown while the chatbot is thinking.
+    #   ⚠️ Remember to keep it in `animations.preload`, otherwise it loads the first time it is used.
+    thinking: thinking

@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.4.2b - 2026-11-16
+
+### Added
+
+- Wake up through a physical button [#43](https://github.com/XaviArnaus/pitxu/pull/43)
+- Status area in the DSI LCD that displays log messages, and Status Buttons [#47](https://github.com/XaviArnaus/pitxu/pull/47)
+- Interrupt the speech with a button [#49](https://github.com/XaviArnaus/pitxu/pull/49)
+- Shared Memory Monitor thread that manages flag changes.
+- Dynamic Stability threshold to commit partial words with a longer buffer for longer inputs.
+- Animations cache and lazy loading [#45](https://github.com/XaviArnaus/pitxu/pull/45)
+- Real KITT mouth effect while speaking [#44](https://github.com/XaviArnaus/pitxu/pull/44), animated THINKING state [#50](https://github.com/XaviArnaus/pitxu/pull/50) and a blue networking effect.
+- Centralised gathering of device values (battery, volumes, temperature, fans) in the `DeviceMonitor` [#48](https://github.com/XaviArnaus/pitxu/pull/48)
+- Log entries tell the class that raised them.
+- Configurable initial Mic volume.
+
+### Changed
+
+- Iterated the UX [#35](https://github.com/XaviArnaus/pitxu/pull/35)
+- Partial transcriptions are merged using a Timestamp-based Append, to avoid re-adding already processed words [#42](https://github.com/XaviArnaus/pitxu/pull/42)
+- General iteration to improve responsiveness [#46](https://github.com/XaviArnaus/pitxu/pull/46)
+- Threaded input stream removed and input wrapped in a class.
+- Painter and Macros relocated and generalised, display areas defined by intention.
+- Legacy displays (Canvas V1, eInk, LCD, matrix LED) moved to `lib/legacy/` and loaded lazily. `lib/ups` retired in favour of the `DeviceMonitor`.
+- Reduced the Github tools to avoid chatbot misconceptions, and paginated the files of a PR.
+- Cleaner shutdown: the main process closes everything in order, children exit after `finish`, and no more broken pipes nor leaked semaphores.
+- Unused imports, dead modules and tracked compiled files removed.
+
+### Fixed
+
+- 100% CPU spin in the input stream and input samplerate issues.
+- Battery level blank on transient I2C read errors.
+- Idle screen keeping the top-right panel after the timeout.
+- Google Search and Maps tools in the RPi (language), Github code retrieval and sending mails.
+- Memory summarisation missing the API key.
+
 ## v0.4.1 - 2026-06-04
 
 ### Added

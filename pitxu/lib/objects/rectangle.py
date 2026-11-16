@@ -1,4 +1,3 @@
-from pyxavi.config import Config
 from .point import Point
 
 class OffsetRectangle:
@@ -7,6 +6,9 @@ class OffsetRectangle:
     INNER = "inner"
 
 class Rectangle:
+    """
+    Represents a rectangle. Point 1 is top-left, Point 2 is bottom-right.
+    """
 
     point_1: Point = None
     point_2: Point = None

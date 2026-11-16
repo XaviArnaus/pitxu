@@ -65,6 +65,10 @@ clear:
 battery_status:
 	@$(POETRY) run util -u battery_status
 
+.PHONY: migrate
+migrate:
+	@$(POETRY) run util -u migrate_db
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

@@ -1,19 +1,24 @@
-from pyxavi import Config, Dictionary, Storage, TerminalColor, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 import signal
 
+from definitions import SHARED_WAKE_UP_BUTTON_PRESSED, SHARED_FIRST_AUDIO_TIMESTAMP
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
-from pitxu.lib.utils.system import System
+from pitxu.lib.utils.latency_timeline import LatencyTimeline
+from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
+from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
-from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
@@ -22,10 +27,12 @@ from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.server import Server
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.audio_parameters_loader import AudioParametersLoader
-from pitxu.lib.speech_to_text.threaded_input_stream import ThreadedInputStream
+from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
+from pitxu.lib.utils.device_monitor import DeviceMonitor
+from pitxu.lib.utils.app_state import AppState
 
+from difflib import SequenceMatcher
 import sys
-import sounddevice
 import time
 import logging
 import asyncio
@@ -35,7 +42,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 class Main(PyXavi):
 
-    _state: Storage = None
+    _state: AppState = None
     
     _last_processed_minute: int = -1
     _last_processed_second: int = -1
@@ -49,6 +56,7 @@ class Main(PyXavi):
     _server: Server = None
     _fan_control_iterated_seconds: int = -1
     _fan_control_trigger_every_seconds: int = 5
+    _buttons: Buttons = None
 
     _audio_parameters: dict = None
 
@@ -63,15 +71,18 @@ class Main(PyXavi):
 
     _chatbot_client_callbacks: dict[str, callable] = None
 
-    _threaded_input_stream: ThreadedInputStream = None
+    _input_stream: InputStream = None
     _interaction: Interaction = None
     _reactions: Reactions = None
+    _shared_memory_monitor: SharedMemoryMonitor = None
+    _device_monitor: DeviceMonitor = None
 
     _support: Support = None
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
     _fan_control: FanControl = None
+    _scheduler: BackgroundScheduler = None
 
     _stopwatch: Stopwatch = None
     _supported_languages: list[str] = []
@@ -85,10 +96,12 @@ class Main(PyXavi):
     _dictate_count: int = 0
     _answer_count: int = 0
 
-    ENGLISH: str = "en-us"
+    ENGLISH: str = "en"
     CATALAN: str = "ca"
     GERMAN: str = "de"
     SPANISH: str = "es"
+
+    WAKE_UP_BUTTON_NAME: str = "WAKE_UP"
 
     SCHEDULER_LIB_LOGLEVEL = logging.WARNING
     TZLOCAL_LIB_LOGLEVEL = logging.INFO
@@ -117,74 +130,84 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_signal_plots()
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
+            self._maintenance.clean_stale_animation_cache()
             self._maintenance.execute_memory_preload()
 
             # Register that we just did a new start
             self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
 
             # Initialise the Interaction manager, with Process pool, shared memory, displays, painter and TTS.
-            self._initialize_interactions()
+            # The main problem here is that nothing is displayed until the Interaction lib is initialized.
+            # With the Animations took forever, that's why the Animations initializon was moved out.
+            # Maybe other visualization initializations should also be promoted to its own initialization step.
+            self._initialize_core()
+            # The metrics report CPU and memory per process, so they need to know the pool's processes.
+            self._maintenance.set_process_pids_provider(self._interaction.get_process_pool().get_process_pids)
+            # self._interaction.show_startup()
+            # self._interaction.wait_for_foreground_display_queue_to_empty()
+            # self._interaction.wait_for_busy_foreground_display_to_idle()
             # This is the only one that initializes BEFORE showing the phase. We need interaction() to be ready!
-            self._interaction.show_init_phases(1, text="💬 Interactions")
+            self._interaction.show_init_phases(1, text="💚 Core")
 
-            # Startup splash. It should be understood as a "Loading..." screen.
-            # We set it for 4s, but it may be overridden by the display config block for the related display.
-            self._interaction.startup_splash(for_seconds=4.0)
+            self._interaction.show_init_phases(2, text="🙂 Animations")
+            self._interaction.initialize_animations()
 
             # Load all language statics, like the exit words and the greeting / goodbye sentences
-            self._interaction.show_init_phases(2, text="⚙️  Statics, Params and Support")
+            self._interaction.show_init_phases(3, text="⚙️  Statics, Params and Support")
             self._load_statics_params_and_support()
 
             # Initialise all classes that require a model. They go per language.
-            self._interaction.show_init_phases(3, text="🧠 Models")
+            self._interaction.show_init_phases(4, text="🧠 Models")
             self._load_models()
 
             # Initialize the microphone and defines the callback for the audio capture.
-            self._interaction.show_init_phases(4, text="🎙️  Microphone")
+            self._interaction.show_init_phases(5, text="🎙️  Microphone")
             self._instantiate_input_stream()
 
             # Initialise the Chatbot async context with all the tools from the session manager
-            self._interaction.show_init_phases(5, text="🤖 Chatbot")
+            self._interaction.show_init_phases(6, text="🤖 Chatbot")
             await self._initialize_chatbot()
 
             # Warm up the chatbot
-            self._interaction.show_init_phases(6, text="🔥 Chatbot warm up")
-            await self._warmup_chatbot()
+            self._interaction.show_init_phases(7, text="🔥 Chatbot warm up")
+            if not self._xparams.get("execution_mode") in ["test"]:
+                await self._warmup_chatbot()
 
             # Initialise the Server that accepts requests to the defined endpoints.
-            self._interaction.show_init_phases(7, text="🖥️  Server")
+            self._interaction.show_init_phases(8, text="🖥️  Server")
             self._initialize_server()
 
             # Initialize the Reactions class
-            self._interaction.show_init_phases(8, text="⚡️ Reactions")
-            self._initialize_reactions(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.show_init_phases(9, text="⚡️ Reactions")
+            self._initialize_reactions(input_stream=self._input_stream)
 
             # TODO: We need to have a way to set callbacks by time, for the reminders and the maintenance tasks. 
             #   That would be the equivalent of the do_every_minute_tasks() and do_every_second_tasks() that we had in the loop.
-            self._interaction.show_init_phases(9, text="⏱️  Schedulers")
+            self._interaction.show_init_phases(10, text="⏱️  Schedulers")
             self._initialize_schedulers()
 
             # # Welcome greeting
             sw_greeting = self._stopwatch.start(name="greeting")
-            self._interaction.show_init_phases(10, text="👋 Greeting")
+            self._interaction.show_init_phases(11, text="👋 Greeting")
             self._greeting_interaction()
             self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
             # Clean the display after initialisation.
-            self._log_debug("Clearing display after initialisation.")
-            self._interaction.clear_combined_display()
-            self._interaction.wait_for_all_queues_to_empty()
+            # COMMENTED: Apparently this is not needed given the new visual approach.
+            # self._log_debug("Clearing display after initialisation.")
+            # self._interaction.clear_background_display()
+            # self._interaction.wait_for_all_queues_to_empty()
             self._xlog.debug("⏱️  Initialisations: " + str(self._stopwatch.stop(sw_init)))
 
             # Before we start with the loop, let's set the last interaction time to now
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
             self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
-            self._interaction.show_init_phases(11, text="✅ Ready")
+            self._interaction.show_init_phases(12, text="✅ Ready")
             self._xlog.info("✅ All initialisations done, entering idle state, waiting for interactions...")
 
             # HERE WAS THE MAIN LOOP.
@@ -196,18 +219,21 @@ class Main(PyXavi):
             #   executes any System.* function that uses a subprocess.run(). Feels like the subprocess.run() sends any SIGINT or SIGTERM or any other
             #   and the signal.pause() gets it and releases the pause, and the app finishes.
             # I've tried to catch all possible signals and no avail. I surrended to end up using a while-loop, but I really don't like it.
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except (KeyboardInterrupt, SystemExit) as e:
-                self._xlog.info("Pressed Control + C from Main.run() or received termination signal, exiting MainClientPTT run loop.")
+            if self._xparams.get("execution_mode") not in ["test"]:
+                try:
+                    while True:
+                        await asyncio.sleep(1)
+                except (KeyboardInterrupt, SystemExit) as e:
+                    self._xlog.info("Pressed Control + C from Main.run() or received termination signal, exiting MainClientPTT run loop.")
             
-            # Now that the pause has resumed, means that we are meant to close.
-            # Make sure we leave the state properly
-            self._xlog.debug("🏁 Exit signal detected.")
-            self._interaction.set_idle_mode_off()
-            self._interaction.wait_for_foreground_display_queue_to_empty()
-            self._interaction.wait_for_busy_foreground_display_to_idle()
+                # Now that the pause has resumed, means that we are meant to close.
+                # Make sure we leave the state properly
+                self._xlog.debug("🏁 Exit signal detected.")
+                self._interaction.set_idle_mode_off()
+                self._interaction.wait_for_foreground_display_queue_to_empty()
+                self._interaction.wait_for_busy_foreground_display_to_idle()
+            else:
+                self._xlog.info("Running in TEST mode, skipping infinite wait and allowing the test to execute.")
 
         except KeyboardInterrupt:
             self._xlog.info("Pressed Control + C from main")
@@ -225,7 +251,10 @@ class Main(PyXavi):
             self._xlog.error(full_stack())  
         
         # However it happened, just close nicely.
-        self.close_nicely()
+        if self._xparams.get("execution_mode") not in ["test"]:
+            self.close_nicely()
+        else:
+            self._xlog.info("Running in TEST mode, skipping close_nicely() in Main.run() to allow the test to execute.")
 
     def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
 
@@ -269,16 +298,7 @@ class Main(PyXavi):
             #     text="SPEAKING", 
             #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN)
             # self._interaction.wait_for_foreground_display_queue_to_empty()
-            
-            # Attention: only for Streaming engines!
-            # When VAD detects a new speech, we reset the context of the Dictate, to avoid any leftover audio in the queue from previous detections.
-            # This was introduced for Faster Whisper Stream, take care if you change the transcription engine.
-            if self._xconfig.get("speech-to-text.engine") in ["faster_whisper_streaming", "faster_whisper_process"]:
-                self._log_debug("🗣️ Resetting Dictate context on VAD detected speech start.")
-                self._dictate.reset_context()
-                # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
-                # self._interaction.set_stt_busy()
-                self._interaction.set_transcriber_busy()
+            pass
         
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_started(): " + str(e))
@@ -330,20 +350,22 @@ class Main(PyXavi):
         """
 
         self._xlog.info("Main execution triggered by user finishing speaking, via Transcription callback.")
+        LatencyTimeline.mark("transcript")
 
         # As we want to try to recover from any error, we need to control a possible error state we fall into.
         #   This will be set to True when an exception is caught.
         we_are_in_error_state = False
 
         # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        self._interaction.mute_microphone(input_stream=self._input_stream)
 
         try:
         
             # Pitxu may be already closing, so we better check the state before doing anything.
             if not self._is_pitxu_active:
                 self._xlog.warning("🛑 Main execution triggered by user finishing speaking, but Pitxu is already in the process of closing, so ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
             
             # Initialize the question variable, that will be filled with the recognized text from the microphone.
@@ -364,14 +386,16 @@ class Main(PyXavi):
                 # For non-streaming engines, we need to call the recognize_all_queue_at_once() method to process the audio in the queue and get the transcription.
                 self._log_debug("Getting transcription from STT after VAD detected speech finished, for non-streaming engine...")
                 question = self._dictate.recognize_all_queue_at_once()
+
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
                 # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+                self._interaction.unmute_microphone(input_stream=self._input_stream)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
-                self._interaction.unset_transcriber_busy()
+                # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+                # self._interaction.unset_transcriber_busy()
                 return
 
             # Still here? Then something got recognised.
@@ -379,7 +403,8 @@ class Main(PyXavi):
 
             # COMMENTED: Now the transcription happens in an own Process, so the state is managed by XProcess.
             # self._interaction.unset_stt_busy()
-            self._interaction.unset_transcriber_busy()
+            # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
+            # self._interaction.unset_transcriber_busy()
             self._last_stt_processing_time = self._stopwatch.stop(sw_dictate)
             self._xlog.debug("⏱️  Dictate " + str(self._dictate_count) + ": " + str(self._last_stt_processing_time))
             self._dictate_count += 1
@@ -403,6 +428,13 @@ class Main(PyXavi):
 
                 # Just assume a goodbye
                 answer = self._goodbye_sentence
+
+                # Emulate a Chatbot answer: show the text into the foreground display and speak it.
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=answer
+                )
+
             # Avoid calling the Chatbot when the text is only meant for waking up the system.
             elif text_is_only_trigger_words:
 
@@ -414,6 +446,13 @@ class Main(PyXavi):
                 # Randomly choose one of the trigger answers
                 import random
                 answer = random.choice(self._trigger_answers)
+
+                # Emulate a Chatbot answer: show the text into the foreground display and speak it.
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="🧠",
+                    text=answer
+                )
+
             # Check if the text is meant to trigger or continue an interaction
             # Same as before, but the question is passed to the chatbot.
             elif text_initial_words_intend_to_trigger_interaction or text_continues_ongoing_interaction:
@@ -423,100 +462,28 @@ class Main(PyXavi):
                 # Here we start with the Chatbot.
                 # -------------------------------
 
-                # An interaction comes, stop the idle mode.
-                self._interaction.set_idle_mode_off()
-
-                # We set it as busy in shared memory, so the Background Display can show the thinking effect
-                # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
-                #   to react on the busy flag changes and be displayed on time.
-                self._interaction.show_thinking()
-                # I am going to try to show the question while thinking.
-                # It may give some time to the LCD to show the previous called thinking effect.
-                self._interaction.show_arbitrary_text_on_foreground_while_thinking(
-                    icon="👤",
-                    text=question,
-                    font_size=24,
-                )
-                self._interaction.wait_for_background_display_queue_to_empty()
-                self._interaction.set_chatbot_busy()
-                chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
-                self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
-                self._interaction.unset_chatbot_busy()
-
-                try:
-                    # We react on the answer received from the Chatbot, that may include function call responses and code blocks,
-                    # or instructions for us to react, beyond the text to speak.
-                    # For example, we may have to execute a Shutdown.
-                    #
-                    # Keep in mind that:
-                    #   - repeating a question that involves a tool does not mean that in the second time the tool gets called.
-                    #       It may just take the previous question and answer again.
-                    #       There may not be a second function call response.
-                    #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
-                    #       So the second time we may not be able to show the time on the screen, for example.
-                    self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
-                    self._reactions.react_on_answer(chat_response=chat_response)
-                except Exception as e:
-                    self._xlog.error("🛑 Error reacting to function call: " + str(e))
-                
-                # Finally, this is the answer string that moves on.
-                answer = chat_response.text
-
-                # This waiting happens BEFORE we reached the answering phase with the interaction.say().
-                # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
-                # It will be waiting forever because the TTS has not started yet.
-                # - Commenting it out to see how it goes.
-                # - Uncommenting again because seems like the block happens in interaction.say() instead.
-                self._interaction.wait_for_foreground_display_queue_to_empty()
+                answer = await self.chatbot_request_for_answer(question)
 
             # Anything else is ignored.
             else:
+                self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
                 question = ""
             
-            # We have an answer, whatever it is. Interact back.
+            # Here we deliver the outcome through the Interaction.
+            # ----------------------------------------------------
 
-            # Do we actually have any answer?
-            if answer is not None and answer.strip() != "":
+            # We have an answer, whatever it is. Interact back to the user.
+            please_continue_interaction = self.deliver_outcome(question=question, answer=answer)
 
-                known_text_replacements = self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {})
-            
-                # Clean the answer first, just in case
-                answer = Text.remove_emojis(answer)
-                answer = Text.remove_markdown(answer)
-                answer = Text.replace_known_text(answer, known_text_replacements)
-
-                # Answer
-                sw_answer = self._stopwatch.start(name="answer" + str(self._answer_count))
-
-                # Maybe the user said a looooong sentence, and the chatbot also has a looong answer.
-                # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
-                self.reset_last_interaction_event_mark()
-
-                self._interaction.say(answer)
-                self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
-                self._answer_count += 1
-
-                # If we were communicating an error, it's over and start new
-                if self._interaction.is_chatbot_error():
-                    self._interaction.unset_chatbot_error()
-                
-                if text_has_exit_intention:
-                    self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
-
-                    # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
-                    self.on_end_of_conversation_requested(is_end_of_application=True)
-
-                    # Now close the app nicely.
-                    self.close_nicely()
-                    return
-                
-                # Last thing to do is to remember this as the last interaction.
-                self.reset_last_interaction_event_mark()
+            if not please_continue_interaction:
+                self._xlog.info("The interaction requested to end the conversation, so finishing the app.")
+                self.close_nicely()
+                return
 
             # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -575,7 +542,7 @@ class Main(PyXavi):
         #         self.reset_last_interaction_event_mark()
 
         #         # Turn on the microphone again, just in case, to allow the user to try again.
-        #         self._interaction.unmute_microphone(input_stream=self._threaded_input_stream.get_input_stream())
+        #         self._interaction.unmute_microphone(input_stream=self._input_stream)
 
         # except Exception as e:
         #     if not self._is_pitxu_active:
@@ -584,6 +551,154 @@ class Main(PyXavi):
         #         return
         #     self._xlog.error("🛑 Error in Main run callback, when recovering from an error state: " + str(e))
         #     self._xlog.error(full_stack())
+    
+    # ------------- Abstraction for the Chatbot Pipeline -------------
+
+    async def chatbot_request_for_answer(self, question: str) -> str:
+        """
+        This method abstracts all the Chatbor Pipeline.
+        It was directly in the main_execution_on_vad_detected_finished() method, contained as an IO clock.
+        """
+
+        LatencyTimeline.mark("chatbot_start")
+
+        # An interaction comes, stop the idle mode.
+        self._interaction.set_idle_mode_off()
+
+        # We set it as busy in shared memory, so the Background Display can show the thinking effect
+        # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
+        #   to react on the busy flag changes and be displayed on time.
+        self._interaction.show_thinking()
+        # I am going to try to show the question while thinking.
+        # It may give some time to the LCD to show the previous called thinking effect.
+        self._interaction.show_arbitrary_text_on_foreground_while_thinking(
+            icon="👤",
+            text=question,
+            font_size=24,
+        )
+        self._interaction.wait_for_background_display_queue_to_empty()
+        self._interaction.set_chatbot_busy()
+        LatencyTimeline.mark("llm_sent")
+        chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
+        LatencyTimeline.mark("llm_answer")
+        self._tokens_counter += chat_response.metadata.total_token_count if chat_response.metadata and chat_response.metadata.total_token_count is not None else 0
+        self._interaction.unset_chatbot_busy()
+
+        try:
+            # We react on the answer received from the Chatbot, that may include function call responses and code blocks,
+            # or instructions for us to react, beyond the text to speak.
+            # For example, we may have to execute a Shutdown.
+            #
+            # Keep in mind that:
+            #   - repeating a question that involves a tool does not mean that in the second time the tool gets called.
+            #       It may just take the previous question and answer again.
+            #       There may not be a second function call response.
+            #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
+            #       So the second time we may not be able to show the time on the screen, for example.
+            self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
+            self._reactions.react_on_answer(chat_response=chat_response)
+        except Exception as e:
+            self._xlog.error("🛑 Error reacting to function call: " + str(e))
+        
+        # Finally, this is the answer string that moves on.
+        answer = chat_response.text
+
+        # This waiting happens BEFORE we reached the answering phase with the interaction.say().
+        # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
+        # It will be waiting forever because the TTS has not started yet.
+        # - Commenting it out to see how it goes.
+        # - Uncommenting again because seems like the block happens in interaction.say() instead.
+        self._interaction.wait_for_foreground_display_queue_to_empty()
+
+        LatencyTimeline.mark("answer_ready")
+        return answer
+    
+    # ------------- Latency log -------------
+
+    def _reset_first_audio_timestamp(self):
+        """
+        Clears the timestamp that Piper publishes at the first audio write, so an old one is never mistaken for the new speech.
+        """
+        try:
+            self._interaction.get_process_pool().get_memory_manager().write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, 0.0)
+        except Exception as e:
+            self._log_debug(f"Could not reset the first audio timestamp: {e}")
+
+    def _log_latency_breakdown(self):
+        """
+        Logs where the time went between the end of the user's speech and the first audio of the answer.
+        Called once the speech finished. It must never interfere with the interaction.
+        """
+        try:
+            LatencyTimeline.mark("say_end")
+            first_audio = self._interaction.get_process_pool().get_memory_manager().read_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP)
+            if first_audio:
+                LatencyTimeline.mark("first_audio", first_audio)
+            lines = LatencyTimeline.breakdown(silence_wait_seconds=self._xconfig.get("speech-to-text.vad.release", None))
+            if lines is not None:
+                self.log_summary("Latency after the VAD speech end", lines, log_level=logging.INFO)
+        except Exception as e:
+            self._xlog.warning(f"Could not log the latency breakdown: {e}")
+
+    # ------------- Abstraction for the Outcome interaction -------------
+
+    def deliver_outcome(self, question:str, answer: str) -> bool:
+        """
+        This method abstracts the Pipeline for the interaction for an outcome.
+        It was directly in the main_execution_on_vad_detected_finished() method, contained as an Output step
+
+        Args:
+            question (str): The question that was recognized from the user, that may be used for the interaction.
+            answer (str): The answer that was generated for the user, that may be used for the interaction.
+        
+        Returns:
+            bool: True if the interaction intends to end the interaction normaly, False otherwise (for example, a close_nicely() request).
+
+        """
+
+        # Do we actually have any answer?
+        if answer is not None and answer.strip() != "":
+
+            known_text_replacements = self._xconfig.get("language.text_replacements." + self._xparams.get("language"), {})
+        
+            # Clean the answer first, just in case
+            answer = Text.remove_emojis(answer)
+            answer = Text.remove_markdown(answer)
+            answer = Text.replace_known_text(answer, known_text_replacements)
+
+            # Answer
+            sw_answer = self._stopwatch.start(name="answer" + str(self._answer_count))
+
+            # Maybe the user said a looooong sentence, and the chatbot also has a looong answer.
+            # Just in case, update the last interaction time before saying, to avoid showing the idle mode during the TTS.
+            self.reset_last_interaction_event_mark()
+
+            self._reset_first_audio_timestamp()
+            self._interaction.say(answer)
+            self._log_latency_breakdown()
+            self._xlog.debug("⏱️  Answer " + str(self._answer_count) + ": " + str(self._stopwatch.stop(sw_answer)))
+            self._answer_count += 1
+
+            # If we were communicating an error, it's over and start new
+            if self._interaction.is_chatbot_error():
+                self._interaction.unset_chatbot_error()
+            
+            if self._text_has_exit_intention(question):
+                self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
+
+                # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
+                if self._xparams.get("execution_mode") not in ["test"]:
+                    self.on_end_of_conversation_requested(is_end_of_application=True)
+
+                # Now close the app nicely.
+                # COMMENTED: this is now handled by the caller.
+                # self.close_nicely()
+                return False
+            
+            # Last thing to do is to remember this as the last interaction.
+            self.reset_last_interaction_event_mark()
+
+        return True
 
 
     # ------------- End of the main method run() -------------
@@ -609,14 +724,15 @@ class Main(PyXavi):
         self._last_interaction_paused_seconds = 0
 
     def _text_has_exit_intention(self, text: str) -> bool:
-        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{text.replace(".", "").lower().strip()}': {text.replace(".", "").lower().strip() in self._exit_words}")
-        return text.replace(".", "").lower().strip() in self._exit_words
+        cleaned_text = text.replace(".", "").lower().strip()
+        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{cleaned_text}': {cleaned_text in self._exit_words}")
+        return cleaned_text in self._exit_words
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
         # We must take in account the time spent in stt and tts.
         if self._last_interaction_datetime is not None and \
-                self.get_seconds_since_last_interaction() - self._last_stt_processing_time <= self._seconds_to_hold_interaction_answer:
+            self.get_seconds_since_last_interaction() - self._last_stt_processing_time <= self._seconds_to_hold_interaction_answer:
                 return True
         
         # No ongoing interaction
@@ -624,13 +740,24 @@ class Main(PyXavi):
     
     def _text_initial_words_intend_to_trigger_interaction(self, question: str) -> bool:
         # Let's consider that from what the user said, the first 5 words need to be one of the trigger words
-        first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        # first_words = Text.remove_accents(" ".join(question.lower().strip().split(" ")[0:5]))
+        first_words = " ".join(self._normalize_name_mishearings(question).split(" ")[0:5])
         for trigger_word in self._trigger_words:
-            if trigger_word.replace(".", "").lower().strip() in first_words:
+            if Text.remove_accents(trigger_word).replace(".", "").lower().strip() in first_words:
                 return True
         
         # No trigger word found
         return False
+
+    def _normalize_name_mishearings(self, text: str, threshold: float = 0.8) -> str:
+        """Cleans the text and replaces words in the first 3 that sound like the chatbot name by the real name."""
+        name = self._xconfig.get("chatbot.name").lower()
+        names = {n.lower() for n in [self._xconfig.get("chatbot.name")] + (self._xconfig.get("chatbot.name_variations") or [])}
+        words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
+        return " ".join(
+            name if i < 3 and len(w) >= 4 and w not in names
+            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
         """
@@ -638,9 +765,10 @@ class Main(PyXavi):
         """
 
         # Clean minimally the user input
-        all_user_input = Text.remove_accents(question)
-        all_user_input = Text.remove_punctuation(all_user_input)
-        all_user_input = all_user_input.lower().strip()
+        # all_user_input = Text.remove_accents(question)
+        # all_user_input = Text.remove_punctuation(all_user_input)
+        # all_user_input = all_user_input.lower().strip()
+        all_user_input = self._normalize_name_mishearings(question)
         # Once cleaned, if there is nothing, there's nothing to analyze, so it may have been a transcription error.
         if all_user_input == "":
             return False
@@ -661,6 +789,31 @@ class Main(PyXavi):
     
     # ------------ Initializations and closings -------------
     
+    def _safe_step(self, name: str, step: callable):
+        """
+        Runs one step of the closing, logging (not raising) any error, so the next steps still run.
+        """
+        try:
+            return step()
+        except (Exception, RuntimeError) as e:
+            self._xlog.error(f"🛑 Error closing [{name}]: {type(e).__name__}: {e}")
+            self._log_debug(full_stack())
+            return None
+
+    def _finish_processes_and_queues(self):
+        """
+        Finish all the sub processes and their queues.
+        Take in account that a Control + C may have killed some of the processes already,
+          so check somehow if any of them is still alive before sending a FINISH to a queue that does not exist anymore.
+        """
+        except_queue_names = []
+        for name in self._interaction.get_process_pool().list_of_processes():
+            process = self._interaction.get_process_pool().get_process(name)
+            if process is None or not process.is_alive():
+                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
+                except_queue_names.append(name)
+        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+
     def close_nicely(self, avoid_final_exit=False):
         """
         Close the application nicely, cleaning up resources and saving state.
@@ -679,81 +832,86 @@ class Main(PyXavi):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
 
+        # Every step is isolated: a failing one (typically a broken pipe against a process that is already gone)
+        #   must never prevent the next ones, and especially not the release of the shared memory at the end.
+        # ⚠️ Any new feature that needs to release something, needs to do it here, through `_safe_step`.
+
         # The chatbot may be in "Thinking" mode, unset it anyways.
-        self._interaction.unset_chatbot_busy()
+        self._safe_step("chatbot busy flag", self._interaction.unset_chatbot_busy)
 
         # Reactivate the microphone because it keeps the state on shutdowns / reboots.
         # We never want it to be muted when starting.
-        self._interaction.unmute_microphone()
+        self._safe_step("microphone mute state", self._interaction.unmute_microphone)
 
         # In case that the user was speaking, clear the flag to avoid waiting forever.
-        self._interaction.unset_vad_detected()
+        self._safe_step("VAD detected flag", self._interaction.unset_vad_detected)
 
-        # The scheduler contains a thread, so close it properly.
-        self._scheduler.shutdown()
+        try:
+            # The scheduler contains a thread, so close it properly.
+            if self._scheduler is not None:
+                self._safe_step("scheduler", self._scheduler.shutdown)
 
-        # Close the Threaded Input Stream
-        if self._threaded_input_stream is not None:
-            self._threaded_input_stream.close()
+            # Release the pin that the device monitor may have claimed.
+            if self._device_monitor is not None:
+                self._safe_step("device monitor", self._device_monitor.close)
 
-        # Persist state
-        self.persist_state()
+            # Close the Input Stream
+            if self._input_stream is not None:
+                self._safe_step("input stream", self._input_stream.close)
 
-        # Stop Idle Mode if active
-        if self._interaction.is_idle_mode_on():
-            self._interaction.set_idle_mode_off()
+            # Persist state
+            self._safe_step("state persistence", self.persist_state)
 
-        # Clear the displays
-        # ⚠️ It does nothing
-        self.clear_displays()
-        self._interaction.wait_for_background_display_queue_to_empty()
-        self._interaction.wait_for_foreground_display_queue_to_empty()
-        self._interaction.wait_for_busy_background_display_to_idle()
-        self._interaction.wait_for_busy_foreground_display_to_idle()
+            # Stop Idle Mode if active
+            self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
-        # Stop the Chatbot Session Manager.
-        if self._chatbot_session_manager is not None:
-            asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # Clear the displays
+            # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
+            self._safe_step("displays clearing", self._interaction.clear_device)
 
-        # Close the server
-        if self._server is not None:
-            self._server.close()
-        
-        # Close the CaptureHandler, that also closes the VAD and the microphone stream.
-        if self._capture_handler is not None:
-            self._capture_handler.close()
+            # Stop the Chatbot Session Manager.
+            if self._chatbot_session_manager is not None:
+                self._safe_step("chatbot session manager", lambda: asyncio.run_coroutine_threadsafe(
+                    self._close_chatbot_session_manager(), asyncio.get_event_loop()))
 
-        # Close STT
-        if self._dictate is not None:
-            self._dictate.close()
-        
-        # Finish all related multiprocess stuff
-        # Take in account that a Control + C may have killed some of the processes already,
-        #   so check somehow if any of the following is still alive before sending a FINISH to a queue that does not exist anymore.
-        except_queue_names = []
-        for name in self._interaction.get_process_pool().list_of_processes():
-            process = self._interaction.get_process_pool().get_process(name)
-            if process is None or not process.is_alive():
-                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
-                except_queue_names.append(name)
-        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+            # Close the server
+            if self._server is not None:
+                self._safe_step("server", self._server.close)
 
-        # Close the Support class.
-        # Support is used by:
-        #   1. Main -> Support (main instance)
-        #   2. STT -> Support (main instance, passed via params)
-        #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
-        # How are they closed?
-        #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
-        #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
-        if self._support is not None:
-            self._support.close()
-        
-        self._xlog.debug("Closing Shared Memory Manager")
-        self._interaction.get_process_pool().get_memory_manager().close()
+            # Close the CaptureHandler, that also closes the VAD and the microphone stream.
+            if self._capture_handler is not None:
+                self._safe_step("capture handler", self._capture_handler.close)
 
-        # Finish interactions and related processes
-        self._interaction.close()
+            # Close STT
+            if self._dictate is not None:
+                self._safe_step("speech to text", self._dictate.close)
+
+            # Finish all related multiprocess stuff
+            self._safe_step("processes and queues", self._finish_processes_and_queues)
+
+            # Close the Support class.
+            # Support is used by:
+            #   1. Main -> Support (main instance)
+            #   2. STT -> Support (main instance, passed via params)
+            #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
+            # How are they closed?
+            #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
+            #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
+            if self._support is not None:
+                self._safe_step("support", self._support.close)
+
+        finally:
+            # These two must always run, whatever happened before: otherwise the shared memory stays
+            #   registered, and the Manager of the queues is never shut down.
+            # The monitor reads the shared memory in its own thread, so it must stop before the memory is closed.
+            if self._shared_memory_monitor is not None:
+                self._safe_step("shared memory monitor", self._shared_memory_monitor.close)
+
+            self._xlog.debug("Closing Shared Memory Manager")
+            self._safe_step("shared memory", lambda: self._interaction.get_process_pool().get_memory_manager().close())
+
+            # Finish interactions and related processes
+            self._safe_step("interaction", self._interaction.close)
 
         # ------ Final logs ------
 
@@ -762,7 +920,7 @@ class Main(PyXavi):
         # Here comes anything that we want to do before leaving
         try:
             self._xlog.info("⏱️  Final Stopwatch report:\n" + self._stopwatch.stop_and_report())
-            self._xlog.info("💡  Memory used: " + str(System.memory_use(System.MEGABYTES)) + " MB")
+            self._xlog.info("💡  Memory used: " + str(SystemReader.process_rss(scale=SystemReader.MEGABYTES)) + " MB")
             self._xlog.info("💰  Tokens used: " + str(self._tokens_counter))
         except (Exception, RuntimeError) as e:
             self._xlog.error("🛑 Error while logging final stats: " + str(e))
@@ -778,26 +936,16 @@ class Main(PyXavi):
     
     def persist_state(self):
 
+        # The AppState writes the file by itself when something changes.
         self._state.set("tokens_counter", int(self._state.get("tokens_counter", 0)) + self._tokens_counter)
-        self._state.write_file()
         self._xlog.debug("Persisted state to " + self._xconfig.get("storage.state_file"))
-
-    def clear_displays(self):
-        if self._interaction.displays_are_combined():
-            self._log_debug("Clearing the Combined Display.")
-            self._interaction.clear_combined_display()
-            return
-        self._log_debug("Clearing the Foreground Display.")
-        self._interaction.clear_foreground_display()
-        self._log_debug("Clearing the Background Display.")
-        self._interaction.clear_background_display()
 
     def _instantiate(self):
         """
         The initialization of the Main itself, what you would include in __init__()
         """
         # Initialize State
-        self._state = Storage(filename=self._xconfig.get("storage.path") + self._xconfig.get("storage.state_file"))
+        self._state = AppState(config=self._xconfig, params=self._xparams)
 
         # Initial Language. 1st from the state, then from the config, and last default to Catalan.
         language = self._state.get("language", self._xconfig.get("app.default_language", self.CATALAN))
@@ -807,10 +955,15 @@ class Main(PyXavi):
         self._maintenance = Maintenance(config=self._xconfig, params=Dictionary({
             "maintenance_logger_name": self._xconfig.get("json_logger.name", "system_log"),
             "maintenance_logger_directory": self._xconfig.get("json_logger.path", "log"),
+            # The Memory preload that Maintenance executes needs it.
+            "api_key": self._xparams.get("api_key"),
         }))
 
         # Supported Languages
         self._supported_languages = self._xconfig.get("app.supported_languages")
+
+        # Initialize some timings.
+        self._idle_minutes_to_show_status = self._xconfig.get("timings.idle_minutes", 2)
 
         # Check and complain if the initial language is not supported
         if self._xparams.get("language") not in self._supported_languages:
@@ -819,6 +972,13 @@ class Main(PyXavi):
             self._xlog.error("🛑 Supported languages are: " + ", ".join(self._supported_languages))
             self._xlog.error("🛑 Exiting now.")
             sys.exit(1)
+        
+        self.log_summary("Application Init", [
+            ("Execution Mode", self._xparams.get("execution_mode")),
+            ("Initial Language", self._xparams.get("language")),
+            ("state file", self._xconfig.get("storage.state_file")),
+            ("OS:", "linux" if SystemReader.is_linux() else "mac" if SystemReader.is_macos() else "windows" if SystemReader.is_windows() else "other"),
+        ])
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
@@ -838,7 +998,12 @@ class Main(PyXavi):
         signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
 
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
-        self.close_nicely()
+        try:
+            self.close_nicely()
+        except (Exception, RuntimeError) as e:
+            # An exception escaping from here would end up in the event loop, and the process would leave without finishing.
+            self._xlog.error(f"🛑 Error while closing nicely after the signal [{signal_name}]: {type(e).__name__}: {e}")
+            sys.exit(1)
     
     def _load_statics_params_and_support(self):
         """
@@ -851,6 +1016,13 @@ class Main(PyXavi):
         self._fan_control_trigger_every_seconds = self._xconfig.get("gpio.cpu_temperature.control_interval_seconds", self._fan_control_trigger_every_seconds)
         self._fan_control.toggle_all_fans_by_temperature()
 
+        # Initialize the device monitor: the one place that reads the volumes, battery, power cable, temperature and fans,
+        #   and publishes them to the shared memory. The chatbot commands use it too (see the Chatbot params).
+        self._device_monitor = DeviceMonitor(config=self._xconfig, params=Dictionary({
+            "shared_memory": self._interaction.get_process_pool().get_memory_manager(),
+            "fan_control": self._fan_control,
+        }))
+
         # Get all audio parameters in one place, to be used by the different components that need it
         #   (SST, TTS, preprocessing, dumper, ...).
         self._audio_parameters = AudioParametersLoader(config=self._xconfig, params=self._xparams).get_audio_parameters()
@@ -861,6 +1033,7 @@ class Main(PyXavi):
 
         # Initialise the Support worker.
         support_params = Dictionary({
+            "api_key": self._xparams.get("api_key"),
             "audio_parameters": self._audio_parameters,
             "process_pool": self._interaction.get_process_pool(),
         })
@@ -868,124 +1041,138 @@ class Main(PyXavi):
         self._support.initialize()
     
     def _load_models(self):
+
+        if self._xparams.get("execution_mode") not in ["test"]:
         
-        # Initialise Speech-to-Text. This runs in the main process
-        self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
-                         f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
-        
-        # Initialise the STT State Machine
-        self._stt_state_machine = SttStateMachine(config=self._xconfig, params=Dictionary())
+            # Initialise Speech-to-Text. This runs in the main process
+            self._xlog.debug(f"Initialising the Speech-to-Text with language [{self._xparams.get('language')}] " + \
+                            f"and engine [{self._xconfig.get('speech-to-text.engine', 'vosk')}]")
+            
+            # Initialise the STT State Machine
+            self._stt_state_machine = SttStateMachine(config=self._xconfig, params=Dictionary())
 
-        if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
-            # Use the Vosk engine. 
-            # It is a streaming approach.
-            # Has been in use the whole development until May 2026. Was fustrating but working.
-            # - Accuracy is VERY low
-            # - It's fast.
-            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+            if self._xconfig.get("speech-to-text.engine", "vosk") == "vosk":
+                # Use the Vosk engine. 
+                # It is a streaming approach.
+                # Has been in use the whole development until May 2026. Was fustrating but working.
+                # - Accuracy is VERY low
+                # - It's fast.
+                # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
 
-            from pitxu.lib.speech_to_text.vosk import Vosk
+                from pitxu.lib.speech_to_text.vosk import Vosk
 
-            self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
-            self._xparams.set("support", self._support)
-            self._dictate = Vosk(config=self._xconfig, params=self._xparams)
+                self._xparams.set("samplerate", self._audio_parameters.get("stt_samplerate"))
+                self._xparams.set("support", self._support)
+                self._dictate = Vosk(config=self._xconfig, params=self._xparams)
 
-        elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
-            # Use the Whisper engine.
-            # It is a non-streaming approach
-            # Was barely used. Too slow in the RPi, good in the Mac.
-            # - Accuracy is good
-            # - It's VERY slow
-            # # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+            elif self._xconfig.get("speech-to-text.engine", "vosk") == "whisper":
+                # Use the Whisper engine.
+                # It is a non-streaming approach
+                # Was barely used. Too slow in the RPi, good in the Mac.
+                # - Accuracy is good
+                # - It's VERY slow
+                # # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
 
 
-            from pitxu.lib.speech_to_text.whisper import Whisper
+                from pitxu.lib.speech_to_text.whisper import Whisper
 
-            self._xparams.set("support", self._support)
-            self._dictate = Whisper(config=self._xconfig, params=self._xparams)
+                self._xparams.set("support", self._support)
+                self._dictate = Whisper(config=self._xconfig, params=self._xparams)
 
-        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
-            # Use Faster Whisper engine.
-            # It is a non-streaming approach, 
-            # It was some time in use during May 2026. Transcription takes a bit of time, but holds a much better conversation quality.
-            # - Accuracy is EXCELLENT with the tiny model. 
-            # - It's slow, but way much faster than Whisper.
-            # The tradeoff is worth considering. 
-            # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
-            # TODO: What if we use the faster_whisper_process, that runs in a separate process? 
-            #   It may be a good option to keep the main loop more responsive and still keep the accuracy.
+            elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper":
+                # Use Faster Whisper engine.
+                # It is a non-streaming approach, 
+                # It was some time in use during May 2026. Transcription takes a bit of time, but holds a much better conversation quality.
+                # - Accuracy is EXCELLENT with the tiny model. 
+                # - It's slow, but way much faster than Whisper.
+                # The tradeoff is worth considering. 
+                # TODO: After FasterWhisperStreaming, it may not work properly. Lot of things were touched.
+                # TODO: What if we use the faster_whisper_process, that runs in a separate process? 
+                #   It may be a good option to keep the main loop more responsive and still keep the accuracy.
 
-            from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
+                from pitxu.lib.speech_to_text.faster_whisper import FasterWhisper
 
-            self._xparams.set("support", self._support)
-            self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
-        
-        elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
-            # Use Faster Whisper Streaming engine. 
-            # It's a streaming approach:
-            #   - A thread consumes the input queue and sends a window of chunks to a subprocess via another queue.
-            #   - The partial transcriptions are merged in the subprocess by word match (Good by now, may need improvements), 
-            #       accumulating an ongoing transcription.
-            #   - The thread receives a sentinel from the input queue and requests the transcription from the subprocess, through an output queue.
-            #   - The same first thread also consumes the output queue from the subprocess, 
-            #       and reacts on receiving a transcription calls the Main's callback with the received transcription.
-            # It's the current working implementation as of May 2026, and it is working pretty well, with a good accuracy and a decent speed.
+                self._xparams.set("support", self._support)
+                self._dictate = FasterWhisper(config=self._xconfig, params=self._xparams)
+            
+            elif self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
+                # Use Faster Whisper Streaming engine. 
+                # It's a streaming approach:
+                #   - A thread consumes the input queue and sends a window of chunks to a subprocess via another queue.
+                #   - The partial transcriptions are merged in the subprocess by word match (Good by now, may need improvements), 
+                #       accumulating an ongoing transcription.
+                #   - The thread receives a sentinel from the input queue and requests the transcription from the subprocess, through an output queue.
+                #   - The same first thread also consumes the output queue from the subprocess, 
+                #       and reacts on receiving a transcription calls the Main's callback with the received transcription.
+                # It's the current working implementation as of May 2026, and it is working pretty well, with a good accuracy and a decent speed.
 
-            from pitxu.lib.speech_to_text.faster_whisper_stream import FasterWhisperStream
+                from pitxu.lib.speech_to_text.faster_whisper_stream import FasterWhisperStream
 
-            self._dictate = FasterWhisperStream(config=self._xconfig, params=Dictionary({
-                "support": self._support,
-                "stt_state_machine": self._stt_state_machine,
-                "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                self._dictate = FasterWhisperStream(config=self._xconfig, params=Dictionary({
+                    "support": self._support,
+                    "stt_state_machine": self._stt_state_machine,
+                    "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                    "main_event_loop": asyncio.get_event_loop(),
+                    "language": self._xparams.get("language"),
+                    "audio_parameters": self._audio_parameters,
+                    "process_pool": self._interaction.get_process_pool(),
+                }))
+
+            else:
+                self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
+                self._xlog.error("🛑 Supported engines are: vosk, whisper, faster_whisper")
+                self._xlog.error("🛑 Exiting now.")
+                sys.exit(1)
+
+            input_audio_chunk_queue = self._dictate.get_queue()
+            silence_input_queue = self._dictate.get_silence_input_queue()
+
+            # Initialise the Capture Handler, that captures the audio from the microphone.
+            # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
+            self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
+                "capture_queue": input_audio_chunk_queue,
+                "emit_start_marker": self._xconfig.get("speech-to-text.engine") == "faster_whisper_streaming",
+                "silence_input_queue": silence_input_queue,
+                "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
+                "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
+
+                # For Faster Whisper Streaming:
+                # Even it's tempting, the callbacks here should be used solely for VAD purposes.
+                # Once the end of speech is detected, a sentinel is sent to the transcription thread
+                # and it's this one who triggers the main execution.
+
+                # For non-streaming engines:
+                # Yes, the callback for the end of VAD speech detection should redirect to the same
+                # transcription callback, that as it does not receive the transcription as an argument, 
+                # it will get it from the Dictate class, that in non-streaming engines is where the transcription is done.
+
+                # The callback that triggers when the user starts speaking, detected by the VAD.
+                "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
+                # The callback that triggers while the user is speaking, detected by the VAD.
+                "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
+                # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
+                "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
+                # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
                 "main_event_loop": asyncio.get_event_loop(),
-                "language": self._xparams.get("language"),
-                "audio_parameters": self._audio_parameters,
-                "process_pool": self._interaction.get_process_pool(),
+
+                # The STT State Machine that controls transcription state transitions.
+                "stt_state_machine": self._stt_state_machine,
             }))
-
+        
         else:
-            self._xlog.error("🛑 Unsupported Speech-to-Text engine specified in config: " + self._xconfig.get("speech-to-text.engine"))
-            self._xlog.error("🛑 Supported engines are: vosk, whisper, faster_whisper")
-            self._xlog.error("🛑 Exiting now.")
-            sys.exit(1)
-
-        input_audio_chunk_queue = self._dictate.get_queue()
-        silence_input_queue = self._dictate.get_silence_input_queue()
-
-        # Initialise the Capture Handler, that captures the audio from the microphone.
-        # It needs the original samplerate so that it can resample the chunk from it to 16 kHz.
-        self._capture_handler = CaptureHandler(config=self._xconfig, params=Dictionary({
-            "capture_queue": input_audio_chunk_queue,
-            "silence_input_queue": silence_input_queue,
-            "microphone_samplerate": self._audio_parameters.get("input_samplerate"),
-            "target_samplerate": self._audio_parameters.get("resample_target_samplerate"),
-
-            # For Faster Whisper Streaming:
-            # Even it's tempting, the callbacks here should be used solely for VAD purposes.
-            # Once the end of speech is detected, a sentinel is sent to the transcription thread
-            # and it's this one who triggers the main execution.
-
-            # For non-streaming engines:
-            # Yes, the callback for the end of VAD speech detection should redirect to the same
-            # transcription callback, that as it does not receive the transcription as an argument, 
-            # it will get it from the Dictate class, that in non-streaming engines is where the transcription is done.
-
-            # The callback that triggers when the user starts speaking, detected by the VAD.
-            "on_vad_detected_started_callback": self.main_execution_on_vad_detected_started,
-            # The callback that triggers while the user is speaking, detected by the VAD.
-            "on_vad_detected_ongoing_callback": self.main_execution_on_vad_detected_ongoing,
-            # The callback that triggers the main execution when the user finishes speaking, detected by the VAD.
-            "on_vad_detected_finished_callback": self.main_execution_on_vad_detected_finished,
-            # The callback needs the main event loop from asyncio to trigger the main execution, so we pass it here.
-            "main_event_loop": asyncio.get_event_loop(),
-
-            # The STT State Machine that controls transcription state transitions.
-            "stt_state_machine": self._stt_state_machine,
-        }))
+            self._xlog.info("Execution mode is 'test', skipping STT models loading.")
 
         # Initialise Chatbot
+        # Adding the status shortcuts to the params, so the Chatbot can register status lines
         self._xlog.debug("Initialising the Chatbot Client with language [" + self._xparams.get("language") + "]")
-        self._chatbot = GeminiChatbot(config=self._xconfig, params=self._xparams)
+        self._chatbot = GeminiChatbot(config=self._xconfig, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "github_token": self._xparams.get("github_token"),
+            "mail": self._xparams.get("mail"),
+            "language": self._xparams.get("language"),
+            "status_shortcuts": self._interaction.get_status_shortcuts(),
+            "device_monitor": self._device_monitor,
+        }))
 
     def _load_language_statics(self):
 
@@ -1030,14 +1217,16 @@ class Main(PyXavi):
     
     def _instantiate_input_stream(self):
         """
-        Initialization of the Raw Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
-        It is instantiated withinh a separate thread, to contribute to isolate the audio capture from the rest of the app.
+        Initialization of the Input Stream for the microphone, that feeds the Speech-to-Text engine with audio chunks.
         """
 
-        self._threaded_input_stream = ThreadedInputStream(config=self._xconfig, params=Dictionary({
-            "audio_parameters": self._audio_parameters,
-            "capture_handler_callback": self._capture_handler.callback,
-        }))
+        if self._xparams.get("execution_mode") not in ["test"]:
+            self._input_stream = InputStream(config=self._xconfig, params=Dictionary({
+                "audio_parameters": self._audio_parameters,
+                "capture_handler_callback": self._capture_handler.callback,
+            }))
+        else:
+            self._input_stream = MockedInputStream(config=self._xconfig, params=Dictionary())
     
     async def _initialize_chatbot(self):
         """
@@ -1061,7 +1250,13 @@ class Main(PyXavi):
         warmup_question = self._xconfig.get(f"language.warmup_question.{self._xparams.get('language')}", "Acknowledge that you're ready")
 
         try:
+            # Trigger the chatbot warmup with a simple question.
+            # Be aware that it may trigger external tools (which is actually good to also warmup tools)
+            # Good thing is that this is the same chat that then interacts with us, so a good question should be
+            #   something that can bring us some context from our memory. For example:
+            #       - "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context."
             warmup_response: ChatbotResponse = await self._chatbot.ask_async(warmup_question)
+            
         except Exception as e:
             self._xlog.error("🛑 Error during Chatbot warmup: " + str(e))
     
@@ -1092,48 +1287,189 @@ class Main(PyXavi):
         """
         Initialisation of the schedulers for the tasks that need to be executed by time, like the reminders.
         """
-        self._xlog.info("Initialising Schedulers")
 
-        self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
-        logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
-        self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
-        logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
+        if self._xparams.get("execution_mode") not in ["test"]:
+        
+            self._xlog.info("Initialising Schedulers")
 
-        def job_listener(event):
-            if event.exception:
-                self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
+            self._log_debug(f"Setting 'apscheduler' library log level to {self.SCHEDULER_LIB_LOGLEVEL}")
+            logging.getLogger("apscheduler").setLevel(self.SCHEDULER_LIB_LOGLEVEL)
+            self._log_debug(f"Setting 'tzlocal' library log level to {self.TZLOCAL_LIB_LOGLEVEL}")
+            logging.getLogger("tzlocal").setLevel(self.TZLOCAL_LIB_LOGLEVEL)
 
-        self._scheduler = BackgroundScheduler(
-            job_defaults={
-                "coalesce": True
-            }
-        )
-        self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+            def job_listener(event):
+                if event.exception:
+                    self._xlog.error("🛑 Error in scheduled job: " + str(event.exception))
 
-        # EVERY MINUTE
-        self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, args={
-            "input_stream": self._threaded_input_stream.get_input_stream()})
+            self._scheduler = BackgroundScheduler(
+                job_defaults={
+                    "coalesce": True
+                }
+            )
+            self._scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
-        # EVERY SECOND
-        self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+            # EVERY MINUTE
+            self._scheduler.add_job(self.do_every_minute_tasks, 'interval', seconds=60, kwargs={
+                "input_stream": self._input_stream})
 
-        # EVERY NIGHT AT 3 AM
-        self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
-        self._scheduler.start()
+            # EVERY SECOND
+            self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
+
+            # EVERY NIGHT AT 3 AM
+            self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+            self._scheduler.start()
+        
+        else:
+            self._xlog.info("Execution mode is 'test', skipping schedulers initialization.")
     
-    def _initialize_interactions(self):
+    def _initialize_core(self):
         """
-        Initialisation of the Interaction class, that manages output (TTS and displays)
+        Initialisation of the Core classes, that manages all base functionalities.
+        This mostly for Shared Memory, Xprocess Pool and Interactions.
         """
 
-        self._xlog.info("Initialising Interaction class")
-        self._interaction = Interaction(config=self._xconfig, params=self._xparams)
+        # Start the Shared Memory Manager, that manages the shared memory between processes and threads.
+        # It may be promoted to a class attribute, if we need the same instance in other parts of the app.
+        # At the moment it can instantiate separately and load existing flags.
+        shared_memory_manager = SharedMemoryManager(config=self._xconfig, params=Dictionary({
+            "language": self._xparams.get("language"),
+        }))
+        shared_memory_manager.initialize_new_shared_memory_flags()
+        shared_memory_manager.initialize_new_shared_memory_values()
+
+        # Start the Xprocess Pool, that manages the processes and queues for the different components of the app.
+        # Needs the Shared Memory Manager to be passed.
+        process_pool = XprocessPool(config=self._xconfig, params=Dictionary({
+            "language": self._xparams.get("language"),
+            "shared_memory_manager": shared_memory_manager,
+        }))
+
+        self._interaction = Interaction(config=self._xconfig, params=Dictionary({
+            "app_version": self._xparams.get("app_version"),
+            "execution_mode": self._xparams.get("execution_mode"),
+            "language": self._xparams.get("language"),
+            "process_pool": process_pool,
+        }))
+
+        # And now let's start monitoring the shared flags changes at app level.
+        # Remember that by now there's another almost exact functionality at Painter level,
+        #   that we want to merge eventually in one.
+        from definitions import SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
+                                SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
+                                SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY
+
+        self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
+            "shared_memory": shared_memory_manager,
+            "shared_memory_list_to_control": [
+                # Callback for when the transcription starts
+                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
+                # Callback for when the transcription ends
+                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
+                # Callback for when the chatbot starts thinking
+                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
+                # Callback for when the chatbot finishes thinking
+                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Callback for when the app goes idle
+                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
+                # Callback for when the app goes out of idle
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
+                # Callback for when the wake up button is pressed (released, actually)
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
+            ]
+        }))
+
+        # Load the wake up button support in case that is wanted by the configuration.
+        # It will be used to wake up the app from idle mode, and to cut the speech while it is being said.
+        if self._interaction.is_wake_up_button_wanted() or self._interaction.is_speech_interrupt_by_button_wanted():
+            self.initialize_wake_up_button()
 
         # We start with the microphone muted.
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
     
-    def _initialize_reactions(self, input_stream: sounddevice.RawInputStream = None):
+    def _on_wake_up_button_pressed_flag(self):
+        """
+        The monitor saw the wake up button flag going up: it shows it, and consumes the flag.
+        The monitor only reacts to changes, so if the flag stayed up, the next presses would go unnoticed.
+        """
+        self._interaction.add_new_status_line("🕹️ Wake up button pressed")
+        self._interaction.unset_wake_up_button_pressed()
+
+    def initialize_wake_up_button(self):
+        """
+        Initializes the wake up button.
+        """
+
+        if self._interaction.is_wake_up_button_wanted() or self._interaction.is_speech_interrupt_by_button_wanted():
+            self._xlog.info("🕹️  Wake up button is wanted, initializing it.")
+
+            # Initialises the buttons defined in the config.
+            # Hold the name of them, it's how you refer to them.
+            self._buttons = Buttons(config=self._xconfig, params=self._xparams)
+            self._buttons.initialize_buttons()
+
+            # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
+            wake_up_button_name = self.WAKE_UP_BUTTON_NAME
+            if wake_up_button_name in self._buttons.get_buttons().keys():
+
+                self._xlog.info("Wake up button is defined, setting the callback to wake up the app from idle mode.")
+
+                def wake_up_button_callback(button, cls: Main = None, button_name: str = None, flags: dict = None):
+                    """
+                    Callback for the wake up button.
+                    """
+                    # While the speech is being said, the button only cuts it, to get back to listening.
+                    # The speaker flag is the guard: a press when nothing is being said can never skip the next speech.
+                    if cls._interaction.is_speech_interrupt_by_button_wanted() and cls._interaction.is_speaker_busy():
+                        cls._xlog.info("Button pressed while speaking. Interrupting the speech.")
+                        cls._interaction.request_speech_interrupt()
+                        return
+
+                    # The button may exist only to interrupt the speech (wake up method "voice").
+                    if not cls._interaction.is_wake_up_button_wanted():
+                        cls._xlog.debug("Button pressed, but the wake up by button is not wanted. Ignoring.")
+                        return
+
+                    cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
+                    
+                    # Set the shared memory flag for the wake up button pressed, so the main process can react to it.
+                    cls._interaction.set_wake_up_button_pressed()
+
+                    # Enter into the main execution flow, as if the user had spoken the trigger words.
+                    # The idea is that:
+                    #   - This way we can emulate in the future anything else (with the obvious extra implementation)
+                    #   - The main execution flow will handle the rest of the interaction, including the microphone unmuting, idle management, etc.
+                    if not cls.is_there_running_loop():
+                        # This should never happen... we have an event loop registered in the Capture Handler.
+                        cls._xlog.debug("No running loop detected, creating a new one for the wake up button callback.")
+                        asyncio.set_event_loop(asyncio.new_event_loop())
+
+                    transcription = cls._xconfig.get("language.trigger_words." + cls._xparams.get("language"))[0] % cls._xconfig.get("chatbot.name")
+                    cls._xlog.debug("Triggering Main Execution on Transcription Finished with final transcription: " + transcription)
+                    asyncio.run_coroutine_threadsafe(
+                        cls.main_execution_on_transcription_finished(final_transcription=transcription), 
+                        cls._capture_handler.get_main_event_loop())
+
+                # Set the action as the pressed callback, so the app wakes up when the user presses the button.
+                self._buttons.set_pressed_callback(
+                    button_name=wake_up_button_name, 
+                    callback=wake_up_button_callback,
+                    kargs={
+                        "cls": self,
+                        "button_name": wake_up_button_name,
+                        "flags": {}
+                    })
+            else:
+                self._xlog.warning("Wake up button is not defined, cannot set the callback to wake up the app from idle mode.")
+            
+            # Start the listener for the buttons, if any button is defined.
+            # This is only needed for the buttons mocked, because
+            if self._buttons.get_buttons():
+                self._buttons.start_listening()
+            else:
+                self._xlog.warning("No buttons defined, cannot initialize the buttons.")
+    
+    def _initialize_reactions(self, input_stream: InputStream = None):
         """
         Initialisation of the Reactions class, that manages the reactions to the Chatbot answers and tool calls.
         """
@@ -1145,7 +1481,9 @@ class Main(PyXavi):
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
             "end_of_conversation_callback": self.on_end_of_conversation_requested,
-            "input_stream": input_stream
+            "input_stream": input_stream,
+            "language": self._xparams.get("language"),
+            "state": self._state,
         })
         self._reactions = Reactions(config=self._xconfig, params=params)
     
@@ -1174,7 +1512,7 @@ class Main(PyXavi):
             self._server.initialize()
         else:
             self._xlog.info(f"Server is disabled by configuration (" +
-                            f"enabled: {"TRUE" if self._xconfig.get('server.enabled', False) else "FALSE"}, " +
+                            f"enabled: {'TRUE' if self._xconfig.get('server.enabled', False) else 'FALSE'}, " +
                             f"execution mode [{self._xconfig.get('app.execution_mode', '_NOT_SET_')}]"+
                             ") > not initializing it.")
     def _greeting_interaction(self):
@@ -1198,7 +1536,7 @@ class Main(PyXavi):
 
     # ------- Stuff to do every minute -------
 
-    def do_every_minute_tasks(self, input_stream: sounddevice.RawInputStream = None):
+    def do_every_minute_tasks(self, input_stream: InputStream = None):
         current_minute = time.localtime().tm_min
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
@@ -1223,7 +1561,7 @@ class Main(PyXavi):
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📝",
                     text=reminder.get("text", ""),
-                    font_size=Canvas.FONT_SIZE_BIG)
+                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
                 self._interaction.mute_microphone(input_stream=input_stream)
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
@@ -1276,7 +1614,7 @@ class Main(PyXavi):
                     # then put the Mic on, and reset the transcription (if streaming), so at leat the user can try
                     #   to trigger the interaction again.
                     # ⚠️ Still... it shouldn't happen!
-                    if self._interaction.is_microphone_muted():
+                    if self._interaction.is_microphone_muted() and not self._interaction.is_wake_up_button_wanted_exclusively():
                         self._log_debug("Microphone is muted while in idle mode, unmuting it to allow the user to trigger an interaction.")
                         self._interaction.unmute_microphone(input_stream=input_stream)
                         if self._xconfig.get("speech-to-text.engine", "vosk") == "faster_whisper_streaming":
@@ -1284,6 +1622,7 @@ class Main(PyXavi):
 
                 except (Exception, RuntimeError) as e:
                     self._xlog.error("🛑 Error while showing idle status information: " + str(e))
+                    self._xlog.debug(full_stack())
             
             # COMMENTED: Idea unfinished.
             # # If we're in idle mode and the dictation is in a weird state, force a reset.
@@ -1309,6 +1648,11 @@ class Main(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
+            # Gather the device readings (power cable, fans, temperature, volumes, battery) into the shared memory.
+            #   It decides by itself how often it reads each one.
+            if self._device_monitor is not None:
+                self._device_monitor.tick()
+
             # Control the fans according to the temperature, every some seconds is good enough for that.
             if self._fan_control_iterated_seconds < 0:
                 self._fan_control.toggle_all_fans_by_temperature()
@@ -1317,11 +1661,8 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds = -1
             else:
                 self._fan_control_iterated_seconds += 1
-            
-            self._state.set("fan_case_status", self._fan_control.get_fan_status())
-            self._state.write_file()
 
-            
+
             # Show the interaction holding percentage if we're expecting an interaction
             if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
                 
@@ -1365,22 +1706,28 @@ class Main(PyXavi):
                         #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
                         # )
 
-                elif self._last_processed_interaction_percentage >= 0:
+                elif self._last_processed_interaction_percentage > 0:
+                    # The hold time is over but the bar still shows its last LED(s).
+                    # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
+                    self._last_processed_interaction_percentage = 0
+                    if not self._interaction.is_background_display_busy():
+                        self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
+                        self._interaction.show_interaction_holding_percentage(0)
+
+                elif self._last_processed_interaction_percentage == 0:
                     # We are meant to clean the display.
 
-                    # if not self._interaction.is_vad_detected():
-                        # Vad did not detect anything, and the time to hold the interaction is over.
-                        # We clear the background display and reset the percentage.
-                        self._last_processed_interaction_percentage = -1
-                        self._last_interaction_paused_seconds = 0
-                        # Clean the display.
-                        if not self._interaction.is_background_display_busy():
-                            self._xlog.debug("⏳ Waiting for an user interaction is over. Clearing remainings.")
-                            self._interaction.clear_background_display()
-                        else:
-                            self._xlog.debug("🤖 Background display is busy, not cleaning the background display.")
-                    # else:
-                    #     self._xlog.debug("🎤 User may be speaking, pausing cleaning holding time counter.")
+                    # The time to hold the interaction is over.
+                    # We clear the background display and reset the percentage.
+                    self._last_processed_interaction_percentage = -1
+                    self._last_interaction_paused_seconds = 0
+                    # And then we clean the display completely, as we go to idle soon.
+                    self._interaction.end_interaction_holding_percentage()
+                    # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                    #   as the user is not speaking and we don't want to react to anything else.
+                    if self._interaction.is_wake_up_button_wanted_exclusively():
+                        self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
+                        self._interaction.mute_microphone(input_stream=self._input_stream)
     
     # ------------- Stuff to do daily -------------
 
@@ -1388,4 +1735,19 @@ class Main(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
+    
+
+    # ------------- Others -------------
+
+    def is_there_running_loop(self) -> bool:
+        """
+        Checks if there is a running loop in the current thread.
+        """
+        try:
+            if self._capture_handler.get_main_event_loop().is_running():
+                return True
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
                     

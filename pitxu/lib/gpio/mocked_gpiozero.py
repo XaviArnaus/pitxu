@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class MockedButtons(PyXavi):

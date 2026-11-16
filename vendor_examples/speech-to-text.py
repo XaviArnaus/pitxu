@@ -17,8 +17,6 @@ import time
 model_path = "./model"  # Replace with your model path
 
 # Load the Vosk model
-# model = Model(model_path + "/vosk-model-small-ca-0.4")
-# model = Model(model_path + "/vosk-model-small-de-0.15")
 model = Model(model_path + "/vosk-model-small-en-us-0.15")
 
 # Audio settings

@@ -7,7 +7,7 @@ from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
-from pitxu.lib.utils.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
@@ -94,6 +94,7 @@ class GeminiChatbot(PyXavi):
         if (self._xconfig.get("chatbot.mock", True)):
             self._xlog.warning("Chatbot is mocked, Not initialising it.")
             return False
+        # The Status shortcuts are passed from main so that the tools can add status lines.
         self._session_manager = ChatbotSessionManager(config=self._xconfig, params=self._xparams)
         self._shared_memory = SharedMemoryManager(config=self._xconfig, params=self._xparams)
         self._shared_memory.initialize_existing_shared_memory_flags()
@@ -197,7 +198,6 @@ class GeminiChatbot(PyXavi):
             self.MODEL = self.pick_new_model()
         self._xlog.info("🧠 Using model: " + str(self.MODEL))
         self._initialize_chat(tools=tools)
-        self._xlog.info("🧠 GeminiChatbot initialized successfully with the model: " + self._chat._model)
     
     def _initialize_chat(self, tools: list):
         self._chat = self._client.aio.chats.create(

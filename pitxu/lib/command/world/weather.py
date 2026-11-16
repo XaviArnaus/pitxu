@@ -4,13 +4,15 @@ from pitxu.lib.utils.api_request import ApiRequest
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
 from datetime import datetime
 
 class WorldWeather(PyXavi, Command):
+
+    status_shortcuts: Status = None
 
     # Weather Code meanings:
     # Code	Description
@@ -64,6 +66,11 @@ class WorldWeather(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
 
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in WorldWeather initialization.")
+
     def get_weather_forecast_for_today(self, latitude: float, longitude: float, requested_hour: int = None) -> dict:
         '''
         Get the weather forecast for the current date (per hour) in the given latitude and longitude.
@@ -83,6 +90,7 @@ class WorldWeather(PyXavi, Command):
         '''
         try:
             self._xlog.debug(f"Getting weather forecast for today at [{str(requested_hour)}] at location: {latitude}, {longitude}")
+            self.status_shortcuts.add_new_status_line(f"🔧 Weather: forecast for today at [{str(requested_hour)}] location: [{round(latitude, 4)}, {round(longitude, 4)}]")
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(1))
             response: dict = ApiRequest.do(url)
@@ -126,6 +134,7 @@ class WorldWeather(PyXavi, Command):
             # days = 1 means actually today, so we need to add 1 to get the next days
             days += 1
             self._xlog.debug(f"Getting weather forecast for next {days} days at location: {latitude}, {longitude}")
+            self.status_shortcuts.add_new_status_line(f"🔧 Weather: forecast for next {days} days at location: [{round(latitude, 4)}, {round(longitude, 4)}]")
 
             url = WorldWeather.URL % (str(latitude), str(longitude), str(days))
             response = ApiRequest.do(url)

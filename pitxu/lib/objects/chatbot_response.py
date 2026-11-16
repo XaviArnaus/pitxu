@@ -7,7 +7,6 @@ from google.genai.types import FinishReason, GenerateContentResponseUsageMetadat
 from pitxu.lib.objects.communication import ChatbotAnswer
 from pitxu.lib.utils.text import Code
 
-from pyxavi import dd
 
 class ChatbotResponse:
 

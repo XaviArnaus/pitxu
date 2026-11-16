@@ -1,9 +1,8 @@
-from pyxavi import Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
 
 import logging
 
@@ -63,6 +62,7 @@ class ServicePrint(PyXavi, Command):
         try:
             if value:
                 log.debug("🖨️ Text printed.")
+                interaction.add_new_status_line("🔧 Tool: Text sent to printer")
                 interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🖨️",
                     text="Text printed ✅",

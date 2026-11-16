@@ -1,14 +1,16 @@
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.utils.system import System
+from pitxu.lib.hardware import NetworkReader, PowerReader, SystemReader, ThermalReader
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.json_logger import JsonLogger
 from pitxu.lib.microservice.client import Client
 
 from pyxavi import Config, Dictionary, full_stack
 
-import platform
+from pitxu.lib.utils.animation_cache import get_cache_root, compute_fingerprint, build_cache_dir_name
+
 import os
 import glob
+import shutil
 
 class Maintenance(PyXavi):
     '''
@@ -30,6 +32,9 @@ class Maintenance(PyXavi):
 
     # Client support for connecting to Pitxu
     _client: Client = None
+
+    # Gives the pids of the processes to report in the metrics, by name (the Process Pool, once it exists).
+    _process_pids_provider: callable = None
 
     # TODO: This has to be pre-loaded by param after collecting all running displays from Main.
     DEFAULT_STORAGE_PATH = "storage/"
@@ -105,6 +110,13 @@ class Maintenance(PyXavi):
     
     def get_last_gathered_metrics(self) -> Dictionary:
         return self._last_gathered_metrics
+
+    def set_process_pids_provider(self, provider: callable) -> None:
+        """
+        Sets a callable that returns {process name: pid} for the processes to report in the metrics.
+        Called on every metrics log, so it always reflects the processes running at that moment.
+        """
+        self._process_pids_provider = provider
     
     def is_pitxu_server_alive(self) -> bool:
         try:
@@ -127,52 +139,62 @@ class Maintenance(PyXavi):
         try:
 
             # This data is only available under linux.
-            if System.is_linux():
+            if SystemReader.is_linux():
 
                 local_metrics["cpu"] = {
-                    "temperature": System.get_cpu_temperature(),
-                    "temp": System.get_cpu_temp(),
-                    
-                    "power_throttle": System.get_power_throttle()
+                    "temperature": ThermalReader.cpu_temperature(),
+                    "power_throttle": PowerReader.throttle_report()
                 }
-                try:
-                    local_metrics["cpu"]["fan_speed"] = System.get_cpu_fan_speed()
-                except Exception as e:
-                    self._log_debug(f"Could not get the Fan Speed. Most likely this device does not have it.")
-                
-                try:
-                    local_metrics["cpu"]["volts"] = System.get_cpu_volts()
-                    local_metrics["cpu"]["amps"] = System.get_cpu_amps()
-                    local_metrics["cpu"]["input_voltage"] = System.get_input_voltage()
-                except Exception as e:
-                    self._log_debug(f"Could not get some CPU metrics. Most likely this device does not have them.")
-                
-                local_metrics["memory"] = System.get_memory_usage()
-                local_metrics["pitxu_process_memory"] = System.get_pitxu_memory_use()
-                local_metrics["load"] = System.get_system_load()
-                local_metrics["uptime"] = System.get_system_uptime()
 
-                wifis = System.get_connected_wifi()
-                if wifis and len(wifis) > 0:
-                    wifi_ssid = wifis[0].get("ssid", "N/A")
-                else:
-                    wifi_ssid = "N/A"
+                # These are not on every device (no fan, no PMIC): leave them out when they can't be read.
+                pmic = PowerReader.pmic_readings() or {}
+                optional_cpu_metrics = {
+                    "fan_speed": ThermalReader.cpu_fan_rpm(),
+                    "volts": pmic.get("VDD_CORE_V"),
+                    "amps": pmic.get("VDD_CORE_A"),
+                    "input_voltage": pmic.get("EXT5V_V"),
+                }
+                for key, value in optional_cpu_metrics.items():
+                    if value is not None:
+                        local_metrics["cpu"][key] = value
+                    else:
+                        self._log_debug(f"Could not get the CPU {key}. Most likely this device does not have it.")
+
+                local_metrics["memory"] = SystemReader.memory_info()
+                local_metrics["pitxu_process_memory"] = SystemReader.process_memory()
+                local_metrics["load"] = SystemReader.load_average()
+                local_metrics["uptime"] = SystemReader.uptime_seconds()
+
+                # The network that we are connected to, not the strongest one around.
+                wifi = NetworkReader.connected_wifi()
+                wifi_ssid = wifi.get("ssid", "N/A") if wifi else "N/A"
                 local_metrics["network"] = {
                     "wifi_ssid": wifi_ssid
                 }
             
             # This data is only available under linux and macos.
-            if System.is_linux() or System.is_macos():
+            if SystemReader.is_linux() or SystemReader.is_macos():
 
-                local_metrics["disk"] = System.get_disk_usage()
+                local_metrics["disk"] = SystemReader.disk_usage("/")
                 
-                network = System.get_default_network_interface()
+                network = NetworkReader.default_interface()
                 ip = network.get("ip", "N/A") if network else "N/A"
 
                 if "network" not in local_metrics:
                     local_metrics["network"] = {}
                 local_metrics["network"]["ip"] = ip
             
+            # CPU and memory per process, to know which one consumes what.
+            if SystemReader.is_linux() or SystemReader.is_macos():
+                pids_by_name = {"main": os.getpid()}
+                if self._process_pids_provider is not None:
+                    pids_by_name.update(self._process_pids_provider())
+                local_metrics["processes"] = SystemReader.processes_usage(pids_by_name)
+                self._log_debug("📊 Processes (cpu% / rss MB / pss MB): " + ", ".join(
+                    f"{name}: {entry.get('cpu_percent')} / {round(entry.get('rss', 0) / SystemReader.MEGABYTES)} / "
+                    f"{round(entry.get('pss', entry.get('uss', 0)) / SystemReader.MEGABYTES)}"
+                    for name, entry in local_metrics["processes"].items()))
+
             if self._xconfig.get("app.execution_mode", "local") == "client":
                 local_metrics["pitxu_server_alive"] = "alive" if self.is_pitxu_server_alive() else "unreachable"
         
@@ -277,6 +299,36 @@ class Maintenance(PyXavi):
             excluded_filenames=self._excluded_audio_fourier_transform_plot_filenames,
             file_extension="*.png")
     
+    def clean_stale_animation_cache(self) -> None:
+        '''
+        Removes from the animations cache the folders of animations that no longer exist or whose GIF has changed.
+        The cache itself is generated by the animations when they are loaded, because only then the sizes are known.
+        '''
+        try:
+            cache_root = get_cache_root(self._xconfig)
+            if cache_root is None or not os.path.isdir(cache_root):
+                return
+
+            base_path = self._xconfig.get("animations.path", "pitxu/animations")
+            expected_folders = set()
+            for animation_name, animation_file in (self._xconfig.get("animations.map", {}) or {}).items():
+                if animation_file is None:
+                    continue
+                animation_full_path = os.path.join(base_path, animation_file)
+                if os.path.exists(animation_full_path):
+                    expected_folders.add(build_cache_dir_name(animation_name, compute_fingerprint(animation_full_path)))
+
+            removed = 0
+            for entry in os.listdir(cache_root):
+                entry_path = os.path.join(cache_root, entry)
+                if os.path.isdir(entry_path) and entry not in expected_folders:
+                    shutil.rmtree(entry_path, ignore_errors=True)
+                    removed += 1
+            self._xlog.info(f"⚙️  Animations cache checked in: {cache_root}. Stale entries removed: {removed}")
+
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error cleaning the animations cache: {e}")
+
     def write_new_start_timestamp_to_file(self) -> str | None:
         try:
             timestamp = Xtime.current_time_str()

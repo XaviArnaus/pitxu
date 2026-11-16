@@ -29,24 +29,23 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.LED and param != "":
             self.show(param)
         
-        # Show KITT mouth while speaking
+        # Show the speaking effect. Every display decides what it is.
         if action == XprocAction.SAY:
-            self.show_kitt_mouth_while_speaking()
+            self.show_speaking()
         
-        # Show KITT scanner while thinking
+        # Show the thinking effect. Every display decides what it is.
         if action == XprocAction.THINKING:
-            self.show_kitt_scanner_while_thinking()
+            self.show_thinking()
         
-        # Show KITT scanner while networking
+        # Show the networking effect. Every display decides what it is.
         if action == XprocAction.NETWORKING:
-            self.show_kitt_scanner_while_networking()
+            self.show_networking()
         
         if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE and param != "":
             self.interaction_holding_percentage(int(param))
-        
-        # Clears the screen
-        if action == XprocAction.CLEAR:
-            self.clear()
+
+        if action == XprocAction.INTERACTION_HOLDING_PERCENTAGE_END:
+            self.interaction_holding_percentage_end()
         
         # Clears the background screen only
         if action == XprocAction.BACKGROUND_CLEAR or action == XprocAction.SOFT_CLEAR:
@@ -86,23 +85,27 @@ class XprocessDisplayBackground(Xprocess):
 
     # ------- Background Interaction functions ---------
     
-    def show_kitt_mouth_while_speaking(self):
-        raise NotImplementedError("show_kitt_mouth_while_speaking() must be implemented in Display Background subclasses.")
+    def show_speaking(self):
+        raise NotImplementedError("show_speaking() must be implemented in Display Background subclasses.")
     
-    def show_kitt_scanner_while_thinking(self):
-        raise NotImplementedError("show_kitt_scanner_while_thinking() must be implemented in Display Background subclasses.")
+    def show_thinking(self):
+        raise NotImplementedError("show_thinking() must be implemented in Display Background subclasses.")
     
-    def show_kitt_scanner_while_networking(self):
-        raise NotImplementedError("show_kitt_scanner_while_networking() must be implemented in Display Background subclasses.")
+    def show_networking(self):
+        raise NotImplementedError("show_networking() must be implemented in Display Background subclasses.")
 
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Background subclasses.")
 
     def init_phase(self, phase: int, text: str = None):
         raise NotImplementedError("init_phase() must be implemented in Display Background subclasses.")
-
+    
     def interaction_holding_percentage(self, percentage: int):
         raise NotImplementedError("interaction_holding_percentage() must be implemented in Display Background subclasses.")
+
+    def interaction_holding_percentage_end(self):
+        # Let's not affect the other displays currently implemented.
+        pass
 
     # ------- Communication with Flags ---------
 

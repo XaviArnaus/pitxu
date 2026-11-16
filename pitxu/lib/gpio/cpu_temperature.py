@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pyxavi import Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 class CpuTemperature(PyXavi):

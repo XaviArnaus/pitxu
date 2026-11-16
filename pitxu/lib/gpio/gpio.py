@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from .mocked_gpiozero import MockedButton, MockedButtons

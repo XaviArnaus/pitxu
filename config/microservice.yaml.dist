@@ -8,6 +8,9 @@ server:
   # [Integer] Port to bind the server to.
   # Will accept connections to this port.
   port: 5000
+  # [Bool] Enable debug mode for the server (auto-reload, more verbose logging, etc.).
+  # Directly relates to Flask debug mode.
+  debug: true
   # [Integer] The sample rate to use for the transcription endpoint.
   # This will be set in the Vosk's Kaldi Recognizer settings in the server. Be sure that the value matches server and client.
   input_samplerate: 16000

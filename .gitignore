@@ -1,5 +1,6 @@
 # Python stuff
 **/__pycache__/
+*.pyc
 .pytest_cache
 
 # No secrets nor sessions
@@ -26,6 +27,10 @@ storage/audio/spectograms/*.png
 storage/tmp/*.png
 storage/tmp/*.html
 storage/db/*.db
+
+# Prepared animation frames, generated at runtime
+storage/animations/*
+!storage/animations/.keep
 
 # No Wisper models
 storage/whisper/*.pt

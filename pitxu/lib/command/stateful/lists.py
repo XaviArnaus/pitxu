@@ -3,11 +3,12 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.utils.lists import Lists
+from pitxu.lib.utils.string_similarity import StringSimilarity
+from pitxu.lib.utils.text import Text
 from pitxu.lib.interaction.interaction import Interaction
 
 import logging
 
-from datetime import datetime
 
 
 class StatefulLists(PyXavi, Command):
@@ -440,45 +441,32 @@ class StatefulLists(PyXavi, Command):
         '''
         Finds the existing list name with the highest similarity to the given list name.  
 
+        The similarity is the one of the StringSimilarity util (it compares the pairs of consecutive letters),
+        on the names without accents nor capital letters, as they come from a transcription.
+
         Args:
             list_name: The name of the list to find the most similar one to.
 
         Returns:
-            The name of the most similar list or None if no lists are found.
+            The name of the most similar list or None if no list is similar enough.
         '''
-        all_lists_names = [list_object["name"] for list_object in self._lists.get_lists().values()]
-        highest_similarity = 0
         minimum_similarity_threshold = 0.7  # You can adjust this threshold as needed
-        most_similar_list_name = None
-        for existing_list_name in all_lists_names:
-            similarity = self._calculate_similarity(list_name, existing_list_name)
-            if similarity > highest_similarity:
-                highest_similarity = similarity
-                most_similar_list_name = existing_list_name
-        if highest_similarity >= minimum_similarity_threshold:
-            return most_similar_list_name
+        all_lists_names = [list_object["name"] for list_object in self._lists.get_lists().values()]
+        if not all_lists_names:
+            return None
+
+        best_match = StringSimilarity.findBestMatch(
+            self._normalize_list_name(list_name),
+            [self._normalize_list_name(name) for name in all_lists_names],
+            targetTokens=all_lists_names)
+        self._log_debug(f"Closest list to [{list_name}]: {best_match.bestMatch}")
+        if best_match.bestMatch.rating >= minimum_similarity_threshold:
+            return best_match.bestMatch.target
         return None
-    
-    def _calculate_similarity(self, str1: str, str2: str) -> float:
-        '''
-        Calculates the similarity between two strings using a simple ratio of common characters.
 
-        Args:
-            str1: The first string to compare.
-            str2: The second string to compare.
-
-        Returns:
-            A float representing the similarity between the two strings (between 0 and 1).
-        '''
-        set_str1 = set(str1.lower())
-        set_str2 = set(str2.lower())
-        common_characters = set_str1.intersection(set_str2)
-        total_characters = set_str1.union(set_str2)
-        if total_characters:
-            similarity = len(common_characters) / len(total_characters)
-            return similarity
-        else:
-            return 0.0
+    @staticmethod
+    def _normalize_list_name(name: str) -> str:
+        return Text.remove_accents(name).lower().strip()
 
 # 2026-02-24 16:22:16,637 [MainProcess  | MainThread  ] INFO     oscar        Reacting to a Chatbot answer:
 # 	- Text: I have deleted the last entry, "extend the animation of thinking to the audio", from your "To Do Client" list.

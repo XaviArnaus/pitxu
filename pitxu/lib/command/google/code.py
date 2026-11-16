@@ -2,7 +2,7 @@ from pyxavi import Config, Dictionary, full_stack, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.interaction.shortcuts.status import Status
 from pitxu.lib.utils.text import Code
 
 import logging
@@ -12,8 +12,18 @@ from google.genai import types
 
 class GoogleCode(PyXavi, Command):
 
+    model_name: str = None
+    status_shortcuts: Status = None
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super().init_pyxavi(config=config, params=params)
+
+        self.model_name = self._xconfig.get("chatbot.secondary_model")
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            raise ValueError("Missing 'status_shortcuts' parameter in GoogleCode initialization.")
 
     def get_generate_code(self, prompt: str) -> str:
         '''
@@ -27,12 +37,18 @@ class GoogleCode(PyXavi, Command):
         '''
         # Apparently the prompt always comes in English, so no need to translate it.
         # Still, looking at the logs, it's not always the case.
-        self._xlog.debug(f"Getting Gemini generated code for prompt: [{prompt}] using language [{self._xparams.get('language')}]")
+        self._xlog.debug(f"Getting Gemini generated code for prompt: [{prompt}] using model [{self.model_name}] and language [{self._xparams.get('language')}]")
+
+        # Clean the prompt from code ONLY when showing the prompt into the line status
+        prompt_for_status_line = Code.remove_code_language_identifier(prompt)
+        prompt_for_status_line = Code.remove_all_code_blocks_from_text(prompt_for_status_line)
+        # And now add it to the status as a new line.
+        self.status_shortcuts.add_new_status_line(f"🔧 Code: prompt: [{prompt_for_status_line}] using [{self.model_name}]")
 
         instructions = {
             "ca": f"Genera un bloc de codi relacionat amb el següent prompt: [{prompt}]. Sigues curt i precís.",
             "es": f"Genera un bloque de código relacionado con el siguiente prompt: [{prompt}]. Sé breve y preciso.",
-            "en-us": f"Generate a code block related to the following prompt: [{prompt}]. Be brief and precise.",
+            "en": f"Generate a code block related to the following prompt: [{prompt}]. Be brief and precise.",
             "de": f"Generiere einen Codeblock im Zusammenhang mit dem folgenden Prompt: [{prompt}]. Sei kurz und präzise.",
         }
 
@@ -42,11 +58,10 @@ class GoogleCode(PyXavi, Command):
         ]
         client = genai.Client(api_key=self._xparams.get("api_key"))
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=instructions[self._xparams.get('language')],
-                # system_instruction=instructions["en-us"],
                 tools=tools
             )
         )
@@ -114,9 +129,11 @@ class GoogleCode(PyXavi, Command):
                                                        "⚠️ The response includes a code block that couldn't be extracted properly. If you want to see it, please ask Pitxu to send you the full response to an email or something like that.")
             if code_block_to_show is not None:
                 log.info(f"Gemini's Code Generation response includes {len(code_blocks)} code blocks. Showing only the first one:\n{code_block_to_show}")
+                self.status_shortcuts.add_new_status_line(f"🔧 Code: {len(code_blocks)} code blocks.")
                 interaction.show_code_block_on_foreground_while_speaking(code=code_block_to_show)
             else:
                 log.info(f"🔎 Showing Gemini's Code Generation result: [{text}]")
+                self.status_shortcuts.add_new_status_line(f"🔧 Code: No code blocks.")
                 interaction.show_text_block_on_foreground_while_speaking(text=text)
         except Exception as e:
             log.error(f"🛑 Error showing Gemini's Code Generation result on Foreground: {e}")
@@ -142,41 +159,3 @@ class GoogleCode(PyXavi, Command):
         if function_name == "get_generate_code":
             return self.callback_get_generate_code
         return self.default_empty_callback
-    
-# 2026-05-28 23:24:38,771 [MainProcess MainThread            ] ERROR    pitxu        🛑 Error reacting to function call: 'NoneType' object is not iterable
-# 2026-05-28 23:24:38,774 [MainProcess MainThread            ] DEBUG    pitxu        Traceback (most recent call last):
-#   File "<string>", line 1, in <module>
-#     import sys; from importlib import import_module; sys.argv = ['/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/bin/main']; sys.exit(import_module('runner').run())
-#   File "/home/xavier/pitxu/runner.py", line 166, in run
-#     asyncio.run(main.run())
-#   File "/usr/lib/python3.13/asyncio/runners.py", line 195, in run
-#     return runner.run(main)
-#   File "/usr/lib/python3.13/asyncio/runners.py", line 118, in run
-#     return self._loop.run_until_complete(task)
-#   File "/usr/lib/python3.13/asyncio/base_events.py", line 712, in run_until_complete
-#     self.run_forever()
-#   File "/usr/lib/python3.13/asyncio/base_events.py", line 683, in run_forever
-#     self._run_once()
-#   File "/usr/lib/python3.13/asyncio/base_events.py", line 2042, in _run_once
-#     handle._run()
-#   File "/usr/lib/python3.13/asyncio/events.py", line 89, in _run
-#     self._context.run(self._callback, *self._args)
-#   File "/home/xavier/pitxu/pitxu/main.py", line 453, in main_execution_on_transcription_finished
-#     self._reactions.react_on_answer(chat_response=chat_response)
-#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 83, in react_on_answer
-#     self.react_on_function_call(function_call_pair)
-#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 167, in react_on_function_call
-#     self.handle_client_callback(function_call_pair)
-#     ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
-#   File "/home/xavier/pitxu/pitxu/lib/interaction/reactions.py", line 201, in handle_client_callback
-#     partial(
-#     ~~~~~~~~
-#     ...<4 lines>...
-#         args
-#         ~~~~
-#     )()
-#     ~^^
-#   File "/home/xavier/pitxu/pitxu/lib/command/google/code.py", line 89, in callback_get_generate_code
-#     for code_block in raw_code_blocks:
-#                       ^^^^^^^^^^^^^^^
-# TypeError: 'NoneType' object is not iterable

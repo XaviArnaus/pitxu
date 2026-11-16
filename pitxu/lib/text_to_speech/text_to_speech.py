@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
@@ -7,7 +7,7 @@ import sounddevice
 import logging
 import time
 
-from definitions import SHARED_CHATBOT_BUSY, SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY
+from definitions import SHARED_CHATBOT_BUSY, SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_SPEECH_INTERRUPT_REQUESTED
 
 class TextToSpeech(Xprocess):
 
@@ -73,20 +73,57 @@ class TextToSpeech(Xprocess):
     
     def write_audio_to_output_stream(self):
 
+        # An old request (a press that came too late for the previous speech) must never cut this one.
+        self.write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
+
         if self._xconfig.get("text-to-speech.mock", True):
             self._xlog.warning("Mocking TTS by Config. It would be playing [" + str(len(self._last_gathered_audio)) + "] bytes of audio.")
-            # Emulate that we're doing something by waiting 3 seconds
-            time.sleep(3)
+            # Emulate that we're doing something by waiting 3 seconds, in slices so it can be interrupted.
+            for _ in range(30):
+                if self._is_speech_interrupt_requested():
+                    self._xlog.info("🤐 Speech interrupted (mocked).")
+                    break
+                time.sleep(0.1)
         else:
             self.set_speaking_busy()
 
             self._log_debug("Writing audio bytes to output stream")
             self._output_stream.start()
-            self._output_stream.write(self._last_gathered_audio)
-            self._log_debug("All audio chunks processed, stopping output stream")
-            self._output_stream.stop()
+
+            # The same bytes, in order, in slices: the blocking write keeps pacing the playback,
+            # and we get the chance to look at the interruption between slices.
+            # 16 bit samples: 2 bytes per frame. 0 slice seconds writes everything at once.
+            slice_bytes = int(self.DEFAULT_SAMPLERATE * float(self._xconfig.get("text-to-speech.interrupt_slice_seconds", 0.1))) * 2
+            step = slice_bytes if slice_bytes > 0 else len(self._last_gathered_audio)
+            interrupted = False
+            for start in range(0, len(self._last_gathered_audio), max(step, 1)):
+                if self._is_speech_interrupt_requested():
+                    interrupted = True
+                    break
+                self._output_stream.write(self._last_gathered_audio[start:start + step])
+
+            if interrupted:
+                self._xlog.info("🤐 Speech interrupted by the user.")
+                # abort() drops what is already in the sound card buffer, stop() would play it out.
+                self._output_stream.abort()
+                # The microphone stays closed (the speaker is still busy) for a moment: the button press, the hand
+                # and the sound that is still in the air must not be heard as if the user had started to speak.
+                time.sleep(float(self._xconfig.get("text-to-speech.interrupt_settle_seconds", 0.4)))
+            else:
+                self._log_debug("All audio chunks processed, stopping output stream")
+                self._output_stream.stop()
 
             self.unset_speaking_busy()
+
+        # Done, interrupted or not: the request is consumed.
+        self.write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
+
+    def _is_speech_interrupt_requested(self) -> bool:
+        try:
+            return bool(self.read_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED))
+        except Exception as e:
+            self._log_debug(f"Could not read the speech interrupt flag: {e}")
+            return False
     
     # Overloading the busy methods to set a flag that the chatbot is busy, so that the UI can show some feedback to the user.
     # We'll controll the flags from here.

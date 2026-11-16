@@ -1,7 +1,8 @@
-from pyxavi import Config, Logger, Dictionary, dd
+from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.utils.device_monitor import DeviceMonitor
 from pitxu.lib.command import SystemDate, SystemTime, SystemNetwork, SystemPowerManagement, SystemVolume, SystemLanguage, \
                                 SystemJsonMetrics, SystemConversationFlow,\
                                 WorldPosition, WorldWeather, WorldWikipedia, WorldWget, WorldGithub,\
@@ -31,6 +32,12 @@ class ChatbotSessionManager(PyXavi):
             return
 
         self._xlog.debug("ChatbotSessionManager: Initializing instantiable tooling.")
+
+        # The tools that read or change the device (volumes, battery, temperature...) share ONE DeviceMonitor.
+        # Main passes its own. Any other entry point gets one here, so the tools never create their own.
+        if not self._xparams.key_exists("device_monitor") or self._xparams.get("device_monitor") is None:
+            self._xlog.warning("ChatbotSessionManager: no DeviceMonitor received, creating one without shared memory.")
+            self._xparams.set("device_monitor", DeviceMonitor(config=self._xconfig, params=self._xparams))
         # The clients defined in self.clients and self.mcp_clients are instances to the classes that provide the tools
         #
         # They are used to:
@@ -38,6 +45,8 @@ class ChatbotSessionManager(PyXavi):
         # 2) map the function names to their related callbacks after the LLM calls them and get back to us.
         #
         # Therefore, ALL TOOLS MUST BE DEFINED HERE AS INSTANCES (no static method calling anymore in the tools list) 
+        #
+        # Also, the xparams contain the `status_schortcuts` so they can add status lines.
         self.clients = {
             "google_maps": GoogleMaps(config=self._xconfig, params=self._xparams),
             "google_search": GoogleSearch(config=self._xconfig, params=self._xparams),

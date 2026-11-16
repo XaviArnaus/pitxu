@@ -82,7 +82,8 @@ def tests():
             test = Test(config=config, params=parameters)
             test_function = getattr(test, f"test_{test_name}", None)
             if test_function and callable(test_function):
-                test_function(**test_arguments)
+                # test_function(**test_arguments)
+                asyncio.run(test_function(**test_arguments))
             else:
                 logger.warning(f"Test function not found: [{test_name}]")
         
@@ -205,6 +206,7 @@ def initialize() -> tuple[Config, Logger, Dictionary]:
             "password": os.getenv("EMAIL_PASSWORD", None),
         },
         "github_token": os.getenv("GITHUB_TOKEN", None),
+        "ipdata_api_key": os.getenv("IPDATA_API_KEY", None),
         "app_version": importlib.metadata.version('pitxu'),
         "arguments": parse_arguments()
     })
