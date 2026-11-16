@@ -1,3 +1,5 @@
+import importlib
+
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -7,9 +9,6 @@ from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper
 from pitxu.lib.text_to_speech.text_to_speech import TextToSpeech
-from pitxu.lib.legacy.eink.display import Display as eInk
-from pitxu.lib.legacy.matrix_led import MatrixLed
-from pitxu.lib.legacy.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
@@ -23,7 +22,7 @@ from multiprocessing import JoinableQueue
 
 from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
                         SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
-                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_MATRIX_BUSY, SHARED_DSI_LCD_BUSY,\
+                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_DSI_LCD_BUSY,\
                         SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED, \
                         SHARED_SPEECH_INTERRUPT_REQUESTED
 
@@ -76,10 +75,12 @@ class Interaction(PyXavi):
     # Map display names to their classes and queues, for initialization
     # This should probably go anyhow in the configs.
     # Also. the display name IS ASSUMED TO BE THE SAME AS THE device_config_prefix passed to the display process.
+    # The legacy displays are given as "module:Class" and imported only if they are used, so the main pipeline
+    #   does not depend on them (nor on their drivers) unless they are configured.
     map_display_name_to_instance_data = {
-        "eink": (eInk, QUEUE_EINK),
-        "matrix_led": (MatrixLed, QUEUE_MATRIX),
-        "lcd": (Lcd, QUEUE_LCD),
+        "eink": ("pitxu.lib.legacy.eink.display:Display", QUEUE_EINK),
+        "matrix_led": ("pitxu.lib.legacy.matrix_led:MatrixLed", QUEUE_MATRIX),
+        "lcd": ("pitxu.lib.legacy.lcd.lcd:Lcd", QUEUE_LCD),
         "dsi_lcd": (DsiLcd, QUEUE_DSI_LCD),
     }
 
@@ -225,6 +226,9 @@ class Interaction(PyXavi):
 
             # Initialize the displays via the process pool
             display_class, display_queue = self.map_display_name_to_instance_data.get(display_name, (None, None))
+            if isinstance(display_class, str):
+                module_name, class_name = display_class.split(":")
+                display_class = getattr(importlib.import_module(module_name), class_name)
             if display_class is not None:
                 self._xlog.info(f"Initialising [{display_name}] with queue [{display_queue}] for Display Interaction.")
                 self.process_pool.new_and_start(display_queue, target=display_class, params=params)
@@ -794,9 +798,6 @@ class Interaction(PyXavi):
         if not self.is_idle_mode_on():
             return
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE, False)
-
-    def is_matrix_busy(self):
-        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MATRIX_BUSY)
 
     def is_background_display_busy(self):
         return self.process_pool.get_memory_manager().read_shared_memory_flag(self._get_active_background_display_busy_flag())
