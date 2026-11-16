@@ -469,9 +469,12 @@ class FasterWhisperStream(PyXavi):
                 self._xlog.debug("Pressed Control + C while running FasterWhisper Stream transcription.")
                 self.is_active = False
                 self.close()
-            except BrokenPipeError as bpe:
+            except (ConnectionError, EOFError) as ce:
+                # The Manager that hosts the queues is gone (BrokenPipe, ConnectionReset...): this is what happens while the
+                #   service is stopping. There is nothing to process anymore, so leave the thread quietly.
                 self.is_active = False
-                raise SpeechToTextException("FasterWhisper Stream BrokenPipeError: " + str(bpe))
+                self._xlog.warning(f"🟠 The FasterWhisper Stream queues are not available anymore ({type(ce).__name__}: {ce}). Stopping the transcription thread.")
+                return None
             except Exception as e:
                 self._xlog.error("🛑 Error during FasterWhisper Stream recognition: " + str(e))
                 self._xlog.error(full_stack())
@@ -601,11 +604,15 @@ class FasterWhisperStream(PyXavi):
         if self.silence_input_queue is not None:
             # Joining queue to make sure that all tasks are done before closing.
             self._xlog.debug("Joining FasterWhisper Stream silence input queue.")
-            if not self.silence_input_queue.empty():
-                while not self.silence_input_queue.empty():
-                    discarded_chunk = self.silence_input_queue.get()
-                    self.silence_input_queue.task_done()
-                self.silence_input_queue.join()
+            try:
+                if not self.silence_input_queue.empty():
+                    while not self.silence_input_queue.empty():
+                        discarded_chunk = self.silence_input_queue.get()
+                        self.silence_input_queue.task_done()
+                    self.silence_input_queue.join()
+            except (ConnectionError, EOFError, OSError) as e:
+                # The Manager that hosts the queue is already gone, so there is nothing left to empty.
+                self._xlog.warning(f"🟠 The silence input queue is not available anymore ({type(e).__name__}: {e}). Skipping its joining.")
             self._xlog.debug("Deleting FasterWhisper Stream silence input queue")
             del self.silence_input_queue
         

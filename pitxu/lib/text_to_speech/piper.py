@@ -8,8 +8,7 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.text_to_speech.speaker_level_meter import SpeakerLevelMeter
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
-                        SHARED_SPEECH_INTERRUPT_REQUESTED
+from definitions import ROOT_DIR, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, SHARED_SPEECH_INTERRUPT_REQUESTED
 
 class Piper(Xprocess):
 
@@ -47,26 +46,6 @@ class Piper(Xprocess):
             channels=1,
             dtype='int16'
         )
-        # if self._xconfig.get("text-to-speech.mock", True) is False:
-        #     self._xlog.info("Creating Real Piper Output Stream")
-        #     self._output_stream = sounddevice.OutputStream(
-        #         samplerate=self._voice.config.sample_rate,
-        #         blocksize=0,
-        #         channels=1,
-        #         dtype='int16'
-        #     )
-        # else:
-        #     from pitxu.lib.text_to_speech.mocked_output_stream import MockedOutputStream
-        #     self._xlog.info("Creating Mocked Piper Output Stream")
-        #     self._output_stream = MockedOutputStream(config=self._xconfig, dictionary=self._xparams)
-        
-        # self._output_stream = sounddevice.OutputStream(
-        #         samplerate=self._voice.config.sample_rate,
-        #         blocksize=0,
-        #         channels=1,
-        #         dtype='int16'
-        #     )
-
         # Optional VU meter: publishes the level of the audio being played to drive the speaking animation.
         # Only with real audio: the mocked TTS has nothing to measure.
         # The shared values are needed for the first audio timestamp (latency log) and the VU meter.

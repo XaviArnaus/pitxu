@@ -34,9 +34,9 @@ class Test(PyXavi):
 
     def test_eink_multiline(self):
         try:
-            from pitxu.lib.eink.eink import EinkDisplay
-            from pitxu.lib.canvas.macros import Macros
-            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.legacy.eink.eink import EinkDisplay
+            from pitxu.lib.legacy.canvas.macros import Macros
+            from pitxu.lib.legacy.canvas.canvas import Canvas
 
             # Instantiating
 
@@ -73,7 +73,7 @@ class Test(PyXavi):
 
     def test_matrix(self):
         try:
-            from pitxu.lib.matrix_led import Max7219
+            from pitxu.lib.legacy.matrix_led import Max7219
 
             # Delegate the run to Main
             self._xlog.debug("Testing LED Matrix display")
@@ -89,10 +89,10 @@ class Test(PyXavi):
 
     def test_lcd(self):
         try:
-            from pitxu.lib.lcd.st7789 import ST7789
+            from pitxu.lib.legacy.lcd.st7789 import ST7789
             from pitxu.lib.objects.point import Point
             from pitxu.lib.objects.rectangle import Rectangle
-            from pitxu.lib.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.canvas import Canvas
             from PIL import ImageFont, ImageDraw, Image
 
             # Trying to narrow down the definition for the screen size. Should be easier!
@@ -161,9 +161,9 @@ class Test(PyXavi):
     
     def test_client_startup_phase(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
 
             MODE_IN_USE = "paint" # Valid values: "paint", "direct"
@@ -196,8 +196,8 @@ class Test(PyXavi):
                     device.display(canvas.get_image())
                     time.sleep(2)
             else:
-                from pitxu.lib.canvas.painter import Painter
-                from pitxu.lib.canvas.paint_objects import StartupWithPhaseForegroundPaint
+                from pitxu.lib.legacy.canvas.painter import Painter
+                from pitxu.lib.legacy.canvas.paint_objects import StartupWithPhaseForegroundPaint
 
                 painter = Painter(config=self._xconfig, params=self._xparams)
 
@@ -233,9 +233,9 @@ class Test(PyXavi):
 
     def test_mouth_in_lcd(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
 
             MODE_IN_USE = "direct" # Valid values: "paint", "direct"
@@ -261,8 +261,8 @@ class Test(PyXavi):
                 for i in range(0,2):
                     macros.kitt_speaking_effect(0,0,2,4, 0.01)
             else:
-                from pitxu.lib.canvas.painter import Painter
-                from pitxu.lib.canvas.painter_commands import BackgroundComm
+                from pitxu.lib.legacy.canvas.painter import Painter
+                from pitxu.lib.legacy.canvas.painter_commands import BackgroundComm
 
                 painter = Painter(config=self._xconfig, params=self._xparams)
 
@@ -299,9 +299,9 @@ class Test(PyXavi):
 
     def test_thinking_in_lcd(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
 
             expected_screen_size = Point(280, 240)
@@ -377,8 +377,8 @@ print("Hello again")
     def test_code_block(self):
         try:
             from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
             from pitxu.lib.utils.text import Code
 
@@ -466,8 +466,8 @@ finally:
     def test_text_block(self):
         try:
             from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
 
             # Delegate the run to Main
@@ -637,9 +637,9 @@ finally:
     
     def test_status_idle_screen(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
-            from pitxu.lib.canvas.canvas import Canvas
-            from pitxu.lib.canvas.macros import Macros
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.canvas.canvas import Canvas
+            from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
             from pitxu.lib.hardware import NetworkReader
             from pitxu.lib.microservice.client import Client

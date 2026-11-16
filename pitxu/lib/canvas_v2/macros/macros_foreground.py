@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.objects import Point, Rectangle
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosForeground(MacrosBase):
     """
@@ -19,12 +20,12 @@ class MacrosForeground(MacrosBase):
         text = params.get("text", "")
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.MESSAGES})
 
-        offset_x = self.layout_info["relative"]["top_right"].point_1.x
-        offset_y = self.layout_info["relative"]["top_right"].point_1.y
-        max_x = self.layout_info["relative"]["top_right"].point_2.x
-        max_y = self.layout_info["relative"]["top_right"].point_2.y
+        offset_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.x
+        offset_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.y
+        max_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.x
+        max_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.y
         width = max_x - offset_x
         height = max_y - offset_y
     
@@ -44,12 +45,12 @@ class MacrosForeground(MacrosBase):
         font_header_size = params.get("font_header_size", 32)
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.MESSAGES})
         
-        offset_x = self.layout_info["relative"]["top_right"].point_1.x
-        offset_y = self.layout_info["relative"]["top_right"].point_1.y
-        max_x = self.layout_info["relative"]["top_right"].point_2.x
-        max_y = self.layout_info["relative"]["top_right"].point_2.y
+        offset_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.x
+        offset_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.y
+        max_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.x
+        max_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.y
         width = max_x - offset_x
         height = max_y - offset_y
 
@@ -93,12 +94,12 @@ class MacrosForeground(MacrosBase):
     def draw_startup(self, draw: ImageDraw.ImageDraw, params: dict):
         
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.MESSAGES})
 
-        fore_offset_x = self.layout_info["relative"]["top_right"].point_1.x
-        fore_offset_y = self.layout_info["relative"]["top_right"].point_1.y
-        fore_max_x = self.layout_info["relative"]["top_right"].point_2.x
-        fore_max_y = self.layout_info["relative"]["top_right"].point_2.y
+        fore_offset_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.x
+        fore_offset_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.y
+        fore_max_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.x
+        fore_max_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.y
         fore_width = fore_max_x - fore_offset_x
         fore_height = fore_max_y - fore_offset_y
 
@@ -121,12 +122,12 @@ class MacrosForeground(MacrosBase):
     #     '''
 
     #     # Initial Background Paint clear
-    #     self.base_frame_for_display_area(draw=draw, params={"display_area": "top_right"})
+    #     self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.MESSAGES})
 
-    #     fore_offset_x = self.layout_info["relative"]["top_right"].point_1.x
-    #     fore_offset_y = self.layout_info["relative"]["top_right"].point_1.y
-    #     fore_max_x = self.layout_info["relative"]["top_right"].point_2.x
-    #     fore_max_y = self.layout_info["relative"]["top_right"].point_2.y
+    #     fore_offset_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.x
+    #     fore_offset_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.y
+    #     fore_max_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.x
+    #     fore_max_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.y
     #     fore_width = fore_max_x - fore_offset_x
     #     fore_height = fore_max_y - fore_offset_y
 
@@ -216,10 +217,10 @@ class MacrosForeground(MacrosBase):
 
         2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming top-right area.
         '''
-        offset_x = self.layout_info["relative"]["top_right"].point_1.x
-        offset_y = self.layout_info["relative"]["top_right"].point_1.y
-        max_x = self.layout_info["relative"]["top_right"].point_2.x
-        max_y = self.layout_info["relative"]["top_right"].point_2.y
+        offset_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.x
+        offset_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_1.y
+        max_x = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.x
+        max_y = self.layout_info["relative"][DisplayArea.MESSAGES].point_2.y
         width = max_x - offset_x
         height = max_y - offset_y
 

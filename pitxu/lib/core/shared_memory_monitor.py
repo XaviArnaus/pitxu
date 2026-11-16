@@ -1,4 +1,3 @@
-import re
 
 from pyxavi import Config, Dictionary
 from definitions import SHARED_DSI_LCD_IDLE_MODE
@@ -222,6 +221,17 @@ class SharedMemoryMonitor(PyXavi):
         return self.shared_memory._map_index_to_flag.get(shared_memory_flag, f"UnknownFlag_{shared_memory_flag}").upper()
     
     def _shared_memory_control_worker(self):
+        """
+        Entry point of the worker thread: runs the control loop.
+        """
+        try:
+            self._shared_memory_control_loop()
+        except (TypeError, ValueError, OSError):
+            # The shared memory was closed under our feet: only expected while the monitor is being closed.
+            if self.is_active:
+                raise
+
+    def _shared_memory_control_loop(self):
         """
         This worker will control the transitions of the shared_memory flags and values.
         It will check the flags in the _shared_memory_list_to_control list and call the corresponding callbacks when the flags change.

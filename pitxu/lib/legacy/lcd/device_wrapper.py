@@ -26,7 +26,7 @@ class DeviceWrapper(PyXavi, Device):
         super(DeviceWrapper, self).init_pyxavi(config=config, params=params)
 
         if self.is_spi_allowed():
-            from pitxu.lib.lcd.st7789 import ST7789
+            from pitxu.lib.legacy.lcd.st7789 import ST7789
             self.device = ST7789(config=config, params=params)
 
             brightness = int(config.get("lcd.brightness", 50))

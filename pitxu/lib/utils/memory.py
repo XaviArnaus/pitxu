@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, dd, full_stack
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.database.db_sqlite import DbSqlite
@@ -6,7 +6,6 @@ from pitxu.lib.database.db_sqlite import DbSqlite
 from google import genai
 from google.genai.errors import ServerError
 
-import os
 import json
 import logging
 

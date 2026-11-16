@@ -1,28 +1,25 @@
 import time
 from PIL import Image
 
-from pyxavi import dd
-
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
-from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper
-from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.canvas.macros import Macros
-from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, StartupWithPhaseForegroundPaint, ThinkingBackgroundPaint, \
-                                            ArbitraryContentForegroundPaint, ArbitraryContentWhileSpeakingForegroundPaint, \
-                                            ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileIdleForegroundPaint, \
-                                            ArbitraryContentWhileUserSpeakingForegroundPaint, \
-                                            StartupForegroundPaint, CodeBlockForegroundPaint, CodeBlockWhileSpeakingForegroundPaint, \
-                                            TextBlockForegroundPaint, TextBlockWhileSpeakingForegroundPaint, \
-                                            ErrorForegroundPaint, \
+from pitxu.lib.objects.xproc_action import XprocAction
+from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
+from pitxu.lib.legacy.canvas.canvas import Canvas
+from pitxu.lib.legacy.canvas.macros import Macros
+from pitxu.lib.legacy.canvas.painter import Painter
+from pitxu.lib.legacy.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, NetworkingBackgroundPaint, \
+                                            ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, \
+                                            ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileNetworkingForegroundPaint, \
+                                            StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
+                                            StartupWithPhaseForegroundPaint, \
                                             InitPhaseBackgroundPaint, HoldingPercentageBackgroundPaint, \
                                             ClearBackgroundPaint, ClearForegroundPaint
 from pitxu.lib.objects.point import Point
-from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_DSI_LCD_IDLE_MODE
+from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_LCD_IDLE_MODE, SHARED_NETWORK_BUSY
 
-class DsiLcd(XprocessDisplayCombined):
+class Lcd(XprocessDisplayCombined):
     '''
-    Class to control the behaviour of the DSI LCD display inside a sub-process (child)
+    Class to control the behaviour of the LCD display inside a sub-process (child)
     '''
 
     device: DeviceWrapper = None
@@ -37,13 +34,12 @@ class DsiLcd(XprocessDisplayCombined):
     IDLE_EYES_CADENCE_SECONDS: float = 10.0
     IDLE_EYES_BLINK_DURATION_SECONDS: float = 0.01
 
-    LED_TO_LCD_OFFSET_X: int = 250
-    APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
+    LED_TO_LCD_OFFSET_X: int = 40
 
     VERBOSE_DEBUG: bool = False
 
     def get_process_name(self) -> str:
-        return "DsiLcd"
+        return "LCD"
 
     def get_canvas_handler(self) -> Canvas | None:
         if self.canvas is not None:
@@ -54,12 +50,11 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info("Initializing LCD Worker")
 
         # Just have the display size handy
-        self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
+        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
         # Define which offset do we use IN EACH SIDE of the horizontal screen to emulate the LED Matrix
         self._xparams.set("led_to_lcd_offset_x", self.LED_TO_LCD_OFFSET_X)
-        self._xparams.set("apply_led_to_lcd_offset_to_all", self.APPLY_LED_TO_LCD_OFFSET_TO_ALL)
 
         # The given device. It handles the interaction with the actual hardware or the mocking.
         self.device = DeviceWrapper(config=self._xconfig, params=self._xparams)
@@ -77,22 +72,20 @@ class DsiLcd(XprocessDisplayCombined):
         # Add the parent's shared memory manager to the params for the painter
         self._xparams.set("shared_memory", self._shared_memory)
 
-        # The Painter that will handle the actual drawing on the canvas and device
-        self.painter = Painter(config=self._xconfig, params=self._xparams)
-
-        self.log_summary("DSI LCD Initialization", [
-            ("Display Size", f"{self._display_size.x}x{self._display_size.y}")
-        ])
-
         # Interaction delays
         self.interaction_delays = self._xparams.get("interaction_delays")
-        self.log_summary("DSI LCD Interaction Delays", [(key, f"{value} seconds") for key, value in self.interaction_delays.items()])
+        self._xlog.debug("LCD Interaction delays loaded:")
+        for key, value in self.interaction_delays.items():
+            self._xlog.debug(f"  {key}: {value} seconds")
+
+        # The Painter that will handle the actual drawing on the canvas and device
+        self.painter = Painter(config=self._xconfig, params=self._xparams)
     
     def initialize_from_main_process(self):
         self._xlog.info("Initializing LCD Worker from Main Process")
 
         # Just have the display size handy
-        self._display_size = Point(self._xconfig.get("dsi_lcd.size.x"), self._xconfig.get("dsi_lcd.size.y"))
+        self._display_size = Point(self._xconfig.get("lcd.size.x"), self._xconfig.get("lcd.size.y"))
         self._xparams.set("screen_size", self._display_size)
 
         # The canvas to draw on, but basically to let it be available in the main process
@@ -101,26 +94,35 @@ class DsiLcd(XprocessDisplayCombined):
         self._xparams.set("canvas", self.canvas)
 
     def finish(self):
-        self._xlog.info("Finalizing DSI LCD Worker")
-        self._log_debug("Closing DSI LCD Painter")
+        self._xlog.info("Finalizing LCD Worker")
         self.painter.close()
-        self.painter.join(0.5)
-        self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
-        self._log_debug("Closing DSI LCD Device")
-        self.device.close()
-        self._xlog.info("Done finishing DSI LCD Worker")
 
     # ------- Foreground functions ---------
 
+    def extended_foreground_run(self, config, logger, action, param):
+        
+        # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
+        # if action == XprocAction.SHOW_ARBITRARY_ICON_FOREGROUND and param is not None:
+        #     self.show_arbitrary_icon(param)
+        
+        # if action == XprocAction.NETWORKING:
+        #     self.show_networking()
+        pass
+    
+    def show_arbitrary_icon_on_foreground(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary icon on LCD.")
+        self.painter.just_paint(foreground_interaction=ArbitraryIconForegroundPaint(parameter=param))
+
     def show(self, text: str):
         # Draw the text bubble
-        self._xlog.info(f"👀 Showing text bubble on DSI LCD.")
+        self._xlog.info(f"👀 Showing text bubble on LCD.")
         self._macros.draw_text_bubble(text=text, font=self.canvas.FONT_MEDIUM)
     
     def show_arbitrary_image_while_speaking(self, image_bytes: dict):
-        # Show a given image on the DSI LCD display
-        self._xlog.info(f"👀 Showing arbitrary image on DSI LCD while speaking.")
+        # Show a given image on the LCD display
+        self._xlog.info(f"👀 Showing arbitrary image on LCD while speaking.")
         image = Image.frombytes(
             # self._display.get_image().mode,
             # self._display.get_image().size,
@@ -135,7 +137,7 @@ class DsiLcd(XprocessDisplayCombined):
         time.sleep(1)  # small delay to ensure the user sees the image
     
     def show_arbitrary_text_while_speaking(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
+        self._xlog.info(f"👀 Showing arbitrary text on LCD while speaking.")
 
         # Why and How about this approach:
         #   - Have a before and after callback, wrapping the painting execution
@@ -151,39 +153,32 @@ class DsiLcd(XprocessDisplayCombined):
             foreground_interaction=ArbitraryContentWhileSpeakingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_while_thinking(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while thinking.")
+        self._xlog.info(f"👀 Showing arbitrary text on LCD while thinking.")
 
         self.painter.paint_into_foreground_while_thinking(
             foreground_interaction=ArbitraryContentWhileThinkingForegroundPaint(parameter=param))
     
-    def show_arbitrary_text_while_idle(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while idle.")
-        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("idle_status_foreground_notification", 15.0))
+    def show_arbitrary_text_while_networking(self, param: dict):
+        self._xlog.info(f"👀 Showing arbitrary text on LCD while networking.")
 
-        self.painter.paint_into_foreground_while_idle(
-            foreground_interaction=ArbitraryContentWhileIdleForegroundPaint(parameter=param, for_seconds=for_seconds))
-    
-    def show_arbitrary_icon_on_foreground_while_user_speaking(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary icon on DSI LCD while the user is speaking.")
-
-        self.painter.paint_into_foreground_while_user_speaking(
-            foreground_interaction=ArbitraryContentWhileUserSpeakingForegroundPaint(parameter=param))
+        self.painter.paint_into_foreground_while_networking(
+            foreground_interaction=ArbitraryContentWhileNetworkingForegroundPaint(parameter=param))
     
     def show_arbitrary_text_on_foreground(self, param: dict):
-        self._xlog.info(f"👀 Showing arbitrary text on DSI LCD.")
-        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notification", 3.0))
+        self._xlog.info(f"👀 Showing arbitrary text on LCD.")
+        for_seconds = param.get("show_for_seconds", self.interaction_delays.get("foreground_notifications", 3.0))
         self.painter.just_paint(
             foreground_interaction=ArbitraryContentForegroundPaint(parameter=param, for_seconds=for_seconds))
 
     def splash_ready(self):
         # Draw the ready splash screen
-        self._xlog.info(f"👀 Showing ready splash screen on DSI LCD.")
+        self._xlog.info(f"👀 Showing ready splash screen on LCD.")
         self._macros.eyes_open()
 
     def idle(self):
         pass
         # # Draw the idle screen
-        # self._xlog.info(f"👀 Showing idle screen on DSI LCD.")
+        # self._xlog.info(f"👀 Showing idle screen on LCD.")
 
         # # Start with a soft clear
         # self._macros.soft_clear()
@@ -222,16 +217,15 @@ class DsiLcd(XprocessDisplayCombined):
 
     def splash_startup(self, for_seconds: float = 3.0):
         # Draw the startup splash screen
-        self._xlog.info(f"👀 Showing startup splash screen for {for_seconds} seconds")
-        # The config takes precedence over the parameter that is hardcoded from Main
+        self._xlog.info(f"👀 Showing startup splash screen")
         show_for_seconds = self.interaction_delays.get("startup_splash", for_seconds)
         self.painter.just_paint(foreground_interaction=StartupForegroundPaint(for_seconds=show_for_seconds))
     
     def show_error(self, text: str, for_seconds: float = 3.0):
         # Draw the error splash screen
-        self._xlog.info(f"👀 Showing error screen for {for_seconds} seconds")
+        self._xlog.info(f"👀 Showing error splash screen for {for_seconds} seconds")
         # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("error", for_seconds)
+        show_for_seconds = self.interaction_delays.get("error_splash", for_seconds)
         self.painter.just_paint(
             foreground_interaction=ErrorForegroundPaint(
                 parameter={
@@ -241,7 +235,7 @@ class DsiLcd(XprocessDisplayCombined):
                 for_seconds=show_for_seconds))
     
     def show_code_block(self, param: dict):
-        self._xlog.info(f"👀 Showing code block on DSI LCD.")
+        self._xlog.info(f"👀 Showing code block on LCD.")
         # The config takes precedence over the parameter that is hardcoded from Main
         show_for_seconds = self.interaction_delays.get("code_block", param.get("for_seconds", 10.0))
         self.painter.just_paint(
@@ -249,27 +243,8 @@ class DsiLcd(XprocessDisplayCombined):
                 parameter={"text": param.get("code", "")}, 
                 for_seconds=show_for_seconds))
     
-    def show_code_block_while_speaking(self, param: dict):
-        self._xlog.info(f"👀 Showing code block on DSI LCD while speaking.")
-        
-        self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=CodeBlockWhileSpeakingForegroundPaint(parameter={"text": param.get("code", "")}))
-    
-    def show_text_block(self, param: dict):
-        self._xlog.info(f"👀 Showing text block on DSI LCD.")
-        # The config takes precedence over the parameter that is hardcoded from Main
-        show_for_seconds = self.interaction_delays.get("text_block", param.get("for_seconds", 10.0))
-        self.painter.just_paint(
-            foreground_interaction=TextBlockForegroundPaint(
-                parameter={"text": param.get("text", "")}, 
-                for_seconds=show_for_seconds))
-    
-    def show_text_block_while_speaking(self, param: dict):
-        self._xlog.info(f"👀 Showing text block on DSI LCD while speaking.")
-        
-        self.painter.paint_into_foreground_while_speaking(
-            foreground_interaction=TextBlockWhileSpeakingForegroundPaint(parameter=param))
-    
+    # For the Client's "lcd" display, I want to try a different init_phase(),
+        #   that is shown in the foreground and gives prettier info.
     def init_phase(self, phase: int, text: str = None):
         self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
         self.painter.just_paint(foreground_interaction=StartupWithPhaseForegroundPaint(name=f"StartupWithPhaseForegroundPaint-{phase}", parameter={
@@ -289,41 +264,48 @@ class DsiLcd(XprocessDisplayCombined):
     
     # The new clear for background only
     def clear_background(self):
-        self._xlog.info("Clearing DSI LCD background interaction.")
+        self._xlog.info("Clearing LCD background interaction.")
         self.painter.just_paint(background_interaction=ClearBackgroundPaint())
     
     # The new clear for foreground only
     def clear_foreground(self):
-        self._xlog.info("Clearing DSI LCD foreground interaction.")
+        self._xlog.info("Clearing LCD foreground interaction.")
         self.painter.just_paint(foreground_interaction=ClearForegroundPaint())
 
 
     # ------- Background functions ---------
     
-    def show_kitt_mouth_while_speaking(self):
-        self._xlog.info(f"👄 Showing KITT mouth on DSI LCD.")
+    def show_speaking(self):
+        self._xlog.info(f"👄 Showing KITT mouth on LCD.")
         self.painter.paint_into_background_while_speaking(background_interaction=SpeakingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("speaking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
     
-    def show_kitt_scanner_while_thinking(self):
-        self._xlog.info(f"🤖 Showing KITT thinking on DSI LCD.")
+    def show_thinking(self):
+        self._xlog.info(f"🤖 Showing KITT thinking on LCD.")
         self.painter.paint_into_background_while_thinking(background_interaction=ThinkingBackgroundPaint(
             delay_between_frames=self.interaction_delays.get("thinking", self.interaction_delays.get("default_delay_between_frames", 0.05))
         ))
+    
+    def show_networking(self):
+        self._xlog.info(f"🤖 Showing KITT networking on LCD.")
+        self.painter.paint_into_background_while_networking(background_interaction=NetworkingBackgroundPaint(
+            delay_between_frames=self.interaction_delays.get("networking", self.interaction_delays.get("default_delay_between_frames", 0.05))
+        ))
+    
     def show(self, text: str):
-        self._xlog.info(f"🚥 Drawing on DSI LCD: {text}")
+        self._xlog.info(f"🚥 Drawing on LCD: {text}")
         self._macros.draw_something()
 
     # def init_phase(self, phase: int, text: str = None):
-    #     self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on DSI LCD")
+    #     self._xlog.info(f"🚥 Showing init phase {phase} ({text if text else 'No text'}) on LCD")
     #     self.painter.just_paint(background_interaction=InitPhaseBackgroundPaint(name=f"InitPhaseBackgroundPaint-{phase}", parameter={
     #         "phase": phase,
     #         "text": text
     #     }))
     
     def interaction_holding_percentage(self, percentage: int):
-        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on DSI LCD")
+        self._xlog.info(f"🚥 Showing interaction holding percentage {percentage}% on LCD")
         self.painter.just_paint(background_interaction=HoldingPercentageBackgroundPaint(name=f"HoldingPercentageBackgroundPaint-{percentage}", parameter=percentage))
     # ------- Communication with Flags ---------
     
@@ -335,6 +317,6 @@ class DsiLcd(XprocessDisplayCombined):
         return self.read_shared_memory_flag(SHARED_CHATBOT_BUSY)
 
 
-    # DSI LCD idle mode control: is it in idle mode?
+    # LCD idle mode control: is it in idle mode?
     def is_lcd_idle_mode(self):
-        return self.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)
+        return self.read_shared_memory_flag(SHARED_LCD_IDLE_MODE)

@@ -1,7 +1,6 @@
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from pitxu.lib.utils.signal_tools import SignalTools
 
 from scipy import signal
 import numpy as np

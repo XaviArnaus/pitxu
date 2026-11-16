@@ -12,9 +12,7 @@ import logging
 from contextlib import contextmanager
 import inspect
 import time
-import sys
 
-import torch
 
 logger = logging.getLogger(__name__)
 

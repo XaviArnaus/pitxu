@@ -1,4 +1,3 @@
-import time
 
 from pyxavi import Config, Dictionary, full_stack, dd
 

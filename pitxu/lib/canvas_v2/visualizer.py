@@ -1,11 +1,11 @@
 import time
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
-from pitxu.lib.canvas_v2.layout_info import LayoutInfo
+from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros.macros_buttons import MacrosButtons
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
@@ -18,18 +18,14 @@ from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPain
 from pitxu.lib.canvas_v2.buttons import BUTTONS, COLUMN_TO_DISPLAY_AREA
 from pitxu.lib.objects.point import Point
 
-from definitions import SHARED_SPEAKER_BUSY, \
-                        SHARED_DSI_LCD_BUSY, \
-                        SHARED_MICROPHONE_MUTED, \
-                        SHARED_CHATBOT_BUSY, \
-                        SHARED_CHATBOT_ANSWER_IS_ERROR, \
-                        SHARED_DSI_LCD_IDLE_MODE, \
-                        SHARED_NETWORK_BUSY, \
-                        SHARED_VAD_DETECTED, \
-                        SHARED_SUPPORT_BUSY, \
-                        SHARED_STT_BUSY, \
-                        SHARED_TRANSCRIBER_BUSY, \
-                        SHARED_SPEAKER_LEVEL
+from definitions import (
+    SHARED_SPEAKER_BUSY,
+    SHARED_CHATBOT_BUSY,
+    SHARED_DSI_LCD_IDLE_MODE,
+    SHARED_NETWORK_BUSY,
+    SHARED_TRANSCRIBER_BUSY,
+    SHARED_SPEAKER_LEVEL,
+)
 from pitxu.lib.objects.rectangle import Rectangle
 from pitxu.lib.objects.size import Size
 
@@ -150,7 +146,7 @@ class Visualizer(PyXavi):
             "base_frame_for_display_area": {
                 "callback": self.macros_layout.base_frame_for_display_area,
                 "parameters": {
-                    "display_area": "full_screen",
+                    "display_area": DisplayArea.OVERALL,
                 }
             },
             "soft_full_clear": {
@@ -163,12 +159,12 @@ class Visualizer(PyXavi):
             },
         })
         params.set("layout_position_to_queue_name", {
-            "top_left": PainterQueue.BACKGROUND,
-            "top_right": PainterQueue.FOREGROUND,
-            "bottom_center": PainterQueue.STATUS,
-            "bottom_left": PainterQueue.BUTTONS_LEFT,
-            "bottom_right": PainterQueue.BUTTONS_RIGHT,
-            "full_screen": PainterQueue.OVERALL
+            DisplayArea.EFFECTS: PainterQueue.BACKGROUND,
+            DisplayArea.MESSAGES: PainterQueue.FOREGROUND,
+            DisplayArea.STATUS: PainterQueue.STATUS,
+            DisplayArea.BUTTONS_LEFT: PainterQueue.BUTTONS_LEFT,
+            DisplayArea.BUTTONS_RIGHT: PainterQueue.BUTTONS_RIGHT,
+            DisplayArea.OVERALL: PainterQueue.OVERALL
         })
         # ⚠️ The ORDER here is the painting order, from the bottom layer to the top one.
         #   - OVERALL has to be the LAST one: it covers the whole screen (overlays, code and text blocks).
@@ -255,7 +251,7 @@ class Visualizer(PyXavi):
 
         # Only the display areas that draw animations need their frames prepared (and cached on disk).
         # A size that was not prepared still works, but it is resized on demand and kept in memory only.
-        display_areas_with_animations = self._xconfig.get("animations.display_areas", ["top_left"])
+        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.EFFECTS])
 
         animation_sizes_per_display_area = {}
         for display_area, rectangle in self.layout_info["relative"].items():
@@ -652,7 +648,7 @@ class Visualizer(PyXavi):
 
                     drawing_callback=self.macros_layout.base_frame_for_display_area,
                     drawing_callback_parameters={
-                        "display_area": "top_right",
+                        "display_area": DisplayArea.MESSAGES,
                     },
 
                         # final_screen_clearing=False,
@@ -673,7 +669,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_layout.base_frame_for_display_area,
                         drawing_callback_parameters={
-                            "display_area": "top_left",
+                            "display_area": DisplayArea.EFFECTS,
                         },
 
                         # final_screen_clearing=False,
@@ -719,12 +715,12 @@ class Visualizer(PyXavi):
 
         return provider
 
-    def kitt_mouth_while_speaking(self):
+    def speaking(self):
 
         follows_audio = self._speaking_animation_follows_audio()
         if follows_audio:
             # The level is read live on every painting iteration. Only 5 different images, so the cache does the work.
-            drawing_callback = self.macros_background.draw_kitt_speaking_level
+            drawing_callback = self.macros_background.draw_speaking_level
             cache_control_parameters = ["speaker_level"]
             dynamic_parameters = {"speaker_level": self._speaker_level_provider()}
         else:
@@ -732,7 +728,7 @@ class Visualizer(PyXavi):
             #   - current_loop_iteration
             #   - max_loop_iterations
             # They are used by the macro method to calculate the phase to draw.
-            drawing_callback = self.macros_background.draw_kitt_speaking_effect
+            drawing_callback = self.macros_background.draw_speaking_effect
             cache_control_parameters = ["current_loop_iteration"]
             dynamic_parameters = {}
 
@@ -740,7 +736,7 @@ class Visualizer(PyXavi):
             PaintObject(
                 paints_by_queue={
                     PainterQueue.BACKGROUND: BackgroundPaint(
-                        name="KittMouthWhileSpeakingBackgroundPaint",
+                        name="SpeakingBackgroundPaint",
                         command=BackgroundCommand(BackgroundCommand.SPEAKING),
 
                         while_shared_memory_flag=SHARED_SPEAKER_BUSY,
@@ -804,6 +800,40 @@ class Visualizer(PyXavi):
             )
         )
     
+    def networking(self):
+        """
+        Shows that the network is busy, while the network busy flag is on.
+        The effect is the scanner in blue, in the top left.
+        """
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.BACKGROUND: BackgroundPaint(
+                        name="ScannerWhileNetworkingBackgroundPaint",
+                        command=BackgroundCommand(BackgroundCommand.NETWORKING),
+
+                        while_shared_memory_flag=SHARED_NETWORK_BUSY,
+                        while_shared_memory_flag_value=True,
+
+                        # The parameters "current_loop_iteration" and "max_loop_iterations" are added during the painting stage.
+                        # They are used by the macro method to calculate the phase to draw.
+                        drawing_callback=self.macros_background.draw_scanner_effect,
+                        drawing_callback_parameters={"color": self.canvas.COLOR_BLUE},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        loop_iterations=16,
+                        delay_between_frames=self.interaction_delays.get("networking",
+                                                                        self.interaction_delays.get("default_delay_between_frames",
+                                                                                                    0.05)),
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
     def holding_percentage(self, param: dict):
 
         self.painter.paint(

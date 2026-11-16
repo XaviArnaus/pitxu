@@ -1,4 +1,3 @@
-from pyxavi.config import Config
 from .point import Point
 
 class Line:

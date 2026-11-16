@@ -96,7 +96,7 @@ class StatusCommand(PaintingCommand):
 class ButtonsCommand(PaintingCommand):
     """
     Commands related to buttons painting.
-    They are meant to be used in the "bottom_left" or "bottom_right" areas of the screen.
+    They are meant to be used in the buttons areas of the screen.
     """
 
     # One paint draws the whole column of buttons.

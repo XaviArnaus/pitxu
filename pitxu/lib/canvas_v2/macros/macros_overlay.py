@@ -4,6 +4,7 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.objects import Point
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosOverlay(MacrosBase):
     """
@@ -26,7 +27,7 @@ class MacrosOverlay(MacrosBase):
         text_color = params.get("text_color", self.canvas.COLOR_BLACK)
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "full_screen"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.OVERALL})
 
         padding_rectangle = 10
         padding_code_text = 5
@@ -99,7 +100,7 @@ class MacrosOverlay(MacrosBase):
         text_color = params.get("text_color", self.canvas.COLOR_BLACK)
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": "full_screen"})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.OVERALL})
 
         padding_rectangle = 10
         padding_text = 5

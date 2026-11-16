@@ -1,8 +1,8 @@
 from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.matrix_led import Max7219, HandableCanvas, HandableEmulatedCanvas
-from ..objects import Point, Matrix
+from pitxu.lib.legacy.matrix_led import Max7219, HandableCanvas, HandableEmulatedCanvas
+from pitxu.lib.objects import Point, Matrix
 
 import time, math
 

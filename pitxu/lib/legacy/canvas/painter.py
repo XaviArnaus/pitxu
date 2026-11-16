@@ -3,11 +3,11 @@ from threading import Thread
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.canvas.macros import Macros
-from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm
-from pitxu.lib.canvas.paint_objects import ForegroundPaint, BackgroundPaint
+from pitxu.lib.legacy.canvas.macros import Macros
+from pitxu.lib.legacy.canvas.painter_commands import BackgroundComm, ForegroundComm
+from pitxu.lib.legacy.canvas.paint_objects import ForegroundPaint, BackgroundPaint
 from pitxu.lib.utils.xtime import Xtime
-from pitxu.lib.canvas.painter_busy_flags import PainterBusyFlags
+from pitxu.lib.legacy.canvas.painter_busy_flags import PainterBusyFlags
 
 from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, \
                         SHARED_NETWORK_BUSY, SHARED_IDLE_MODE, SHARED_VAD_DETECTED, \

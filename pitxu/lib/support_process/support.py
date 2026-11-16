@@ -5,7 +5,7 @@ from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.support_process.support_process import SupportProcess
 from pitxu.lib.objects import XprocAction
 
-from definitions import QUEUE_SUPPORT, SHARED_SUPPORT_BUSY
+from definitions import QUEUE_SUPPORT
 
 from multiprocessing import JoinableQueue
 import numpy as np

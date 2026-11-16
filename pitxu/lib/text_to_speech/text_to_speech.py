@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary
+from pyxavi import Config
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction

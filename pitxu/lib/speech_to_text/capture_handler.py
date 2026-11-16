@@ -1,12 +1,11 @@
-from pyxavi import Config, Dictionary, dd, full_stack
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine, TrascriptionState, SttMarker
 from pitxu.lib.utils.conversors import Conversors
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
-from pitxu.lib.core.shared_memory_manager import SharedMemoryManager, \
-    SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED, SHARED_TRANSCRIBER_BUSY
+from pitxu.lib.core.shared_memory_manager import SharedMemoryManager, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_VAD_DETECTED
 
 import queue as Queue
 from rms_vad import RmsVAD, VADConfig

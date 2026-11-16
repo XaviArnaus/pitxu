@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.interaction.shortcuts.shortcut_base import ShortcutBase
 

@@ -1,4 +1,4 @@
-import time, logging
+import logging
 
 from pyxavi import Config, Dictionary, full_stack
 

@@ -1,10 +1,11 @@
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess_protocol import XprocessProtocol
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
+import signal
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
@@ -69,6 +70,11 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         '''
         Managed by Process
         '''
+        # `systemctl stop` sends a SIGTERM to every process of the service at the same time.
+        # Main is the one that closes everything in order (and tells the children to finish),
+        #   so the children ignore it. Main terminates (and if needed kills) them at the end.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
         try:
             # Apparently the parent Process class has a run() implementation,
             # but I don't see the difference in behaviour.
@@ -123,6 +129,12 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 # The initialization of the class should not be considered as busy.
                 if action != XprocAction.INITIALIZE:
                     self.unset_busy()
+
+                # FINISH is the last action of a process: leave the loop so the process ends by itself.
+                # Otherwise it would sit waiting on the queue until it gets terminated (or killed).
+                if action == XprocAction.FINISH:
+                    self._log_debug("Xprocess [" + self._PROCESS_NAME + "] run() ended after finish")
+                    break
 
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")

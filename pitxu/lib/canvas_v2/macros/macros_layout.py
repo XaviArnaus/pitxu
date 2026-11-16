@@ -1,9 +1,10 @@
 from PIL import ImageDraw, Image
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.objects import Rectangle, Point
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
+from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosLayout(MacrosBase):
     """
@@ -99,7 +100,7 @@ class MacrosLayout(MacrosBase):
             # Draw all the rectangles given (they are already calculated to be inside the screen and with the padding)
             for name, rectangle in self.layout_info["padded"].items():
                 # We actively avoid to draw the full screen rectangle, as it is meant to be used as a base for the other ones, and drawing it would cover the rest of the rectangles.
-                if name == "full_screen":
+                if name == DisplayArea.OVERALL:
                     continue
                 draw_overlay.rounded_rectangle(
                     rectangle.to_image_rectangle(),

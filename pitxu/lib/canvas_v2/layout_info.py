@@ -1,14 +1,30 @@
-from typing import AnyStr, Any
 
-from PIL import ImageDraw,ImageFont, Image, ImageText
+from PIL import Image
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
 
 import math
+
+class DisplayArea:
+    """
+    The areas of the screen, named by what is shown in them. The value is the key of the area in the layout.
+    To move an intention to another area, change it here.
+    """
+    # Animations and effects
+    EFFECTS: str = "top_left"
+    # Texts, feedback and other messages
+    MESSAGES: str = "top_right"
+    # The status line
+    STATUS: str = "bottom_center"
+    # The columns of status buttons
+    BUTTONS_LEFT: str = "bottom_left"
+    BUTTONS_RIGHT: str = "bottom_right"
+    # Overlays that cover everything
+    OVERALL: str = "full_screen"
+
 
 class LayoutInfo(PyXavi):
     """

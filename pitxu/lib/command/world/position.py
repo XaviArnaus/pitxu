@@ -76,8 +76,13 @@ class WorldPosition(PyXavi, Command):
             # Results are better (Ekhradt...) but still not good.
             # https://docs.ipdata.co/docs/all-response-fields
             # Be careful, this lib is messing up with my logger: the main process disappears from the logs.
+            ipdata_api_key = self._xparams.get("ipdata_api_key", None)
+            if not ipdata_api_key:
+                self._xlog.error("🛑 IPDATA_API_KEY is not set. Please set it in the .env file.")
+                return "Error getting geo coordinates for current location: the IPData API key is not configured."
+
             from ipdata import IPData
-            ipdata = IPData(api_key='a33544cf4265b29261ffc0e97d6e78b6689cc76d9a7b752dd8038deb')
+            ipdata = IPData(api_key=ipdata_api_key)
             response = ipdata.lookup()
 
             latitude = response['latitude']

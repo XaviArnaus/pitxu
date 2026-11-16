@@ -1,5 +1,5 @@
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
-from pitxu.lib.matrix_led import Max7219, Macros, HandableCanvas, HandableEmulatedCanvas
+from pitxu.lib.legacy.matrix_led import Max7219, Macros, HandableCanvas, HandableEmulatedCanvas
 from pitxu.lib.objects.point import Point
 from definitions import SHARED_SPEAKER_BUSY, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR
 
@@ -39,7 +39,7 @@ class MatrixLed(XprocessDisplayBackground):
         self._macros.close_canvas()
         self._xlog.info("Finalizing Matrix Worker")
     
-    def show_kitt_mouth_while_speaking(self):
+    def show_speaking(self):
         self._xlog.info(f"👄 Showing KITT mouth on Matrix LED.")
         self._macros.open_canvas()
         while True:

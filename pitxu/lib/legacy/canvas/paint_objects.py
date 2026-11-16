@@ -1,4 +1,4 @@
-from pitxu.lib.canvas.painter_commands import BackgroundComm, ForegroundComm, StatusComm
+from pitxu.lib.legacy.canvas.painter_commands import BackgroundComm, ForegroundComm, StatusComm
 
 class Paint:
     

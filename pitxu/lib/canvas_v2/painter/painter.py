@@ -1,12 +1,12 @@
 import time
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.painter.painter_shared_memory import PainterSharedMemory
-from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, AnimationPaint
-from pitxu.lib.canvas_v2.painter.painting_command import ForegroundCommand, PaintingCommand, BackgroundCommand
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, BackgroundPaint, AnimationPaint
+from pitxu.lib.canvas_v2.painter.painting_command import PaintingCommand
 from pitxu.lib.canvas_v2.painter.painter_queue import PainterQueue
 
 from pitxu.lib.objects.point import Point

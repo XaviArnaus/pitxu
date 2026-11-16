@@ -8,7 +8,6 @@ from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.utils.animation_cache import get_cache_root, compute_fingerprint, build_cache_dir_name
 
-import platform
 import os
 import glob
 import shutil

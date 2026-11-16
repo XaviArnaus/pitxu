@@ -53,7 +53,7 @@ class PowerReader:
             # The gauge can report a bit over 100 % when the battery is full (e.g. 100.4), so we keep it in range.
             return voltage_swapped * 1.25 / 1000 / 16, min(100.0, max(0.0, capacity_swapped / 256))
         except Exception as e:
-            logger.debug(f"Could not read the battery gauge (bus {bus}, address {hex(address)}): {e}")
+            logger.error(f"Could not read the battery gauge (bus {bus}, address {hex(address)}): {e}")
             return None
 
     # ---- Raspberry Pi PMIC ----
@@ -78,8 +78,8 @@ class PowerReader:
                 label = parts[0]
                 value = parts[-1].split("=")[1][:-1]
                 readings[label] = float(value)
-            except (IndexError, ValueError):
-                logger.debug(f"Skipping an unparseable PMIC line: [{line}]")
+            except (IndexError, ValueError) as e:
+                logger.error(f"Skipping an unparseable PMIC line: [{line}]: {e}")
         return readings or None
 
     @staticmethod
@@ -108,7 +108,7 @@ class PowerReader:
             # "throttled=0x50005"
             return int(output.split("=")[1].strip(), 0)
         except (IndexError, ValueError):
-            logger.debug(f"Could not parse the throttled flags: [{output}]")
+            logger.error(f"Could not parse the throttled flags: [{output}]")
             return None
 
     @staticmethod
@@ -161,5 +161,5 @@ class PowerReader:
                 return None
             return result.stdout.decode(errors="replace")
         except Exception as e:
-            logger.debug(f"vcgencmd {' '.join(args)} could not run: {e}")
+            logger.error(f"vcgencmd {' '.join(args)} could not run: {e}")
             return None

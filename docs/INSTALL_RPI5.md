@@ -506,6 +506,11 @@ EMAIL_USERNAME=oscar.pitxu@domain.com
 EMAIL_PASSWORD=patati patata
 ```
 
+The tool that finds the current location of the device uses [IPData](https://ipdata.co/), which needs its own key:
+```
+IPDATA_API_KEY=abcdefghijkl
+```
+
 ## 8. Preliminary test
 
 At this point, Pitxu should be prepared to run. The configuration changes that we did require that we reboot:
