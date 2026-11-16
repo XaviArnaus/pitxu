@@ -8,7 +8,6 @@ from pitxu.lib.utils.xtime import Xtime
 
 import numpy as np
 import os, logging
-import datetime
 import requests
 
 class Client(PyXavi, MicroserviceBase):

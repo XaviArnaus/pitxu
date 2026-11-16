@@ -1,4 +1,3 @@
-import re
 
 from pyxavi import Config, Dictionary
 from definitions import SHARED_DSI_LCD_IDLE_MODE

@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction

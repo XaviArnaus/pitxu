@@ -1,10 +1,9 @@
 import importlib
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.xprocess_pool import XprocessPool
-from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.text_to_speech.piper import Piper
@@ -20,11 +19,26 @@ from pitxu.lib.interaction.shortcuts.status import Status
 
 from multiprocessing import JoinableQueue
 
-from definitions import QUEUE_SPEAKER, QUEUE_EINK, QUEUE_MATRIX, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, \
-                        SHARED_SPEAKER_BUSY, SHARED_NETWORK_BUSY, SHARED_VAD_DETECTED, \
-                        SHARED_MICROPHONE_MUTED, SHARED_CHATBOT_BUSY, SHARED_CHATBOT_ANSWER_IS_ERROR, SHARED_DSI_LCD_BUSY,\
-                        SHARED_DSI_LCD_IDLE_MODE, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, SHARED_TRANSCRIBER_BUSY, SHARED_WAKE_UP_BUTTON_PRESSED, \
-                        SHARED_SPEECH_INTERRUPT_REQUESTED
+from definitions import (
+    QUEUE_SPEAKER,
+    QUEUE_EINK,
+    QUEUE_MATRIX,
+    QUEUE_LCD,
+    QUEUE_DSI_LCD,
+    QUEUE_SUPPORT,
+    SHARED_SPEAKER_BUSY,
+    SHARED_NETWORK_BUSY,
+    SHARED_VAD_DETECTED,
+    SHARED_MICROPHONE_MUTED,
+    SHARED_CHATBOT_BUSY,
+    SHARED_CHATBOT_ANSWER_IS_ERROR,
+    SHARED_DSI_LCD_IDLE_MODE,
+    SHARED_SUPPORT_BUSY,
+    SHARED_STT_BUSY,
+    SHARED_TRANSCRIBER_BUSY,
+    SHARED_WAKE_UP_BUTTON_PRESSED,
+    SHARED_SPEECH_INTERRUPT_REQUESTED,
+)
 
 class Interaction(PyXavi):
     """

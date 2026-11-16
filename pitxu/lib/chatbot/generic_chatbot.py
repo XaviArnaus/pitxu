@@ -3,19 +3,18 @@ from google.genai import types
 from google.genai.errors import ServerError, ClientError, APIError
 from google.genai.chats import AsyncChat
 
-from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
-from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
+from pitxu.lib.objects import ChatbotResponse
 from pitxu.lib.microservice.client import Client
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
-import time, anyio, math
+import anyio
 import fastmcp
-from collections import Counter
 import logging
 
 class GenericChatbot(PyXavi):

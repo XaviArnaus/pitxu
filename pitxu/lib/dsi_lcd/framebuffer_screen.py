@@ -1,4 +1,3 @@
-import os
 from subprocess import check_output
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi

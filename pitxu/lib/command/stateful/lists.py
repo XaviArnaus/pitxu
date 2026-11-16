@@ -7,7 +7,6 @@ from pitxu.lib.interaction.interaction import Interaction
 
 import logging
 
-from datetime import datetime
 
 
 class StatefulLists(PyXavi, Command):

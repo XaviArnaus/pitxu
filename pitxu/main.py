@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 import signal
 

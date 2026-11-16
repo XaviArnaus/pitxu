@@ -1,6 +1,6 @@
 import logging
 
-from pyxavi import Config, Dictionary, TerminalColor, full_stack, dd
+from pyxavi import Config, Dictionary, TerminalColor, full_stack
 from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.core.xprocess_pool import XprocessPool

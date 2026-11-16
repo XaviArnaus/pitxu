@@ -1,4 +1,4 @@
-from pyxavi import Logger, Config, Dictionary, dd
+from pyxavi import Logger, Config, Dictionary
 
 from pitxu.lib.utils.config_loader import ConfigLoader
 

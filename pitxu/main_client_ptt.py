@@ -1,4 +1,4 @@
-from pyxavi import Logger, Config, Dictionary, full_stack, dd
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.abstract.pyxavi import PyXavi

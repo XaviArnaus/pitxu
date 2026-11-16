@@ -8,8 +8,7 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
 from pitxu.lib.text_to_speech.speaker_level_meter import SpeakerLevelMeter
-from definitions import ROOT_DIR, SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, \
-                        SHARED_SPEECH_INTERRUPT_REQUESTED
+from definitions import ROOT_DIR, SHARED_SPEAKER_LEVEL, SHARED_FIRST_AUDIO_TIMESTAMP, SHARED_SPEECH_INTERRUPT_REQUESTED
 
 class Piper(Xprocess):
 

@@ -1,7 +1,6 @@
 import queue
-import sys
 
-from pyxavi import Dictionary, Config, full_stack, dd
+from pyxavi import Dictionary, Config, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.microservice.client import Client
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager

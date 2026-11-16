@@ -1,6 +1,6 @@
 import time
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
@@ -18,18 +18,14 @@ from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPain
 from pitxu.lib.canvas_v2.buttons import BUTTONS, COLUMN_TO_DISPLAY_AREA
 from pitxu.lib.objects.point import Point
 
-from definitions import SHARED_SPEAKER_BUSY, \
-                        SHARED_DSI_LCD_BUSY, \
-                        SHARED_MICROPHONE_MUTED, \
-                        SHARED_CHATBOT_BUSY, \
-                        SHARED_CHATBOT_ANSWER_IS_ERROR, \
-                        SHARED_DSI_LCD_IDLE_MODE, \
-                        SHARED_NETWORK_BUSY, \
-                        SHARED_VAD_DETECTED, \
-                        SHARED_SUPPORT_BUSY, \
-                        SHARED_STT_BUSY, \
-                        SHARED_TRANSCRIBER_BUSY, \
-                        SHARED_SPEAKER_LEVEL
+from definitions import (
+    SHARED_SPEAKER_BUSY,
+    SHARED_CHATBOT_BUSY,
+    SHARED_DSI_LCD_IDLE_MODE,
+    SHARED_NETWORK_BUSY,
+    SHARED_TRANSCRIBER_BUSY,
+    SHARED_SPEAKER_LEVEL,
+)
 from pitxu.lib.objects.rectangle import Rectangle
 from pitxu.lib.objects.size import Size
 

@@ -1,10 +1,8 @@
-from typing import AnyStr, Any
 
 from PIL import ImageDraw,ImageFont, Image, ImageText
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
 

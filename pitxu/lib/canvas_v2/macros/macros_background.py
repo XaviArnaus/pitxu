@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw
 
-from pyxavi import Config, Dictionary, dd
+from pyxavi import Config, Dictionary
 from pitxu.lib.objects import Point
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase

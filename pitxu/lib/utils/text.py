@@ -2,7 +2,6 @@ import emoji
 import re
 import unicodedata
 
-from pyxavi import dd
 
 class Text:
 

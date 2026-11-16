@@ -8,7 +8,6 @@ from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.utils.compat import QueueShutDown
-from definitions import SHARED_MICROPHONE_MUTED, SHARED_SPEAKER_BUSY
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
 

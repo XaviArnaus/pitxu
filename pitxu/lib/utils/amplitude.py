@@ -7,7 +7,6 @@ https://github.com/kmein/vu-meter/
 
 import math
 import struct
-from decimal import Decimal
 
 # RATE = 44100
 # INPUT_BLOCK_TIME = 0.05

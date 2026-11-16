@@ -2,9 +2,8 @@ from pyxavi import Config, Dictionary, TerminalColor, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 
-from definitions import ROOT_DIR
 
-import time, json, os
+import time, os
 
 class Util(PyXavi):
 
