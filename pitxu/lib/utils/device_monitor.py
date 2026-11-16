@@ -51,7 +51,11 @@ class DeviceMonitor(PyXavi):
     MOCKED_BATTERY_VOLTAGE: float = 4.0
     MOCKED_POWER_CONSUMPTION_WATTS: float = 10.0
 
-    BATTERY_READ_RETRIES: int = 2
+    # The gauge may not answer for a moment (I2C "Remote I/O error"), so we try a few times with a pause.
+    BATTERY_READ_ATTEMPTS: int = 3
+    BATTERY_READ_RETRY_PAUSE_SECONDS: float = 0.3
+    # After a failed battery read, the next sampling is due sooner than the usual LEVELS_EVERY_SECONDS.
+    LEVELS_RETRY_AFTER_FAILURE_SECONDS: int = 10
 
     # Shared memory slots for the case fans, following the order of `gpio.fans.devices`.
     CASE_FAN_INDEXES: list[int] = [SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED]
@@ -90,6 +94,7 @@ class DeviceMonitor(PyXavi):
         self._last_levels_sampled_at: float | None = None
         self._last_thermal_sampled_at: float | None = None
         self._levels_thread: threading.Thread | None = None
+        self._published_battery_once: bool = False
 
         # We want the microphone volume at a known level since the very beginning.
         if self._is_linux and self._xparams.get("set_initial_mic_volume", True):
@@ -133,7 +138,10 @@ class DeviceMonitor(PyXavi):
             self.get_mic_volume()
             self.get_speaker_volume()
             self.get_speaker_muted()
-            self.get_battery_level()
+            if self.get_battery_level() is None:
+                # Try again soon instead of waiting for the whole period.
+                self._last_levels_sampled_at = time.monotonic() - (
+                    self.LEVELS_EVERY_SECONDS - self.LEVELS_RETRY_AFTER_FAILURE_SECONDS)
         except Exception as e:
             self._xlog.warning(f"DeviceMonitor could not sample the levels: {e}")
 
@@ -215,20 +223,29 @@ class DeviceMonitor(PyXavi):
         """
         if self._ups_is_mocked:
             return self.MOCKED_BATTERY_VOLTAGE, float(self.MOCKED_BATTERY_LEVEL)
-        with self._lock:
-            for attempt in range(1, self.BATTERY_READ_RETRIES + 1):
+        for attempt in range(1, self.BATTERY_READ_ATTEMPTS + 1):
+            # The lock is taken per attempt, so the pause does not block the rest of the readings.
+            with self._lock:
                 reading = PowerReader.battery_voltage_and_capacity(address=self._ups_i2c_address)
-                if reading is not None:
-                    return reading
-                self._xlog.warning(f"⚠️ Retry {attempt}/{self.BATTERY_READ_RETRIES} reading the UPS battery level.")
-            return None
+            if reading is not None:
+                return reading
+            if attempt < self.BATTERY_READ_ATTEMPTS:
+                self._xlog.warning(f"⚠️ Retry {attempt}/{self.BATTERY_READ_ATTEMPTS - 1} reading the UPS battery level.")
+                time.sleep(self.BATTERY_READ_RETRY_PAUSE_SECONDS)
+        return None
 
     def get_battery_level(self) -> int | None:
         reading = self.get_battery_voltage_and_capacity()
         level = None if reading is None else math.ceil(reading[1])
-        self._publish(SHARED_BATTERY_LEVEL, level)
-        if reading is not None:
+        if level is not None:
+            self._published_battery_once = True
+            self._publish(SHARED_BATTERY_LEVEL, level)
             self._log_debug(f"🔋 Current UPS battery level: {level} % (Voltage: {reading[0]:.2f} V)")
+        elif not self._published_battery_once:
+            # Never read: publish it as unknown. Otherwise we keep showing the last known level.
+            self._publish(SHARED_BATTERY_LEVEL, None)
+        else:
+            self._xlog.warning("⚠️ Could not read the UPS battery level: keeping the last known one.")
         return level
 
     def is_power_cable_connected(self) -> bool | None:
