@@ -9,7 +9,7 @@ from pitxu.lib.text_to_speech.piper import Piper
 from pitxu.lib.text_to_speech.text_to_speech import TextToSpeech
 from pitxu.lib.legacy.eink.display import Display as eInk
 from pitxu.lib.matrix_led import MatrixLed
-from pitxu.lib.lcd.lcd import Lcd
+from pitxu.lib.legacy.lcd.lcd import Lcd
 from pitxu.lib.dsi_lcd.dsi_lcd import DsiLcd
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.latency_timeline import LatencyTimeline

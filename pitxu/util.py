@@ -22,7 +22,7 @@ class Util(PyXavi):
         try:
             from pitxu.lib.legacy.eink.eink import EinkDisplay
             from pitxu.lib.matrix_led import Max7219
-            from pitxu.lib.lcd.st7789 import ST7789
+            from pitxu.lib.legacy.lcd.st7789 import ST7789
             from pitxu.lib.dsi_lcd.device_wrapper import DeviceWrapper as DsiLcd
 
             # Delegate the run to Main

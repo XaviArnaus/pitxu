@@ -89,7 +89,7 @@ class Test(PyXavi):
 
     def test_lcd(self):
         try:
-            from pitxu.lib.lcd.st7789 import ST7789
+            from pitxu.lib.legacy.lcd.st7789 import ST7789
             from pitxu.lib.objects.point import Point
             from pitxu.lib.objects.rectangle import Rectangle
             from pitxu.lib.legacy.canvas.canvas import Canvas
@@ -161,7 +161,7 @@ class Test(PyXavi):
     
     def test_client_startup_phase(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
             from pitxu.lib.legacy.canvas.canvas import Canvas
             from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
@@ -233,7 +233,7 @@ class Test(PyXavi):
 
     def test_mouth_in_lcd(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
             from pitxu.lib.legacy.canvas.canvas import Canvas
             from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
@@ -299,7 +299,7 @@ class Test(PyXavi):
 
     def test_thinking_in_lcd(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
             from pitxu.lib.legacy.canvas.canvas import Canvas
             from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
@@ -637,7 +637,7 @@ finally:
     
     def test_status_idle_screen(self):
         try:
-            from pitxu.lib.lcd.device_wrapper import DeviceWrapper
+            from pitxu.lib.legacy.lcd.device_wrapper import DeviceWrapper
             from pitxu.lib.legacy.canvas.canvas import Canvas
             from pitxu.lib.legacy.canvas.macros import Macros
             from pitxu.lib.objects.point import Point
