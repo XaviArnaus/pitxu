@@ -74,16 +74,21 @@ class Util(PyXavi):
     def util_battery_status(self):
         try:
 
-            # Delegate the run to Main
-            from pitxu.lib.ups.ups import UPS
-            ups = UPS(config=self._xconfig, params=self._xparams)
-            voltage, capacity = ups.read_voltage_and_capacity()
-            pld_state = ups.get_pld_state()
-            self._xlog.info(f"Battery voltage: {voltage:.2f} V")
-            self._xlog.info(f"Battery capacity: {capacity:.2f} %")
-            self._xlog.info(f"Power Loss/Adapter Failure State: {'FAIL' if pld_state == 0 else 'OK'}")
+            from pitxu.lib.utils.device_monitor import DeviceMonitor
+            # A read-only utility: it must not touch the microphone volume.
+            self._xparams.set("set_initial_mic_volume", False)
+            monitor = DeviceMonitor(config=self._xconfig, params=self._xparams)
+            reading = monitor.get_battery_voltage_and_capacity()
+            cable = monitor.is_power_cable_connected()
+            if reading is None:
+                self._xlog.error("Could not read the UPS battery gauge")
+            else:
+                self._xlog.info(f"Battery voltage: {reading[0]:.2f} V")
+                self._xlog.info(f"Battery capacity: {reading[1]:.2f} %")
+            cable_text = "unknown" if cable is None else ("OK" if cable else "FAIL")
+            self._xlog.info(f"Power Loss/Adapter Failure State: {cable_text}")
             self._xlog.info("End of work.")
-            ups.close()
+            monitor.close()
 
         except RuntimeError as e:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)

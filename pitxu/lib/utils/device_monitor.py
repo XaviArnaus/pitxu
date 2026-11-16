@@ -92,7 +92,7 @@ class DeviceMonitor(PyXavi):
         self._levels_thread: threading.Thread | None = None
 
         # We want the microphone volume at a known level since the very beginning.
-        if self._is_linux:
+        if self._is_linux and self._xparams.get("set_initial_mic_volume", True):
             self.set_mic_volume(self._initial_mic_volume)
 
     # ---- Periodic sampling ----
