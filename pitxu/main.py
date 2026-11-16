@@ -789,6 +789,31 @@ class Main(PyXavi):
     
     # ------------ Initializations and closings -------------
     
+    def _safe_step(self, name: str, step: callable):
+        """
+        Runs one step of the closing, logging (not raising) any error, so the next steps still run.
+        """
+        try:
+            return step()
+        except (Exception, RuntimeError) as e:
+            self._xlog.error(f"🛑 Error closing [{name}]: {type(e).__name__}: {e}")
+            self._log_debug(full_stack())
+            return None
+
+    def _finish_processes_and_queues(self):
+        """
+        Finish all the sub processes and their queues.
+        Take in account that a Control + C may have killed some of the processes already,
+          so check somehow if any of them is still alive before sending a FINISH to a queue that does not exist anymore.
+        """
+        except_queue_names = []
+        for name in self._interaction.get_process_pool().list_of_processes():
+            process = self._interaction.get_process_pool().get_process(name)
+            if process is None or not process.is_alive():
+                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
+                except_queue_names.append(name)
+        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+
     def close_nicely(self, avoid_final_exit=False):
         """
         Close the application nicely, cleaning up resources and saving state.
@@ -807,81 +832,82 @@ class Main(PyXavi):
         sw_closing = self._stopwatch.continue_or_start(name="closing")
         self._log_debug("Closing nicely...")
 
+        # Every step is isolated: a failing one (typically a broken pipe against a process that is already gone)
+        #   must never prevent the next ones, and especially not the release of the shared memory at the end.
+        # ⚠️ Any new feature that needs to release something, needs to do it here, through `_safe_step`.
+
         # The chatbot may be in "Thinking" mode, unset it anyways.
-        self._interaction.unset_chatbot_busy()
+        self._safe_step("chatbot busy flag", self._interaction.unset_chatbot_busy)
 
         # Reactivate the microphone because it keeps the state on shutdowns / reboots.
         # We never want it to be muted when starting.
-        self._interaction.unmute_microphone()
+        self._safe_step("microphone mute state", self._interaction.unmute_microphone)
 
         # In case that the user was speaking, clear the flag to avoid waiting forever.
-        self._interaction.unset_vad_detected()
+        self._safe_step("VAD detected flag", self._interaction.unset_vad_detected)
 
-        # The scheduler contains a thread, so close it properly.
-        if self._scheduler is not None:
-            self._scheduler.shutdown()
+        try:
+            # The scheduler contains a thread, so close it properly.
+            if self._scheduler is not None:
+                self._safe_step("scheduler", self._scheduler.shutdown)
 
-        # Release the pin that the device monitor may have claimed.
-        if self._device_monitor is not None:
-            self._device_monitor.close()
+            # Release the pin that the device monitor may have claimed.
+            if self._device_monitor is not None:
+                self._safe_step("device monitor", self._device_monitor.close)
 
-        # Close the Input Stream
-        if self._input_stream is not None:
-            self._input_stream.close()
+            # Close the Input Stream
+            if self._input_stream is not None:
+                self._safe_step("input stream", self._input_stream.close)
 
-        # Persist state
-        self.persist_state()
+            # Persist state
+            self._safe_step("state persistence", self.persist_state)
 
-        # Stop Idle Mode if active
-        self._interaction.set_idle_mode_off()
+            # Stop Idle Mode if active
+            self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
-        # Clear the displays
-        # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
-        self._interaction.clear_device()
+            # Clear the displays
+            # COMMENTED: ⚠️ It does nothing. Maybe we should simply access directly the display devices and clear them.
+            self._safe_step("displays clearing", self._interaction.clear_device)
 
-        # Stop the Chatbot Session Manager.
-        if self._chatbot_session_manager is not None:
-            asyncio.run_coroutine_threadsafe(self._close_chatbot_session_manager(), asyncio.get_event_loop())
+            # Stop the Chatbot Session Manager.
+            if self._chatbot_session_manager is not None:
+                self._safe_step("chatbot session manager", lambda: asyncio.run_coroutine_threadsafe(
+                    self._close_chatbot_session_manager(), asyncio.get_event_loop()))
 
-        # Close the server
-        if self._server is not None:
-            self._server.close()
-        
-        # Close the CaptureHandler, that also closes the VAD and the microphone stream.
-        if self._capture_handler is not None:
-            self._capture_handler.close()
+            # Close the server
+            if self._server is not None:
+                self._safe_step("server", self._server.close)
 
-        # Close STT
-        if self._dictate is not None:
-            self._dictate.close()
-        
-        # Finish all related multiprocess stuff
-        # Take in account that a Control + C may have killed some of the processes already,
-        #   so check somehow if any of the following is still alive before sending a FINISH to a queue that does not exist anymore.
-        except_queue_names = []
-        for name in self._interaction.get_process_pool().list_of_processes():
-            process = self._interaction.get_process_pool().get_process(name)
-            if process is None or not process.is_alive():
-                self._xlog.warning(f"Process [{name}] is not alive (killed by Control+C ?). Skipping their Queue Finishing to avoid errors.")
-                except_queue_names.append(name)
-        self._interaction.get_process_pool().finish_processes_and_queues(except_queue_names=except_queue_names)
+            # Close the CaptureHandler, that also closes the VAD and the microphone stream.
+            if self._capture_handler is not None:
+                self._safe_step("capture handler", self._capture_handler.close)
 
-        # Close the Support class.
-        # Support is used by:
-        #   1. Main -> Support (main instance)
-        #   2. STT -> Support (main instance, passed via params)
-        #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
-        # How are they closed?
-        #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
-        #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
-        if self._support is not None:
-            self._support.close()
-        
-        self._xlog.debug("Closing Shared Memory Manager")
-        self._interaction.get_process_pool().get_memory_manager().close()
+            # Close STT
+            if self._dictate is not None:
+                self._safe_step("speech to text", self._dictate.close)
 
-        # Finish interactions and related processes
-        self._interaction.close()
+            # Finish all related multiprocess stuff
+            self._safe_step("processes and queues", self._finish_processes_and_queues)
+
+            # Close the Support class.
+            # Support is used by:
+            #   1. Main -> Support (main instance)
+            #   2. STT -> Support (main instance, passed via params)
+            #   3. STT -> STT Process -> Preprocessor -> Support (main instance, only the support queue is passed via params)
+            # How are they closed?
+            #   - All are closed in one shot here. CLOSE FIRST THE STT and DO NOT CLOSE SUPPORT THERE.
+            #   - The STT Process is already closed by the finish_processes_and_queues() method, so we don't have to worry about it.
+            if self._support is not None:
+                self._safe_step("support", self._support.close)
+
+        finally:
+            # These two must always run, whatever happened before: otherwise the shared memory stays
+            #   registered, and the Manager of the queues is never shut down.
+            self._xlog.debug("Closing Shared Memory Manager")
+            self._safe_step("shared memory", lambda: self._interaction.get_process_pool().get_memory_manager().close())
+
+            # Finish interactions and related processes
+            self._safe_step("interaction", self._interaction.close)
 
         # ------ Final logs ------
 
@@ -968,7 +994,12 @@ class Main(PyXavi):
         signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
 
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
-        self.close_nicely()
+        try:
+            self.close_nicely()
+        except (Exception, RuntimeError) as e:
+            # An exception escaping from here would end up in the event loop, and the process would leave without finishing.
+            self._xlog.error(f"🛑 Error while closing nicely after the signal [{signal_name}]: {type(e).__name__}: {e}")
+            sys.exit(1)
     
     def _load_statics_params_and_support(self):
         """

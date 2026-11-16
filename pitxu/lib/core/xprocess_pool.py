@@ -1,4 +1,5 @@
-from multiprocessing import set_start_method, JoinableQueue, Manager
+from multiprocessing import set_start_method, JoinableQueue
+import signal
 from multiprocessing.managers import SyncManager
 from queue import Empty
 import time
@@ -13,6 +14,14 @@ from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
                         QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, QUEUE_TRANSCRIBER
+
+
+def _ignore_sigterm():
+    """
+    Initializer of the Manager process: it must outlive the SIGTERM that systemd sends to every process
+    of the service, as Main still needs the queues while it closes everything. Main shuts it down at the end.
+    """
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
 
 class XprocessPool(PyXavi):
@@ -65,7 +74,8 @@ class XprocessPool(PyXavi):
             raise RuntimeError("XprocessPool requires a shared_memory_manager to be passed in the params.")
 
         # Initialise the manager that will create the queues
-        self._manager = Manager()
+        self._manager = SyncManager()
+        self._manager.start(initializer=_ignore_sigterm)
 
         # The `forkserver` method is the only one that allows to initialze the SoundDevice in the child thread
         # without issues. The `spawn` method fails when initializing the OutputStream, and `fork` is not
@@ -324,8 +334,16 @@ class XprocessPool(PyXavi):
             if process.is_alive():
                 self._xlog.debug("Terminating and Joining Process [" + cleaned_process_name + "]")
                 process.terminate()
-                process.join(timeout=5)
+                process.join(timeout=2)
+                # The processes ignore SIGTERM (Main is the one that closes everything), so terminate() may not be enough.
+                if process.is_alive():
+                    self._xlog.debug("Process [" + cleaned_process_name + "] ignored the termination. Killing it.")
+                    process.kill()
+                    process.join(timeout=2)
+            try:
                 process.close()
+            except ValueError:  # still running, nothing else that we can do
+                self._xlog.warning("Process [" + cleaned_process_name + "] could not be closed, it is still running.")
     
     def join_all_queues(self):
         # Input queues

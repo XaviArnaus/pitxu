@@ -5,6 +5,7 @@ from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import XprocAction
 
 from multiprocessing import JoinableQueue, Process
+import signal
 
 class Xprocess(PyXavi, Process, XprocessProtocol):
 
@@ -69,6 +70,11 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
         '''
         Managed by Process
         '''
+        # `systemctl stop` sends a SIGTERM to every process of the service at the same time.
+        # Main is the one that closes everything in order (and tells the children to finish),
+        #   so the children ignore it. Main terminates (and if needed kills) them at the end.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
         try:
             # Apparently the parent Process class has a run() implementation,
             # but I don't see the difference in behaviour.
