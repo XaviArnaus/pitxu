@@ -6,7 +6,7 @@ from PIL import Image, ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.legacy.canvas.canvas import Canvas
 from pitxu.lib.objects import Point
 
 class EinkDisplay(PyXavi):

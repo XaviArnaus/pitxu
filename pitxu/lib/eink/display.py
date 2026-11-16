@@ -2,8 +2,8 @@ from pyxavi import dd
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.eink.eink import EinkDisplay
 # from pitxu.lib.eink.macros import Macros
-from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.canvas.macros import Macros
+from pitxu.lib.legacy.canvas.canvas import Canvas
+from pitxu.lib.legacy.canvas.macros import Macros
 from pitxu.lib.objects.point import Point
 from definitions import SHARED_SPEAKER_BUSY, SHARED_IDLE_MODE
 

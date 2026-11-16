@@ -3,7 +3,7 @@ from PIL import ImageDraw,ImageFont, Image
 from pyxavi import Config, Dictionary, dd
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.objects import Rectangle, Line, Point
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.legacy.canvas.canvas import Canvas
 from pitxu.lib.abstract.device import Device
 
 import time, math

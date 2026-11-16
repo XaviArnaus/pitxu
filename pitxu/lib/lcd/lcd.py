@@ -4,10 +4,10 @@ from PIL import Image
 from pitxu.lib.abstract.xprocess_display_combined import XprocessDisplayCombined
 from pitxu.lib.objects.xproc_action import XprocAction
 from pitxu.lib.lcd.device_wrapper import DeviceWrapper
-from pitxu.lib.canvas.canvas import Canvas
-from pitxu.lib.canvas.macros import Macros
-from pitxu.lib.canvas.painter import Painter
-from pitxu.lib.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, NetworkingBackgroundPaint, \
+from pitxu.lib.legacy.canvas.canvas import Canvas
+from pitxu.lib.legacy.canvas.macros import Macros
+from pitxu.lib.legacy.canvas.painter import Painter
+from pitxu.lib.legacy.canvas.paint_objects import SpeakingBackgroundPaint, ThinkingBackgroundPaint, NetworkingBackgroundPaint, \
                                             ArbitraryContentForegroundPaint, ArbitraryIconForegroundPaint, \
                                             ArbitraryContentWhileSpeakingForegroundPaint, ArbitraryContentWhileThinkingForegroundPaint, ArbitraryContentWhileNetworkingForegroundPaint, \
                                             StartupForegroundPaint, ErrorForegroundPaint, CodeBlockForegroundPaint, \
