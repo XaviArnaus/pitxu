@@ -6,7 +6,7 @@ from pitxu.lib.speech_to_text.input_stream import InputStream
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
-from pitxu.lib.canvas.canvas import Canvas
+from pitxu.lib.canvas_v2.canvas import Canvas
 
 from functools import partial
 from subprocess import call
@@ -296,7 +296,7 @@ class Reactions(PyXavi):
             self.interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="🚨",
                 text=result,
-                font_size=Canvas.FONT_SIZE_BIG)
+                font_size=self._get_canvas().FONT_SIZE_BIG)
 
         else:
             # We have here the new desired language code.

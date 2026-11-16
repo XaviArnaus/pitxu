@@ -19,7 +19,6 @@ from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.reactions import Reactions
-from pitxu.lib.canvas.canvas import Canvas
 from pitxu.lib.support_process.support import Support
 from pitxu.lib.speech_to_text.state_machine import SttStateMachine
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
@@ -1518,7 +1517,7 @@ class Main(PyXavi):
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📝",
                     text=reminder.get("text", ""),
-                    font_size=Canvas.FONT_SIZE_BIG)
+                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
                 self._interaction.mute_microphone(input_stream=input_stream)
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
