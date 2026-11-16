@@ -130,6 +130,12 @@ class Xprocess(PyXavi, Process, XprocessProtocol):
                 if action != XprocAction.INITIALIZE:
                     self.unset_busy()
 
+                # FINISH is the last action of a process: leave the loop so the process ends by itself.
+                # Otherwise it would sit waiting on the queue until it gets terminated (or killed).
+                if action == XprocAction.FINISH:
+                    self._log_debug("Xprocess [" + self._PROCESS_NAME + "] run() ended after finish")
+                    break
+
         except KeyboardInterrupt:
             self._xlog.debug("Pressed Control + C while running Xprocess " + self._PROCESS_NAME + " run()")
             self.finish()
