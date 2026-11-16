@@ -17,6 +17,7 @@
 
 ### Changed
 
+- Iterated the UX [#35](https://github.com/XaviArnaus/pitxu/pull/35)
 - Partial transcriptions are merged using a Timestamp-based Append, to avoid re-adding already processed words [#42](https://github.com/XaviArnaus/pitxu/pull/42)
 - General iteration to improve responsiveness [#46](https://github.com/XaviArnaus/pitxu/pull/46)
 - Threaded input stream removed and input wrapped in a class.
