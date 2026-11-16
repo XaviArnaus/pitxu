@@ -1338,7 +1338,7 @@ class Main(PyXavi):
                 # Callback for when the app goes out of idle
                 ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
                 # Callback for when the wake up button is pressed (released, actually)
-                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, lambda: self._interaction.add_new_status_line("🕹️ Wake up button pressed"), False)
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
             ]
         }))
 
@@ -1351,6 +1351,14 @@ class Main(PyXavi):
         # At this point we don't have the Input Stream yet, just making sure that we start muted.
         self._interaction.mute_microphone()
     
+    def _on_wake_up_button_pressed_flag(self):
+        """
+        The monitor saw the wake up button flag going up: it shows it, and consumes the flag.
+        The monitor only reacts to changes, so if the flag stayed up, the next presses would go unnoticed.
+        """
+        self._interaction.add_new_status_line("🕹️ Wake up button pressed")
+        self._interaction.unset_wake_up_button_pressed()
+
     def initialize_wake_up_button(self):
         """
         Initializes the wake up button.
