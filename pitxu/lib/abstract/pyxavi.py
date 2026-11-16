@@ -13,6 +13,28 @@ _BASE_LOGGER_PID: int = None
 _BASE_LOGGER_LOCK = threading.Lock()
 
 
+class _StripBaseNamePrefix(logging.Filter):
+    """
+    Shows `Piper` instead of `pitxu.Piper` in the log lines, to save space.
+    The loggers keep their hierarchy: only the name of the record is shortened, when it reaches a handler.
+    """
+
+    def __init__(self, base_name: str):
+        super().__init__()
+        self._prefix = base_name + "."
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name.startswith(self._prefix):
+            record.name = record.name[len(self._prefix):]
+        return True
+
+
+def _strip_base_name_prefix_in_handlers(base_logger: logging.Logger):
+    for handler in logging.getLogger().handlers + base_logger.handlers:
+        if not any(isinstance(f, _StripBaseNamePrefix) for f in handler.filters):
+            handler.addFilter(_StripBaseNamePrefix(base_logger.name))
+
+
 def get_base_logger(config: Config, base_path: str = "") -> logging.Logger:
     """
     Returns the base logger, creating it only once per process.
@@ -25,6 +47,7 @@ def get_base_logger(config: Config, base_path: str = "") -> logging.Logger:
         if _BASE_LOGGER is None or _BASE_LOGGER_PID != os.getpid():
             _BASE_LOGGER = Logger(config=config, base_path=base_path).get_logger()
             _BASE_LOGGER_PID = os.getpid()
+            _strip_base_name_prefix_in_handlers(_BASE_LOGGER)
         return _BASE_LOGGER
 
 
