@@ -57,7 +57,7 @@ class MatrixLed(XprocessDisplayBackground):
                 self._macros.kitt_speaking_effect(col_1_value, col_2_value, col_3_value, col_4_value)
         self._macros.close_canvas()
     
-    def show_kitt_scanner_while_thinking(self):
+    def show_thinking(self):
         self._xlog.info(f"🤖 Showing KITT thinking on Matrix LED.")
         self._macros.open_canvas()
         while True:
