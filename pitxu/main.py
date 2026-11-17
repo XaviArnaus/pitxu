@@ -31,7 +31,7 @@ from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 from pitxu.lib.utils.device_monitor import DeviceMonitor
 from pitxu.lib.utils.app_state import AppState
 
-from difflib import SequenceMatcher
+from pitxu.lib.utils.string_similarity import StringSimilarity
 import sys
 import time
 import logging
@@ -756,7 +756,7 @@ class Main(PyXavi):
         words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
         return " ".join(
             name if i < 3 and len(w) >= 4 and w not in names
-            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            and any(StringSimilarity.compareTwoStringsBySequence(w, n) >= threshold for n in names) else w
             for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
