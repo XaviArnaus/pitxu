@@ -1,4 +1,5 @@
 import re
+from difflib import SequenceMatcher
 
 class Rating:
 
@@ -72,6 +73,24 @@ class StringSimilarity:
                 intersectionSize += 1
 
         return (2.0 * intersectionSize) / (len(first) + len(second) - 2)
+
+    @staticmethod
+    def compareTwoStringsBySequence(first: str, second: str) -> float:
+        """
+        Similarity (0..1) based on the longest matching blocks of characters (difflib's SequenceMatcher).
+
+        Use it instead of compareTwoStrings() for SHORT strings, like single words (a name misheard by the STT,
+        a truncated word): the bigram comparison has too few bigrams to be meaningful there,
+        while this one is order-sensitive and degrades gracefully.
+        Strings are compared as they are: normalise (case, accents, punctuation) before calling it.
+        """
+        # Same None behaviour as compareTwoStrings()
+        if first is None and second is None:
+            return 1
+        if first is None or second is None:
+            return 0
+
+        return SequenceMatcher(None, first, second).ratio()
 
     @staticmethod
     def compareAllAgainstOne(mainString: str, targetStrings: list[str], targetTokens: list[str] = None) -> list[Rating]:
