@@ -20,7 +20,30 @@ class Text:
     @staticmethod
     def remove_markdown(text:str) -> str:
         '''
-        Removes basic markdown syntax from text.
+        Removes the markdown syntax from text.
+
+        It relies on the Markdown parser, so a lonely "*" or "_" that opens no emphasis (a multiplication, `snake_case`)
+        stays as it is. If the parser is not available or fails, it falls back to the basic regular expressions.
+        '''
+        if text is None or text == "":
+            return text
+
+        try:
+            # Imported here to not pay for the parser until the first answer.
+            from pitxu.lib.utils.markdown_parser import markdown_to_plain_text
+            plain_text = markdown_to_plain_text(text)
+            # A text made only of syntax (like "**") would end up empty. Better the basic cleaning than nothing.
+            if plain_text != "":
+                return plain_text
+        except Exception:
+            pass
+
+        return Text._remove_markdown_with_regex(text)
+
+    @staticmethod
+    def _remove_markdown_with_regex(text:str) -> str:
+        '''
+        Removes basic markdown syntax from text, with regular expressions.
         '''
         # Remove headings
         text = re.sub(r'#+ ', '', text)
