@@ -4,7 +4,7 @@
 
 ### Fixed
 - Fix partial merging when transcription end is cut and next does not correct it [#52](https://github.com/XaviArnaus/pitxu/pull/52)
-- Fix UX not being prepared when user answers back too quickly [#53](https://github.com/XaviArnaus/pitxu/pull/53)
+- Fix UX not being prepared when user answers back too quickly [#54](https://github.com/XaviArnaus/pitxu/pull/54)
 
 ## v0.4.2b - 2026-11-16
 
