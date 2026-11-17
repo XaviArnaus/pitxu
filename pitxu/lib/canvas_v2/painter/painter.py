@@ -421,8 +421,18 @@ class Painter(PyXavi):
                                 # We remove the request once we read it, to avoid carrying it on into the next loop iteration.
                                 del self.flags_callback_returned_requests[queue_name][callback_name]["final_screen_clearing_needed"]
                         if callback_final_area_clearing_request:
-                            # Be careful with this, it may paint the empty frame of the BACKGROUND once the OVERALL has ben just painted!
-                            self._reset_display_area_for_queue(queue_name)
+                            # TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
+                            # The final clearing wipes the last frame of the interaction that was just removed
+                            #   (like the last phase of the speaking effect).
+                            # But when there is already a replacement waiting in that queue (like the holding bar queued
+                            #   behind the speaking effect), it has been painted in THIS iteration, after the full clear
+                            #   at the top, so there is no old frame to wipe. Wiping it would erase the new paint, and as
+                            #   its cache key does not change the Painter would not draw it again: blank area until the next change.
+                            if current_interaction_by_queue[queue_name] is not None:
+                                self._log_debug(f"🎨 Skipping the final clearing of the area of [{queue_name}]: [{current_interaction_by_queue[queue_name].name}] has just replaced the removed interaction.")
+                            else:
+                                # Be careful with this, it may paint the empty frame of the BACKGROUND once the OVERALL has ben just painted!
+                                self._reset_display_area_for_queue(queue_name)
 
                     # A final clearing was requested during loop iteration or by a removal callback?
                     # ⚠️ Does this make any sense? I believe it is a legacy from the previous approach, that now we covered
