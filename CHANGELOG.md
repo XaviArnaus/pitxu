@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.2b - ??
+
+### Fixed
+- Fix partial merging when transcription end is cut and next does not correct it [#52](https://github.com/XaviArnaus/pitxu/pull/52)
+
 ## v0.4.2b - 2026-11-16
 
 ### Added
