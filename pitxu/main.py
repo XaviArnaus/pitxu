@@ -202,8 +202,7 @@ class Main(PyXavi):
             # Before we start with the loop, let's set the last interaction time to now
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
-            self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            self._start_listening_phase("startup")
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
@@ -356,8 +355,8 @@ class Main(PyXavi):
         #   This will be set to True when an exception is caught.
         we_are_in_error_state = False
 
-        # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._input_stream)
+        # The turn is not the user's anymore: mute microphone to avoid self-looping
+        self._end_listening_phase("user finished speaking")
 
         try:
         
@@ -390,8 +389,8 @@ class Main(PyXavi):
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
-                # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._input_stream)
+                # Back to listening to let the user try again. The hold time keeps counting, it is not a new interaction.
+                self._start_listening_phase("nothing recognised", reset_mark=False)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
                 # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
@@ -482,8 +481,12 @@ class Main(PyXavi):
                 self.close_nicely()
                 return
 
-            # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            # The turn is the user's again: back to listening.
+            # The hold time restarts only if there was an answer. An ignored transcript is not an interaction,
+            #   so the previous hold time just keeps counting.
+            answer_was_delivered = answer is not None and answer.strip() != ""
+            self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
+                                        reset_mark=answer_was_delivered)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -695,8 +698,9 @@ class Main(PyXavi):
                 # self.close_nicely()
                 return False
             
-            # Last thing to do is to remember this as the last interaction.
-            self.reset_last_interaction_event_mark()
+            # COMMENTED: Remembering this as the last interaction, and the rest of the hand-over to the user,
+            #   is now done by the caller via _start_listening_phase().
+            # self.reset_last_interaction_event_mark()
 
         return True
 
@@ -722,6 +726,109 @@ class Main(PyXavi):
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
         self._last_interaction_paused_seconds = 0
+
+    def _holding_percentage_for(self, seconds_since_last_interaction: float) -> int:
+        """ Percentage (100 -> 0) of the time left to hold the interaction. """
+        return int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+
+    def _wake_up(self, reason: str, reset_mark: bool = True):
+        """
+        Wakes the system up for an interaction that is certain: the screen leaves the idle mode and the
+          interaction is marked, so the hold time starts counting and the idle mode does not come back before it is done.
+        It does not touch the microphone: this is the part that a trigger can ask on its own (like the wake up button),
+          because the flow that follows takes care of muting and unmuting the microphone.
+        It is also the first part of _start_listening_phase().
+        Idempotent. Not for the wake up by voice before the transcription is known, as the VAD can be triggered by plain noise.
+
+        Args:
+            reason (str): Who asks, for the logs.
+            reset_mark (bool): False to keep the hold time counting, for example when nothing was recognised.
+        """
+        self._log_debug(f"☀️ Waking up [{reason}] (reset mark: {reset_mark}).")
+        self._interaction.set_idle_mode_off()
+        if reset_mark:
+            self.reset_last_interaction_event_mark()
+
+    def _start_listening_phase(self, reason: str, reset_mark: bool = True):
+        """
+        The single control point to hand the turn over to the user: leaves the system ready to listen.
+        Its counterpart is _end_listening_phase().
+
+        TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
+        These steps used to be scattered (and the countdown bar was only drawn by the one-second tick), which meant
+          a delay of up to a second after the pipeline finished talking, and, if the user started to speak before
+          that first tick, the bar was never drawn: the top left area stayed blank during the whole turn.
+        Now everything that has to happen when the turn goes to the user happens here, in this order:
+          1. The system is awake (see _wake_up()): idle mode off and the hold time starts counting now
+             (reset_mark=False to keep counting, for example when nothing was recognised and the user is retrying
+             within the same hold time). Listening is never idle.
+          2. The microphone is unmuted.
+          3. The countdown bar is shown right away. The tick only keeps the countdown going afterwards.
+        All steps are idempotent, calling it twice does no harm. New features that need to prepare something for
+          the user's turn should hook here.
+
+        Not meant for the idle recovery of the every-minute task: that one unmutes the microphone but must NOT wake the screen up.
+        """
+        self._log_debug(f"👂 Starting listening phase [{reason}] (reset mark: {reset_mark}).")
+
+        # 1. Awake.
+        self._wake_up(reason, reset_mark=reset_mark)
+
+        # 2. Ready to hear.
+        self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+        # 3. Show it.
+        self._show_holding_bar_now(reason)
+
+    def _end_listening_phase(self, reason: str, mute: bool = True, clear_bar: bool = False):
+        """
+        The single control point to take the turn away from the user. Counterpart of _start_listening_phase().
+
+        It is used when the user finished speaking (so the system does not listen to itself while it
+          processes and answers), when the system is about to speak by its own, and when the hold time is over.
+
+        Args:
+            reason (str): Who asks, for the logs.
+            mute (bool): Mute the microphone, stopping the input stream. The hold time over case decides it by the wake up mode.
+            clear_bar (bool): Take the countdown bar away and reset its counters. Only when the hold time is over,
+                otherwise the bar stays on screen until the next effect (thinking, speaking) takes its place,
+                or until the next listening phase draws it again.
+        """
+        self._log_debug(f"🛑 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
+
+        if clear_bar:
+            self._last_processed_interaction_percentage = -1
+            self._last_interaction_paused_seconds = 0
+            self._interaction.end_interaction_holding_percentage()
+
+        if mute:
+            self._interaction.mute_microphone(input_stream=self._input_stream)
+
+    def _show_holding_bar_now(self, reason: str):
+        """
+        Draws the countdown bar right now, without waiting for the next one-second tick.
+        Part of _start_listening_phase(). The Painter queues the paint, so it is safe to call it while the
+          previous background effect (speaking) is still finishing.
+
+        It draws nothing if the bar does not apply: no interaction yet, microphone muted, hold time over,
+          or the transcriber is already busy (the bar was drawn before and it stays on screen, frozen).
+        """
+        if self._last_interaction_datetime is None or self._interaction.is_microphone_muted():
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, no interaction yet or the microphone is muted.")
+            return
+
+        if self._interaction.is_transcriber_busy():
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, the transcriber is busy.")
+            return
+
+        seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+        if seconds_since_last_interaction > self._seconds_to_hold_interaction_answer:
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, the hold time is over.")
+            return
+
+        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
+        self._log_debug(f"⏳ Listening phase [{reason}]: showing the holding bar at {self._last_processed_interaction_percentage}% right away.")
+        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
 
     def _text_has_exit_intention(self, text: str) -> bool:
         cleaned_text = text.replace(".", "").lower().strip()
@@ -1431,7 +1538,15 @@ class Main(PyXavi):
                         return
 
                     cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
-                    
+
+                    # TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
+                    # The button is only a trigger: it routes to the common point, it does not prepare anything by itself.
+                    # Pressing it is a certain interaction, so the system wakes up right now. Before, the idle mode
+                    #   was only turned off once the transcription finished, and in between the screen kept following
+                    #   the idle rules (the idle panel expired and left it blank).
+                    # The microphone is the flow's business: it ends and starts the listening phase by itself below.
+                    cls._wake_up("wake up button pressed")
+
                     # Set the shared memory flag for the wake up button pressed, so the main process can react to it.
                     cls._interaction.set_wake_up_button_pressed()
 
@@ -1562,14 +1677,14 @@ class Main(PyXavi):
                     icon="📝",
                     text=reminder.get("text", ""),
                     font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._interaction.mute_microphone(input_stream=input_stream)
+                self._end_listening_phase("reminder announcement")
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                self._interaction.unmute_microphone(input_stream=input_stream)
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
-                # Reset the last interaction time, as we just spoke
-                self._last_interaction_datetime = datetime.now()
+                # We just spoke: the turn goes back to the user. This unmutes the microphone and
+                #   resets the last interaction time.
+                self._start_listening_phase("reminder announced")
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
@@ -1682,7 +1797,7 @@ class Main(PyXavi):
                     else:
                         # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
-                        self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+                        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
                     
                     if not self._interaction.is_transcriber_busy():
                         # Display it.
@@ -1718,16 +1833,14 @@ class Main(PyXavi):
                     # We are meant to clean the display.
 
                     # The time to hold the interaction is over.
-                    # We clear the background display and reset the percentage.
-                    self._last_processed_interaction_percentage = -1
-                    self._last_interaction_paused_seconds = 0
-                    # And then we clean the display completely, as we go to idle soon.
-                    self._interaction.end_interaction_holding_percentage()
-                    # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                    # The listening phase ends: we clear the background display and reset the counters,
+                    #   as we go to idle soon.
+                    # If the Wake up button is wanted exclusivelly, we also mute the microphone,
                     #   as the user is not speaking and we don't want to react to anything else.
-                    if self._interaction.is_wake_up_button_wanted_exclusively():
-                        self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
-                        self._interaction.mute_microphone(input_stream=self._input_stream)
+                    self._end_listening_phase(
+                        "hold time over",
+                        mute=self._interaction.is_wake_up_button_wanted_exclusively(),
+                        clear_bar=True)
     
     # ------------- Stuff to do daily -------------
 
