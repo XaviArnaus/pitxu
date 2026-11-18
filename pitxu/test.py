@@ -894,3 +894,13 @@ finally:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
         except Exception:
             print(full_stack())
+
+    async def test_physical_button(self):
+        from gpiozero import Button
+        from signal import pause
+
+        PIN = 17  # put the pin from gpio.buttons.devices in your gpio.yaml
+        b = Button(PIN, pull_up=True)
+        b.when_pressed = lambda: print("pressed")
+        b.when_released = lambda: print("released")
+        pause()
