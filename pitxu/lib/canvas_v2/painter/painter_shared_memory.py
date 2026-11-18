@@ -2,6 +2,7 @@
 from pyxavi import Config, Dictionary
 
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
+from pitxu.lib.core.doorbell import Doorbell
 
 class PainterSharedMemory(SharedMemoryMonitor):
     """
@@ -16,6 +17,8 @@ class PainterSharedMemory(SharedMemoryMonitor):
     _painter_resume_callback: callable = None
 
     THREAD_NAME: str = "PainterSharedMemory"
+    # The painter lives in the display process, so it has its own doorbell.
+    BELL_NAME: str = Doorbell.BELL_PAINTER_MONITOR
 
     def __init__(self, config: Config, params: Dictionary):
         if not params.key_exists("painter_resume_callback"):

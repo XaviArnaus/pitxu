@@ -15,6 +15,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED, \
     SHARED_SPEECH_INTERRUPT_REQUESTED
 from pitxu.lib.abstract.pyxavi import PyXavi
+from pitxu.lib.core.doorbell import DoorbellRinger
 
 class SharedMemoryManager(PyXavi):
 
@@ -87,6 +88,17 @@ class SharedMemoryManager(PyXavi):
         SHARED_CASE_FAN_1_SPEED: "case_fan_1_speed",
         SHARED_CASE_FAN_2_SPEED: "case_fan_2_speed"
     }
+
+    # The values that change all the time and that nobody monitors for changes, they are just read when needed
+    #   (the speaker level every few milliseconds while speaking, the RMS threshold with every chunk of audio).
+    # Ringing the doorbell for them would wake the monitors constantly, which is what the doorbell is meant to avoid.
+    _values_that_do_not_ring: set[int] = {
+        SHARED_SPEAKER_LEVEL,
+        SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD,
+    }
+
+    # So a failing doorbell is reported once, not with every write.
+    _doorbell_failure_reported: bool = False
 
     WAITING_SLEEP_SECONDS: float = 0.01
     WAITING_FOR_QUEUES_TIMEOUT_SECONDS: int = 5
@@ -241,7 +253,11 @@ class SharedMemoryManager(PyXavi):
         if self._shared_memory_flags is None:
             self._xlog.error("Shared Memory is None, cannot write flag at index " + str(index))
             return
+        previous = self._shared_memory_flags[index]
         self._shared_memory_flags[index] = value
+        # The monitors sleep until something changes: tell them. Only a change, writing the same value is not news.
+        if previous != value:
+            self._ring_the_doorbell()
     
     def read_shared_memory_value(self, index: int) -> float | None:
         '''
@@ -259,7 +275,28 @@ class SharedMemoryManager(PyXavi):
         if self._shared_memory_values is None:
             self._xlog.error("Shared Memory is None, cannot write value at index " + str(index))
             return
+        if index in self._values_that_do_not_ring:
+            self._shared_memory_values[index] = value
+            return
+        previous = self._shared_memory_values[index]
         self._shared_memory_values[index] = value
+        if previous != value:
+            self._ring_the_doorbell()
+
+    def _ring_the_doorbell(self):
+        """
+        Tells the monitors that the shared memory changed, so they check it now instead of at their next poll.
+        """
+        # ⚠️ This is called from everywhere, including the audio callback: whatever happens here must never reach the writer,
+        #   as the audio library aborts the input stream when its callback raises.
+        try:
+            ringer = DoorbellRinger.get()
+            if ringer is not None:
+                ringer.ring()
+        except Exception as e:
+            if not self._doorbell_failure_reported:
+                self._doorbell_failure_reported = True
+                self._xlog.warning(f"🔔 The doorbell failed, the monitors will rely on their safety timeout: {type(e).__name__}: {e}")
     
     def wait_for_all_busy_process_to_idle(self, wait_forever: bool = True):
         # Now wait until the displays finish being busy

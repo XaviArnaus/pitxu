@@ -4,6 +4,7 @@ from definitions import SHARED_DSI_LCD_IDLE_MODE
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.doorbell import Doorbell, DoorbellListener
 
 import threading
 import time
@@ -28,6 +29,17 @@ class SharedMemoryMonitor(PyXavi):
     _shared_memory_value_previous: dict[int, float] = None
 
     THREAD_NAME: str = "SharedMemoryMonitor"
+
+    # The doorbell that the writers ring when something changes in the shared memory (see Doorbell).
+    # The worker sleeps until it is rung, instead of waking up every few milliseconds to check.
+    # None means no doorbell: the worker polls like it always did.
+    BELL_NAME: str | None = Doorbell.BELL_MAIN_MONITOR
+    # Even if it is not rung, the worker checks the shared memory at least this often.
+    # It is a safety net for a ring that never arrives, so the changes are not left unattended for long.
+    SAFETY_TIMEOUT_SECONDS: float = 1.0
+    # When it polls (no doorbell), how often. Slower in idle mode, as nothing is going to be painted.
+    POLLING_SECONDS: float = 0.2
+    POLLING_IDLE_SECONDS: float = 1.0
 
     is_active: bool = True
 
@@ -56,6 +68,11 @@ class SharedMemoryMonitor(PyXavi):
         shared_memory_list_to_control = params.get("shared_memory_list_to_control", [])
         self.load_list_control(shared_memory_list_to_control)
 
+        # The doorbell is bound BEFORE the worker reads anything, so a change that happens in between is not missed.
+        self._doorbell = self._create_doorbell_listener()
+        # Numbers for the closing log: how much the worker woke up, and why.
+        self._stats = {"passes": 0, "rung": 0, "timeouts": 0, "polls": 0}
+
         # We control the transitions of the shared_memory flags and values in a separate thread.
         self._worker_thread = threading.Thread(
             name=self.THREAD_NAME,
@@ -74,10 +91,25 @@ class SharedMemoryMonitor(PyXavi):
         self.is_active = True
         self._worker_thread.start()
     
+    def _create_doorbell_listener(self) -> DoorbellListener | None:
+        """
+        Binds the doorbell of this monitor. If it can not be done, the worker polls, like it always did.
+        """
+        if self.BELL_NAME is None or not Doorbell.is_enabled():
+            return None
+        try:
+            return DoorbellListener(self.BELL_NAME)
+        except OSError as e:
+            self._xlog.warning(f"Could not bind the doorbell [{self.BELL_NAME}], {self.__class__.__name__} will poll the shared memory: {e}")
+            return None
+
     def shutdown(self):
-        self._xlog.debug("Shutting down SharedMemoryMonitor.")
+        self._xlog.debug(f"Shutting down {self.__class__.__name__}.")
         self.is_active = False
-    
+        # The worker may be sleeping until the next ring: ring it ourselves, so it sees that it has to leave.
+        if self._doorbell is not None:
+            self._doorbell.wake()
+
     def close(self):
         self.shutdown()
 
@@ -90,6 +122,17 @@ class SharedMemoryMonitor(PyXavi):
                 self._xlog.debug("Shared memory control worker thread finished successfully.")
         else:
             self._xlog.debug("Shared memory control worker thread is not alive or was never started.")
+
+        # The worker is not using it any more.
+        if self._doorbell is not None:
+            self._doorbell.close()
+            self._doorbell = None
+
+    def get_stats(self) -> dict[str, int]:
+        """
+        How many times the worker checked the shared memory, and what woke it up: a ring, the safety timeout or the polling.
+        """
+        return dict(self._stats)
     
     def set_callback_for_shared_memory_flag(self, name: str, shared_memory_flag: int, activation_value: bool, callback: callable, is_dependant: bool = False):
         if shared_memory_flag not in self.shared_memory._map_index_to_flag:
@@ -293,6 +336,12 @@ class SharedMemoryMonitor(PyXavi):
             # The shared memory was closed under our feet: only expected while the monitor is being closed.
             if self.is_active:
                 raise
+        finally:
+            # What it cost, for knowing if the doorbell is worth it: the CPU time of this thread over the passes.
+            self._xlog.info(
+                f"{self.__class__.__name__} finished: {self._stats['passes']} passes "
+                f"({self._stats['rung']} rung, {self._stats['timeouts']} timeouts, {self._stats['polls']} polls), "
+                f"{time.thread_time():.2f}s of CPU in the worker thread.")
 
     def _shared_memory_control_loop(self):
         """
@@ -339,13 +388,40 @@ class SharedMemoryMonitor(PyXavi):
 
             # The values are monitored in the same pass as the flags.
             self._check_shared_memory_values()
+            self._stats["passes"] += 1
 
-            # If we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage, 
-            # because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.
-            if self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE):
-                time.sleep(1)
-            else:
-                time.sleep(0.2)
+            self._wait_for_next_pass()
+
+    def _wait_for_next_pass(self):
+        """
+        Waits until it is time to check the shared memory again.
+
+        With a doorbell, it sleeps until a writer rings it, which happens when a flag or a value changes,
+        so nothing wakes up while nothing happens, and a change is attended at once.
+        The safety timeout covers a ring that never arrives.
+
+        Without it, it polls: if we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage,
+        because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.
+        """
+        if self._doorbell is not None:
+            try:
+                if self._doorbell.wait(self.SAFETY_TIMEOUT_SECONDS):
+                    self._stats["rung"] += 1
+                else:
+                    self._stats["timeouts"] += 1
+                return
+            except Exception as e:
+                if not self.is_active:
+                    return
+                # Whatever it is, the monitoring has to go on: drop the doorbell and poll, like it always did.
+                self._xlog.warning(f"🔔 The doorbell of {self.__class__.__name__} failed, it will poll the shared memory from now on: {type(e).__name__}: {e}")
+                self._doorbell = None
+
+        self._stats["polls"] += 1
+        if self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE):
+            time.sleep(self.POLLING_IDLE_SECONDS)
+        else:
+            time.sleep(self.POLLING_SECONDS)
 
     def is_idle_mode_on(self) -> bool:
         return self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)
