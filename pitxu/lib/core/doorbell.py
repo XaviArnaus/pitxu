@@ -27,7 +27,9 @@ class Doorbell:
     # The listeners that exist. Writers ring all of them.
     BELL_MAIN_MONITOR: str = "main_monitor"
     BELL_PAINTER_MONITOR: str = "painter_monitor"
-    BELLS: tuple[str, ...] = (BELL_MAIN_MONITOR, BELL_PAINTER_MONITOR)
+    # The waits of the Main process (flags to be idle/busy, queues to be empty). See DoorbellWaiter.
+    BELL_WAITER: str = "waiter"
+    BELLS: tuple[str, ...] = (BELL_MAIN_MONITOR, BELL_PAINTER_MONITOR, BELL_WAITER)
 
     # ⚠️ Not tempfile.gettempdir(): the macOS one is so long that the socket path exceeds the AF_UNIX limit (104).
     DIRECTORY: str = "/tmp"
@@ -148,6 +150,18 @@ class DoorbellListener:
             if not self._closed:
                 raise
         return rung
+
+    def drain(self):
+        """
+        Discards the rings that are waiting, without sleeping. To be done BEFORE checking the state that is waited for:
+        a ring that arrives after the check is kept, so the next wait returns straight away.
+        """
+        try:
+            self._socket.setblocking(False)
+            while True:
+                self._socket.recv(64)
+        except (BlockingIOError, OSError):
+            pass
 
     def wake(self):
         """

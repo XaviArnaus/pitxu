@@ -16,6 +16,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_SPEECH_INTERRUPT_REQUESTED
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.core.doorbell import DoorbellRinger
+from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 
 class SharedMemoryManager(PyXavi):
 
@@ -304,47 +305,41 @@ class SharedMemoryManager(PyXavi):
         self.log_summary(
             "Current processes busy flags", 
             [(name, "BUSY" if self.read_shared_memory_flag(flag) else "IDLE") for name, flag in self._shared_flags.items()])
-        total_sleeping = 0
-        start_time = time.time()
-        forced_break = False
-        while any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()):
-            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
-                self._xlog.error("Timeout reached while waiting for all processes to idle.")
-                forced_break = True
-                break
-            total_sleeping += self.WAITING_SLEEP_SECONDS
-            time.sleep(self.WAITING_SLEEP_SECONDS)
-        if not forced_break:
-            self._xlog.debug("All processes are idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        start_time = time.monotonic()
+        idle = DoorbellWaiter.wait_until(
+            lambda: not any(self.read_shared_memory_flag(flag) for flag in self._shared_flags.values()),
+            timeout=None if wait_forever else self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS,
+            polling_seconds=self.WAITING_SLEEP_SECONDS)
+        waited = round(time.monotonic() - start_time, 3)
+        if idle:
+            self._xlog.debug(f"All processes are idle now. I've waited {waited}s.")
         else:
-            self._xlog.debug("Forced break after sleeping for " + str(round(total_sleeping, 2)) + "s while waiting for all processes to idle.")
+            self._xlog.error("Timeout reached while waiting for all processes to idle.")
+            self._xlog.debug(f"Forced break after waiting for {waited}s for all processes to idle.")
     
     def wait_for_busy_process_to_idle(self, memory_position: int, wait_forever: bool = True):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
         self._xlog.debug(f"Waiting for the process {memory_position_name} to idle. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
-        total_sleeping = 0
-        start_time = time.time()
-        forced_break = False
-        while self.read_shared_memory_flag(memory_position):
-            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
-                self._xlog.error(f"Timeout reached while waiting for process {memory_position_name} to idle.")
-                forced_break = True
-                break
-            total_sleeping += self.WAITING_SLEEP_SECONDS
-            time.sleep(self.WAITING_SLEEP_SECONDS)
-        if not forced_break:
-            self._xlog.debug(f"The process {memory_position_name} is idle now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        start_time = time.monotonic()
+        idle = DoorbellWaiter.wait_until(
+            lambda: not self.read_shared_memory_flag(memory_position),
+            timeout=None if wait_forever else self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS,
+            polling_seconds=self.WAITING_SLEEP_SECONDS)
+        waited = round(time.monotonic() - start_time, 3)
+        if idle:
+            self._xlog.debug(f"The process {memory_position_name} is idle now. I've waited {waited}s.")
         else:
-            self._xlog.debug(f"Forced break after sleeping for " + str(round(total_sleeping, 2)) + f"s while waiting for process {memory_position_name} to idle.")
+            self._xlog.error(f"Timeout reached while waiting for process {memory_position_name} to idle.")
+            self._xlog.debug(f"Forced break after waiting for {waited}s for process {memory_position_name} to idle.")
     
     def wait_for_busy_process_to_be_busy(self, memory_position: int):
         memory_position_name = self._map_index_to_flag.get(memory_position, "unknown")
         self._xlog.debug(f"Waiting for the process {memory_position_name} to be busy. It's now: " + ("BUSY" if self.read_shared_memory_flag(memory_position) else "IDLE") + ".")
-        total_sleeping = 0
-        while not self.read_shared_memory_flag(memory_position):
-            total_sleeping += self.WAITING_SLEEP_SECONDS
-            time.sleep(self.WAITING_SLEEP_SECONDS)
-        self._xlog.debug(f"The process {memory_position_name} is busy now. I've slept " + str(round(total_sleeping, 2)) + "s.")
+        start_time = time.monotonic()
+        DoorbellWaiter.wait_until(
+            lambda: bool(self.read_shared_memory_flag(memory_position)),
+            polling_seconds=self.WAITING_SLEEP_SECONDS)
+        self._xlog.debug(f"The process {memory_position_name} is busy now. I've waited {round(time.monotonic() - start_time, 3)}s.")
     
     def force_all_flags_to_idle(self, is_closing=False):
         self._xlog.debug("Forcing all flags to idle.")
