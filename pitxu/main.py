@@ -13,6 +13,7 @@ from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
 from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
@@ -912,6 +913,9 @@ class Main(PyXavi):
 
             # Finish interactions and related processes
             self._safe_step("interaction", self._interaction.close)
+
+            # The waits of Main listen to the doorbell until here. From now on they poll, and the socket file goes away.
+            self._safe_step("doorbell waiter", DoorbellWaiter.close)
 
         # ------ Final logs ------
 
