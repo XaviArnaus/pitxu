@@ -1,3 +1,4 @@
+import logging
 import os
 
 from PIL import ImageDraw
@@ -9,6 +10,7 @@ from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
 from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
+from pitxu.lib.utils import markdown_parser
 
 class MacrosOverlay(MacrosBase):
     """
@@ -31,6 +33,9 @@ class MacrosOverlay(MacrosBase):
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosOverlay, self).__init__(config, params)
+
+        # The Markdown parser logs a lot at DEBUG: INFO unless the config says otherwise.
+        markdown_parser.set_log_level(self._xconfig.get("libs_logger.markdown_it.loglevel", logging.INFO))
 
         self._xlog.debug("Initialized MacrosOverlay.")
 

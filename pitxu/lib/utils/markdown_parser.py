@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, field
 
 
@@ -34,10 +35,22 @@ class Block:
 # One parser for the whole process. Created on the first use, so the import cost is not paid at startup.
 _PARSER = None
 
+# markdown-it logs every rule it tries on every block at DEBUG, which floods the log. INFO by default.
+# Configurable in libs_logger.markdown_it.loglevel, see set_log_level().
+_LOG_LEVEL: int = logging.INFO
+
+
+def set_log_level(level: int):
+    """ Sets the log level of the markdown-it library in this process. """
+    global _LOG_LEVEL
+    _LOG_LEVEL = int(level)
+    logging.getLogger("markdown_it").setLevel(_LOG_LEVEL)
+
 
 def _get_parser():
     global _PARSER
     if _PARSER is None:
+        logging.getLogger("markdown_it").setLevel(_LOG_LEVEL)
         from markdown_it import MarkdownIt
         # CommonMark gives us headings, lists, emphasis, inline code and code blocks.
         # Raw HTML is turned off: it is shown as text. Tables are not part of CommonMark, they stay as text too.
