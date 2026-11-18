@@ -8,6 +8,7 @@ from pitxu.lib.canvas_v2.painter.painter_shared_memory import PainterSharedMemor
 from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, BackgroundPaint, AnimationPaint
 from pitxu.lib.canvas_v2.painter.painting_command import PaintingCommand
 from pitxu.lib.canvas_v2.painter.painter_queue import PainterQueue
+from pitxu.lib.canvas_v2.painter.painter_area import PainterArea
 
 from pitxu.lib.objects.point import Point
 from pitxu.lib.objects.rectangle import Rectangle
@@ -106,9 +107,10 @@ class Painter(PyXavi):
     # The loop should remove the entry once consumed, to avoid carrying it on into the next loop iteration.
     flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {}
 
-    # Queues for each display area.
-    # The idea is that we register the interactions to paint in these queues, and the Painter loop will consume them and paint them.
-    queue: dict[str, list[BasePaint]] = {}
+    # The areas of the screen, one per queue, in painting order.
+    # The idea is that we register the interactions to paint in the queue of each area (area.paints),
+    #   and the Painter loop will consume them and paint them.
+    areas: dict[str, PainterArea] = None
 
     # These interactions per queue have priority over any other,
     # So when we receive any of them, everything currently in the queue is just discarded.
@@ -133,6 +135,9 @@ class Painter(PyXavi):
 
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
+
+        # One area per queue. Created per instance, so it is never shared.
+        self.areas = {}
 
         # We need the definition of the queues to play with
         if params.key_exists("painter_queues"):
@@ -210,7 +215,7 @@ class Painter(PyXavi):
         
         self.image_per_queue[queue_name] = None
         self.flags_callback_returned_requests[queue_name] = {}
-        self.queue[queue_name] = []
+        self.areas[queue_name] = PainterArea(queue_name)
         self.priority_interactions[queue_name] = []
         self.exception_loop_interactions[queue_name] = []
         self.previous_interaction_by_queue[queue_name] = {
@@ -310,7 +315,7 @@ class Painter(PyXavi):
                     # Get the current iterations to draw, if they exist.
                     # The order matters: we need to paint from bottom layer to upper layer.
                     current_interaction_by_queue: dict[PainterQueue, BasePaint | None] = {
-                        queue_name: self.get_current_interaction(queue_name) for queue_name in self.queue.keys()
+                        queue_name: self.get_current_interaction(queue_name) for queue_name in self.areas.keys()
                     }
 
                     # First of all, we clean tha whole screen.
@@ -320,7 +325,7 @@ class Painter(PyXavi):
                     self._full_clear()
 
                     # We paint the interactions in order, from background to overall.
-                    for queue_name in self.queue.keys():
+                    for queue_name in self.areas.keys():
                         current_interaction: BasePaint | None = current_interaction_by_queue[queue_name]
 
                         # Do we have anything to paint in this queue?
@@ -405,7 +410,7 @@ class Painter(PyXavi):
                     # We need to read it from the requests, remove it from there, and apply it if any is True.
                     # Attention, it is not meant as a full screen clearing, but per queue.
                     callback_final_screen_clearing_request = False
-                    for queue_name in self.queue.keys():
+                    for queue_name in self.areas.keys():
                         callback_final_area_clearing_request = False
                         for callback_name, requests in self.flags_callback_returned_requests[queue_name].items():
                             if "final_area_clearing_needed" in requests:
@@ -445,7 +450,7 @@ class Painter(PyXavi):
                     
                     # Show the image on the device
                     self._log_debug(f"🎨 Flushing drawing to LCD display: ")
-                    for queue_name in self.queue.keys():
+                    for queue_name in self.areas.keys():
                         self._log_debug(f"  - {queue_name} is {current_interaction_by_queue[queue_name].name if current_interaction_by_queue[queue_name] is not None else 'None'}.")
                     self.flush_drawing()
                     # Something was drawn, so the screen is not blank any more.
@@ -459,7 +464,7 @@ class Painter(PyXavi):
                     # ⚠️ Recently replaced per-queue checks for the removal of the interactions by a single loop that checks all the queues,
                     # to be able to apply the logic of the priority interactions and the final clearing request in a more general way.
                     # Please elaborate it more, it's just an initial merge.
-                    for queue_name in self.queue.keys():
+                    for queue_name in self.areas.keys():
 
                         # Anything here?
                         if current_interaction_by_queue[queue_name] is None:
@@ -520,7 +525,7 @@ class Painter(PyXavi):
     def _logging_start_painter_loop_iteration(self, extra_info: dict[str, any]):
         # Log the current interactions in each queue at the beginning of the loop iteration.
         logging_parts: list = []
-        for queue_name in self.queue.keys():
+        for queue_name in self.areas.keys():
             current_interaction = self.get_current_interaction(queue_name)
             if current_interaction is not None:
                 logging_parts.append((f"Current interaction for {queue_name}", f"- name: {current_interaction.name}"))
@@ -612,14 +617,14 @@ class Painter(PyXavi):
         """
 
         # First of all, do we have any elements in the queues to paint?
-        queues_have_elements = [len(self.queue[queue_name]) > 0 for queue_name in self.queue.keys()]
+        queues_have_elements = [self.areas[queue_name].has_paints() for queue_name in self.areas.keys()]
         if not any(queues_have_elements):
             self._log_debug(f"⏹️  Loop Control: No interactions in any queue to paint.")
             return False
         
         # So we have anything in any queue.
         # Are the current interactions the same as the previous ones in their related queues?
-        for queue_name in self.queue.keys():
+        for queue_name in self.areas.keys():
             
             # If this interaction should always be painted while it is in the queue, we skip the cache check and just paint it.
             if self.get_current_interaction(queue_name) is not None and \
@@ -701,7 +706,7 @@ class Painter(PyXavi):
         )
     
     def _any_current_interaction_wants_final_screen_clearing(self) -> bool:
-        for queue_name in self.queue:
+        for queue_name in self.areas:
             current_interaction = self.get_current_interaction(queue_name)
             if current_interaction and current_interaction.final_screen_clearing:
                 return True
@@ -712,9 +717,9 @@ class Painter(PyXavi):
         If we have paints in the defined queues to slow down (and not in the others), we say yes.
         """
         # queues_with_interactions = []
-        self._log_debug(f"🎨 Queues with paints: {[queue_name for queue_name in self.queue if self.get_current_interaction(queue_name) is not None]}")
+        self._log_debug(f"🎨 Queues with paints: {[queue_name for queue_name in self.areas if self.get_current_interaction(queue_name) is not None]}")
         self._log_debug(f"🎨 Queues defined to slow down the loop: {self.queues_with_paints_that_slow_down_the_loop}")
-        for queue_name in self.queue:
+        for queue_name in self.areas:
             current_interaction = self.get_current_interaction(queue_name)
             # if current_interaction is None and queue_name in self.queues_with_paints_that_slow_down_the_loop:
             #     # This queue should have a paint. Early exit.
@@ -810,15 +815,12 @@ class Painter(PyXavi):
             timer.start()
 
         # Now add the new interaction to the queue
-        self.queue[queue_name].append(interaction)
+        self.areas[queue_name].paints.append(interaction)
 
-        self._log_debug(f"The {queue_name} queue after setting last: {', '.join([item.get_cache_key() for item in self.queue[queue_name]])}.")
+        self._log_debug(f"The {queue_name} queue after setting last: {', '.join([item.get_cache_key() for item in self.areas[queue_name].paints])}.")
     
     def get_current_interaction(self, queue_name: PainterQueue) -> BasePaint | None:
-        current_paint = self.queue[queue_name][0] if len(self.queue[queue_name]) > 0 else None
-        if current_paint is None:
-            return None
-        return current_paint
+        return self.areas[queue_name].current()
 
     def request_removal(self, interaction: BasePaint, queue_name: PainterQueue, blank_screen: bool = False):
         """
@@ -832,9 +834,9 @@ class Painter(PyXavi):
 
     def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
-        if len(self.queue[queue_name]) > 0:
-            if self.queue[queue_name][0].name == interaction.name:
-                self.queue[queue_name].pop(0)
+        if self.areas[queue_name].has_paints():
+            if self.areas[queue_name].current().name == interaction.name:
+                self.areas[queue_name].paints.pop(0)
                 # When we remove an interaction, we also:
                 #   - Clean the cache related to it, to avoid retrieving it again if it comes back in the future.
                 #   - Reset the starting time for the interaction, to avoid issues with the maintain_paint_for_seconds parameter.
@@ -862,12 +864,12 @@ class Painter(PyXavi):
                 # Could be that meanwhile anything else with more priority (or a dupe) came in and then
                 #   the "current" one was already removed.
                 self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping.")
-                current_queue = ", ".join([item.name for item in self.queue[queue_name]])
+                current_queue = ", ".join([item.name for item in self.areas[queue_name].paints])
                 self._log_debug(f"Current [{queue_name}] interaction queue: [{current_queue}].")
 
     def remove_all_interactions_from_queue(self, queue_name: PainterQueue):
         self._log_debug(f"Removing all {queue_name} interactions.")
-        self.queue[queue_name] = []
+        self.areas[queue_name].paints = []
         self.reset_interaction_artifacts(queue_name)
         # Cancel any timers associated with interactions in this queue
         for interaction_cache_key, timer in list(self._timer.items()):
@@ -894,8 +896,8 @@ class Painter(PyXavi):
         """
 
         current_interaction = self.get_current_interaction(queue_name)
-        queue = self.queue[queue_name]
-        
+        queue = self.areas[queue_name].paints
+
         new_queue = []
         for item in queue:
             # Over the interactions with the same type, 
@@ -916,7 +918,7 @@ class Painter(PyXavi):
             else:
                 new_queue.append(item)
         
-        self.queue[queue_name] = new_queue
+        self.areas[queue_name].paints = new_queue
     
     def _initialize_draw_for_queue(self, queue_name: PainterQueue) -> Image.Image:
         # We create a new image to draw the interaction, based on the size of the layout position corresponding to this queue.
@@ -985,7 +987,7 @@ class Painter(PyXavi):
             if not self._thread_event.is_set():
                 self._log_debug("Painter thread not running, starting it now.")
 
-                for queue_name in self.queue.keys():
+                for queue_name in self.areas.keys():
                     self.image_per_queue[queue_name] = self._initialize_draw_for_queue(queue_name)
                     self._log_debug(f"Initialized drawing for queue [{queue_name}].")
 
