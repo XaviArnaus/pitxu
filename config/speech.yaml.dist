@@ -228,6 +228,10 @@ text-to-speech:
   # [Float] After an interruption the microphone stays closed this many seconds, so the click of the button,
   #   the hand and the last sound in the air are not heard as the user starting to speak. 0 disables it.
   interrupt_settle_seconds: 0.4
+  # [Integer] How many sentences the synthesis (Piper) may have ready ahead of the one that is being played.
+  #   The synthesis runs in its own thread so the next sentence is ready when the current one ends, and an
+  #   interruption is noticed while a sentence is still being synthesized. 1 is the minimum.
+  prefetch_chunks: 2
   # [String] What to do with the tables of an answer when speaking it:
   #   "rows": every row is spoken as a sentence ("Label: Header, value; Header, value.")
   #   "skip": the tables are not spoken (they are still shown on the screen)
