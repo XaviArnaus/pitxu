@@ -95,9 +95,6 @@ class Painter(PyXavi):
     drawing_callbacks: dict[str, dict[str, any]] = None
     # The layout info, to know the sizes for the sub-canvases to paint the interactions.
     layout_info: dict[str, dict[str, Rectangle]] = None
-    # The mapping between the layout positions and the queues, to know where to paint the interactions.
-    layout_position_to_queue_name: dict[str, str] = None
-    queue_name_to_layout_position: dict[str, str] = None
     # A merged dictionary that comes AFTER executing the callbacks triggered through shared memory flags.
     # For example, requesting a final cleaning after removing the interaction.
     # Be careful, some can be contradictory. We start by classifying them per queue, and see if that's enough.
@@ -108,16 +105,8 @@ class Painter(PyXavi):
     # The areas of the screen, one per queue, in painting order.
     # The idea is that we register the interactions to paint in the queue of each area (area.paints),
     #   and the Painter loop will consume them and paint them.
+    # Each area also knows its position in the layout and its rules (priority and exception commands, slowing down the loop).
     areas: dict[str, PainterArea] = None
-
-    # These interactions per queue have priority over any other,
-    # So when we receive any of them, everything currently in the queue is just discarded.
-    priority_interactions: dict[str, list[PaintingCommand]] = {}
-
-    # These interactions per queue are never considered in the calculation for the loop execution.
-    exception_loop_interactions: dict[str, list[PaintingCommand]] = {}
-    # These queues, when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
-    queues_with_paints_that_slow_down_the_loop: list[str] = []
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
     intermediate_interactions_queue: list[tuple[IntermediatePainterQueueAction, PainterQueue, BasePaint]] = []
@@ -131,28 +120,44 @@ class Painter(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super(Painter, self).init_pyxavi(config, params)
 
-        # One area per queue. Created per instance, so it is never shared.
-        self.areas = {}
-
-        # We need the definition of the queues to play with
-        if params.key_exists("painter_queues"):
-            for queue_name in params.get("painter_queues"):
-                self._initialize_attributes_per_queue(queue_name)
-        else:
+        # We need the definition of the queues to play with, and where each one is in the layout.
+        if not params.key_exists("painter_queues"):
             raise ValueError("'painter_queues' parameter is required for Painter.")
-        
+        if not params.key_exists("layout_position_to_queue_name"):
+            raise ValueError("'layout_position_to_queue_name' parameter is required for Painter.")
+        queue_names = params.get("painter_queues")
+        queue_name_to_layout_position = {v: k for k, v in params.get("layout_position_to_queue_name").items()}
+
         # We may (or may not) have exceptions for the end of the loop
-        for queue_name, interactions in params.get("painter_exception_loop_interactions", {}).items():
-                self._assign_exception_loop_interactions_to_queue(queue_name, interactions)
-        
+        exception_loop_interactions = params.get("painter_exception_loop_interactions", {})
         # We may (or may not) have priority interactions that need to be painted as soon as they are received,
         #   discarding the previous ones in the queue.
-        for queue_name, interactions in params.get("painter_priority_interactions", {}).items():
-                self._assign_priority_interactions_to_queue(queue_name, interactions)
-        
+        priority_interactions = params.get("painter_priority_interactions", {})
         # Maybe we have some queues that when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
-        for queue_name in params.get("painter_queues_with_paints_that_slow_down_the_loop", []):
-            self.queues_with_paints_that_slow_down_the_loop.append(queue_name)
+        queues_that_slow_down_the_loop = params.get("painter_queues_with_paints_that_slow_down_the_loop", [])
+
+        # A name that is not a queue is a typo: better to know it now than when it is used.
+        for param_name, names in (
+            ("painter_exception_loop_interactions", exception_loop_interactions.keys()),
+            ("painter_priority_interactions", priority_interactions.keys()),
+            ("painter_queues_with_paints_that_slow_down_the_loop", queues_that_slow_down_the_loop),
+        ):
+            unknown_names = [name for name in names if name not in queue_names]
+            if unknown_names:
+                raise ValueError(f"'{param_name}' has queues that are not in 'painter_queues': {unknown_names}.")
+
+        # One area per queue, in painting order. Created per instance, so it is never shared.
+        self.areas = {}
+        for queue_name in queue_names:
+            if queue_name not in queue_name_to_layout_position:
+                raise ValueError(f"The queue [{queue_name}] has no position in 'layout_position_to_queue_name'.")
+            self.flags_callback_returned_requests[queue_name] = {}
+            self.areas[queue_name] = PainterArea(
+                name=queue_name,
+                layout_position=queue_name_to_layout_position[queue_name],
+                priority_commands=priority_interactions.get(queue_name, []),
+                exception_loop_commands=exception_loop_interactions.get(queue_name, []),
+                slows_down_loop=queue_name in queues_that_slow_down_the_loop)
 
         if params.key_exists("canvas"):
             self.canvas = params.get("canvas")
@@ -168,12 +173,6 @@ class Painter(PyXavi):
             self.layout_info = params.get("layout_info")
         else:
             raise ValueError("'layout_info' parameter is required for Painter.")
-
-        if params.key_exists("layout_position_to_queue_name"):
-            self.layout_position_to_queue_name = params.get("layout_position_to_queue_name")
-            self.queue_name_to_layout_position = {v: k for k, v in self.layout_position_to_queue_name.items()}
-        else:
-            raise ValueError("'layout_position_to_queue_name' parameter is required for Painter.")
 
         # Before setting the worker, we create the event.
         self._thread_event = threading.Event()
@@ -202,28 +201,6 @@ class Painter(PyXavi):
         self.painter_shared_memory = PainterSharedMemory(self._xconfig, painter_shared_memory_params)
 
         self._xlog.debug("Initialized Painter.")
-    
-    def _initialize_attributes_per_queue(self, queue_name: str):
-        """
-        Initialize the attributes that depend per queue, so we don't need to specifically define the queues in the class.
-        """
-        
-        self.flags_callback_returned_requests[queue_name] = {}
-        self.areas[queue_name] = PainterArea(queue_name)
-        self.priority_interactions[queue_name] = []
-        self.exception_loop_interactions[queue_name] = []
-    
-    def _assign_priority_interactions_to_queue(self, queue_name: str, interactions: list[PaintingCommand]):
-        """
-        Assign the given interactions as priority interactions for the given queue.
-        """
-        self.priority_interactions[queue_name] = interactions
-    
-    def _assign_exception_loop_interactions_to_queue(self, queue_name: str, interactions: list[PaintingCommand]):
-        """
-        Assign the given interactions as exception loop interactions for the given queue.
-        """
-        self.exception_loop_interactions[queue_name] = interactions
     
     def paint(self, painting_object: PaintObject):
         """
@@ -370,7 +347,7 @@ class Painter(PyXavi):
                             # Now we merge the interaction image in the working image of the canvas, in the corresponding position.
                             # Not using Alpha Composite unless is the overall paint, because it is the only one that may have transparent areas, 
                             # and we want to optimize the painting of the background and foreground paints as much as possible.
-                            layout_position_name = self.queue_name_to_layout_position[queue_name]
+                            layout_position_name = self.areas[queue_name].layout_position
                             layout_position: Point = self.layout_info["base"][layout_position_name].point_1
                             self._log_debug(f"🎨 Merging interaction [{current_interaction.name}] at position [{layout_position.x}, {layout_position.y}]")
                             self.canvas.combine_into_image(interaction_image, 
@@ -469,7 +446,7 @@ class Painter(PyXavi):
                                 final_clearing_needed = True
 
                             # Avoid removing the interaction if it's a priority one (we're trying to generalize the SPEAKING).
-                            if current_interaction_by_queue[queue_name].command in self.priority_interactions[queue_name]:
+                            if self.areas[queue_name].is_priority(current_interaction_by_queue[queue_name]):
                                 # The if here was:
                                 # if current_interaction_by_queue[PainterQueue.BACKGROUND] is not None and \
                                 #     len(self.queue[PainterQueue.BACKGROUND]) > 1 and \
@@ -615,7 +592,7 @@ class Painter(PyXavi):
             
             # If this interaction should always be painted while it is in the queue, we skip the cache check and just paint it.
             if self.get_current_interaction(queue_name) is not None and \
-                self.get_current_interaction(queue_name).command.included_in(self.exception_loop_interactions[queue_name]):
+                self.areas[queue_name].is_exception_loop(self.get_current_interaction(queue_name)):
                 self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(queue_name).name}] in [{queue_name}] is in the exception list. We draw this loop iteration.")
                 return True
             # If we have a background paint or animation paint with several loop iterations, we assume that it is meant to be painted in every loop iteration until it finishes, so we skip the cache check and just paint it.
@@ -678,9 +655,9 @@ class Painter(PyXavi):
         tmp_draw = ImageDraw.Draw(self.areas[queue_name].image)
         self.drawing_callbacks["base_frame_for_display_area"]["callback"](
             tmp_draw, 
-            params={"display_area": self.queue_name_to_layout_position[queue_name]}
+            params={"display_area": self.areas[queue_name].layout_position}
         )
-        layout_position_name = self.queue_name_to_layout_position[queue_name]
+        layout_position_name = self.areas[queue_name].layout_position
         layout_position: Point = self.layout_info["base"][layout_position_name].point_1
         self.canvas.combine_into_image(self.areas[queue_name].image,
                                         position=layout_position,
@@ -705,14 +682,14 @@ class Painter(PyXavi):
         """
         # queues_with_interactions = []
         self._log_debug(f"🎨 Queues with paints: {[queue_name for queue_name in self.areas if self.get_current_interaction(queue_name) is not None]}")
-        self._log_debug(f"🎨 Queues defined to slow down the loop: {self.queues_with_paints_that_slow_down_the_loop}")
+        self._log_debug(f"🎨 Queues defined to slow down the loop: {[name for name, area in self.areas.items() if area.slows_down_loop]}")
         for queue_name in self.areas:
             current_interaction = self.get_current_interaction(queue_name)
-            # if current_interaction is None and queue_name in self.queues_with_paints_that_slow_down_the_loop:
+            # if current_interaction is None and self.areas[queue_name].slows_down_loop:
             #     # This queue should have a paint. Early exit.
             #     # self._log_debug
             #     return False
-            if current_interaction is not None and queue_name not in self.queues_with_paints_that_slow_down_the_loop:
+            if current_interaction is not None and not self.areas[queue_name].slows_down_loop:
                 # This queue should not have a paint. Early exit.
                 self._log_debug(f"🎨 Queue [{queue_name}] has a paint [{current_interaction.name}] but is not defined to slow down the loop. We won't slow down the loop.")
                 return False
@@ -743,7 +720,7 @@ class Painter(PyXavi):
         self._log_debug(f"Setting [{queue_name}] interaction to [{interaction.name}] with parameters [{interaction.drawing_callback_parameters}].")
 
         # In case that we received anything with priority, we remove the previous interactions of the same queue, to give it the inmediate priority.
-        if interaction.command.included_in(self.priority_interactions[queue_name]):
+        if self.areas[queue_name].is_priority(interaction):
             self._log_debug(f"Received {queue_name} interaction [{interaction.name}] is priority. Removing previous interactions from the queue.")
             self.remove_all_interactions_from_queue(queue_name)
 
@@ -907,7 +884,7 @@ class Painter(PyXavi):
     
     def _initialize_draw_for_queue(self, queue_name: PainterQueue) -> Image.Image:
         # We create a new image to draw the interaction, based on the size of the layout position corresponding to this queue.
-        layout_position_name = self.queue_name_to_layout_position[queue_name]
+        layout_position_name = self.areas[queue_name].layout_position
         layout_position_info = self.layout_info["base"].get(layout_position_name, None)
         if layout_position_info is not None and isinstance(layout_position_info, Rectangle):
             size = Point(
