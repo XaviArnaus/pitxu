@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import sys
 import threading
 import time
 from pyxavi import Config, Dictionary, full_stack
@@ -170,6 +171,15 @@ class Buttons(PyXavi):
             self._xlog.debug(
                 f"Button [{name}] on pin [{pin}] created with the pin factory "
                 f"[{type(Device.pin_factory).__name__}], pressed right now: {button.is_pressed}")
+            # The same app behaves differently as a service and in the foreground (a different environment): this is
+            # what to compare between both logs.
+            try:
+                self._xlog.debug(
+                    f"Button process context: pid={os.getpid()} uid={os.getuid()} groups={os.getgroups()} cwd={os.getcwd()} "
+                    f"tty={sys.stdin.isatty() if sys.stdin else None} "
+                    f"LG_WD={os.environ.get('LG_WD')} GPIOZERO_PIN_FACTORY={os.environ.get('GPIOZERO_PIN_FACTORY')}")
+            except Exception as e:
+                self._xlog.debug(f"Could not describe the button process context: {e}")
             if os.environ.get("PITXU_BUTTON_DEBUG", "0") == "1":
                 self._start_state_poller(name, button)
             return button
