@@ -194,6 +194,11 @@ class DsiLcd(XprocessDisplayCombined):
         self.clear_background()
         self.clear_foreground()
     
+    def clear_status(self):
+        self._xlog.info("Clearing DSI LCD status area.")
+        # An empty list of entries paints the area empty.
+        self.visualizer.show_status_line({"entries": []})
+
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
         self.visualizer.clear_background()

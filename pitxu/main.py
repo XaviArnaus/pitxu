@@ -1367,7 +1367,10 @@ class Main(PyXavi):
                 # Callback for when the app goes out of idle
                 ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
                 # Callback for when the wake up button is pressed (released, actually)
-                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False),
+                # The first time the user speaks, the startup screen ("Ready") leaves the status area.
+                # It does nothing if a status line already replaced it, or after the first time.
+                ("vad detected ON", SHARED_VAD_DETECTED, True, lambda: self._interaction.clear_status_startup_screen(), False)
             ]
         }))
 

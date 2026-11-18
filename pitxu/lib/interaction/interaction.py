@@ -482,6 +482,7 @@ class Interaction(PyXavi):
         """
         Show the initialization phases on the Foreground display.
         """
+        self.status.mark_startup_screen_shown()
         self.foreground.show_init_phases(step, text)
 
     def show_idle(self):
@@ -648,6 +649,12 @@ class Interaction(PyXavi):
                 a Canvas color value (like canvas.COLOR_RED), or None for the default one.
         """
         self.status.add_new_status_line(text, color)
+
+    def clear_status_startup_screen(self):
+        """
+        Clears the startup screen from the status area, once, if nothing replaced it yet.
+        """
+        self.status.clear_startup_screen()
 
     # --------- (Proxy) Functions to clear screens ---------
 
