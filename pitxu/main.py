@@ -1575,21 +1575,22 @@ class Main(PyXavi):
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
 
-            # If we've been inactive for more than 2 minutes, start the idle mode.
+            # Have we been inactive for more than the idle minutes? Also, if we never interacted, asume we are.
+            inactive_long_enough = self._last_interaction_datetime == None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000
+
+            # If so, start the idle mode (if the countdown ending didn't do it already, which is the usual way).
             if self._last_interaction_datetime == None or \
-                (
-                    Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000 \
-                    and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()
-                ):
+                (inactive_long_enough and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()):
 
                 if not self._interaction.is_idle_mode_on():
                     self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
                     self._interaction.set_idle_mode_on()
 
-            # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
-            # Also, if we never interacted, asume we're idle.
-            if self._interaction.is_idle_mode_on():
-                
+            # In idle mode the display is blank. After the idle minutes, show some basic status information in the screen, every minute.
+            # ⚠️ The idle mode starts when the countdown ends, so being idle is not enough: it also needs to be inactive long enough.
+            if self._interaction.is_idle_mode_on() and inactive_long_enough:
+
                 self._log_debug(f"User is in idle mode, showing status information.")
 
                 try:
@@ -1721,7 +1722,14 @@ class Main(PyXavi):
                     # We clear the background display and reset the percentage.
                     self._last_processed_interaction_percentage = -1
                     self._last_interaction_paused_seconds = 0
-                    # And then we clean the display completely, as we go to idle soon.
+                    # The display goes blank now: this is where the idle mode starts.
+                    # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
+                    #   app is idle from the moment that nothing is being shown.
+                    # ⚠️ It goes BEFORE the request to end the countdown: in idle mode the painter blanks the screen
+                    #   when the countdown paint is removed, instead of drawing the layout again.
+                    if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
+                        self._interaction.set_idle_mode_on()
+                    # And then we clean the display completely.
                     self._interaction.end_interaction_holding_percentage()
                     # If the Wake up button is wanted exclusivelly, we mute the microphone, 
                     #   as the user is not speaking and we don't want to react to anything else.
