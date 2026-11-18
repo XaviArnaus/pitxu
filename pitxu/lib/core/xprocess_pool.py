@@ -11,6 +11,7 @@ from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.objects import XprocAction
 from definitions import SHARED_EINK_BUSY, SHARED_MATRIX_BUSY, SHARED_SPEAKER_BUSY, SHARED_LCD_BUSY, SHARED_DSI_LCD_BUSY, SHARED_SUPPORT_BUSY, SHARED_STT_BUSY, \
                         QUEUE_EINK, QUEUE_MATRIX, QUEUE_SPEAKER, QUEUE_LCD, QUEUE_DSI_LCD, QUEUE_SUPPORT, QUEUE_TRANSCRIBER
@@ -52,6 +53,8 @@ class XprocessPool(PyXavi):
     }
 
     WAITING_FOR_QUEUES_TIMEOUT_SECONDS: int = 5
+    # Without the doorbell, the pause between two checks of a queue size (each one is a round trip to the Manager).
+    QUEUES_POLLING_SECONDS: float = 0.5
 
     def __init__(self, config: Config, params: Dictionary):
 
@@ -102,6 +105,9 @@ class XprocessPool(PyXavi):
 
         self._log_debug("Close the Manager that creates the queues")
         self._manager.shutdown()
+
+        # Main's waits listen to the doorbell until here, removing its socket file.
+        DoorbellWaiter.close()
 
         self._xlog.info("XprocessPool closed")
 
@@ -256,21 +262,17 @@ class XprocessPool(PyXavi):
                 self.reset_busy_flag_from_related_queue(name)
         if logging_queue_sizes:
             self.log_summary("Current queues sizes",logging_queue_sizes)
-        sleep_seconds = 0.5
-        total_sleeping = 0
-        start_time = time.time()
-        forced_break = False
-        while any(queue.qsize() > 0 for queue in queues_to_wait_for):
-            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
-                self._xlog.error("Timeout reached while waiting for queues to empty.")
-                forced_break = True
-                break
-            total_sleeping += sleep_seconds
-            time.sleep(sleep_seconds)
-        if not forced_break:
-            self._xlog.debug("All queues are empty now. I've sleept " + str(total_sleeping) + "s.")
+        start_time = time.monotonic()
+        empty = DoorbellWaiter.wait_until(
+            lambda: not any(queue.qsize() > 0 for queue in queues_to_wait_for),
+            timeout=None if wait_forever else self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS,
+            polling_seconds=self.QUEUES_POLLING_SECONDS)
+        waited = round(time.monotonic() - start_time, 3)
+        if empty:
+            self._xlog.debug(f"All queues are empty now. I've waited {waited}s.")
         else:
-            self._xlog.debug("Forced break after timeout. I've sleept " + str(total_sleeping) + "s.")
+            self._xlog.error("Timeout reached while waiting for queues to empty.")
+            self._xlog.debug(f"Forced break after timeout. I've waited {waited}s.")
     
     def wait_for_queue_to_empty(self, queue_name: str, wait_forever: bool = True):
         if self.get_queue(queue_name) is None:
@@ -282,21 +284,17 @@ class XprocessPool(PyXavi):
             self._xlog.error("Queue " + queue_name + " BrokenPipeError when checking size. Cannot wait for it to empty. I'll continue.")
             self.reset_busy_flag_from_related_queue(queue_name)
             return
-        sleep_seconds = 0.5
-        total_sleeping = 0
-        start_time = time.time()
-        forced_break = False
-        while self.get_queue(queue_name).qsize() > 0:
-            if not wait_forever and time.time() - start_time > self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS:
-                self._xlog.error("Timeout reached while waiting for queue " + queue_name + " to empty.")
-                forced_break = True
-                break
-            total_sleeping += sleep_seconds
-            time.sleep(sleep_seconds)
-        if not forced_break:
-            self._xlog.debug("The queue " + queue_name + " is empty now. I've sleept " + str(total_sleeping) + "s.")
+        start_time = time.monotonic()
+        empty = DoorbellWaiter.wait_until(
+            lambda: self.get_queue(queue_name).qsize() == 0,
+            timeout=None if wait_forever else self.WAITING_FOR_QUEUES_TIMEOUT_SECONDS,
+            polling_seconds=self.QUEUES_POLLING_SECONDS)
+        waited = round(time.monotonic() - start_time, 3)
+        if empty:
+            self._xlog.debug(f"The queue {queue_name} is empty now. I've waited {waited}s.")
         else:
-            self._xlog.debug("Forced break after timeout. I've sleept " + str(total_sleeping) + "s.")
+            self._xlog.error(f"Timeout reached while waiting for queue {queue_name} to empty.")
+            self._xlog.debug(f"Forced break after timeout. I've waited {waited}s.")
     
     def reset_busy_flag_from_related_queue(self, queue: str):
         if queue not in self._shared_flags_per_queue:

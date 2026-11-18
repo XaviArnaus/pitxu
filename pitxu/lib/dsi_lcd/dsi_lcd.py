@@ -71,6 +71,14 @@ class DsiLcd(XprocessDisplayCombined):
 
     def finish(self):
         self._xlog.info("Finalizing DSI LCD Worker")
+        # The Visualizer closes the Painter, and with it the painting thread and its shared memory monitor.
+        # It goes before the device: the painter may still be flushing to it.
+        if getattr(self, "visualizer", None) is not None:
+            self._log_debug("Closing DSI LCD Visualizer")
+            try:
+                self.visualizer.close()
+            except Exception as e:
+                self._xlog.error(f"🛑 Error closing the DSI LCD Visualizer: {e}")
         self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
         self._log_debug("Closing DSI LCD Device")
@@ -194,6 +202,11 @@ class DsiLcd(XprocessDisplayCombined):
         self.clear_background()
         self.clear_foreground()
     
+    def clear_status(self):
+        self._xlog.info("Clearing DSI LCD status area.")
+        # An empty list of entries paints the area empty.
+        self.visualizer.show_status_line({"entries": []})
+
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
         self.visualizer.clear_background()
@@ -231,12 +244,9 @@ class DsiLcd(XprocessDisplayCombined):
     # ------- Status functions ---------
 
     def show_status_line(self, param: dict):
-        text = param.get("text", "")
-        color = param.get("color", self.canvas.COLOR_FOREGROUND)
-        self._xlog.info(f"👀 Showing status line on DSI LCD: {text} (color: {color})")
+        # Log only the entry just added, not the whole history.
+        added = param.get("added", None)
+        if added is not None:
+            self._xlog.info(f"👀 Showing status line on DSI LCD: {added[0]} (color: {added[1]})")
 
-        param = {
-            "text": text,
-            "color": color
-        }
-        self.visualizer.show_status_line(param)
+        self.visualizer.show_status_line({"entries": param.get("entries", [])})

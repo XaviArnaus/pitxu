@@ -409,7 +409,8 @@ class MainClientPTT(PyXavi):
                     
                         # Clean the answer first, just in case
                         answer = Text.remove_emojis(answer)
-                        answer = Text.remove_markdown(answer)
+                        # For the voice: no syntax, no line breaks, and the tables spoken as the config says
+                        answer = Text.markdown_for_speech(answer, tables=cls._xconfig.get("text-to-speech.tables", "rows"))
                         answer = Text.replace_known_text(answer, cls._xconfig.get("language.text_replacements." + cls._xparams.get("language"), {}))
 
                         # The Client first needs to gather the answer from the server. Meanwhile, show the question as an overlay

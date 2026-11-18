@@ -7,6 +7,7 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 from pitxu.lib.canvas_v2.canvas import Canvas
+from pitxu.lib.utils.text import Text
 
 from functools import partial
 from subprocess import call
@@ -111,9 +112,11 @@ class Reactions(PyXavi):
 
             if not callback_was_handled:
                 self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
+                # The top right area does not render Markdown: show the text without its syntax.
+                #   (The OVERALL text blocks, shown by the tools, do render it.)
                 self.interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🧠",
-                    text=chat_response.text
+                    text=Text.remove_markdown(chat_response.text)
                 )
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.
@@ -204,6 +207,10 @@ class Reactions(PyXavi):
 
     def handle_error(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🚨  Showing an ERROR in the Foreground Display")
+
+        self.interaction.add_new_status_line(
+            "🚨 " + str(function_call_pair.function_response.response.get("result", "unknown")),
+            self._get_canvas().COLOR_RED)
 
         self.interaction.set_idle_mode_off()
         self.interaction.wait_for_foreground_display_queue_to_empty()
