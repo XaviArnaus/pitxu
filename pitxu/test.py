@@ -9,6 +9,8 @@ from definitions import ROOT_DIR, SHARED_DSI_LCD_IDLE_MODE
 
 import time, json, os
 
+from pitxu.lib.dsi_lcd.device_wrapper import Device
+
 class Test(PyXavi):
 
     shared_memory: SharedMemoryManager = None
@@ -898,8 +900,10 @@ finally:
     async def test_physical_button(self):
         from gpiozero import Button
         from signal import pause
+        from gpiozero import Device
+        print(type(Device.pin_factory).__name__, b.is_pressed)
 
-        PIN = 17  # put the pin from gpio.buttons.devices in your gpio.yaml
+        PIN = 26  # put the pin from gpio.buttons.devices in your gpio.yaml
         b = Button(PIN, pull_up=True)
         b.when_pressed = lambda: print("pressed")
         b.when_released = lambda: print("released")

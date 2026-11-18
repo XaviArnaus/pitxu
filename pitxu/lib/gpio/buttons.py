@@ -159,10 +159,15 @@ class Buttons(PyXavi):
             self.mocked_buttons_manager.add_button(name=name, pin=pin, mocked_as=mocked_as)
         else:
             self._xlog.debug(f"Creating real button [{name}] for pin [{pin}]")
-            from gpiozero import Button
+            from gpiozero import Button, Device
 
             # return Button(pin, pull_up=False)
-            return Button(pin, pull_up=True)
+            button = Button(pin, pull_up=True)
+            # Which pin factory gpiozero ended up with decides if the events ever arrive (on a Pi 5 only the lgpio ones can read the pins).
+            self._xlog.debug(
+                f"Button [{name}] on pin [{pin}] created with the pin factory "
+                f"[{type(Device.pin_factory).__name__}], pressed right now: {button.is_pressed}")
+            return button
     
     def close(self):
         if self.mocked_buttons_manager is not None:
