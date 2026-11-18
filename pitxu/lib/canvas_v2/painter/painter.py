@@ -75,7 +75,6 @@ class Painter(PyXavi):
 
     _worker_thread: threading.Thread = None
     _thread_event: threading.Event = None
-    _timer: dict[str, threading.Timer] = {}
 
     # Set by the maintain-time timers. Only the loop thread consumes it: the timers must never touch the canvas.
     _blank_screen_pending: bool = False
@@ -170,7 +169,6 @@ class Painter(PyXavi):
         self._thread_event = threading.Event()
 
         self._resume_lock = threading.Lock()
-        self._timer = {}    # instance level, instead of the shared class-level dict
 
         # Here is the Painter thread.
         self._worker_thread = threading.Thread(
@@ -514,7 +512,7 @@ class Painter(PyXavi):
         This is useful to avoid painting the same interaction in every loop iteration, which can be expensive, especially for complex interactions.
         """
         # Check if we have already painted this interaction in the previous iteration.
-        if self._current_interaction_by_queue_is_the_same_as_previous(queue_name, current_interaction=interaction):
+        if self._paint_matches_cache(queue_name, interaction):
             self._log_debug(f"Interaction [{interaction.get_cache_key()}] in queue [{queue_name}] is cached. Retrieving it from the cache.")
             return self.areas[queue_name].cached_image
         else:
@@ -589,7 +587,7 @@ class Painter(PyXavi):
                 self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(PainterQueue.BACKGROUND).name}] in [BACKGROUND] has multiple loop iterations. We draw this loop iteration.")
                 return True
             # If the current interaction is different than the previous one, in theory we should paint it.
-            elif not self._current_interaction_by_queue_is_the_same_as_previous(queue_name):
+            elif not self._paint_matches_cache(queue_name, self.get_current_interaction(queue_name)):
                 # A passive paint (like the buttons) must not wake up a screen that is deliberately blank.
                 # The queue already has its new state, so it will be shown at the next draw triggered by anything else.
                 passive_candidate = self.get_current_interaction(queue_name)
@@ -619,24 +617,11 @@ class Painter(PyXavi):
         self._log_debug(f"⏹️  Loop Control: No changes in interactions detected. Skipping this loop iteration.")
         return False
 
-    def _current_interaction_by_queue_is_the_same_as_previous(self, queue_name: PainterQueue, current_interaction: BasePaint | None = None) -> bool:
-        current_interaction = self.get_current_interaction(queue_name) if current_interaction is None else current_interaction
-        previous_interaction_cache_key = self.areas[queue_name].cached_key
-        if current_interaction is None and previous_interaction_cache_key is None:
-            self._log_debug(f"↔️  Cache Control: Current and Previous interactions in queue [{queue_name}] are both None. They are the same.")
-            return True
-        if (current_interaction is None and previous_interaction_cache_key is not None) or \
-            (current_interaction is not None and previous_interaction_cache_key is None):
-            self._log_debug(f"⏺️  Cache Control: One of the Current and Previous interactions in queue [{queue_name}] is None while the other is not. They are different.")
-            return False
-        current_interaction_cache_key = current_interaction.get_cache_key()
-        if current_interaction_cache_key == previous_interaction_cache_key:
-            self._log_debug(f"↔️  Cache Control: Current interaction [{current_interaction_cache_key}] in queue [{queue_name}] is cached. They are the same.")
-            return True
-        else:
-            self._log_debug(f"⏺️  Cache Control: Current interaction [{current_interaction_cache_key}] in queue [{queue_name}] is not cached. They are different.")
-            return False
-    
+    def _paint_matches_cache(self, queue_name: PainterQueue, paint: BasePaint | None) -> bool:
+        matches = self.areas[queue_name].matches_cache(paint)
+        self._log_debug(f"↔️  Cache Control: [{paint.get_cache_key() if paint is not None else None}] in queue [{queue_name}] matches the cache: {matches}.")
+        return matches
+
     def _reset_display_area_for_queue(self, queue_name: PainterQueue):
         tmp_draw = ImageDraw.Draw(self.areas[queue_name].image)
         self.drawing_callbacks["base_frame_for_display_area"]["callback"](
@@ -712,7 +697,8 @@ class Painter(PyXavi):
 
         # In case we have anything from the same type waiting to be shown, we discard it first.
         #   If we didn't show it yet, there is no point to keep waiting, the flow already went somewhere else.
-        self._remove_duplicated_interaction_types_from_queue(interaction, queue_name)
+        for dropped in self.areas[queue_name].drop_duplicates_of_type(interaction):
+            self._log_debug(f"Removing previous duplicated interaction [{dropped.get_cache_key()}] from the queue.")
 
         # In case that the current interaction is set to stay after painting, it could stay forever,
         #   actually blocking anything else that comes afterwards.
@@ -727,42 +713,17 @@ class Painter(PyXavi):
         
         # If we're meant to keep the interaction for an amount of seconds, set up a scheduler to remove it after the defined time.
         if interaction.maintain_paint_for_seconds is not None:
-            # COMMENTED: We change the approach, so we now use a timer to schedule the removal of the interaction after the defined time.
-            # PLEASE DELETE THIS COMMENTED BLOCK ONCE WE SEE THAT THE TIMER-BASED APPROACH WORKS AS EXPECTED.
-            # self._log_debug(f"{queue_name} interaction [{interaction.name}] is meant to be maintained for [{interaction.maintain_paint_for_seconds}] seconds. Setting up a scheduler to remove it after the defined time.")
-            # def remove_interaction_after_time():
-            #     self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
-            #     self._remove_interaction(interaction=interaction, queue_name=queue_name)
-            #     # The following lines are to clean the screen after removing the interaction.
-            #     # ⚠️ This does not stand for long. Any waiting_for_seconds besides idle will produce
-            #     #   a full screen clearing after the time is over, which is not ideal. 
-            #     # if interaction.final_screen_clearing:
-            #     #     self._log_debug(f"Scheduler for {queue_name} interaction [{interaction.name}] is performing a final screen clearing as requested by the interaction.")
-            #     self._full_clear()
-            #     self.flush_drawing()
-            # self._timer[interaction.get_cache_key()] = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
-            # self._timer[interaction.get_cache_key()].start()
-
             self._log_debug(f"{queue_name} interaction [{interaction.name}] is meant to be maintained for [{interaction.maintain_paint_for_seconds}] seconds. Setting up a scheduler to remove it after the defined time.")
-            timer_key = interaction.get_cache_key()
-
-            # A paint with the same key (the idle one repeats every minute) must not inherit an older timer,
-            #   otherwise the old one would remove the new paint too early.
-            previous_timer = self._timer.pop(timer_key, None)
-            if previous_timer is not None:
-                previous_timer.cancel()
 
             def remove_interaction_after_time():
                 # This runs in a Timer thread. It must NOT touch the queues or the canvas:
                 #   it only asks the Painter loop to do it, so there is a single writer.
                 self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
-                self._timer.pop(timer_key, None)
                 self.request_removal(interaction, queue_name, blank_screen=True)
 
-            timer = threading.Timer(interaction.maintain_paint_for_seconds, remove_interaction_after_time)
-            timer.daemon = True
-            self._timer[timer_key] = timer
-            timer.start()
+            # The timer belongs to the area, and replaces any older one with the same key.
+            self.areas[queue_name].start_timer(
+                interaction.get_cache_key(), interaction.maintain_paint_for_seconds, remove_interaction_after_time)
 
         # Now add the new interaction to the queue
         self.areas[queue_name].paints.append(interaction)
@@ -784,82 +745,32 @@ class Painter(PyXavi):
 
     def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
-        if self.areas[queue_name].has_paints():
-            if self.areas[queue_name].current().name == interaction.name:
-                self.areas[queue_name].paints.pop(0)
-                # When we remove an interaction, we also:
-                #   - Clean the cache related to it, to avoid retrieving it again if it comes back in the future.
-                #   - Reset the starting time for the interaction, to avoid issues with the maintain_paint_for_seconds parameter.
-                self.reset_interaction_artifacts(queue_name)
-                self._log_debug(f"Interaction [{interaction.name}] removed from [{queue_name}] queue successfully.")
-                # Removing the interaction means to stop drawing it.
-                # It's the moment to check for a final cleaning requests from the callbacks.
-                if interaction.final_screen_clearing:
-                    name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
-                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final ScreenClearing intended, telling to painter loop")
-                    self.areas[queue_name].request_screen_clearing(name)
-                if interaction.final_area_clearing:
-                    name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
-                    self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Area Clearing intended, telling to painter loop")
-                    self.areas[queue_name].request_area_clearing(name)
-            else:
-                # Could be that meanwhile anything else with more priority (or a dupe) came in and then
-                #   the "current" one was already removed.
-                self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping.")
-                current_queue = ", ".join([item.name for item in self.areas[queue_name].paints])
-                self._log_debug(f"Current [{queue_name}] interaction queue: [{current_queue}].")
+        area = self.areas[queue_name]
+        # When we remove an interaction, the area also cleans the cache related to it, to avoid retrieving it again
+        #   if it comes back in the future, and registers the final clearing requests that the interaction asked for.
+        requester = f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
+        if area.remove(interaction, requester):
+            self._log_debug(f"Interaction [{interaction.name}] removed from [{queue_name}] queue successfully.")
+            # Removing the interaction means to stop drawing it.
+            # It's the moment to check for a final cleaning requests from the callbacks.
+            if interaction.final_screen_clearing:
+                self._log_debug(f"🔃 Painter callback [{requester}] for [{queue_name}]: Final ScreenClearing intended, telling to painter loop")
+            if interaction.final_area_clearing:
+                self._log_debug(f"🔃 Painter callback [{requester}] for [{queue_name}]: Final Area Clearing intended, telling to painter loop")
+        elif area.has_paints():
+            # Could be that meanwhile anything else with more priority (or a dupe) came in and then
+            #   the "current" one was already removed.
+            self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping.")
+            current_queue = ", ".join([item.name for item in area.paints])
+            self._log_debug(f"Current [{queue_name}] interaction queue: [{current_queue}].")
 
     def remove_all_interactions_from_queue(self, queue_name: PainterQueue):
         self._log_debug(f"Removing all {queue_name} interactions.")
-        self.areas[queue_name].paints = []
-        self.reset_interaction_artifacts(queue_name)
-        # Cancel any timers associated with interactions in this queue
-        for interaction_cache_key, timer in list(self._timer.items()):
+        self.areas[queue_name].remove_all()
+        # Cancel the timers associated with interactions in this queue only: the other areas keep theirs.
+        for interaction_cache_key in self.areas[queue_name].cancel_timers():
             self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
-            timer.cancel()
-            del self._timer[interaction_cache_key]
-    
-    def reset_interaction_artifacts(self, queue_name: PainterQueue):
-        self._log_debug(f"Resetting interaction artifacts for queue [{queue_name}].")
-        self.areas[queue_name].reset_cache()
-    
-    def _remove_duplicated_interaction_types_from_queue(self, interaction: BasePaint, queue_name: PainterQueue):
-        """
-        Removes previous duplicated interactions of the same type as the given one from the corresponding queue.
-        Keeps only the given interaction.
 
-        Useful for scenarios like the init_phase when next phase comes and we didn't show the previous one.
-
-        Args:
-            interaction (BasePaint): The interaction to compare with the ones in the queue. We will remove the ones with the same type as this one.
-            queue_name (str): The name of the queue to remove the duplicated interactions from.
-        """
-
-        current_interaction = self.get_current_interaction(queue_name)
-        queue = self.areas[queue_name].paints
-
-        new_queue = []
-        for item in queue:
-            # Over the interactions with the same type, 
-            if item.command.matches(interaction.command.get()):
-                # We keep the current interaction being painted, to avoid fucking up the current painting loop iteration.
-                # Unless it is explicitly defined.
-                if current_interaction is not None and item.get_cache_key() == current_interaction.get_cache_key() and \
-                    item.overwrite_current_interaction_with_same_type == False:
-                    new_queue.append(item)
-                # We keep the given interaction as parameter. This function is called at the moment of setting a new interaction,
-                #   so we actually shouldn't end up here ever.
-                elif item.get_cache_key() == interaction.get_cache_key():
-                    new_queue.append(item)
-                # We skip adding the duplicated interaction to the new queue
-                else:
-                    self._log_debug(f"Removing previous duplicated interaction [{item.get_cache_key()}] from the queue.")
-            # All the rest interaction types are kept.
-            else:
-                new_queue.append(item)
-        
-        self.areas[queue_name].paints = new_queue
-    
     def _initialize_draw_for_queue(self, queue_name: PainterQueue) -> Image.Image:
         # We create a new image to draw the interaction, based on the size of the layout position corresponding to this queue.
         layout_position_name = self.areas[queue_name].layout_position
@@ -900,10 +811,9 @@ class Painter(PyXavi):
         else:
             self._xlog.debug("Painter worker thread is not alive or was never started.")
         
-        for interaction_cache_key, timer in list(self._timer.items()):
-            self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
-            timer.cancel()
-        self._timer = {}
+        for area in self.areas.values():
+            for interaction_cache_key in area.cancel_timers():
+                self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
         self._log_debug("Painter shutdown complete.")
     
     def start_paused(self):
