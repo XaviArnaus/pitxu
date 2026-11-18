@@ -71,6 +71,14 @@ class DsiLcd(XprocessDisplayCombined):
 
     def finish(self):
         self._xlog.info("Finalizing DSI LCD Worker")
+        # The Visualizer closes the Painter, and with it the painting thread and its shared memory monitor.
+        # It goes before the device: the painter may still be flushing to it.
+        if getattr(self, "visualizer", None) is not None:
+            self._log_debug("Closing DSI LCD Visualizer")
+            try:
+                self.visualizer.close()
+            except Exception as e:
+                self._xlog.error(f"🛑 Error closing the DSI LCD Visualizer: {e}")
         self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
         self._log_debug("Closing DSI LCD Device")

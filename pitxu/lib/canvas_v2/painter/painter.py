@@ -934,6 +934,10 @@ class Painter(PyXavi):
     def close(self):
         self.shutdown()
 
+        # Its shared memory monitor has a worker thread (and a doorbell) of its own, that nobody else closes.
+        if self.painter_shared_memory is not None:
+            self.painter_shared_memory.close()
+
         if self._worker_thread is not None and self._worker_thread.is_alive():
             self._xlog.debug("Joining Painter worker thread.")
             self._worker_thread.join(timeout=2)
