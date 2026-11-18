@@ -62,32 +62,56 @@ class MacrosBase(PyXavi):
     def get_display_size(self) -> Point:
         return self._display_size
 
+    def wrap_text_to_lines(
+            self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont, hard_split: bool = False) -> list[str]:
+        """
+        Wraps a text, greedily filling each line with words up to max_width.
+        The line breaks already in the text are respected.
+
+        Args:
+            hard_split (bool): A word that is wider than max_width (a URL, say) is split in pieces
+                that fit. When False, such a word stays whole in its own line and overflows.
+
+        Returns:
+            list[str]: The wrapped lines.
+        """
+        outcome: list[str] = []
+        for line in text.split("\n"):
+            if canvas.textlength(line, font) <= max_width:
+                outcome.append(line)
+                continue
+
+            current_line = ""
+            for word in line.split():
+                if hard_split:
+                    while canvas.textlength(word, font) > max_width and len(word) > 1:
+                        fit = len(word) - 1
+                        while fit > 1 and canvas.textlength(word[:fit], font) > max_width:
+                            fit -= 1
+                        if current_line != "":
+                            outcome.append(current_line)
+                            current_line = ""
+                        outcome.append(word[:fit])
+                        word = word[fit:]
+
+                test_line = current_line + (" " if current_line != "" else "") + word
+                if canvas.textlength(test_line, font) <= max_width:
+                    current_line = test_line
+                else:
+                    if current_line != "":
+                        outcome.append(current_line)
+                    current_line = word
+            outcome.append(current_line)
+        return outcome
+
     def wrap_text_if_needed(self, canvas: ImageDraw.ImageDraw, text: str, max_width, font: ImageFont) -> str:
         try:
             lines = text.split("\n")
             longest_line = max(lines, key=lambda line: canvas.textlength(line, font=font))
-            width_text = canvas.textlength(longest_line, font)
-            if(width_text <= max_width):
+            if canvas.textlength(longest_line, font) <= max_width:
                 return text
-            else:
-                new_text = ""
-                for line in lines:
-                    if canvas.textlength(line, font) > max_width:
-                        words = line.split()
-                        current_line = ""
-                        
-                        for word in words:
-                            test_line = current_line + (" " if current_line != "" else "") + word
-                            width_test_line = canvas.textlength(test_line, font)
-                            if(width_test_line <= max_width):
-                                current_line = test_line
-                            else:
-                                new_text += current_line + "\n"
-                                current_line = word
-                        new_text += current_line + "\n"
-                    else:
-                        new_text += line + "\n"
-                return new_text
+            # Something overflows: wrap, each line ending in a line break.
+            return "".join(line + "\n" for line in self.wrap_text_to_lines(canvas, text, max_width, font))
         except ValueError as e:
             self._xlog.error(f"Error wrapping text [{text}]: {e}")
             return text

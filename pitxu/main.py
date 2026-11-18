@@ -1361,20 +1361,20 @@ class Main(PyXavi):
         self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
             "shared_memory": shared_memory_manager,
             "shared_memory_list_to_control": [
-                # Callback for when the transcription starts
-                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
-                # Callback for when the transcription ends
-                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
-                # Callback for when the chatbot starts thinking
-                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
-                # Callback for when the chatbot finishes thinking
-                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Transcriber and chatbot busy states are not listed here: the status buttons show them.
+                # ⚠️ The order matters: when several flags change within the same monitor iteration, the callbacks run in this order.
+                # Callback for when the wake up button is pressed (released, actually).
+                # It goes first because it is the cause of the idle OFF, so it has to be shown before.
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False),
                 # Callback for when the app goes idle
-                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
+                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True , lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
-                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
-                # Callback for when the wake up button is pressed (released, actually)
-                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
+                # Dependant: the monitor considers that a flag already at the activation value "just changed" the first
+                #   time it sees it, so without this the app would announce "out of idle" at boot, without ever being in idle.
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), True),
+                # The first time the user speaks, the startup screen ("Ready") leaves the status area.
+                # It does nothing if a status line already replaced it, or after the first time.
+                ("vad detected ON", SHARED_VAD_DETECTED, True, lambda: self._interaction.clear_status_startup_screen(), False)
             ]
         }))
 

@@ -51,7 +51,10 @@ class LayoutInfo(PyXavi):
 
         It is meant to be used as a helper for drawing the foreground frame, but can be used for other purposes.
         '''
-        rows_percentages = [0.6, 0.4]
+        # The bottom row holds the buttons columns (SLOTS_PER_COLUMN slots each) and the status area.
+        # The buttons take their height from this row: split_into_slots() divides what is left in the column.
+        # ⚠️ If SLOTS_PER_COLUMN changes, review this too: 3 slots on 800x480 end up 35 px tall.
+        rows_percentages = [0.7, 0.3]
         top_columns_percentages = [0.3, 0.7]
         bottom_columns_percentages = [0.10, 0.8, 0.10]
 
