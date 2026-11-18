@@ -221,16 +221,15 @@ class BackgroundPaint(FramedPaint, BasePaint):
 
         super(BackgroundPaint, self).__init__(name=name, command=command, **kwargs)
 
-class AnimationPaint(BackgroundPaint):
+class AnimationPaint(FramedPaint, BasePaint):
     """
-    This is a special type of paint that is meant to be used for animations. 
+    This is a special type of paint that is meant to be used for animations (the animated emojis).
     Requires to receive the base image instead of the canvas to draw on.
 
     The painter is meant to handle it, so it gives the right parameters.
-    As a start, it is inheriting from BackgroundPaint as it is meant to paint animated emojis in the background,
-        but this could change in the future.
+    It has its own area (the Animations one), so it is not a BackgroundPaint any more: it only shares the frames with it (FramedPaint).
     """
 
-    def __init__(self, name: str, command: BackgroundCommand, **kwargs):
+    def __init__(self, name: str, command: AnimationsCommand, **kwargs):
 
         super(AnimationPaint, self).__init__(name=name, command=command, **kwargs)

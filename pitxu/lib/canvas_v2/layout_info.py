@@ -13,9 +13,8 @@ class DisplayArea:
     The areas of the screen, named by what is shown in them. The value is the key of the area in the layout.
     To move an intention to another area, change it here.
     """
-    # Animations and effects
-    # ⚠️ Temporary: the Background queue still draws here, under the name EFFECTS, until the move to BACKGROUND.
-    EFFECTS: str = "top_left"
+    # Animations (emojis)
+    ANIMATIONS: str = "top_left"
     # What reacts to the state of the system in the background (the mouth, the countdown bar...), under the animations
     BACKGROUND: str = "center_left"
     # Texts, feedback and other messages

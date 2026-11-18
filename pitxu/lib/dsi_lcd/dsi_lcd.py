@@ -210,6 +210,9 @@ class DsiLcd(XprocessDisplayCombined):
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
         self.visualizer.clear_background()
+        # ⚠️ Temporary: the animations area has its own queue now, but its own clear action does not exist yet.
+        self._xlog.info("Clearing DSI LCD animations interaction.")
+        self.visualizer.clear_animations()
     
     def clear_foreground(self):
         self._xlog.info("Clearing DSI LCD foreground interaction.")

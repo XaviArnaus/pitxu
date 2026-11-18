@@ -12,7 +12,8 @@ from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosBackground(MacrosBase):
     """
-    Drawings that take place in the background, which is the "top-left" area of the layout.
+    Drawings that take place in the background (the LED-like effects, in the "center-left" area of the layout),
+    and the animations (in the "top-left" area).
     """
 
     # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
@@ -61,7 +62,7 @@ class MacrosBackground(MacrosBase):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(8):
-            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -77,7 +78,7 @@ class MacrosBackground(MacrosBase):
         apply_offset = self.APPLY_LED_TO_LCD_OFFSET_TO_ALL
 
         for x in range(6,-1,-1):
-            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 3), apply_offset=apply_offset, color=color)
             self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 4), apply_offset=apply_offset, color=color)
         
@@ -156,7 +157,7 @@ class MacrosBackground(MacrosBase):
         """
         frame = max(0, min(4, int(params.get("speaker_level", 0) or 0)))
 
-        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
         # The outer columns are one row behind the centre ones, so the three groups don't all move the same way:
         #   frame 1: centre only | frame 2: outer 1 row | frame 3: outer full | frame 4: centre full too.
         self._draw_mouth_frame(draw=draw, frame=frame, outer_columns_lag=1)
@@ -168,7 +169,7 @@ class MacrosBackground(MacrosBase):
         for drawing_frame in range(1, 5):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
 
             # Every iteration here is a full frame to be drawn
             self._draw_mouth_frame(draw=draw, frame=drawing_frame)
@@ -188,7 +189,7 @@ class MacrosBackground(MacrosBase):
         for drawing_frame in range(3, -1, -1):
 
             # Every frame needs to be cleared first, to avoid having an effect of overlaying frames
-            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
 
             # Every iteration here is a full frame to be drawn
             self._draw_mouth_frame(draw=draw, frame=drawing_frame)
@@ -204,7 +205,7 @@ class MacrosBackground(MacrosBase):
     def draw_init_phase(self, draw: ImageDraw.ImageDraw, params: dict):
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
 
         phase = params.get("phase", 0)
         text = params.get("text", None)
@@ -236,7 +237,7 @@ class MacrosBackground(MacrosBase):
         percentage = params.get("percentage", 0)
 
         # Initial Background Paint clear
-        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.BACKGROUND})
 
         # Calculate how many columns to light up
         columns_to_light = math.ceil((percentage / 100) * 8)
@@ -249,7 +250,8 @@ class MacrosBackground(MacrosBase):
         Draws a point on the LCD canvas representing a round LED point,
         emulating a 8x8 Matrix LED.
 
-        2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming top-left area.
+        2026-06-05: Offset and coords adapted to follow the self.layout_info. Assuming a tall area (it was the top-left one).
+        ⚠️ It now draws in the center-left area, that is much lower than wide: the effects are to be redesigned for it.
 
         Args:
             point: The point to draw.
@@ -266,8 +268,8 @@ class MacrosBackground(MacrosBase):
 
         # Now also take in account the layout info
         padding = 2
-        temp_max_x = self.layout_info["relative"][DisplayArea.EFFECTS].point_2.x
-        temp_max_y = self.layout_info["relative"][DisplayArea.EFFECTS].point_2.y
+        temp_max_x = self.layout_info["relative"][DisplayArea.BACKGROUND].point_2.x
+        temp_max_y = self.layout_info["relative"][DisplayArea.BACKGROUND].point_2.y
         max_x = min(temp_max_x, temp_max_y) + padding
         max_y = min(temp_max_x, temp_max_y)
         extra_offset_x = 0
@@ -279,8 +281,8 @@ class MacrosBackground(MacrosBase):
             # We are limited by the height, the applied extra offset is over the width.
             extra_offset_x = temp_max_x - max_x
             
-        offset_x += self.layout_info["relative"][DisplayArea.EFFECTS].point_1.x + (padding * 2) + extra_offset_x + 1
-        offset_y = self.layout_info["relative"][DisplayArea.EFFECTS].point_1.y + (padding * 2) + extra_offset_y + 1
+        offset_x += self.layout_info["relative"][DisplayArea.BACKGROUND].point_1.x + (padding * 2) + extra_offset_x + 1
+        offset_y = self.layout_info["relative"][DisplayArea.BACKGROUND].point_1.y + (padding * 2) + extra_offset_y + 1
         width = max_x - offset_x
         height = max_y - offset_y
 
@@ -319,7 +321,7 @@ class MacrosBackground(MacrosBase):
 
         # Before anything, draw the display_area frame.
         draw = ImageDraw.Draw(base_image)
-        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.EFFECTS})
+        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.ANIMATIONS})
 
         # Peek into the loaded animation.
         animation = self.animations.get_animation(animation_name) if self.animations is not None else None
@@ -330,8 +332,8 @@ class MacrosBackground(MacrosBase):
         self._log_debug(f"Loaded GIF '{animation_name}' with {animation.get_frame_count()} frames. Picking index {current_loop_iteration}")
 
         # Calculate the size to draw the frame, based on the layout info and the size of the frame.
-        width = self.layout_info["relative"][DisplayArea.EFFECTS].point_2.x - self.layout_info["relative"][DisplayArea.EFFECTS].point_1.x
-        height = self.layout_info["relative"][DisplayArea.EFFECTS].point_2.y - self.layout_info["relative"][DisplayArea.EFFECTS].point_1.y
+        width = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_2.x - self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.x
+        height = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_2.y - self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.y
 
         # Also, we want to keep the aspect ratio of the original GIF, but resized to fit inside the given width and height.
         original_width, original_height = animation.get_original_size()
@@ -357,8 +359,8 @@ class MacrosBackground(MacrosBase):
             desired_size=Size(width=desired_width_gif, height=desired_height_gif))
 
         # Calculate the position to draw the frame, centered in the display area.
-        offset_x = self.layout_info["relative"][DisplayArea.EFFECTS].point_1.x + ((width - desired_width_gif) // 2)
-        offset_y = self.layout_info["relative"][DisplayArea.EFFECTS].point_1.y + ((height - desired_height_gif) // 2)
+        offset_x = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.x + ((width - desired_width_gif) // 2)
+        offset_y = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.y + ((height - desired_height_gif) // 2)
 
         # Paint the frame on the canvas, resizing it to fit into the display area if needed.
         base_image.paste(frame_to_show, (offset_x, offset_y))

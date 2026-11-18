@@ -13,8 +13,8 @@ from pitxu.lib.canvas_v2.macros.macros_status import MacrosStatus
 from pitxu.lib.canvas_v2.macros.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter.painter import Painter, PainterQueue
-from pitxu.lib.canvas_v2.painter.painting_command import OverallCommand, ForegroundCommand, StatusCommand, ButtonsCommand, BackgroundCommand
-from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, StatusPaint, AnimationPaint, ButtonsPaint
+from pitxu.lib.canvas_v2.painter.painting_command import OverallCommand, ForegroundCommand, StatusCommand, ButtonsCommand, BackgroundCommand, AnimationsCommand
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, StatusPaint, AnimationPaint, ButtonsPaint
 from pitxu.lib.canvas_v2.buttons import BUTTONS, COLUMN_TO_DISPLAY_AREA
 from pitxu.lib.objects.point import Point
 
@@ -159,7 +159,8 @@ class Visualizer(PyXavi):
             },
         })
         params.set("layout_position_to_queue_name", {
-            DisplayArea.EFFECTS: PainterQueue.BACKGROUND,
+            DisplayArea.ANIMATIONS: PainterQueue.ANIMATIONS,
+            DisplayArea.BACKGROUND: PainterQueue.BACKGROUND,
             DisplayArea.MESSAGES: PainterQueue.FOREGROUND,
             DisplayArea.STATUS: PainterQueue.STATUS,
             DisplayArea.BUTTONS_LEFT: PainterQueue.BUTTONS_LEFT,
@@ -170,8 +171,9 @@ class Visualizer(PyXavi):
         #   - OVERALL has to be the LAST one: it covers the whole screen (overlays, code and text blocks).
         #   - Anything new that has its own display area goes BEFORE OVERALL, otherwise it would paint over the overlays.
         params.set("painter_queues", [
-            PainterQueue.BACKGROUND, 
-            PainterQueue.STATUS, 
+            PainterQueue.BACKGROUND,
+            PainterQueue.ANIMATIONS,
+            PainterQueue.STATUS,
             PainterQueue.FOREGROUND, 
             PainterQueue.BUTTONS_LEFT,
             PainterQueue.BUTTONS_RIGHT,
@@ -181,7 +183,8 @@ class Visualizer(PyXavi):
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]
         })
         params.set("painter_exception_loop_interactions", {
-            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
+            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.NETWORKING],
+            PainterQueue.ANIMATIONS: [AnimationsCommand.THINKING]
         })
         # The queues in which a paint is static and don't need fast loop iterations.
         # ⚠️ A persistent paint in any queue NOT listed here (like the buttons panel) prevents the loop from slowing down.
@@ -251,7 +254,7 @@ class Visualizer(PyXavi):
 
         # Only the display areas that draw animations need their frames prepared (and cached on disk).
         # A size that was not prepared still works, but it is resized on demand and kept in memory only.
-        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.EFFECTS])
+        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.ANIMATIONS])
 
         animation_sizes_per_display_area = {}
         for display_area, rectangle in self.layout_info["relative"].items():
@@ -388,9 +391,9 @@ class Visualizer(PyXavi):
                         # remove_interaction_after_painting=True,
                         ignore_maintain_time=False,
                     ),
-                    PainterQueue.BACKGROUND: AnimationPaint(
-                        name="IdleBackgroundPaint",
-                        command=BackgroundCommand(BackgroundCommand.IDLE),
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name="IdleAnimationPaint",
+                        command=AnimationsCommand(AnimationsCommand.IDLE),
 
                         while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
                         while_shared_memory_flag_value=True,
@@ -669,7 +672,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_layout.base_frame_for_display_area,
                         drawing_callback_parameters={
-                            "display_area": DisplayArea.EFFECTS,
+                            "display_area": DisplayArea.BACKGROUND,
                         },
 
                         # final_screen_clearing=False,
@@ -678,7 +681,27 @@ class Visualizer(PyXavi):
                 }
             )
         )
-    
+
+    def clear_animations(self):
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: BasePaint(
+                        name="ClearAnimationsPaint",
+                        command=AnimationsCommand(AnimationsCommand.CLEAR),
+
+                        drawing_callback=self.macros_layout.base_frame_for_display_area,
+                        drawing_callback_parameters={
+                            "display_area": DisplayArea.ANIMATIONS,
+                        },
+
+                        remove_interaction_after_painting=True
+                    )
+                }
+            )
+        )
+
     # ---- BACKGROUND PAINTS ----
 
     def _speaking_animation_follows_audio(self) -> bool:
@@ -774,9 +797,9 @@ class Visualizer(PyXavi):
         self.painter.paint(
             PaintObject(
                 paints_by_queue={
-                    PainterQueue.BACKGROUND: AnimationPaint(
-                        name="AnimationWhileThinkingBackgroundPaint",
-                        command=BackgroundCommand(BackgroundCommand.THINKING),
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name="AnimationWhileThinkingAnimationPaint",
+                        command=AnimationsCommand(AnimationsCommand.THINKING),
 
                         while_shared_memory_flag=SHARED_CHATBOT_BUSY,
                         while_shared_memory_flag_value=True,
@@ -803,7 +826,7 @@ class Visualizer(PyXavi):
     def networking(self):
         """
         Shows that the network is busy, while the network busy flag is on.
-        The effect is the scanner in blue, in the top left.
+        The effect is the scanner in blue, in the center left.
         """
 
         self.painter.paint(
