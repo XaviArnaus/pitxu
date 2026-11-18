@@ -664,7 +664,8 @@ class Main(PyXavi):
         
             # Clean the answer first, just in case
             answer = Text.remove_emojis(answer)
-            answer = Text.remove_markdown(answer)
+            # For the voice: no syntax, no line breaks, and the tables spoken as the config says
+            answer = Text.markdown_for_speech(answer, tables=self._xconfig.get("text-to-speech.tables", "rows"))
             answer = Text.replace_known_text(answer, known_text_replacements)
 
             # Answer

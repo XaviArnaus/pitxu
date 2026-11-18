@@ -35,6 +35,13 @@ class _Line:
     marker: str | None = None
     marker_font: ImageFont.FreeTypeFont | None = None
     marker_x: int = 0
+    # Table rows. The cells of a row are segments of the same lines, placed at the x of their column.
+    header: bool = False            # It belongs to the header: it gets a background.
+    table_cols: list = field(default_factory=list)  # x of every vertical border, relative to the start of the line.
+    row_first: bool = False         # First line of a row: the border above is drawn here.
+    table_end: bool = False         # Last line of the table: the border below is drawn here.
+    pad_top: int = 0                # Space inside the row, above and below the text. It is inside the borders.
+    pad_bottom: int = 0
 
 
 class MarkdownRenderer:
@@ -58,6 +65,8 @@ class MarkdownRenderer:
     BLOCK_GAP_RATIO: float = 0.4
     HEADING_GAP_RATIO: float = 0.7
     CHIP_PAD_X: int = 3
+    CELL_PAD_X: int = 5
+    CELL_PAD_Y: int = 2
     PANEL_PAD: int = 6
     PANEL_RADIUS: int = 6
     ELLIPSIS: str = "…"
@@ -178,6 +187,8 @@ class MarkdownRenderer:
 
             if block.kind == "code":
                 block_lines = self._layout_code(block, mono_font, max_width - indent_px, indent_px, index, panel)
+            elif block.kind == "table":
+                block_lines = self._layout_table(block, base_font, mono_font, max_width - indent_px, indent_px, index)
             else:
                 font = heading_font if block.kind == "heading" and block.level <= 2 else base_font
                 block_lines = self._layout_inline(block, font, mono_font, max_width - indent_px, indent_px, index)
@@ -297,6 +308,103 @@ class MarkdownRenderer:
                     line.width -= removed
         return lines
 
+    def _layout_table(self, block: Block, font: ImageFont.FreeTypeFont, mono_font: ImageFont.FreeTypeFont,
+                      avail_width: int, indent_px: int, block_index: int) -> list:
+        """
+        A table keeps its grid. The columns take the width of their widest cell. If that does not fit, they are
+        narrowed in proportion to what they have to give (never below their longest word), and their cells wrap.
+        """
+        rows = [row for row in block.rows if row]
+        if not rows:
+            return []
+        columns = max(len(row) for row in rows)
+        rows = [row + [[] for _ in range(columns - len(row))] for row in rows]
+        aligns = (list(block.aligns) + ["left"] * columns)[:columns]
+        pad_x, pad_y = self.CELL_PAD_X, self.CELL_PAD_Y
+
+        def cell_block(cell: list, header: bool) -> Block:
+            # The header is drawn like a heading: bold. The font is the one that we give, whatever the level.
+            return Block(kind="heading" if header else "paragraph", spans=cell)
+
+        # What every column wants (all its cells in one line) and the least it accepts (its longest word).
+        natural = [0] * columns
+        minimum = [0] * columns
+        for row_index, row in enumerate(rows):
+            header = row_index < block.header_rows
+            for column, cell in enumerate(row):
+                cell_width = 0
+                for span in cell:
+                    span_font = mono_font if span.code else font
+                    bold = span.bold or header
+                    chip = 2 * self.CHIP_PAD_X if span.code else 0
+                    cell_width += self._text_width(span.text.replace("\n", " "), span_font, bold) + chip
+                    for word in span.text.split():
+                        minimum[column] = max(minimum[column], self._text_width(word, span_font, bold) + chip)
+                natural[column] = max(natural[column], cell_width)
+        minimum = [min(least, wanted) for least, wanted in zip(minimum, natural)]
+
+        overhead = columns * 2 * pad_x + (columns + 1)
+        room = avail_width - overhead
+        if room <= columns:
+            widths = [1] * columns
+        elif sum(natural) <= room:
+            widths = natural
+        elif sum(minimum) >= room:
+            # Not even the longest words fit: they will be cut.
+            widths = [max(1, int(least * room / sum(minimum))) for least in minimum]
+        else:
+            spare = room - sum(minimum)
+            can_give = [wanted - least for wanted, least in zip(natural, minimum)]
+            widths = [least + int(spare * give / sum(can_give)) for least, give in zip(minimum, can_give)]
+
+        # The vertical borders, and the end of the table.
+        borders = [0]
+        for width in widths:
+            borders.append(borders[-1] + 1 + 2 * pad_x + width)
+        total_width = borders[-1] + 1
+
+        base_ascent, base_descent = self._font_height(font)
+        lines: list[_Line] = []
+        for row_index, row in enumerate(rows):
+            header = row_index < block.header_rows
+            cells = [
+                self._layout_inline(cell_block(cell, header), font, mono_font, widths[column], 0, block_index)
+                for column, cell in enumerate(row)]
+
+            row_lines: list[_Line] = []
+            for line_index in range(max(len(cell_lines) for cell_lines in cells)):
+                line = _Line(kind="table", block_index=block_index, indent_px=indent_px, width=total_width,
+                             header=header, table_cols=borders)
+                ascent = descent = 0
+                for column, cell_lines in enumerate(cells):
+                    if line_index >= len(cell_lines):
+                        continue
+                    cell_line = cell_lines[line_index]
+                    shift = borders[column] + 1 + pad_x
+                    if aligns[column] == "right":
+                        shift += widths[column] - cell_line.width
+                    elif aligns[column] == "center":
+                        shift += (widths[column] - cell_line.width) // 2
+                    for segment in cell_line.segments:
+                        segment.x += shift
+                        line.segments.append(segment)
+                    ascent = max(ascent, cell_line.ascent)
+                    descent = max(descent, cell_line.descent)
+                line.ascent = ascent or base_ascent
+                line.descent = descent or base_descent
+                line.height = line.ascent + line.descent + self.LINE_SPACING_PX
+                row_lines.append(line)
+
+            row_lines[0].row_first = True
+            row_lines[0].pad_top = pad_y
+            row_lines[0].gap_before += pad_y
+            row_lines[-1].pad_bottom = pad_y
+            row_lines[-1].gap_after += pad_y
+            lines.extend(row_lines)
+
+        lines[-1].table_end = True
+        return lines
+
     def _layout_code(self, block: Block, font: ImageFont.FreeTypeFont, avail_width: int, indent_px: int,
                      block_index: int, panel: bool) -> list:
         """ A code block keeps its lines. Only the lines that do not fit are cut where they fit. """
@@ -367,13 +475,22 @@ class MarkdownRenderer:
             used += needed
         if len(kept) < len(lines):
             self._ellipsize(kept[-1], max_width)
+            if kept[-1].kind == "table":
+                # The table is cut here: the grid is closed at this line.
+                kept[-1].table_end = True
         return kept
 
     def _ellipsize(self, line: _Line, max_width: int):
         """ Shortens the line, at the end, until the ellipsis fits. """
-        limit = max_width - line.indent_px
+        line_limit = max_width - line.indent_px
         while line.segments:
             segment = line.segments[-1]
+            limit = line_limit
+            if line.kind == "table":
+                # In a table the ellipsis has to stay inside the cell: before the next border of its column.
+                next_borders = [border for border in line.table_cols if border > segment.x]
+                if next_borders:
+                    limit = min(next_borders) - self.CELL_PAD_X - 1
             text = segment.text.rstrip()
             while text:
                 candidate = text + self.ELLIPSIS
@@ -381,13 +498,18 @@ class MarkdownRenderer:
                 if segment.x + width <= limit:
                     segment.text = candidate
                     segment.width = width
-                    line.width = segment.x + width
+                    if line.kind != "table":
+                        # A table line keeps the width of the table.
+                        line.width = segment.x + width
                     return
                 text = text[:-1].rstrip()
             line.segments.pop()
         # Nothing was left in the line, the ellipsis goes alone.
         font = self._ladder[0]
         width = self._text_width(self.ELLIPSIS, font, False)
+        if line.kind == "table":
+            line.segments = [_Segment(self.ELLIPSIS, font, x=1 + self.CELL_PAD_X, width=width)]
+            return
         line.segments = [_Segment(self.ELLIPSIS, font, x=0, width=width)]
         line.width = width
         line.ascent, line.descent = self._font_height(font)
@@ -436,11 +558,37 @@ class MarkdownRenderer:
                 draw.text((offset_x + line.marker_x, baseline), line.marker, font=line.marker_font,
                           fill=text_color, anchor="ls")
 
+            if line.kind == "table" and line.header:
+                self._draw_table_header_background(draw, line, line_x, top)
+
             for segment in line.segments:
                 segment_x = line_x + segment.x
                 if segment.chip:
                     self._draw_chip(draw, segment_x - self.CHIP_PAD_X, top, segment_x + segment.width + self.CHIP_PAD_X, top + line.height)
                 self._draw_segment(draw, segment_x, baseline, segment, text_color)
+
+            if line.kind == "table":
+                self._draw_table_borders(draw, line, line_x, top, text_color)
+
+    def _draw_table_header_background(self, draw: ImageDraw.ImageDraw, line: _Line, line_x: int, top: int):
+        color = self.CHIP_COLORS.get(self._color_mode)
+        if color is None:
+            return
+        draw.rectangle(
+            (line_x, top - line.pad_top, line_x + line.width - 1, top + line.height + line.pad_bottom - 1),
+            fill=color)
+
+    @staticmethod
+    def _draw_table_borders(draw: ImageDraw.ImageDraw, line: _Line, line_x: int, top: int, color):
+        """ The part of the grid that belongs to this line: its vertical borders, and the horizontal ones at the edges of the row. """
+        y_top = top - line.pad_top
+        y_bottom = top + line.height + line.pad_bottom
+        for x in line.table_cols:
+            draw.line([(line_x + x, y_top), (line_x + x, y_bottom)], fill=color, width=1)
+        if line.row_first:
+            draw.line([(line_x, y_top), (line_x + line.width - 1, y_top)], fill=color, width=1)
+        if line.table_end:
+            draw.line([(line_x, y_bottom), (line_x + line.width - 1, y_bottom)], fill=color, width=1)
 
     def _draw_panels(self, draw: ImageDraw.ImageDraw, lines: list, tops: list, offset_x: int):
         """ One background per code block, as wide as its widest line. """
