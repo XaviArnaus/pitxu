@@ -23,7 +23,7 @@ class DoorbellWaiter:
 
     @classmethod
     def _get_listener(cls) -> DoorbellListener | None:
-        if cls._listener_unavailable or not Doorbell.is_enabled():
+        if cls._listener_unavailable or not Doorbell.is_enabled("waiter"):
             return None
         # ⚠️ Binding unlinks whatever is at the path: only Main may do it.
         if multiprocessing.parent_process() is not None:

@@ -95,7 +95,7 @@ class SharedMemoryMonitor(PyXavi):
         """
         Binds the doorbell of this monitor. If it can not be done, the worker polls, like it always did.
         """
-        if self.BELL_NAME is None or not Doorbell.is_enabled():
+        if self.BELL_NAME is None or not Doorbell.is_enabled("monitors"):
             return None
         try:
             return DoorbellListener(self.BELL_NAME)
