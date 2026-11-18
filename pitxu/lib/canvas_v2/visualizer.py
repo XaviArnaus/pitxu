@@ -881,6 +881,10 @@ class Visualizer(PyXavi):
                         drawing_callback_parameters=param,
                         cache_control_parameters=["entries"],
 
+                        # Painting the area empty is just housekeeping: it must never wake up a screen
+                        #   that is deliberately blank (the idle mode starting). It is shown at the next draw.
+                        trigger_draw_when_blank=len(param.get("entries", [])) > 0,
+
                         overwrite_current_interaction_with_same_type=False,
 
                         final_screen_clearing=False,
