@@ -1,4 +1,7 @@
 from __future__ import annotations
+import os
+import threading
+import time
 from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -167,7 +170,30 @@ class Buttons(PyXavi):
             self._xlog.debug(
                 f"Button [{name}] on pin [{pin}] created with the pin factory "
                 f"[{type(Device.pin_factory).__name__}], pressed right now: {button.is_pressed}")
+            if os.environ.get("PITXU_BUTTON_DEBUG", "0") == "1":
+                self._start_state_poller(name, button)
             return button
+
+    def _start_state_poller(self, name: str, button):
+        """
+        Diagnosis only (PITXU_BUTTON_DEBUG=1): logs every change of the pin state read directly, independent of the
+        gpiozero events. If a press shows up here but the callback never logs, the events are not being delivered.
+        If it does not show up either, the pin is not readable in this process.
+        """
+        def poll():
+            last = button.is_pressed
+            while True:
+                time.sleep(0.02)
+                try:
+                    current = button.is_pressed
+                except Exception as e:
+                    self._xlog.error(f"🕹️ [BUTTON DEBUG] Could not read the button [{name}]: {e}")
+                    return
+                if current != last:
+                    self._xlog.info(f"🕹️ [BUTTON DEBUG] Button [{name}] state read as {'PRESSED' if current else 'RELEASED'}")
+                    last = current
+
+        threading.Thread(name=f"ButtonStatePoller-{name}", target=poll, daemon=True).start()
     
     def close(self):
         if self.mocked_buttons_manager is not None:
