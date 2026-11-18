@@ -7,7 +7,8 @@ from definitions import SHARED_MICROPHONE_MUTED, SHARED_TRANSCRIBER_BUSY, SHARED
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 # How many buttons fit in a column. Free slots simply stay empty.
-SLOTS_PER_COLUMN: int = 4
+# ⚠️ The bottom row of the layout (rows_percentages in LayoutInfo) was chosen with this number in mind.
+SLOTS_PER_COLUMN: int = 3
 
 # The display area where each column of buttons is drawn.
 COLUMN_TO_DISPLAY_AREA: dict[str, str] = {
@@ -80,11 +81,9 @@ BUTTONS: list[ButtonDefinition] = [
     ButtonDefinition("microphone",    "left", 1, kind="flag", flag=SHARED_MICROPHONE_MUTED, active_value=False, label="🎤",  color="green"),
     ButtonDefinition("transcription", "left", 2, kind="flag", flag=SHARED_TRANSCRIBER_BUSY, active_value=True,  label="STT", color="yellow"),
     ButtonDefinition("chatbot",       "left", 3, kind="flag", flag=SHARED_CHATBOT_BUSY,      active_value=True,  label="🧠",  color="orange"),
-    # Slot 4 stays free for the next button.
 
     # Right column: levels.
     ButtonDefinition("microphone_volume", "right", 1, kind="value", value=SHARED_MIC_VOLUME,     render=render_microphone_volume),
     ButtonDefinition("speaker_volume",    "right", 2, kind="value", value=SHARED_SPEAKER_VOLUME, extra_value=SHARED_SPEAKER_MUTED,        render=render_speaker_volume),
     ButtonDefinition("battery",           "right", 3, kind="value", value=SHARED_BATTERY_LEVEL,  extra_value=SHARED_POWER_CABLE_CONNECTED, render=render_battery),
-    # Slot 4 stays free for the next button.
 ]

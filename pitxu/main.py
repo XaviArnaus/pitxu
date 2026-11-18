@@ -13,6 +13,7 @@ from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
 from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
@@ -913,6 +914,9 @@ class Main(PyXavi):
             # Finish interactions and related processes
             self._safe_step("interaction", self._interaction.close)
 
+            # The waits of Main listen to the doorbell until here. From now on they poll, and the socket file goes away.
+            self._safe_step("doorbell waiter", DoorbellWaiter.close)
+
         # ------ Final logs ------
 
         self._xlog.debug("⏱️  Closed: " + str(self._stopwatch.stop(sw_closing)))
@@ -1361,20 +1365,20 @@ class Main(PyXavi):
         self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
             "shared_memory": shared_memory_manager,
             "shared_memory_list_to_control": [
-                # Callback for when the transcription starts
-                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
-                # Callback for when the transcription ends
-                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
-                # Callback for when the chatbot starts thinking
-                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
-                # Callback for when the chatbot finishes thinking
-                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Transcriber and chatbot busy states are not listed here: the status buttons show them.
+                # ⚠️ The order matters: when several flags change within the same monitor iteration, the callbacks run in this order.
+                # Callback for when the wake up button is pressed (released, actually).
+                # It goes first because it is the cause of the idle OFF, so it has to be shown before.
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False),
                 # Callback for when the app goes idle
-                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
+                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True , lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
-                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
-                # Callback for when the wake up button is pressed (released, actually)
-                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
+                # Dependant: the monitor considers that a flag already at the activation value "just changed" the first
+                #   time it sees it, so without this the app would announce "out of idle" at boot, without ever being in idle.
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), True),
+                # The first time the user speaks, the startup screen ("Ready") leaves the status area.
+                # It does nothing if a status line already replaced it, or after the first time.
+                ("vad detected ON", SHARED_VAD_DETECTED, True, lambda: self._interaction.clear_status_startup_screen(), False)
             ]
         }))
 
@@ -1575,21 +1579,22 @@ class Main(PyXavi):
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
 
-            # If we've been inactive for more than 2 minutes, start the idle mode.
+            # Have we been inactive for more than the idle minutes? Also, if we never interacted, asume we are.
+            inactive_long_enough = self._last_interaction_datetime == None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000
+
+            # If so, start the idle mode (if the countdown ending didn't do it already, which is the usual way).
             if self._last_interaction_datetime == None or \
-                (
-                    Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000 \
-                    and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()
-                ):
+                (inactive_long_enough and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()):
 
                 if not self._interaction.is_idle_mode_on():
                     self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
                     self._interaction.set_idle_mode_on()
 
-            # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
-            # Also, if we never interacted, asume we're idle.
-            if self._interaction.is_idle_mode_on():
-                
+            # In idle mode the display is blank. After the idle minutes, show some basic status information in the screen, every minute.
+            # ⚠️ The idle mode starts when the countdown ends, so being idle is not enough: it also needs to be inactive long enough.
+            if self._interaction.is_idle_mode_on() and inactive_long_enough:
+
                 self._log_debug(f"User is in idle mode, showing status information.")
 
                 try:
@@ -1721,7 +1726,14 @@ class Main(PyXavi):
                     # We clear the background display and reset the percentage.
                     self._last_processed_interaction_percentage = -1
                     self._last_interaction_paused_seconds = 0
-                    # And then we clean the display completely, as we go to idle soon.
+                    # The display goes blank now: this is where the idle mode starts.
+                    # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
+                    #   app is idle from the moment that nothing is being shown.
+                    # ⚠️ It goes BEFORE the request to end the countdown: in idle mode the painter blanks the screen
+                    #   when the countdown paint is removed, instead of drawing the layout again.
+                    if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
+                        self._interaction.set_idle_mode_on()
+                    # And then we clean the display completely.
                     self._interaction.end_interaction_holding_percentage()
                     # If the Wake up button is wanted exclusivelly, we mute the microphone, 
                     #   as the user is not speaking and we don't want to react to anything else.

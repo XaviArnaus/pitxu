@@ -241,9 +241,10 @@ class MacrosBackground(MacrosBase):
         # Calculate how many columns to light up
         columns_to_light = math.ceil((percentage / 100) * 8)
         for x in range(0, columns_to_light):
-            self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7), apply_offset=False)
+            # The bar goes at the bottom of the area, whatever its height is.
+            self._draw_led_point_over_lcd_canvas(draw=draw, point=Point(x, 7), apply_offset=False, bottom_aligned=True)
 
-    def _draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True):
+    def _draw_led_point_over_lcd_canvas(self, draw: ImageDraw.ImageDraw, point: Point, color: str = None, apply_offset: bool = True, bottom_aligned: bool = False):
         '''
         Draws a point on the LCD canvas representing a round LED point,
         emulating a 8x8 Matrix LED.
@@ -253,6 +254,7 @@ class MacrosBackground(MacrosBase):
         Args:
             point: The point to draw.
             color: The color to use.
+            bottom_aligned: Ignore the point's row and draw it touching the bottom of the area. The column is kept.
         '''
         if color is None:
             color = self.canvas.COLOR_RED
@@ -290,6 +292,11 @@ class MacrosBackground(MacrosBase):
         x = point.x * ((width) // 8) + (offset_x)
         y = point.y * ((height) // 8) + (offset_y)
         radius = max((width) // 16, (height) // 16) - 2
+
+        if bottom_aligned:
+            # The area is not a square any more, the 8x8 matrix is just a part of it.
+            #   The same padding as the top, between the point and the bottom edge of the area.
+            y = temp_max_y - (padding * 2) - (radius * 2)
 
         draw.circle(
             (x + radius, y + radius),
