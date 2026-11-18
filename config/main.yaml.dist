@@ -88,6 +88,17 @@ fonts:
   path: "pitxu/fonts"
   # [String] Default font file
   default_filename: "Font_with_emojis.ttc"
+  # [String] font to be used for monospace text
+  mono_filename: "Font.ttc"
+  # [Integer] Index of the monospace font within the font file
+  mono_index: 1
+
+# Canvas configuration
+canvas:
+  # Markdown parser & renderer configuration
+  markdown:
+    # [Boolean] Whether to enable Markdown parsing and rendering
+    enabled: True
 
 # Timings
 timings:

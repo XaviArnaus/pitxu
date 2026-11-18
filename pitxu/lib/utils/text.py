@@ -20,7 +20,65 @@ class Text:
     @staticmethod
     def remove_markdown(text:str) -> str:
         '''
-        Removes basic markdown syntax from text.
+        Removes the markdown syntax from text.
+
+        It relies on the Markdown parser, so a lonely "*" or "_" that opens no emphasis (a multiplication, `snake_case`)
+        stays as it is. If the parser is not available or fails, it falls back to the basic regular expressions.
+        '''
+        if text is None or text == "":
+            return text
+
+        try:
+            # Imported here to not pay for the parser until the first answer.
+            from pitxu.lib.utils.markdown_parser import markdown_to_plain_text
+            plain_text = markdown_to_plain_text(text)
+            # A text made only of syntax (like "**") would end up empty. Better the basic cleaning than nothing.
+            if plain_text != "":
+                return plain_text
+        except Exception:
+            pass
+
+        return Text._remove_markdown_with_regex(text)
+
+    @staticmethod
+    def markdown_for_speech(text: str, tables: str = "rows") -> str:
+        '''
+        The text without the markdown syntax, ready to be spoken: no line breaks, and a pause (a full stop)
+        between blocks, list items and table rows.
+
+        Args:
+            text (str): The text with markdown.
+            tables (str): What to do with the tables: "rows" speaks every row as a sentence, "skip" leaves them out.
+
+        If the parser is not available or fails, it falls back to the basic regular expressions.
+        '''
+        if text is None or text == "":
+            return text
+
+        try:
+            from pitxu.lib.utils.markdown_parser import markdown_to_speech_text
+            speech_text = markdown_to_speech_text(text, tables=tables)
+            if speech_text != "":
+                return speech_text
+        except Exception:
+            pass
+
+        # The rows of a table: the separator row (| --- | :---: |) is noise for the voice, the others become their cells in a sentence.
+        lines = []
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if len(stripped) > 1 and stripped.startswith("|") and stripped.endswith("|"):
+                cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+                if all(re.fullmatch(r':?-+:?', cell) for cell in cells if cell):
+                    continue
+                line = ", ".join(cell for cell in cells if cell) + "."
+            lines.append(line)
+        return " ".join(Text._remove_markdown_with_regex(" ".join(lines)).split())
+
+    @staticmethod
+    def _remove_markdown_with_regex(text:str) -> str:
+        '''
+        Removes basic markdown syntax from text, with regular expressions.
         '''
         # Remove headings
         text = re.sub(r'#+ ', '', text)

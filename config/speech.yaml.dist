@@ -228,6 +228,10 @@ text-to-speech:
   # [Float] After an interruption the microphone stays closed this many seconds, so the click of the button,
   #   the hand and the last sound in the air are not heard as the user starting to speak. 0 disables it.
   interrupt_settle_seconds: 0.4
+  # [String] What to do with the tables of an answer when speaking it:
+  #   "rows": every row is spoken as a sentence ("Label: Header, value; Header, value.")
+  #   "skip": the tables are not spoken (they are still shown on the screen)
+  tables: "rows"
   # [String] ALSA control name for the speakers. Only used on Linux with ALSA.
   alsa_speaker_control_name: "Speaker"
   # alsa_speaker_control_name: "Master"

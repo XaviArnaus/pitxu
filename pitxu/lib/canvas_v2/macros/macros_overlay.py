@@ -1,23 +1,88 @@
+import logging
+import os
+
 from PIL import ImageDraw
 
-from pyxavi import Config, Dictionary
+from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.objects import Point
 
+from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
+from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
+from pitxu.lib.utils import markdown_parser
 
 class MacrosOverlay(MacrosBase):
     """
     Class to draw arbitrary things over the whole screen, not following the layout.
     At the beginning, it includes the Text and Code blocks, that are painted full screen over all the layout,
     with an own layout itself.
+
+    The Text blocks are rendered as Markdown (bold, italic, inline code, code blocks, headings and lists),
+    and the Code blocks in a monospaced font. If anything fails there, they fall back to the plain drawing.
+    Config (all optional):
+        - canvas.markdown.enabled: [Boolean] False to always use the plain drawing. Default True.
+        - fonts.mono_filename: [String] Font file for the code, inside fonts.path. Default Font.ttc
+        - fonts.mono_index: [Integer] Face inside the font file, for font collections. Default 1 (the mono face of Font.ttc)
     """
+
+    # The padding of the content from the borders of the screen, like in the plain drawing.
+    MARKDOWN_BOX_PADDING: int = 15
+
+    _markdown_renderer: MarkdownRenderer = None
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosOverlay, self).__init__(config, params)
 
+        # The Markdown parser logs a lot at DEBUG: INFO unless the config says otherwise.
+        markdown_parser.set_log_level(self._xconfig.get("libs_logger.markdown_it.loglevel", logging.INFO))
+
         self._xlog.debug("Initialized MacrosOverlay.")
-    
+
+    def _get_markdown_renderer(self) -> MarkdownRenderer:
+        """ Created on the first use: it needs the fonts of the canvas, and nobody pays for it until the first block. """
+        if self._markdown_renderer is None:
+            mono_file = os.path.join(
+                self._xconfig.get("fonts.path", Canvas.DEFAULT_FONT_PATH),
+                self._xconfig.get("fonts.mono_filename", "Font.ttc"))
+            self._markdown_renderer = MarkdownRenderer(
+                fonts=[
+                    self.canvas.FONT_TINY,
+                    self.canvas.FONT_SMALL,
+                    self.canvas.FONT_MEDIUM,
+                    self.canvas.FONT_BIG,
+                    self.canvas.FONT_HUGE
+                ],
+                mono_font_file=mono_file,
+                mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
+                color_mode=self.canvas.COLOR_MODE)
+        return self._markdown_renderer
+
+    def _draw_with_markdown_renderer(self, draw: ImageDraw.ImageDraw, text: str, text_color, is_code: bool) -> bool:
+        """
+        Tries to draw the text with the Markdown renderer. Returns False when it did not, so the caller draws the plain one.
+        The frame is cleaned again if the renderer failed, so the plain drawing does not go over a half drawn one.
+        """
+        if not self._xconfig.get("canvas.markdown.enabled", True):
+            return False
+
+        box = (
+            self.MARKDOWN_BOX_PADDING,
+            self.MARKDOWN_BOX_PADDING,
+            self._display_size.x - self.MARKDOWN_BOX_PADDING - 2,
+            self._display_size.y - self.MARKDOWN_BOX_PADDING - 2)
+
+        try:
+            renderer = self._get_markdown_renderer()
+            if is_code:
+                return renderer.draw_code(draw, text, box, text_color)
+            return renderer.draw(draw, text, box, text_color)
+        except Exception as e:
+            self._xlog.warning(f"Could not render the {'code' if is_code else 'text'} block with the Markdown renderer, drawing it plain: {e}")
+            self._xlog.debug(full_stack())
+            self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.OVERALL})
+            return False
+
     def draw_code_block(self, draw: ImageDraw.ImageDraw, params: dict):
         """
         Draws a full screen code block, with the biggest font that fits in width, and centered in the remaining space if it does not fill all the height.
@@ -29,6 +94,11 @@ class MacrosOverlay(MacrosBase):
         # Initial Background Paint clear
         self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.OVERALL})
 
+        # In a monospaced font, preferring a smaller font over wrapping the lines.
+        if self._draw_with_markdown_renderer(draw, text, text_color, is_code=True):
+            return
+
+        # Plain drawing, the fallback.
         padding_rectangle = 10
         padding_code_text = 5
         text_anchor_point = Point(padding_rectangle + padding_code_text, padding_rectangle + padding_code_text)
@@ -102,6 +172,11 @@ class MacrosOverlay(MacrosBase):
         # Initial Background Paint clear
         self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.OVERALL})
 
+        # Rendered as Markdown: bold, italic, inline code, code blocks, headings and lists.
+        if self._draw_with_markdown_renderer(draw, text, text_color, is_code=False):
+            return
+
+        # Plain drawing, the fallback.
         padding_rectangle = 10
         padding_text = 5
         text_anchor_point = Point(padding_rectangle + padding_text, padding_rectangle + padding_text)
