@@ -879,7 +879,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_status.draw_status_line,
                         drawing_callback_parameters=param,
-                        cache_control_parameters=["text"],
+                        cache_control_parameters=["entries"],
 
                         overwrite_current_interaction_with_same_type=False,
 

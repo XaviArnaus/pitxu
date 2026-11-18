@@ -638,13 +638,14 @@ class Interaction(PyXavi):
         # No logging here: the Background shortcut already logs it.
         self.background.end_interaction_holding_percentage()
     
-    def add_new_status_line(self, text: str, color: str = None):
+    def add_new_status_line(self, text: str, color: str | tuple | int = None):
         """
-        Adds a new status line on the background display.
+        Adds a new status line on the status display.
 
         Args:
-            text (str): The text to show in the status line.
-            color (str): The color of the text in the status line.
+            text (str): The text to show in the status line. It should start with an icon.
+            color (str | tuple | int): The color of this line: a Canvas color name (like "red"),
+                a Canvas color value (like canvas.COLOR_RED), or None for the default one.
         """
         self.status.add_new_status_line(text, color)
 
@@ -817,11 +818,9 @@ class Interaction(PyXavi):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
     
     def set_vad_detected(self):
-        self.add_new_status_line("🎤 VAD detected")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, True)
     
     def unset_vad_detected(self):
-        self.add_new_status_line("🎤 VAD cleared")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, False)
     
     def is_vad_detected(self) -> bool:

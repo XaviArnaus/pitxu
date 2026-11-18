@@ -1361,14 +1361,7 @@ class Main(PyXavi):
         self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
             "shared_memory": shared_memory_manager,
             "shared_memory_list_to_control": [
-                # Callback for when the transcription starts
-                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
-                # Callback for when the transcription ends
-                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
-                # Callback for when the chatbot starts thinking
-                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
-                # Callback for when the chatbot finishes thinking
-                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Transcriber and chatbot busy states are not listed here: the status buttons show them.
                 # Callback for when the app goes idle
                 ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
