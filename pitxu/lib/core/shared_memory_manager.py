@@ -15,7 +15,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED, \
     SHARED_SPEECH_INTERRUPT_REQUESTED
 from pitxu.lib.abstract.pyxavi import PyXavi
-from pitxu.lib.core.doorbell import DoorbellRinger
+from pitxu.lib.core.doorbell import Doorbell, DoorbellRinger
 from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 
 class SharedMemoryManager(PyXavi):
@@ -106,6 +106,9 @@ class SharedMemoryManager(PyXavi):
 
     def __init__(self, config: Config = None, params: Dictionary = None, **kwargs):
         self.init_pyxavi(config=config, params=params, **kwargs)
+
+        # Every process (Main, the children) reads the doorbell switches from its own config.
+        Doorbell.configure(self._xconfig)
 
         self._xlog.debug("Initializing SharedMemoryManager")
 

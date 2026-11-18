@@ -35,19 +35,42 @@ class Doorbell:
     # ⚠️ Not tempfile.gettempdir(): the macOS one is so long that the socket path exceeds the AF_UNIX limit (104).
     DIRECTORY: str = "/tmp"
 
+    # The switches, read from the app config (section `doorbell`) once per process. See configure().
+    _settings: dict | None = None
+    _DEFAULT_SETTINGS: dict = {"enabled": True, "monitors": True, "waiter": True}
+
+    @staticmethod
+    def configure(config) -> None:
+        """
+        Reads the switches from the app config:
+            doorbell.enabled:  everything (nobody rings, the monitors and the waits poll, like before the doorbell).
+            doorbell.monitors: the listening of the flag monitors.
+            doorbell.waiter:   the listening of the waits of Main.
+        What is not in the config is on. It is meant for telling if a problem comes from the doorbell.
+
+        Every process reads its own config (they do not share memory), so it is called when a process starts its
+        shared memory. If nobody did, is_enabled() loads the config by itself.
+        """
+        Doorbell._settings = {
+            key: bool(config.get(f"doorbell.{key}", default))
+            for key, default in Doorbell._DEFAULT_SETTINGS.items()
+        }
+
     @staticmethod
     def is_enabled(component: str = None) -> bool:
         """
-        The doorbell can be switched off with the environment variable PITXU_DOORBELL=0 (the children inherit it).
-        Then nobody rings and the monitors poll the shared memory, like they did before the doorbell.
-        It is meant for telling if a problem comes from it.
-
-        A single listening component can be switched off with PITXU_DOORBELL_<COMPONENT>=0: "MONITORS" (the flag monitors)
-        or "WAITER" (the waits of Main). To find out which one a problem comes from.
+        Is the doorbell on? With a component ("monitors", "waiter"), is that part of it on? See configure().
         """
-        if os.environ.get("PITXU_DOORBELL", "1") == "0":
+        if Doorbell._settings is None:
+            try:
+                from pitxu.lib.utils.config_loader import ConfigLoader
+                Doorbell.configure(ConfigLoader.load_config_files())
+            except Exception:
+                Doorbell._settings = dict(Doorbell._DEFAULT_SETTINGS)
+        settings = Doorbell._settings
+        if not settings["enabled"]:
             return False
-        if component is not None and os.environ.get(f"PITXU_DOORBELL_{component.upper()}", "1") == "0":
+        if component is not None and not settings.get(component.lower(), True):
             return False
         return True
 

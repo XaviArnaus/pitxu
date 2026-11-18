@@ -29,7 +29,7 @@ class DoorbellWaiter:
             if not cls._off_reported:
                 cls._off_reported = True
                 logging.getLogger("pitxu.DoorbellWaiter").info(
-                    "🔔 Doorbell OFF for the waits of Main: they poll (PITXU_DOORBELL / PITXU_DOORBELL_WAITER, or it could not be bound).")
+                    "🔔 Doorbell OFF for the waits of Main: they poll (config doorbell.enabled / doorbell.waiter, or it could not be bound).")
             return None
         # ⚠️ Binding unlinks whatever is at the path: only Main may do it.
         if multiprocessing.parent_process() is not None:

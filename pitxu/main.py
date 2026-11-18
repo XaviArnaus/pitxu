@@ -1527,6 +1527,11 @@ class Main(PyXavi):
             self._buttons = Buttons(config=self._xconfig, params=self._xparams)
             self._buttons.initialize_buttons()
 
+            # A press that gpiozero did not report and the poll fallback had to cover: show it, to notice how often it happens.
+            self._buttons.set_fallback_notifier(
+                lambda count, button_name, event: self._interaction.add_new_status_line(
+                    f"🕹️ Button event missed (#{count}), poll covered it", color="red"))
+
             # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
             wake_up_button_name = self.WAKE_UP_BUTTON_NAME
             if wake_up_button_name in self._buttons.get_buttons().keys():

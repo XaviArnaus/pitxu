@@ -29,6 +29,17 @@ app:
   #   It works whatever the wake_up_method is: the button is initialised for this alone if needed.
   button_interrupts_speech: true
 
+# The doorbell: the processes ring each other when something changes in the shared memory,
+#   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
+# Switches to tell if a problem comes from it. What is not here is on. Restart to apply.
+doorbell:
+  # [Bool] Everything. Off: nobody rings, and the monitors and the waits poll like they did before the doorbell.
+  enabled: true
+  # [Bool] The flag monitors (Main and the painter) listen to the doorbell.
+  monitors: true
+  # [Bool] The waits of Main (flags to be idle/busy, queues to be empty) listen to the doorbell.
+  waiter: true
+
 # Filesystem definition
 storage:
   # Where, from the root of the project
