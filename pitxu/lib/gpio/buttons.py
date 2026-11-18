@@ -84,7 +84,7 @@ class Buttons(PyXavi):
             # TODO: The conclusions of the test are in `self.is_pressed` method.
             # self.buttons[button_name].hold_time = 1
             # self.buttons[button_name].hold_repeat = False
-            self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_pressed = self._logged_callback(button_name, "PRESSED", callback, kargs)
             # self.buttons[button_name].when_pressed = None
             # self.buttons[button_name].when_held = lambda: callback(self.buttons[button_name], **kargs)
     
@@ -115,7 +115,22 @@ class Buttons(PyXavi):
                 raise KeyError(f"Button [{button_name}] not defined")
 
             # We have a real button
-            self.buttons[button_name].when_released = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_released = self._logged_callback(button_name, "RELEASED", callback, kargs)
+
+    def _logged_callback(self, button_name: str, event: str, callback: callable, kargs: dict) -> callable:
+        """
+        Wraps the callback of a real button so that the app log shows that the event arrived, and what went wrong if
+        the callback failed. gpiozero runs the callbacks in its own thread, where an exception is not logged
+        by us, just printed to stderr: without this, a failing callback looks like a button that does nothing.
+        """
+        def on_event():
+            self._xlog.debug(f"🕹️ Button [{button_name}] {event} (gpiozero event), calling its callback.")
+            try:
+                callback(self.buttons[button_name], **kargs)
+            except Exception as e:
+                self._xlog.error(f"🛑 The callback of the button [{button_name}] {event} failed: {type(e).__name__}: {e}")
+                self._xlog.debug(full_stack())
+        return on_event
 
     def is_pressed(self, button_name: str) -> bool:
         
