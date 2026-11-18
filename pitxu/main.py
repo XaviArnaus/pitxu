@@ -475,7 +475,12 @@ class Main(PyXavi):
             # ----------------------------------------------------
 
             # We have an answer, whatever it is. Interact back to the user.
-            please_continue_interaction = self.deliver_outcome(question=question, answer=answer)
+            # The exit decision was already taken above: it is passed on instead of analysing the text again.
+            # An ignored transcript (empty question now) never exits.
+            please_continue_interaction = self.deliver_outcome(
+                question=question,
+                answer=answer,
+                exit_requested=text_has_exit_intention and question != "")
 
             if not please_continue_interaction:
                 self._xlog.info("The interaction requested to end the conversation, so finishing the app.")
@@ -646,7 +651,7 @@ class Main(PyXavi):
 
     # ------------- Abstraction for the Outcome interaction -------------
 
-    def deliver_outcome(self, question:str, answer: str) -> bool:
+    def deliver_outcome(self, question:str, answer: str, exit_requested: bool = None) -> bool:
         """
         This method abstracts the Pipeline for the interaction for an outcome.
         It was directly in the main_execution_on_vad_detected_finished() method, contained as an Output step
@@ -654,7 +659,9 @@ class Main(PyXavi):
         Args:
             question (str): The question that was recognized from the user, that may be used for the interaction.
             answer (str): The answer that was generated for the user, that may be used for the interaction.
-        
+            exit_requested (bool): If the user asked to exit. The caller already analysed the text, so it tells.
+                None analyses the question here.
+
         Returns:
             bool: True if the interaction intends to end the interaction normaly, False otherwise (for example, a close_nicely() request).
 
@@ -688,7 +695,7 @@ class Main(PyXavi):
             if self._interaction.is_chatbot_error():
                 self._interaction.unset_chatbot_error()
             
-            if self._text_has_exit_intention(question):
+            if exit_requested if exit_requested is not None else self._text_has_exit_intention(question):
                 self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
                 # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
@@ -1519,6 +1526,11 @@ class Main(PyXavi):
             # Hold the name of them, it's how you refer to them.
             self._buttons = Buttons(config=self._xconfig, params=self._xparams)
             self._buttons.initialize_buttons()
+
+            # A press that gpiozero did not report and the poll fallback had to cover: show it, to notice how often it happens.
+            self._buttons.set_fallback_notifier(
+                lambda count, button_name, event: self._interaction.add_new_status_line(
+                    f"🕹️ Button event missed (#{count}), poll covered it", color="red"))
 
             # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
             wake_up_button_name = self.WAKE_UP_BUTTON_NAME

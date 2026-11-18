@@ -1,4 +1,5 @@
 import os
+import select
 import socket
 import threading
 
@@ -34,14 +35,44 @@ class Doorbell:
     # ⚠️ Not tempfile.gettempdir(): the macOS one is so long that the socket path exceeds the AF_UNIX limit (104).
     DIRECTORY: str = "/tmp"
 
+    # The switches, read from the app config (section `doorbell`) once per process. See configure().
+    _settings: dict | None = None
+    _DEFAULT_SETTINGS: dict = {"enabled": True, "monitors": True, "waiter": True}
+
     @staticmethod
-    def is_enabled() -> bool:
+    def configure(config) -> None:
         """
-        The doorbell can be switched off with the environment variable PITXU_DOORBELL=0 (the children inherit it).
-        Then nobody rings and the monitors poll the shared memory, like they did before the doorbell.
-        It is meant for telling if a problem comes from it.
+        Reads the switches from the app config:
+            doorbell.enabled:  everything (nobody rings, the monitors and the waits poll, like before the doorbell).
+            doorbell.monitors: the listening of the flag monitors.
+            doorbell.waiter:   the listening of the waits of Main.
+        What is not in the config is on. It is meant for telling if a problem comes from the doorbell.
+
+        Every process reads its own config (they do not share memory), so it is called when a process starts its
+        shared memory. If nobody did, is_enabled() loads the config by itself.
         """
-        return os.environ.get("PITXU_DOORBELL", "1") != "0"
+        Doorbell._settings = {
+            key: bool(config.get(f"doorbell.{key}", default))
+            for key, default in Doorbell._DEFAULT_SETTINGS.items()
+        }
+
+    @staticmethod
+    def is_enabled(component: str = None) -> bool:
+        """
+        Is the doorbell on? With a component ("monitors", "waiter"), is that part of it on? See configure().
+        """
+        if Doorbell._settings is None:
+            try:
+                from pitxu.lib.utils.config_loader import ConfigLoader
+                Doorbell.configure(ConfigLoader.load_config_files())
+            except Exception:
+                Doorbell._settings = dict(Doorbell._DEFAULT_SETTINGS)
+        settings = Doorbell._settings
+        if not settings["enabled"]:
+            return False
+        if component is not None and not settings.get(component.lower(), True):
+            return False
+        return True
 
     @staticmethod
     def path_for(bell_name: str) -> str:
@@ -125,6 +156,12 @@ class DoorbellListener:
         except OSError:
             self._inode = None
 
+        # Non blocking for ever, and the sleeping is done with poll(): the mode of the socket is never changed after
+        #   this point. Several threads may use the same listener (the waits of Main do), and a socket that switches
+        #   between blocking with a timeout and non blocking, depending on which thread was the last to touch it,
+        #   turns the waits of the others into loops that do not sleep.
+        self._socket.setblocking(False)
+
     def wait(self, timeout: float) -> bool:
         """
         Sleeps until a ring or the timeout. All the rings that are waiting count as one.
@@ -132,36 +169,45 @@ class DoorbellListener:
         Returns:
             bool: True if it was rung, False if the timeout was reached.
         """
-        rung = False
+        sock = self._socket
+        if sock is None:
+            return False
         try:
-            self._socket.settimeout(timeout)
-            self._socket.recv(64)
-            rung = True
+            poller = select.poll()
+            poller.register(sock.fileno(), select.POLLIN)
+            if not poller.poll(max(0, int(timeout * 1000))):
+                return False
             # Many rings count as one: the check that follows covers all of them.
-            self._socket.setblocking(False)
-            while True:
-                self._socket.recv(64)
-        except (socket.timeout, TimeoutError):
-            pass
-        except BlockingIOError:
-            pass
-        except OSError:
+            return self._drain(sock)
+        except (OSError, ValueError):
             # Closed while waiting.
             if not self._closed:
                 raise
-        return rung
+            return False
 
     def drain(self):
         """
         Discards the rings that are waiting, without sleeping. To be done BEFORE checking the state that is waited for:
         a ring that arrives after the check is kept, so the next wait returns straight away.
         """
+        sock = self._socket
+        if sock is None:
+            return
         try:
-            self._socket.setblocking(False)
-            while True:
-                self._socket.recv(64)
-        except (BlockingIOError, OSError):
+            self._drain(sock)
+        except OSError:
             pass
+
+    @staticmethod
+    def _drain(sock) -> bool:
+        """ Reads all the rings that are waiting. True if there was at least one. """
+        got = False
+        while True:
+            try:
+                sock.recv(64)
+                got = True
+            except BlockingIOError:
+                return got
 
     def wake(self):
         """

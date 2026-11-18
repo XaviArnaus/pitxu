@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 import threading
 import time
@@ -20,10 +21,15 @@ class DoorbellWaiter:
     _listener: DoorbellListener | None = None
     _listener_lock = threading.Lock()
     _listener_unavailable: bool = False
+    _off_reported: bool = False
 
     @classmethod
     def _get_listener(cls) -> DoorbellListener | None:
-        if cls._listener_unavailable or not Doorbell.is_enabled():
+        if cls._listener_unavailable or not Doorbell.is_enabled("waiter"):
+            if not cls._off_reported:
+                cls._off_reported = True
+                logging.getLogger("pitxu.DoorbellWaiter").info(
+                    "🔔 Doorbell OFF for the waits of Main: they poll (config doorbell.enabled / doorbell.waiter, or it could not be bound).")
             return None
         # ⚠️ Binding unlinks whatever is at the path: only Main may do it.
         if multiprocessing.parent_process() is not None:
@@ -33,8 +39,11 @@ class DoorbellWaiter:
                 if cls._listener is None and not cls._listener_unavailable:
                     try:
                         cls._listener = DoorbellListener(Doorbell.BELL_WAITER)
-                    except OSError:
+                        logging.getLogger("pitxu.DoorbellWaiter").info(
+                            f"🔔 Doorbell ON for the waits of Main: listening at {Doorbell.path_for(Doorbell.BELL_WAITER)}")
+                    except OSError as e:
                         cls._listener_unavailable = True
+                        logging.getLogger("pitxu.DoorbellWaiter").warning(f"🔔 Could not bind the doorbell of the waits of Main, they poll: {e}")
         return cls._listener
 
     @classmethod

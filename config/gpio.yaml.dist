@@ -7,6 +7,18 @@ gpio:
   buttons:
     # [Bool] Ignores GPIO hardware and uses Pyinput module to simulate button presses from the keyboard.
     mock: True
+    # Real buttons only. gpiozero tells about a press with an event, but on some starts the events never arrive
+    #   (the pin reads fine). The poll reads the pin itself and covers a press whose event did not arrive.
+    poll_fallback:
+      # [Bool] Cover the missing events. Costs a thread that wakes up every interval_seconds.
+      enabled: True
+      # [Float] Seconds between two reads of the pin. A press is noticed within this time (plus 0.15 s waiting for the event).
+      interval_seconds: 0.05
+      # [Bool] Each time the poll has to cover an event, show a red line in the status area (with how many in this run).
+      show_status_line: True
+    # [Bool] Diagnosis: logs every change of the pin state, read directly, independent of the gpiozero events.
+    #   Starts the poll thread even if the fallback is off.
+    debug_state_log: False
     # Defined buttons
     # Use WAKE_UP as the name of the button to be used as wake up button.
     devices:

@@ -636,6 +636,11 @@ class MainClientPTT(PyXavi):
         self._buttons = Buttons(config=self._xconfig, params=self._xparams)
         self._buttons.initialize_buttons()
 
+        # An event that gpiozero did not report and the poll fallback had to cover: show it.
+        self._buttons.set_fallback_notifier(
+            lambda count, button_name, event: self._interaction.add_new_status_line(
+                f"🕹️ Button event missed (#{count}), poll covered it", color="red"))
+
         if self._buttons.buttons is not None and len(self._buttons.buttons) > 0:
             button_names = list(self._buttons.buttons.keys())
             self._xlog.info(f"Initialized buttons: {button_names}")
