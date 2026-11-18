@@ -901,10 +901,10 @@ finally:
         from gpiozero import Button
         from signal import pause
         from gpiozero import Device
-        print(type(Device.pin_factory).__name__, b.is_pressed)
 
         PIN = 26  # put the pin from gpio.buttons.devices in your gpio.yaml
         b = Button(PIN, pull_up=True)
         b.when_pressed = lambda: print("pressed")
         b.when_released = lambda: print("released")
+        print(type(Device.pin_factory).__name__, b.is_pressed)
         pause()
