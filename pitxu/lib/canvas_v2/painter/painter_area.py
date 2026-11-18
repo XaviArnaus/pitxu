@@ -4,7 +4,7 @@ import threading
 
 from PIL import Image
 
-from pitxu.lib.canvas_v2.painter.paint_object import BasePaint
+from pitxu.lib.canvas_v2.painter.paint_object import BasePaint, FramedPaint
 
 
 class PainterArea:
@@ -53,6 +53,18 @@ class PainterArea:
         # The timers that remove a paint of this area after its maintain time, by the cache key of the paint.
         self.timers: dict[str, threading.Timer] = {}
 
+        # Where the frames of the current paint are. Only the paints with frames use them (see FramedPaint).
+        # The frame being shown, None until the first one is taken.
+        self.frame: int | None = None
+        # The paint that the frame belongs to. When the current paint is another one, the frames start again.
+        self.frame_owner: BasePaint | None = None
+        # The last frame was reached: the next one starts again at 0. Kept apart from the frame, so a frame that is not due yet still has a number to show.
+        self.restart_frames: bool = False
+        # When the next frame is due (time.monotonic()).
+        self.next_frame_at: float = 0.0
+        # This loop iteration moved to a new frame, and the next one is not scheduled yet.
+        self.advanced_frame: bool = False
+
     # ---- The paints that wait ----
 
     def current(self) -> BasePaint | None:
@@ -79,6 +91,7 @@ class PainterArea:
             return False
         self.paints.pop(0)
         self.reset_cache()
+        self.reset_frames()
         if paint.final_screen_clearing:
             self.request_screen_clearing(requester)
         if paint.final_area_clearing:
@@ -89,6 +102,7 @@ class PainterArea:
         """ Empties the queue and resets the drawing cache. The timers are cancelled separately, see cancel_timers(). """
         self.paints = []
         self.reset_cache()
+        self.reset_frames()
 
     def drop_duplicates_of_type(self, paint: BasePaint) -> list[BasePaint]:
         """
@@ -136,6 +150,67 @@ class PainterArea:
         if paint is None or self.cached_key is None:
             return paint is None and self.cached_key is None
         return paint.get_cache_key() == self.cached_key
+
+    # ---- The frames ----
+
+    def reset_frames(self):
+        """ Forgets the frames: the next paint starts at its first one. """
+        self.frame = None
+        self.frame_owner = None
+        self.restart_frames = False
+        self.next_frame_at = 0.0
+        self.advanced_frame = False
+
+    def is_multi_frame(self) -> bool:
+        """ Is the current paint a sequence of several frames, that loops until it is removed? """
+        paint = self.current()
+        return isinstance(paint, FramedPaint) and paint.is_multi_frame()
+
+    def frame_for(self, paint: FramedPaint, now: float) -> int:
+        """
+        The frame to draw for the given paint, in this loop iteration.
+        A paint that is new here starts at frame 0. A paint with several frames moves to the next one only when it is due,
+        otherwise it keeps the last one (the drawing cache gives it back without drawing again).
+
+        Args:
+            now: The current time, time.monotonic().
+        """
+        if self.frame_owner is not paint:
+            self.reset_frames()
+            self.frame_owner = paint
+        self.advanced_frame = False
+        if self.frame is None:
+            self.frame = 0
+            self.advanced_frame = True
+        elif paint.is_multi_frame() and now >= self.next_frame_at:
+            self.frame = 0 if self.restart_frames else self.frame + 1
+            self.restart_frames = False
+            self.advanced_frame = True
+        return self.frame
+
+    def finish_frame(self, paint: FramedPaint) -> bool:
+        """
+        To call after drawing the frame. If it was the last one, the next one will start again at 0.
+
+        Returns:
+            bool: True only when the last frame was just reached in this loop iteration, so the caller can log it.
+        """
+        if paint.is_multi_frame() and self.frame is not None and self.frame >= paint.loop_iterations - 1:
+            self.restart_frames = True
+            return self.advanced_frame
+        return False
+
+    def schedule_next_frame(self, now: float):
+        """
+        To call once the drawing is flushed: if this area moved to a new frame, the next one is due after the delay of its paint.
+
+        Args:
+            now: The current time, time.monotonic().
+        """
+        paint = self.frame_owner
+        if self.advanced_frame and paint is not None and paint.is_multi_frame():
+            self.next_frame_at = now + (paint.delay_between_frames or 0.0)
+        self.advanced_frame = False
 
     # ---- The timers ----
 

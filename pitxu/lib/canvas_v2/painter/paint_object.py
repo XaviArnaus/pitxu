@@ -195,19 +195,30 @@ class ButtonsPaint(BasePaint):
         kwargs.setdefault("trigger_draw_when_blank", False)
         super(ButtonsPaint, self).__init__(name=name, command=command, **kwargs)
 
-class BackgroundPaint(BasePaint):
+class FramedPaint:
+    """
+    A mixin for the paints that are drawn as a sequence of frames (animations, effects that loop).
+    The Painter keeps track of the frame per area (see PainterArea), gives it to the drawing callback
+    as `current_loop_iteration` (and `loop_iterations` as `max_loop_iterations`), and waits for the
+    delay_between_frames of the paint before moving to the next frame.
+    """
 
-    current_loop_iteration: int = 0  # Current loop iteration for the background interaction, useful for animations
-    loop_iterations: int = 1  # Number of loop iterations to paint the background interaction
+    current_loop_iteration: int = 0  # The frame that is being drawn, set by the Painter on every draw
+    loop_iterations: int = 1  # Number of frames of the sequence. With more than one, it loops forever.
+
+    def __init__(self, loop_iterations: int = 1, current_loop_iteration: int = 0, **kwargs):
+        self.loop_iterations = loop_iterations
+        self.current_loop_iteration = current_loop_iteration
+        # Cooperative: the next in the chain is the base paint.
+        super(FramedPaint, self).__init__(**kwargs)
+
+    def is_multi_frame(self) -> bool:
+        return self.loop_iterations > 1
+
+class BackgroundPaint(FramedPaint, BasePaint):
 
     def __init__(self, name: str, command: BackgroundCommand, **kwargs):
 
-        if "loop_iterations" in kwargs:
-            self.loop_iterations = kwargs["loop_iterations"]
-            del kwargs["loop_iterations"]
-        if "current_loop_iteration" in kwargs:
-            self.current_loop_iteration = kwargs["current_loop_iteration"]
-            del kwargs["current_loop_iteration"]
         super(BackgroundPaint, self).__init__(name=name, command=command, **kwargs)
 
 class AnimationPaint(BackgroundPaint):

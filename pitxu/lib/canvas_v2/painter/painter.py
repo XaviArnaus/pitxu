@@ -5,7 +5,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.painter.painter_shared_memory import PainterSharedMemory
-from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, BackgroundPaint, AnimationPaint
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, FramedPaint, AnimationPaint
 from pitxu.lib.canvas_v2.painter.painting_command import PaintingCommand
 from pitxu.lib.canvas_v2.painter.painter_queue import PainterQueue
 from pitxu.lib.canvas_v2.painter.painter_area import PainterArea
@@ -226,9 +226,6 @@ class Painter(PyXavi):
 
         try:
 
-            # Each time we enter this loop, we reset the iteration counter.
-            background_iteration_counter = None
-
             # Should do an extra screen clearing at the end of the current interaction?
             # It is set via the end-callbacks when registering painting while busy flags.
             final_clearing_needed = False
@@ -261,9 +258,7 @@ class Painter(PyXavi):
                     self._screen_is_blank = True
 
                 # This is just some logging at the beginning of the loop iteration.
-                self._logging_start_painter_loop_iteration({
-                    "background_iteration_counter": background_iteration_counter,
-                })
+                self._logging_start_painter_loop_iteration()
 
                 # Only work if we have anything to paint.
                 if self._should_draw_this_loop_iteration():
@@ -301,24 +296,19 @@ class Painter(PyXavi):
                             self._log_debug(f"🎨 Painting interaction [{current_interaction.name}] from queue [{queue_name}].")
 
                             # Pre-painting loop actions.
-                            if queue_name == PainterQueue.BACKGROUND:
-                                # Maybe we need to restart the background iteration counter. 
-                                # It's set to None down the line, to be initialized precisely at the begining of the iteration.
-                                if background_iteration_counter is None:
-                                    background_iteration_counter = 0
-                                else:
-                                    background_iteration_counter += 1
-                                current_interaction.current_loop_iteration = background_iteration_counter
-                                
-                                # The iteration counter needs to be added into the parameters of the drawing callback, so we update them here.
-                                # The max iteration counter is set by the caller when it creates the painting object, so we assume it is already there.
+                            if isinstance(current_interaction, FramedPaint):
+                                # The area knows which frame of the paint is the one to draw now: the next one if it is due, or
+                                #   the same as before if it is not (then the cache gives the drawing back).
+                                frame = self.areas[queue_name].frame_for(current_interaction, time.monotonic())
+                                current_interaction.current_loop_iteration = frame
+
+                                # The frame needs to be added into the parameters of the drawing callback, so we update them here.
+                                # The max iteration counter is set by the caller when it creates the painting object.
                                 # The internal callback will take it and calculate which frame to show based on it.
-                                # ⚠️ Just introduced current_interaction.current_loop_iteration, maybe this IF is not needed anymore, 
-                                #   we can just update it directly, and set it to 0 when we initialize the background iteration counter.
-                                #   Note: Maybe not, as the cache key is build using the param on the callback, not the attributes on the Paint object.
+                                # Note: The cache key is build using the param on the callback, not the attributes on the Paint object.
                                 if current_interaction.drawing_callback_parameters is None:
                                     current_interaction.drawing_callback_parameters = {}
-                                current_interaction.drawing_callback_parameters["current_loop_iteration"] = background_iteration_counter
+                                current_interaction.drawing_callback_parameters["current_loop_iteration"] = frame
                                 current_interaction.drawing_callback_parameters["max_loop_iterations"] = current_interaction.loop_iterations
 
                             # Parameters that must be read live on every iteration (e.g. a level from the shared memory).
@@ -348,18 +338,13 @@ class Painter(PyXavi):
                             # --- END painting the interaction ---
 
                             # Post-painting loop actions.
-                            if queue_name == PainterQueue.BACKGROUND:
+                            if isinstance(current_interaction, FramedPaint):
 
-                                # This is only for typing.
-                                current_interaction: BackgroundPaint = current_interaction
+                                # If we have reached the last frame, the area makes the next one start again at 0.
+                                # This means that this loop will go forever until we stop the thread or change/remove the interaction.
+                                if self.areas[queue_name].finish_frame(current_interaction):
+                                    self._log_debug(f"🎨 Reached the last frame of interaction [{current_interaction.name}] in queue [{queue_name}], the next one starts again.")
 
-                                # If we have reached the max iterations for background, we set the iterations counter to None.
-                                #   Then, the next loop iteration will re-initialize it to 0 again.
-                                # This means that this loop will go forever until we stop the thread or change/remove the background interaction.
-                                if background_iteration_counter >= current_interaction.loop_iterations - 1:
-                                    self._log_debug(f"🎨 Reached max iterations for background interaction [{current_interaction.name if current_interaction is not None else 'None'}], Cleaning the counter.")
-                                    background_iteration_counter = None
-                            
                     self._log_debug(f"🎨 3️⃣ Flushing, and delays")
 
                     # Could be that any removal callback requests a final clearing. 
@@ -406,8 +391,8 @@ class Painter(PyXavi):
                     # Something was drawn, so the screen is not blank any more.
                     self._screen_is_blank = False
 
-                    # Apply delay between frames if needed, based on the current interaction. There is a priority.
-                    self.apply_delay_between_frames()
+                    # Wait for the next frame that is due, or apply the delay based on the current interactions.
+                    self._wait_for_next_frame()
 
                     self._log_debug(f"🎨 4️⃣ Removal interactions and deciding to pause the loop")
 
@@ -472,7 +457,7 @@ class Painter(PyXavi):
 
     # ---- Helpers for the painter loop ----
 
-    def _logging_start_painter_loop_iteration(self, extra_info: dict[str, any]):
+    def _logging_start_painter_loop_iteration(self):
         # Log the current interactions in each queue at the beginning of the loop iteration.
         logging_parts: list = []
         for queue_name in self.areas.keys():
@@ -485,9 +470,8 @@ class Painter(PyXavi):
                 logging_parts.append(("", f"- while_shared_memory_flag_value: {current_interaction.while_shared_memory_flag_value}"))
                 logging_parts.append(("", f"- cache_key: {current_interaction.get_cache_key()}"))
                 # Now some parameters depending on which queue we're talking about.
-                if queue_name == PainterQueue.BACKGROUND:
-                    current_interaction: BackgroundPaint
-                    logging_parts.append(("", f"- Current Loop iteration counter: {extra_info.get('background_iteration_counter', 'N/A')}"))
+                if isinstance(current_interaction, FramedPaint):
+                    logging_parts.append(("", f"- Current Loop iteration counter: {self.areas[queue_name].frame}"))
                     logging_parts.append(("", f"- Max Loop iterations: {current_interaction.loop_iterations}"))
             else:
                 logging_parts.append((f"Current interaction for {queue_name}", "[None]"))
@@ -532,6 +516,28 @@ class Painter(PyXavi):
 
             return self.areas[queue_name].image
     
+    def _wait_for_next_frame(self):
+        """
+        Called after flushing. If any area has a paint with several frames, each one is scheduled after the delay
+        of its paint, and we sleep until the earliest next frame is due (the areas that are not due keep their drawing).
+        If not, the delay is the one of the current interactions, see apply_delay_between_frames().
+        """
+        now = time.monotonic()
+        next_frames_due: list[float] = []
+        for area in self.areas.values():
+            area.schedule_next_frame(now)
+            if area.is_multi_frame():
+                next_frames_due.append(area.next_frame_at)
+
+        if not next_frames_due:
+            self.apply_delay_between_frames()
+            return
+
+        wait = min(next_frames_due) - time.monotonic()
+        if wait > 0.0:
+            self._log_debug(f"Waiting [{wait:.3f}] sec for the next frame.")
+            time.sleep(wait)
+
     def apply_delay_between_frames(self):
         delays = {}
 
@@ -579,12 +585,12 @@ class Painter(PyXavi):
                 self.areas[queue_name].is_exception_loop(self.get_current_interaction(queue_name)):
                 self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(queue_name).name}] in [{queue_name}] is in the exception list. We draw this loop iteration.")
                 return True
-            # If we have a background paint or animation paint with several loop iterations, we assume that it is meant to be painted in every loop iteration until it finishes, so we skip the cache check and just paint it.
+            # If we have a paint with several frames (background, animation...), we assume that it is meant to be painted in every loop iteration until it finishes, so we skip the cache check and just paint it.
             # ⚠️ This appears to me overlapping the previous condition.
             #   - A paint will loop until the end of the paint. And will repeat.
             #   - It could also be part of the exception list, so it will be painted even if it is cached, until it is removed from the queue.
-            elif (self.get_current_interaction(PainterQueue.BACKGROUND) is not None and self.get_current_interaction(PainterQueue.BACKGROUND).loop_iterations > 1):
-                self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(PainterQueue.BACKGROUND).name}] in [BACKGROUND] has multiple loop iterations. We draw this loop iteration.")
+            elif self.areas[queue_name].is_multi_frame():
+                self._log_debug(f"*️⃣  Loop Control: Current Paint [{self.get_current_interaction(queue_name).name}] in [{queue_name}] has multiple loop iterations. We draw this loop iteration.")
                 return True
             # If the current interaction is different than the previous one, in theory we should paint it.
             elif not self._paint_matches_cache(queue_name, self.get_current_interaction(queue_name)):
