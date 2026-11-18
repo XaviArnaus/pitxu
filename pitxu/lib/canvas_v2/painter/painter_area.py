@@ -43,6 +43,11 @@ class PainterArea:
         # When this area has paints (and the areas that do not slow down have none), the loop slows down to avoid burning the CPU.
         self.slows_down_loop: bool = slows_down_loop
 
+        # Who asked for a final clearing, until the painting loop takes the requests (see the take_*_requests methods).
+        #   The names are only there to say it in the logs.
+        self.area_clearing_requested_by: list[str] = []
+        self.screen_clearing_requested_by: list[str] = []
+
     # ---- The paints that wait ----
 
     def current(self) -> BasePaint | None:
@@ -61,6 +66,28 @@ class PainterArea:
     def reset_cache(self):
         self.cached_key = None
         self.cached_image = None
+
+    # ---- The final clearing requests ----
+
+    def request_area_clearing(self, requester: str):
+        """ The area has to be cleared once the painting loop gets to it. """
+        if requester not in self.area_clearing_requested_by:
+            self.area_clearing_requested_by.append(requester)
+
+    def request_screen_clearing(self, requester: str):
+        """ The whole screen has to be cleared once the painting loop gets to it. """
+        if requester not in self.screen_clearing_requested_by:
+            self.screen_clearing_requested_by.append(requester)
+
+    def take_area_clearing_requests(self) -> list[str]:
+        """ Who asked for the area to be cleared. The requests are consumed: the next call returns nothing. """
+        requesters, self.area_clearing_requested_by = self.area_clearing_requested_by, []
+        return requesters
+
+    def take_screen_clearing_requests(self) -> list[str]:
+        """ Who asked for the screen to be cleared. The requests are consumed: the next call returns nothing. """
+        requesters, self.screen_clearing_requested_by = self.screen_clearing_requested_by, []
+        return requesters
 
     # ---- The rules of this area ----
 

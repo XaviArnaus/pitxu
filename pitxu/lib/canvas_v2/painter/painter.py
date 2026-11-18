@@ -95,13 +95,6 @@ class Painter(PyXavi):
     drawing_callbacks: dict[str, dict[str, any]] = None
     # The layout info, to know the sizes for the sub-canvases to paint the interactions.
     layout_info: dict[str, dict[str, Rectangle]] = None
-    # A merged dictionary that comes AFTER executing the callbacks triggered through shared memory flags.
-    # For example, requesting a final cleaning after removing the interaction.
-    # Be careful, some can be contradictory. We start by classifying them per queue, and see if that's enough.
-    # The structure is: {queue_name: {callback_name: {request_name: request_value}}}
-    # The loop should remove the entry once consumed, to avoid carrying it on into the next loop iteration.
-    flags_callback_returned_requests: dict[str, dict[str, dict[str,any]]] = {}
-
     # The areas of the screen, one per queue, in painting order.
     # The idea is that we register the interactions to paint in the queue of each area (area.paints),
     #   and the Painter loop will consume them and paint them.
@@ -151,7 +144,6 @@ class Painter(PyXavi):
         for queue_name in queue_names:
             if queue_name not in queue_name_to_layout_position:
                 raise ValueError(f"The queue [{queue_name}] has no position in 'layout_position_to_queue_name'.")
-            self.flags_callback_returned_requests[queue_name] = {}
             self.areas[queue_name] = PainterArea(
                 name=queue_name,
                 layout_position=queue_name_to_layout_position[queue_name],
@@ -377,20 +369,14 @@ class Painter(PyXavi):
                     # Attention, it is not meant as a full screen clearing, but per queue.
                     callback_final_screen_clearing_request = False
                     for queue_name in self.areas.keys():
+                        # Taking the requests consumes them, to avoid carrying them on into the next loop iteration.
                         callback_final_area_clearing_request = False
-                        for callback_name, requests in self.flags_callback_returned_requests[queue_name].items():
-                            if "final_area_clearing_needed" in requests:
-                                if requests.get("final_area_clearing_needed") == True:
-                                    callback_final_area_clearing_request = True
-                                    self._log_debug(f"🎨 Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the area.")
-                                # We remove the request once we read it, to avoid carrying it on into the next loop iteration.
-                                del self.flags_callback_returned_requests[queue_name][callback_name]["final_area_clearing_needed"]
-                            if "final_screen_clearing_needed" in requests:
-                                if requests.get("final_screen_clearing_needed") == True:
-                                    callback_final_screen_clearing_request = True
-                                    self._log_debug(f"🎨 Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the screen.")
-                                # We remove the request once we read it, to avoid carrying it on into the next loop iteration.
-                                del self.flags_callback_returned_requests[queue_name][callback_name]["final_screen_clearing_needed"]
+                        for callback_name in self.areas[queue_name].take_area_clearing_requests():
+                            callback_final_area_clearing_request = True
+                            self._log_debug(f"🎨 Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the area.")
+                        for callback_name in self.areas[queue_name].take_screen_clearing_requests():
+                            callback_final_screen_clearing_request = True
+                            self._log_debug(f"🎨 Callback [{callback_name}] for queue [{queue_name}] requested a final clearing of the screen.")
                         if callback_final_area_clearing_request:
                             # TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
                             # The final clearing wipes the last frame of the interaction that was just removed
@@ -811,19 +797,11 @@ class Painter(PyXavi):
                 if interaction.final_screen_clearing:
                     name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
                     self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final ScreenClearing intended, telling to painter loop")
-                    if queue_name not in self.flags_callback_returned_requests:
-                        self.flags_callback_returned_requests[queue_name] = {}
-                    if name not in self.flags_callback_returned_requests[queue_name]:
-                        self.flags_callback_returned_requests[queue_name][name] = {}
-                    self.flags_callback_returned_requests[queue_name][name]["final_screen_clearing_needed"] = True
+                    self.areas[queue_name].request_screen_clearing(name)
                 if interaction.final_area_clearing:
                     name=f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
                     self._log_debug(f"🔃 Painter callback [{name}] for [{queue_name}]: Final Area Clearing intended, telling to painter loop")
-                    if queue_name not in self.flags_callback_returned_requests:
-                        self.flags_callback_returned_requests[queue_name] = {}
-                    if name not in self.flags_callback_returned_requests[queue_name]:
-                        self.flags_callback_returned_requests[queue_name][name] = {}
-                    self.flags_callback_returned_requests[queue_name][name]["final_area_clearing_needed"] = True
+                    self.areas[queue_name].request_area_clearing(name)
             else:
                 # Could be that meanwhile anything else with more priority (or a dupe) came in and then
                 #   the "current" one was already removed.
