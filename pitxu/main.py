@@ -1827,6 +1827,17 @@ class Main(PyXavi):
                         #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
                         # )
 
+                elif self._last_processed_interaction_percentage >= 0 and \
+                        (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
+                    # (Only while the countdown is still alive: once it was cleaned (-1) the app is idle, and speech heard
+                    #   in idle mode must not bring an expired countdown back.)
+                    # The hold time ran out, but the user started to speak after the last tick (the countdown was in its
+                    #   last second). Ending now would mute the microphone in the middle of the sentence: the speech would
+                    #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
+                    # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
+                    self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                    self._last_interaction_paused_seconds += 1
+
                 elif self._last_processed_interaction_percentage > 0:
                     # The hold time is over but the bar still shows its last LED(s).
                     # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
