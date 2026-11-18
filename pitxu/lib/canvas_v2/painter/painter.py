@@ -934,6 +934,10 @@ class Painter(PyXavi):
     def close(self):
         self.shutdown()
 
+        # Its shared memory monitor has a worker thread (and a doorbell) of its own, that nobody else closes.
+        if self.painter_shared_memory is not None:
+            self.painter_shared_memory.close()
+
         if self._worker_thread is not None and self._worker_thread.is_alive():
             self._xlog.debug("Joining Painter worker thread.")
             self._worker_thread.join(timeout=2)
@@ -994,10 +998,11 @@ class Painter(PyXavi):
     def _get_shared_memory_flag_name_for(self, shared_memory_flag: int) -> str:
         return self.painter_shared_memory.get_shared_memory_flag_name_for(shared_memory_flag)
     
-    def load_painter_shared_memory_list_to_control(self, shared_memory_list_to_control: list[tuple[int, bool, callable]]):
+    def load_painter_shared_memory_list_to_control(self, shared_memory_list_to_control: list[tuple[str, int, bool, callable, bool]]):
         """
         A shortcut to load a list of shared memory flags to control in the painter_shared_memory instance.
         Useful to load several in one shot, for example some default ones like THINKING or SPEAKING.
+        Each one is (name, flag, activation value, callback, is dependant).
         """
         self.painter_shared_memory.load_list_control(shared_memory_list_to_control)
     
