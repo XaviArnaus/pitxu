@@ -24,6 +24,20 @@ def load_environment():
     any other parameter related to the environment.
     """
     load_dotenv()
+    _register_thread_dump()
+
+
+def _register_thread_dump():
+    """
+    Diagnostics: `kill -USR1 <pid>` prints the stack of every thread to stderr (journalctl -u pitxu),
+    to see what is going on when something looks stuck. It does not stop the app.
+    """
+    try:
+        import faulthandler
+        import signal
+        faulthandler.register(signal.SIGUSR1, all_threads=True, chain=False)
+    except Exception:
+        pass
 
 
 def load_logger(config: Config, loglevel: int = None) -> logging:
