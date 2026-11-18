@@ -91,8 +91,6 @@ class Painter(PyXavi):
     is_active: bool = True
 
     canvas: Canvas = None
-    # The drawing tool, initialized once we start painting, outside the loop for better performance, per queue
-    image_per_queue: dict[str, Image.Image | None] = {}
     # The callbacks defined on the caller regarding the frames to draw
     drawing_callbacks: dict[str, dict[str, any]] = None
     # The layout info, to know the sizes for the sub-canvases to paint the interactions.
@@ -120,9 +118,6 @@ class Painter(PyXavi):
     exception_loop_interactions: dict[str, list[PaintingCommand]] = {}
     # These queues, when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
     queues_with_paints_that_slow_down_the_loop: list[str] = []
-
-    # This should effectively be the drawing cache
-    previous_interaction_by_queue: dict[PainterQueue, dict[str, Image.Image | BasePaint | None]] = {}
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
     intermediate_interactions_queue: list[tuple[IntermediatePainterQueueAction, PainterQueue, BasePaint]] = []
@@ -213,16 +208,10 @@ class Painter(PyXavi):
         Initialize the attributes that depend per queue, so we don't need to specifically define the queues in the class.
         """
         
-        self.image_per_queue[queue_name] = None
         self.flags_callback_returned_requests[queue_name] = {}
         self.areas[queue_name] = PainterArea(queue_name)
         self.priority_interactions[queue_name] = []
         self.exception_loop_interactions[queue_name] = []
-        self.previous_interaction_by_queue[queue_name] = {
-            "cache_key": None,
-            "interaction": None,
-            "image": None
-        }
     
     def _assign_priority_interactions_to_queue(self, queue_name: str, interactions: list[PaintingCommand]):
         """
@@ -564,12 +553,12 @@ class Painter(PyXavi):
         # Check if we have already painted this interaction in the previous iteration.
         if self._current_interaction_by_queue_is_the_same_as_previous(queue_name, current_interaction=interaction):
             self._log_debug(f"Interaction [{interaction.get_cache_key()}] in queue [{queue_name}] is cached. Retrieving it from the cache.")
-            return self.previous_interaction_by_queue[queue_name]["image"]
+            return self.areas[queue_name].cached_image
         else:
             # We trigger the drawing callback for this interaction, which should be defined in the painting object.
             self._log_debug(f"Interaction [{interaction.get_cache_key()}] in queue [{queue_name}] is not cached. Painting it now.")
             # Get the initialized image to draw on for this queue, or initialize it if it doesn't exist.
-            image_to_draw_on: Image.Image = self.image_per_queue[queue_name]
+            image_to_draw_on: Image.Image = self.areas[queue_name].image
             canvas_to_draw_on: ImageDraw.ImageDraw = ImageDraw.Draw(image_to_draw_on)
             if isinstance(interaction, AnimationPaint):
                 # For animations we need to pass the base image instead of the drawing canvas..
@@ -577,12 +566,10 @@ class Painter(PyXavi):
             else:
                 interaction.drawing_callback(draw=canvas_to_draw_on, params=interaction.drawing_callback_parameters)
 
-            # Store the current interaction and its drawing in the cache for the next iterations.
-            self.previous_interaction_by_queue[queue_name]["interaction"] = interaction if interaction is not None else None
-            self.previous_interaction_by_queue[queue_name]["image"] = image_to_draw_on.copy()
-            self.previous_interaction_by_queue[queue_name]["cache_key"] = interaction.get_cache_key()
+            # Store the key of the current interaction and its drawing in the cache for the next iterations.
+            self.areas[queue_name].store_in_cache(interaction.get_cache_key(), image_to_draw_on.copy())
 
-            return self.image_per_queue[queue_name]
+            return self.areas[queue_name].image
     
     def apply_delay_between_frames(self):
         delays = {}
@@ -671,7 +658,7 @@ class Painter(PyXavi):
 
     def _current_interaction_by_queue_is_the_same_as_previous(self, queue_name: PainterQueue, current_interaction: BasePaint | None = None) -> bool:
         current_interaction = self.get_current_interaction(queue_name) if current_interaction is None else current_interaction
-        previous_interaction_cache_key = self.previous_interaction_by_queue[queue_name]["cache_key"]
+        previous_interaction_cache_key = self.areas[queue_name].cached_key
         if current_interaction is None and previous_interaction_cache_key is None:
             self._log_debug(f"↔️  Cache Control: Current and Previous interactions in queue [{queue_name}] are both None. They are the same.")
             return True
@@ -688,15 +675,15 @@ class Painter(PyXavi):
             return False
     
     def _reset_display_area_for_queue(self, queue_name: PainterQueue):
-        tmp_draw = ImageDraw.Draw(self.image_per_queue[queue_name])
+        tmp_draw = ImageDraw.Draw(self.areas[queue_name].image)
         self.drawing_callbacks["base_frame_for_display_area"]["callback"](
             tmp_draw, 
             params={"display_area": self.queue_name_to_layout_position[queue_name]}
         )
         layout_position_name = self.queue_name_to_layout_position[queue_name]
         layout_position: Point = self.layout_info["base"][layout_position_name].point_1
-        self.canvas.combine_into_image(self.image_per_queue[queue_name], 
-                                        position=layout_position, 
+        self.canvas.combine_into_image(self.areas[queue_name].image,
+                                        position=layout_position,
                                         use_alpha_composite=True)
     
     def _full_clear(self):
@@ -879,9 +866,7 @@ class Painter(PyXavi):
     
     def reset_interaction_artifacts(self, queue_name: PainterQueue):
         self._log_debug(f"Resetting interaction artifacts for queue [{queue_name}].")
-        self.previous_interaction_by_queue[queue_name]["interaction"] = None
-        self.previous_interaction_by_queue[queue_name]["cache_key"] = None
-        self.previous_interaction_by_queue[queue_name]["image"] = None
+        self.areas[queue_name].reset_cache()
     
     def _remove_duplicated_interaction_types_from_queue(self, interaction: BasePaint, queue_name: PainterQueue):
         """
@@ -988,7 +973,7 @@ class Painter(PyXavi):
                 self._log_debug("Painter thread not running, starting it now.")
 
                 for queue_name in self.areas.keys():
-                    self.image_per_queue[queue_name] = self._initialize_draw_for_queue(queue_name)
+                    self.areas[queue_name].image = self._initialize_draw_for_queue(queue_name)
                     self._log_debug(f"Initialized drawing for queue [{queue_name}].")
 
                 # Tell the worker that it can start painting.
