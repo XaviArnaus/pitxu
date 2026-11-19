@@ -496,6 +496,47 @@ class MarkdownRenderer:
         Picks the biggest font that holds all the text. If none does, takes the smallest and truncates.
         With prefer_no_wrap, a smaller font that does not wrap any line wins over a bigger one that does.
         """
+        if prefer_no_wrap:
+            return self._fit_without_wrapping(blocks, max_width, max_height, panel)
+        return self._fit_biggest(blocks, max_width, max_height, panel)
+
+    def _fit_biggest(self, blocks: list, max_width: int, max_height: int, panel: bool) -> list:
+        """
+        The biggest font of the ladder that holds all the text, searching smartly: a bigger font never makes the text shorter,
+        so if the smallest font does not fit, none does (and the text is truncated, with one layout only), and otherwise
+        the biggest one that fits is found by bisection. Laying out a long text is the expensive part of drawing it.
+        """
+        def layout(font_index: int) -> list:
+            # One stage per size of the ladder, to see how many are tried and what each one costs.
+            with self._timings.measure(f"layout:{int(self._ladder[font_index].size)}px"):
+                lines, _ = self._layout(blocks, font_index, max_width, panel, max_height=max_height)
+            return lines
+
+        smallest_lines = layout(0)
+        if self._total_height(smallest_lines) > max_height:
+            # Nothing fits: truncate. The lines stop at the block that overflowed, which is all that truncating needs,
+            #   unless it is a single line (then it can not know if there was more text after it).
+            if len(smallest_lines) <= 1:
+                with self._timings.measure(f"layout:{int(self._ladder[0].size)}px"):
+                    smallest_lines, _ = self._layout(blocks, 0, max_width, panel)
+            with self._timings.measure("truncate"):
+                return self._truncate(smallest_lines, max_width, max_height)
+
+        best = smallest_lines
+        low, high = 1, len(self._ladder) - 1
+        while low <= high:
+            middle = (low + high) // 2
+            lines = layout(middle)
+            if self._total_height(lines) <= max_height:
+                best = lines
+                low = middle + 1
+            else:
+                high = middle - 1
+        return best
+
+    def _fit_without_wrapping(self, blocks: list, max_width: int, max_height: int, panel: bool) -> list:
+        """ For the code: a smaller font that does not wrap any line wins over a bigger one that does. """
+        prefer_no_wrap = True
         wrapped_fallback = None
         for font_index in reversed(range(len(self._ladder))):
             # One stage per size of the ladder, to see how many are tried and what each one costs.
