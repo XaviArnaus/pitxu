@@ -218,12 +218,14 @@ class GeminiChatbot(PyXavi):
         return str(template) % "\n".join(labels)
 
     def _initialize_chat(self, tools: list):
+        emotion_instruction = self._emotion_instruction()
+        self._xlog.info("🎭 Emotion tag instruction: " + (f"added to the system instruction ({len(emotion_instruction)} characters)" if emotion_instruction else "NOT added (needs animations.emotions and chatbot.emotion_instruction in the config)"))
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=(
                     self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME)
-                ) + self._emotion_instruction(),
+                ) + emotion_instruction,
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
@@ -256,6 +258,8 @@ class GeminiChatbot(PyXavi):
                             await asyncio.sleep(delay_between_retries * retries)
 
                         response = await self._chat.send_message(question)
+                        # The raw text, before the emotion tag is taken out of it (to see what the model really said).
+                        self._log_debug(f"🎭 Raw answer from the model: {response.text!r}")
                         outcome = ChatbotResponse.from_response(response)
                         if outcome.error is not None:
                             # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?

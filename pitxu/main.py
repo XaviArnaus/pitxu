@@ -608,7 +608,7 @@ class Main(PyXavi):
                 f"- Text: {chat_response.text}\n\t" +
                 f"- Function Calls: {chat_response.function_call_history.get_names()}\n\t" +
                 f"- Code blocks: {len(chat_response.code) if chat_response.code else 0}\n\t" +
-                f"- Emotion: {chat_response.emotion if chat_response.emotion else 'none'}")
+                f"- Emotion: {chat_response.emotion!r}")
             self._reactions.react_on_answer(chat_response=chat_response)
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
