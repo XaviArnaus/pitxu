@@ -123,6 +123,24 @@ class PainterTimings:
 
     # ---- Reporting ----
 
+    def report_stages(self, title: str):
+        """
+        For a piece of work that is not the loop (like drawing one block of text): logs the stages and counters measured
+        since the last report, and forgets them. It does not need iterations, and it has nothing to do with the window
+        of the loop, so it is meant for an instance of its own.
+        """
+        if not self.enabled or (not self._stages and not self._counters):
+            return
+        lines: list[tuple[str, str]] = []
+        for name in sorted(self._stages.keys()):
+            count, total, maximum = self._stages[name]
+            lines.append((name, f"total {1000 * total:8.1f} ms | avg {1000 * total / count:7.2f} ms | max {1000 * maximum:7.2f} ms | n={count}"))
+        for name in sorted(self._counters.keys()):
+            lines.append((name, str(self._counters[name])))
+        self._log_callback(title, lines)
+        self._stages = {}
+        self._counters = {}
+
     def report(self, reason: str = "window"):
         if not self.enabled or self._window_start_wall is None or self._iterations == 0:
             self._reset()

@@ -10,6 +10,7 @@ from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
 from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
+from pitxu.lib.canvas_v2.painter.painter_timings import PainterTimings
 from pitxu.lib.utils import markdown_parser
 
 class MacrosOverlay(MacrosBase):
@@ -45,17 +46,24 @@ class MacrosOverlay(MacrosBase):
             mono_file = os.path.join(
                 self._xconfig.get("fonts.path", Canvas.DEFAULT_FONT_PATH),
                 self._xconfig.get("fonts.mono_filename", "Font.ttc"))
-            self._markdown_renderer = MarkdownRenderer(
-                fonts=[
-                    self.canvas.FONT_TINY,
-                    self.canvas.FONT_SMALL,
-                    self.canvas.FONT_MEDIUM,
-                    self.canvas.FONT_BIG,
-                    self.canvas.FONT_HUGE
-                ],
-                mono_font_file=mono_file,
-                mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
-                color_mode=self.canvas.COLOR_MODE)
+            # Same switch as the Painter loop: where the time of every block goes is logged when it is on.
+            timings = PainterTimings(
+                enabled=bool(self._xconfig.get("dsi_lcd.painter.timing_log", False)),
+                log_callback=lambda title, lines: self.log_summary(title, lines, log_level=logging.INFO))
+            with timings.measure("renderer_creation"):
+                self._markdown_renderer = MarkdownRenderer(
+                    fonts=[
+                        self.canvas.FONT_TINY,
+                        self.canvas.FONT_SMALL,
+                        self.canvas.FONT_MEDIUM,
+                        self.canvas.FONT_BIG,
+                        self.canvas.FONT_HUGE
+                    ],
+                    mono_font_file=mono_file,
+                    mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
+                    color_mode=self.canvas.COLOR_MODE,
+                    timings=timings)
+            # Reported with the first block, so it is known if the first one pays for this.
         return self._markdown_renderer
 
     def _draw_with_markdown_renderer(self, draw: ImageDraw.ImageDraw, text: str, text_color, is_code: bool) -> bool:

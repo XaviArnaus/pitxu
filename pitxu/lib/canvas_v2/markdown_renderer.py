@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from PIL import Image, ImageDraw, ImageFont
 
 from pitxu.lib.utils.markdown_parser import Block, parse_markdown
+from pitxu.lib.canvas_v2.painter.painter_timings import PainterTimings
 
 
 @dataclass
@@ -76,14 +77,17 @@ class MarkdownRenderer:
     PANEL_COLORS: dict = {"RGBA": (214, 214, 214, 255), "RGB": (214, 214, 214), "L": 214}
 
     def __init__(self, fonts: list, mono_font_file: str | None = None, mono_font_index: int = 0,
-                 color_mode: str = "RGBA"):
+                 color_mode: str = "RGBA", timings: PainterTimings | None = None):
         """
         Args:
             fonts (list): The ladder of fonts to try, in any order (they are sorted by size).
             mono_font_file (str): Font file for the code. Falls back to the regular font if it can not be loaded.
             mono_font_index (int): Face inside the file, for collections.
             color_mode (str): The mode of the image that we draw on. It defines the backgrounds for the code.
+            timings (PainterTimings): To measure where the time of every draw goes. It reports after each block.
+                Without it nothing is measured.
         """
+        self._timings: PainterTimings = timings if timings is not None else PainterTimings(False, lambda *_: None)
         by_size: dict[int, ImageFont.FreeTypeFont] = {}
         for font in fonts:
             by_size.setdefault(int(font.size), font)
@@ -103,11 +107,18 @@ class MarkdownRenderer:
         Draws the Markdown text inside the box (x0, y0, x1, y1).
         Returns False, drawing nothing, when there is nothing to draw. Raises when the parsing or the drawing fail.
         """
-        blocks = parse_markdown(text)
-        if not blocks:
-            return False
-        self._draw_blocks(draw, blocks, box, text_color, center, panel=True, prefer_no_wrap=False)
-        return True
+        try:
+            with self._timings.measure("total"):
+                with self._timings.measure("parse"):
+                    blocks = parse_markdown(text)
+                if not blocks:
+                    return False
+                self._timings.count("text_chars", len(text))
+                self._timings.count("blocks", len(blocks))
+                self._draw_blocks(draw, blocks, box, text_color, center, panel=True, prefer_no_wrap=False)
+            return True
+        finally:
+            self._timings.report_stages("Markdown renderer: text")
 
     def draw_code(self, draw: ImageDraw.ImageDraw, code: str, box: tuple, text_color, center: bool = True) -> bool:
         """
@@ -116,22 +127,28 @@ class MarkdownRenderer:
         """
         if code is None or code.strip() == "":
             return False
-        self._draw_blocks(draw, [Block(kind="code", text=code)], box, text_color, center, panel=False, prefer_no_wrap=True)
-        return True
+        try:
+            with self._timings.measure("total"):
+                self._timings.count("text_chars", len(code))
+                self._draw_blocks(draw, [Block(kind="code", text=code)], box, text_color, center, panel=False, prefer_no_wrap=True)
+            return True
+        finally:
+            self._timings.report_stages("Markdown renderer: code")
 
     # ------------------------- Fonts -------------------------
 
     def _mono_for(self, size: int) -> ImageFont.FreeTypeFont:
         if size not in self._mono_cache:
             font = None
-            if self._mono_file:
-                try:
-                    font = ImageFont.truetype(self._mono_file, size, index=self._mono_index)
-                except Exception:
-                    font = None
-            if font is None:
-                # The ladder font with the closest size.
-                font = min(self._ladder, key=lambda candidate: abs(int(candidate.size) - size))
+            with self._timings.measure("mono_font_load"):
+                if self._mono_file:
+                    try:
+                        font = ImageFont.truetype(self._mono_file, size, index=self._mono_index)
+                    except Exception:
+                        font = None
+                if font is None:
+                    # The ladder font with the closest size.
+                    font = min(self._ladder, key=lambda candidate: abs(int(candidate.size) - size))
             self._mono_cache[size] = font
         return self._mono_cache[size]
 
@@ -449,7 +466,9 @@ class MarkdownRenderer:
         """
         wrapped_fallback = None
         for font_index in reversed(range(len(self._ladder))):
-            lines, any_wrapped = self._layout(blocks, font_index, max_width, panel)
+            # One stage per size of the ladder, to see how many are tried and what each one costs.
+            with self._timings.measure(f"layout:{int(self._ladder[font_index].size)}px"):
+                lines, any_wrapped = self._layout(blocks, font_index, max_width, panel)
             if self._total_height(lines) > max_height:
                 continue
             if prefer_no_wrap and any_wrapped:
@@ -460,8 +479,10 @@ class MarkdownRenderer:
         if wrapped_fallback is not None:
             return wrapped_fallback
 
-        lines, _ = self._layout(blocks, 0, max_width, panel)
-        return self._truncate(lines, max_width, max_height)
+        with self._timings.measure(f"layout:{int(self._ladder[0].size)}px"):
+            lines, _ = self._layout(blocks, 0, max_width, panel)
+        with self._timings.measure("truncate"):
+            return self._truncate(lines, max_width, max_height)
 
     def _truncate(self, lines: list, max_width: int, max_height: int) -> list:
         """ Keeps the lines that fit and ends the last one with an ellipsis. """
@@ -523,9 +544,19 @@ class MarkdownRenderer:
         width = int(x1 - x0)
         height = int(y1 - y0)
 
-        lines = self._fit(blocks, width, height, panel, prefer_no_wrap)
+        with self._timings.measure("fit"):
+            lines = self._fit(blocks, width, height, panel, prefer_no_wrap)
         if not lines:
             return
+        self._timings.count("lines_drawn", len(lines))
+
+        with self._timings.measure("paint"):
+            self._paint_lines(draw, lines, box, text_color, center, panel)
+
+    def _paint_lines(self, draw: ImageDraw.ImageDraw, lines: list, box: tuple, text_color, center: bool, panel: bool):
+        x0, y0, x1, y1 = box
+        width = int(x1 - x0)
+        height = int(y1 - y0)
 
         total_height = self._total_height(lines)
         block_width = max(
