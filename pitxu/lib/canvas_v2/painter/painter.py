@@ -179,6 +179,8 @@ class Painter(PyXavi):
         self._thread_event = threading.Event()
 
         self._resume_lock = threading.Lock()
+        # The interactions (by id) whose removal asked for a blank screen, see request_removal().
+        self._blank_if_removed = set()
 
         # Here is the Painter thread.
         self._worker_thread = threading.Thread(
@@ -916,11 +918,15 @@ class Painter(PyXavi):
                 # This runs in a Timer thread. It must NOT touch the queues or the canvas:
                 #   it only asks the Painter loop to do it, so there is a single writer.
                 self._log_debug(f"Scheduler triggered to remove {queue_name} interaction [{interaction.name}] after maintaining it for [{interaction.maintain_paint_for_seconds}] seconds.")
-                self.request_removal(interaction, queue_name, blank_screen=True)
+                # The blank is only for when this paint is still the one on screen: a paint that already left
+                #   (the idle panel, when the user woke the app up) must not wipe whatever is shown now.
+                self.request_removal(interaction, queue_name, blank_screen=True, blank_only_if_removed=True)
 
             # The timer belongs to the area, and replaces any older one with the same key.
+            # The key is the name of the paint, not its cache key: the cache key of a framed paint changes with its frame,
+            #   and the timer has to be found again when the paint is removed (see PainterArea.remove()).
             self.areas[queue_name].start_timer(
-                interaction.get_cache_key(), interaction.maintain_paint_for_seconds, remove_interaction_after_time)
+                interaction.name, interaction.maintain_paint_for_seconds, remove_interaction_after_time)
 
         # Now add the new interaction to the queue
         self.areas[queue_name].paints.append(interaction)
@@ -930,24 +936,39 @@ class Painter(PyXavi):
     def get_current_interaction(self, queue_name: PainterQueue) -> BasePaint | None:
         return self.areas[queue_name].current()
 
-    def request_removal(self, interaction: BasePaint, queue_name: PainterQueue, blank_screen: bool = False):
+    def request_removal(self, interaction: BasePaint, queue_name: PainterQueue, blank_screen: bool = False, blank_only_if_removed: bool = False):
         """
         The thread-safe way to remove an interaction: it only asks the loop to do it.
         With blank_screen=True the loop also blanks the screen if nothing else is drawn.
+
+        Args:
+            blank_only_if_removed: With blank_screen=True, the blank only happens if the loop really removes this interaction,
+                meaning that it was still the current one. It is for the timers: when they fire, the interaction may be gone
+                long ago, and what is on screen now is not theirs to wipe.
         """
         self.add_to_intermediate_queue(interaction, queue_name, IntermediatePainterQueueAction.REMOVE)
         if blank_screen:
-            self._blank_screen_pending = True
+            if blank_only_if_removed:
+                # Decided by the loop, in _remove_interaction(), the only place that knows if it was removed.
+                self._blank_if_removed.add(id(interaction))
+            else:
+                self._blank_screen_pending = True
         self.resume_paint()
 
     def _remove_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Removing interaction [{interaction.name}] from [{queue_name}] queue.")
         area = self.areas[queue_name]
+        # Was a blank asked for the moment that it is removed? Either way, the request is consumed.
+        blank_after_removal = id(interaction) in self._blank_if_removed
+        self._blank_if_removed.discard(id(interaction))
         # When we remove an interaction, the area also cleans the cache related to it, to avoid retrieving it again
         #   if it comes back in the future, and registers the final clearing requests that the interaction asked for.
         requester = f"{IntermediatePainterQueueAction.REMOVE}_{interaction.name}"
         if area.remove(interaction, requester):
             self._log_debug(f"Interaction [{interaction.name}] removed from [{queue_name}] queue successfully.")
+            if blank_after_removal:
+                self._log_debug(f"Interaction [{interaction.name}] was removed by its timer: the screen blanks if nothing else is drawn.")
+                self._blank_screen_pending = True
             # Removing the interaction means to stop drawing it.
             # It's the moment to check for a final cleaning requests from the callbacks.
             if interaction.final_screen_clearing:
@@ -957,7 +978,8 @@ class Painter(PyXavi):
         elif area.has_paints():
             # Could be that meanwhile anything else (like a dupe) came in and then
             #   the "current" one was already removed.
-            self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping.")
+            self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping." +
+                            (" No blanking, its timer fired when it was already gone." if blank_after_removal else ""))
             current_queue = ", ".join([item.name for item in area.paints])
             self._log_debug(f"Current [{queue_name}] interaction queue: [{current_queue}].")
 

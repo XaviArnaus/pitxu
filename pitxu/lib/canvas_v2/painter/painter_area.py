@@ -93,6 +93,8 @@ class PainterArea:
         if current is None or current.name != paint.name:
             return False
         self.paints.pop(0)
+        # Its maintain timer (see start_timer, keyed by the name of the paint) has nothing left to remove.
+        self.cancel_timer(paint.name)
         self.reset_cache()
         self.reset_frames()
         if paint.final_screen_clearing:
@@ -127,6 +129,9 @@ class PainterArea:
             else:
                 dropped.append(item)
         self.paints = kept
+        # They will never be shown, so their timers have nothing to remove either.
+        for item in dropped:
+            self.cancel_timer(item.name)
         return dropped
 
     # ---- The drawing cache ----
@@ -233,6 +238,18 @@ class PainterArea:
         timer.daemon = True
         self.timers[key] = timer
         timer.start()
+
+    def cancel_timer(self, key: str) -> bool:
+        """
+        Cancels the timer with the given key, if there is one. Returns True if it did.
+        A paint that leaves the area (removed by a flag, replaced by another one, dropped...) must take its timer with it:
+        otherwise the timer fires later, when its paint is long gone, and acts on whatever is on screen then.
+        """
+        timer = self.timers.pop(key, None)
+        if timer is None:
+            return False
+        timer.cancel()
+        return True
 
     def cancel_timers(self) -> list[str]:
         """ Cancels all the timers of this area. Returns their keys, so the caller can log them. """
