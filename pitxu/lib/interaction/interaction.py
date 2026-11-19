@@ -476,11 +476,24 @@ class Interaction(PyXavi):
         """
         self.animations.show_thinking()
 
+    # The last animation requested with show_animation_while_speaking(), so whoever decides on the animation of an answer
+    #   (see Reactions) knows if someone else, like the callback of a tool, already did. None if nobody did since the last reset.
+    _animation_requested: str | None = None
+
     def show_animation_while_speaking(self, animation: str):
         """
         Shows an animation (one of `animations.map`) on the animations display, while the answer is spoken.
         """
+        self._animation_requested = animation
         self.animations.show_animation_while_speaking(animation)
+
+    def get_animation_requested(self) -> str | None:
+        """ The last animation requested to be shown while speaking, None if nothing was requested since the last reset. """
+        return self._animation_requested
+
+    def reset_animation_requested(self):
+        """ Forgets the animation requested. It is called when a new answer starts to be handled. """
+        self._animation_requested = None
 
     def show_networking(self):
         """

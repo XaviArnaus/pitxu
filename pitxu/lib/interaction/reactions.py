@@ -82,7 +82,10 @@ class Reactions(PyXavi):
         # We do need a proper Chat Response. Otherwise just return.
         if chat_response is None or not isinstance(chat_response, ChatbotResponse):
             return chat_response
-        
+
+        # A new answer: whatever animation was requested for the previous one does not count.
+        self.interaction.reset_animation_requested()
+
         # The whole logic for the code block needs to be reviewed.
         # The code can come in 2 ways:
         #   1. Inside the text, as part of the answer.
@@ -124,11 +127,19 @@ class Reactions(PyXavi):
                     align="left" if several_lines else "center",
                     valign="top" if several_lines else "center"
                 )
-                # And how the answer feels, as an animation while it is spoken.
-                # It is here, and not for the answers handled by a tool, because the tools show their own things.
-                #   (The day one of them asks for a specific animation, it simply wins over this: it goes in its own handler.)
+
+        # And how the answer feels, as an animation while it is spoken, for any kind of answer.
+        # If someone already asked for an animation for this answer (the callback of a tool, an error handler), that one wins.
+        try:
+            requested = self.interaction.get_animation_requested()
+            if requested is not None:
+                self._xlog.debug(f"🎭 The animation [{requested}] was already requested for this answer. Not adding the emotion [{chat_response.emotion}].")
+            else:
                 self.show_emotion(chat_response.emotion if chat_response.error is None else "sad")
-        
+        except Exception as e:
+            self._xlog.error("🛑 Error showing the emotion of an answer: " + str(e))
+            self._xlog.debug(full_stack())
+
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response
         
