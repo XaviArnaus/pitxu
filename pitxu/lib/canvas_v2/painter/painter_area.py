@@ -19,7 +19,6 @@ class PainterArea:
         self,
         name: str,
         layout_position: str,
-        priority_commands: list[str] | None = None,
         exception_loop_commands: list[str] | None = None,
         slows_down_loop: bool = False
     ):
@@ -38,8 +37,6 @@ class PainterArea:
         self.cached_key: str | None = None
         self.cached_image: Image.Image | None = None
 
-        # These commands have priority over any other: when one arrives, everything waiting in this area is discarded.
-        self.priority_commands: list[str] = list(priority_commands) if priority_commands else []
         # These commands are always drawn in every loop iteration, even if they did not change.
         self.exception_loop_commands: list[str] = list(exception_loop_commands) if exception_loop_commands else []
         # When this area has paints (and the areas that do not slow down have none), the loop slows down to avoid burning the CPU.
@@ -76,8 +73,8 @@ class PainterArea:
 
     def remove(self, paint: BasePaint, requester: str) -> bool:
         """
-        Removes the given paint, but only if it is the current one: it may be that anything with more priority
-        (or a duplicate) came in meanwhile, and the paint was already removed.
+        Removes the given paint, but only if it is the current one: it may be that a duplicate
+        came in meanwhile, and the paint was already removed.
         Removing it also resets the drawing cache, and registers the final clearing requests that the paint asked for.
 
         Args:
@@ -97,12 +94,6 @@ class PainterArea:
         if paint.final_area_clearing:
             self.request_area_clearing(requester)
         return True
-
-    def remove_all(self):
-        """ Empties the queue and resets the drawing cache. The timers are cancelled separately, see cancel_timers(). """
-        self.paints = []
-        self.reset_cache()
-        self.reset_frames()
 
     def drop_duplicates_of_type(self, paint: BasePaint) -> list[BasePaint]:
         """
@@ -267,9 +258,6 @@ class PainterArea:
         return requesters
 
     # ---- The rules of this area ----
-
-    def is_priority(self, paint: BasePaint) -> bool:
-        return paint.command.included_in(self.priority_commands)
 
     def is_exception_loop(self, paint: BasePaint) -> bool:
         return paint.command.included_in(self.exception_loop_commands)

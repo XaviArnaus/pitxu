@@ -123,7 +123,6 @@ class Visualizer(PyXavi):
         #   - layout_position_to_queue_name: to know where to queue the different interactions based on their layout position.
         #   - drawing_callbacks: to know which macros to trigger for each interaction type.
         #   - painter_queues: to know the queues to use for the different interactions.
-        #   - painter_priorities: to know the interactions that have priority over others in each queue (that will remove previous ones in the queue)
         #   - exception_loop_interactions: to know the interactions that will not be considered in the loop execution time calculation.
         #   - painter_queues_with_paints_that_slows_down_the_loop: to know which queues we should consider that their paints can slow down the loop, to be able to log warnings when the loop is taking too long, and identify which interaction is causing it.
         params.set("drawing_callbacks", {
@@ -179,9 +178,6 @@ class Visualizer(PyXavi):
             PainterQueue.BUTTONS_RIGHT,
             PainterQueue.OVERALL,
         ])
-        params.set("painter_priorities", {
-            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]
-        })
         params.set("painter_exception_loop_interactions", {
             PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.NETWORKING],
             PainterQueue.ANIMATIONS: [AnimationsCommand.THINKING]
@@ -211,7 +207,6 @@ class Visualizer(PyXavi):
             ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
             ("painter_queues", params.get("painter_queues", [])),
-            ("painter_priorities", params.get("painter_priorities", {})),
             ("painter_exception_loop_interactions", params.get("painter_exception_loop_interactions", {})),
             ("painter_queues_with_paints_that_slow_down_the_loop", params.get("painter_queues_with_paints_that_slow_down_the_loop", [])),
             ("interaction_delays", self.interaction_delays),

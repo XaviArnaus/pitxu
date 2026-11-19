@@ -43,13 +43,11 @@ class Painter(PyXavi):
                 when it changes to any other value)
             - other parameters to control how to show the interaction.
 
-    2. We add the interactions to the corresponding queue, with some logic to manage the priority and dupe interactions.
+    2. We add the interactions to the corresponding queue, with some logic to manage the dupe interactions.
         - If we receive while_shared_memory_flag and while_shared_memory_flag_value, we register a pair of callbacks that
             basically are start_painting_callback (for the given paint in the given shared memory info) 
             and stop_painting_callback (for the given paint in the opposite value of the given shared memory info)
-        - The queues are basically lists of interactions to paint, but they also have some logic to manage the priority 
-            and dupe interactions, for example:
-            - If we receive an interaction with priority, we remove all the previous interactions of the same queue.
+        - The queues are basically lists of interactions to paint, but they also have some logic to manage the dupe interactions:
         - If we receive an interaction with the same type as another one already in the queue, we remove the previous one,
             to avoid having several interactions of the same type waiting to be painted, which doesn't make sense (for example,
             in the Init Phases, the changes are too quick, and makes no sense to paint an older status). This may have to be
@@ -97,7 +95,7 @@ class Painter(PyXavi):
     # The areas of the screen, one per queue, in painting order.
     # The idea is that we register the interactions to paint in the queue of each area (area.paints),
     #   and the Painter loop will consume them and paint them.
-    # Each area also knows its position in the layout and its rules (priority and exception commands, slowing down the loop).
+    # Each area also knows its position in the layout and its rules (exception commands, slowing down the loop).
     areas: dict[str, PainterArea] = None
 
     # This is the queue for the interactions to be set or removed, so we do it in a controlled way inside the painting loop.
@@ -122,16 +120,12 @@ class Painter(PyXavi):
 
         # We may (or may not) have exceptions for the end of the loop
         exception_loop_interactions = params.get("painter_exception_loop_interactions", {})
-        # We may (or may not) have priority interactions that need to be painted as soon as they are received,
-        #   discarding the previous ones in the queue.
-        priority_interactions = params.get("painter_priority_interactions", {})
         # Maybe we have some queues that when they have paints (and the others not), make the loop to slow down, to avoid burning the CPU.
         queues_that_slow_down_the_loop = params.get("painter_queues_with_paints_that_slow_down_the_loop", [])
 
         # A name that is not a queue is a typo: better to know it now than when it is used.
         for param_name, names in (
             ("painter_exception_loop_interactions", exception_loop_interactions.keys()),
-            ("painter_priority_interactions", priority_interactions.keys()),
             ("painter_queues_with_paints_that_slow_down_the_loop", queues_that_slow_down_the_loop),
         ):
             unknown_names = [name for name in names if name not in queue_names]
@@ -146,7 +140,6 @@ class Painter(PyXavi):
             self.areas[queue_name] = PainterArea(
                 name=queue_name,
                 layout_position=queue_name_to_layout_position[queue_name],
-                priority_commands=priority_interactions.get(queue_name, []),
                 exception_loop_commands=exception_loop_interactions.get(queue_name, []),
                 slows_down_loop=queue_name in queues_that_slow_down_the_loop)
 
@@ -397,7 +390,7 @@ class Painter(PyXavi):
                     self._log_debug(f"🎨 4️⃣ Removal interactions and deciding to pause the loop")
 
                     # ⚠️ Recently replaced per-queue checks for the removal of the interactions by a single loop that checks all the queues,
-                    # to be able to apply the logic of the priority interactions and the final clearing request in a more general way.
+                    # to be able to apply the logic of the final clearing request in a more general way.
                     # Please elaborate it more, it's just an initial merge.
                     for queue_name in self.areas.keys():
 
@@ -414,15 +407,7 @@ class Painter(PyXavi):
                                 self._log_debug(f"Painter: Interaction [{current_interaction_by_queue[queue_name].name}] included a final screen clearing, telling to painter loop.")
                                 final_clearing_needed = True
 
-                            # Avoid removing the interaction if it's a priority one (we're trying to generalize the SPEAKING).
-                            if self.areas[queue_name].is_priority(current_interaction_by_queue[queue_name]):
-                                # The if here was:
-                                # if current_interaction_by_queue[PainterQueue.BACKGROUND] is not None and \
-                                #     len(self.queue[PainterQueue.BACKGROUND]) > 1 and \
-                                #     not current_interaction_by_queue[PainterQueue.BACKGROUND].command.matches(BackgroundCommand.SPEAKING):
-                                self._log_debug(f"Painter: Interaction [{current_interaction_by_queue[queue_name].name}] is a priority one, won't remove.")
-                            else:
-                                self._remove_interaction(interaction=current_interaction_by_queue[queue_name], queue_name=queue_name)
+                            self._remove_interaction(interaction=current_interaction_by_queue[queue_name], queue_name=queue_name)
 
                     # If we only have a foreground or overall paint, reduce the speed of the loop to avoid burning the CPU for example.
                     # Please note that here we're not using the current_background_interaction variable directly,
@@ -696,11 +681,6 @@ class Painter(PyXavi):
     def _set_interaction(self, interaction: BasePaint, queue_name: PainterQueue):
         self._log_debug(f"Setting [{queue_name}] interaction to [{interaction.name}] with parameters [{interaction.drawing_callback_parameters}].")
 
-        # In case that we received anything with priority, we remove the previous interactions of the same queue, to give it the inmediate priority.
-        if self.areas[queue_name].is_priority(interaction):
-            self._log_debug(f"Received {queue_name} interaction [{interaction.name}] is priority. Removing previous interactions from the queue.")
-            self.remove_all_interactions_from_queue(queue_name)
-
         # In case we have anything from the same type waiting to be shown, we discard it first.
         #   If we didn't show it yet, there is no point to keep waiting, the flow already went somewhere else.
         for dropped in self.areas[queue_name].drop_duplicates_of_type(interaction):
@@ -764,18 +744,11 @@ class Painter(PyXavi):
             if interaction.final_area_clearing:
                 self._log_debug(f"🔃 Painter callback [{requester}] for [{queue_name}]: Final Area Clearing intended, telling to painter loop")
         elif area.has_paints():
-            # Could be that meanwhile anything else with more priority (or a dupe) came in and then
+            # Could be that meanwhile anything else (like a dupe) came in and then
             #   the "current" one was already removed.
             self._log_debug(f"🟠 Interaction [{interaction.name}] is not the current one. Skipping.")
             current_queue = ", ".join([item.name for item in area.paints])
             self._log_debug(f"Current [{queue_name}] interaction queue: [{current_queue}].")
-
-    def remove_all_interactions_from_queue(self, queue_name: PainterQueue):
-        self._log_debug(f"Removing all {queue_name} interactions.")
-        self.areas[queue_name].remove_all()
-        # Cancel the timers associated with interactions in this queue only: the other areas keep theirs.
-        for interaction_cache_key in self.areas[queue_name].cancel_timers():
-            self._log_debug(f"Cancelling timer for interaction cache key [{interaction_cache_key}].")
 
     def _initialize_draw_for_queue(self, queue_name: PainterQueue) -> Image.Image:
         # We create a new image to draw the interaction, based on the size of the layout position corresponding to this queue.
