@@ -135,28 +135,37 @@ class Reactions(PyXavi):
     
     def show_emotion(self, label: str | None) -> bool:
         """
-        Shows the animation of an emotion while the answer is spoken, if there is one for it.
+        Shows the animation of an emotion while the answer is spoken.
+        Without an emotion (none, no tag, or a label that is not configured) it is the default one (`animations.default_emotion`),
+        so the animations area is not left empty while Pitxu talks.
 
         Args:
-            label (str | None): The emotion, as the chatbot says it (one of `animations.emotions`). None or "none" is no emotion.
+            label (str | None): The emotion, as the chatbot says it (one of `animations.emotions`).
 
         Returns:
-            bool: True if the animation was requested, False otherwise (no emotion, or one that is not configured).
+            bool: True if an animation was requested, False otherwise (no emotion and no default configured).
         """
+        emotions = self._xconfig.get("animations.emotions", None) or {}
+
         if label is None:
-            self._xlog.debug("🎭 The answer came without an emotion tag. No animation.")
-            return False
-        if label == "none":
-            self._xlog.debug("🎭 The chatbot says the answer is neutral [none]. No animation.")
+            self._xlog.debug("🎭 The answer came without an emotion tag.")
+        elif label == "none":
+            self._xlog.debug("🎭 The chatbot says the answer is neutral [none].")
+        elif label not in emotions:
+            # A label the chatbot made up, or that was taken out of the config, is not worth an error.
+            self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones.")
+        else:
+            self._xlog.debug(f"🎭 Showing the emotion [{label}] while speaking.")
+            self.interaction.show_animation_while_speaking(label)
+            return True
+
+        default_label = self._xconfig.get("animations.default_emotion", None)
+        if not default_label:
+            self._xlog.debug("🎭 No default animation configured (animations.default_emotion). No animation.")
             return False
 
-        # A label the chatbot made up, or that was taken out of the config, is not worth an error.
-        if label not in (self._xconfig.get("animations.emotions", None) or {}):
-            self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones. No animation.")
-            return False
-
-        self._xlog.debug(f"🎭 Showing the emotion [{label}] while speaking.")
-        self.interaction.show_animation_while_speaking(label)
+        self._xlog.debug(f"🎭 Showing the default animation [{default_label}] while speaking.")
+        self.interaction.show_animation_while_speaking(default_label)
         return True
 
     def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
