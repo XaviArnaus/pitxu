@@ -125,7 +125,7 @@ class MacrosBackground(MacrosBase):
     def draw_interaction_holding_percentage(self, draw: ImageDraw.ImageDraw, params: dict):
         '''
         Draws on the given canvas a percentage bar indicating how much time is left
-        for the user to hold the interaction (i.e., speak): tall slabs lit from the left.
+        for the user to hold the interaction (i.e., speak): squares lit from the left, in the middle of the area.
 
         Args:
             draw: The canvas to draw on.

@@ -10,7 +10,7 @@ class BarsGeometry:
     The shared rule is the outer margin, a ratio of the area height. The other gaps are ratios of the margin:
       - The mouth rows are separated by a thin gap (a fraction of the margin).
       - The mouth columns are separated by a gap that is a multiple of the margin.
-      - The countdown slabs (and the scanner ones) are separated by exactly the margin.
+      - The countdown slabs (and the scanner ones) are squares, centered vertically and separated by exactly the margin.
 
     Every rectangle is given in the coordinates of the image of the area, like layout_info["relative"].
     """
@@ -99,17 +99,22 @@ class BarsGeometry:
         return mouth
 
     def _build_slabs(self) -> list[tuple[int, int, int, int]]:
+        """
+        The slabs are squares, as wide as the width that fits all of them with the margin and the gaps
+        (that is what keeps their positions), and centered vertically in the area.
+        """
         slabs = self.SLABS
         gap = self.margin
 
         slab_width = (self._width - (2 * self.margin) - ((slabs - 1) * gap)) / slabs
-        y1 = round(self._y1 + self.margin)
-        y2 = round(self._y1 + self._height - self.margin) - 1
+        side = max(1, round(slab_width))
+        y1 = round(self._y1 + (self._height - side) / 2)
+        y2 = y1 + side - 1
 
         result = []
         for position in range(slabs):
-            x1, x2 = self._span(self._x1 + self.margin, slab_width, position, gap)
-            result.append((x1, y1, x2, y2))
+            x1 = round(self._x1 + self.margin + position * (slab_width + gap))
+            result.append((x1, y1, x1 + side - 1, y2))
         return result
 
     # ---- Which of them are lit ----
