@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 
 from PIL import ImageDraw
@@ -7,11 +6,8 @@ from PIL import ImageDraw
 from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.objects import Point
 
-from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
-from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
-from pitxu.lib.canvas_v2.painter.painter_timings import PainterTimings
 from pitxu.lib.utils import markdown_parser
 
 class MacrosOverlay(MacrosBase):
@@ -31,8 +27,7 @@ class MacrosOverlay(MacrosBase):
     # The padding of the content from the borders of the screen, like in the plain drawing.
     MARKDOWN_BOX_PADDING: int = 15
 
-    _markdown_renderer: MarkdownRenderer = None
-    # The renderer is shared by the warm-up thread and the Painter, and it is not meant for two at the same time.
+    # The renderer (see MacrosBase.get_markdown_renderer()) is shared by the warm-up thread and the Painter, and it is not meant for two at the same time.
     _markdown_lock: threading.RLock = None
 
     def __init__(self, config: Config, params: Dictionary):
@@ -52,36 +47,10 @@ class MacrosOverlay(MacrosBase):
         """ Runs in its own thread, at the start. A failure only means that the first block pays for it, as before. """
         try:
             with self._markdown_lock:
-                self._get_markdown_renderer().warm_up()
+                self.get_markdown_renderer().warm_up()
             self._xlog.debug("Markdown renderer warmed up.")
         except Exception as e:
             self._xlog.warning(f"Could not warm up the Markdown renderer: {e}")
-
-    def _get_markdown_renderer(self) -> MarkdownRenderer:
-        """ Created on the first use (or by the warm-up): it needs the fonts of the canvas. """
-        if self._markdown_renderer is None:
-            mono_file = os.path.join(
-                self._xconfig.get("fonts.path", Canvas.DEFAULT_FONT_PATH),
-                self._xconfig.get("fonts.mono_filename", "Font.ttc"))
-            # Same switch as the Painter loop: where the time of every block goes is logged when it is on.
-            timings = PainterTimings(
-                enabled=bool(self._xconfig.get("dsi_lcd.painter.timing_log", False)),
-                log_callback=lambda title, lines: self.log_summary(title, lines, log_level=logging.INFO))
-            with timings.measure("renderer_creation"):
-                self._markdown_renderer = MarkdownRenderer(
-                    fonts=[
-                        self.canvas.FONT_TINY,
-                        self.canvas.FONT_SMALL,
-                        self.canvas.FONT_MEDIUM,
-                        self.canvas.FONT_BIG,
-                        self.canvas.FONT_HUGE
-                    ],
-                    mono_font_file=mono_file,
-                    mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
-                    color_mode=self.canvas.COLOR_MODE,
-                    timings=timings)
-            # Reported with the first block, so it is known if the first one pays for this.
-        return self._markdown_renderer
 
     def _draw_with_markdown_renderer(self, draw: ImageDraw.ImageDraw, text: str, text_color, is_code: bool) -> bool:
         """
@@ -99,7 +68,7 @@ class MacrosOverlay(MacrosBase):
 
         try:
             with self._markdown_lock:
-                renderer = self._get_markdown_renderer()
+                renderer = self.get_markdown_renderer()
                 if is_code:
                     return renderer.draw_code(draw, text, box, text_color)
                 return renderer.draw(draw, text, box, text_color)

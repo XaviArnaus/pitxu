@@ -43,6 +43,10 @@ class MacrosForeground(MacrosBase):
         font_size = params.get("font_size", 24)
         header = params.get("header", None)
         font_header_size = params.get("font_header_size", 32)
+        # The caller knows the intent of the message: where it goes in the area. font_size is a maximum.
+        align = params.get("align", "center")
+        valign = params.get("valign", "center")
+        padding = params.get("padding", 5)
 
         # Initial Background Paint clear
         self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.MESSAGES})
@@ -76,8 +80,21 @@ class MacrosForeground(MacrosBase):
                 align = "center")
 
         if text:
-            font = self.canvas.get_font_by_size(font_size)
-            padding = 5
+            # The text box: the whole area, or what is below the header when there is one.
+            margin = padding + 6
+            top = offset_y + margin
+            if header:
+                top = header_anchor.y + font_header_size / 2 + margin
+            box = (
+                int(offset_x + margin),
+                int(top),
+                int(max_x - margin),
+                int(max_y - margin))
+            if self._draw_text_fitted(draw, f"{text_emoji}{text}", box, font_size, align, valign):
+                return
+
+            # Fallback, the old drawing: fixed size, wrapped, centered.
+            font = self.canvas.get_font_by_size(font_size if font_size else 24)
             value = self.wrap_text_if_needed(
                 canvas=draw,
                 text=f"{text_emoji}{text}",
@@ -90,6 +107,19 @@ class MacrosForeground(MacrosBase):
                 fill = self.canvas.COLOR_FOREGROUND,
                 anchor = "mm",
                 align = "center")
+
+    def _draw_text_fitted(self, draw: ImageDraw.ImageDraw, text: str, box: tuple, max_font_size, align: str, valign: str) -> bool:
+        """
+        Draws the text with the biggest font that fits in the box, never above max_font_size (None: no limit).
+        Returns False when it could not, so the caller falls back to the plain drawing.
+        """
+        try:
+            return self.get_markdown_renderer().draw_plain(
+                draw, text, box, self.canvas.COLOR_FOREGROUND,
+                max_font_size=max_font_size, align=align, valign=valign)
+        except Exception as e:
+            self._xlog.warning(f"Could not fit the foreground text, drawing it plain: {e}")
+            return False
     
     def draw_startup(self, draw: ImageDraw.ImageDraw, params: dict):
         

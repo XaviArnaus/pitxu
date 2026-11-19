@@ -518,12 +518,15 @@ class Interaction(PyXavi):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
+
         ):
         """
         Shows arbitrary text on the foreground display.
         """
-        self.foreground.show_arbitrary_text_on_foreground(icon, text, font_size, header, font_header_size, padding, show_for_seconds)
+        self.foreground.show_arbitrary_text_on_foreground(icon, text, font_size, header, font_header_size, padding, show_for_seconds, align=align, valign=valign)
     
     def show_arbitrary_text_on_foreground_while_idle(
             self,
@@ -533,12 +536,15 @@ class Interaction(PyXavi):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
+
         ):
         """
         Shows arbitrary text on the foreground display.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_idle(icon, text, font_size, header, font_header_size, padding, show_for_seconds)
+        self.foreground.show_arbitrary_text_on_foreground_while_idle(icon, text, font_size, header, font_header_size, padding, show_for_seconds, align=align, valign=valign)
     
     def show_arbitrary_icon_on_foreground(
             self,
@@ -558,12 +564,14 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while speaking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_speaking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_speaking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
     def show_arbitrary_icon_on_foreground_while_user_speaking(
             self,
@@ -583,12 +591,14 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while thinking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_thinking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_thinking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
     def show_arbitrary_text_on_foreground_while_networking(
             self,
@@ -597,12 +607,14 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while networking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_networking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_networking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
     def show_code_block_on_foreground(self, code: str, for_seconds: float = 10.0):
         """

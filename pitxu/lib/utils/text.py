@@ -1,4 +1,5 @@
 import emoji
+import logging
 import re
 import unicodedata
 
@@ -35,10 +36,10 @@ class Text:
             # A text made only of syntax (like "**") would end up empty. Better the basic cleaning than nothing.
             if plain_text != "":
                 return plain_text
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Markdown parser failed removing the syntax, using the basic cleaning: {e}")
 
-        return Text._remove_markdown_with_regex(text)
+        return Text._remove_markdown_with_regex(Text._tables_to_lines(text))
 
     @staticmethod
     def markdown_for_speech(text: str, tables: str = "rows") -> str:
@@ -64,6 +65,15 @@ class Text:
             pass
 
         # The rows of a table: the separator row (| --- | :---: |) is noise for the voice, the others become their cells in a sentence.
+        lines = Text._tables_to_lines(text, speech=True).split("\n")
+        return " ".join(Text._remove_markdown_with_regex(" ".join(lines)).split())
+
+    @staticmethod
+    def _tables_to_lines(text: str, speech: bool = False) -> str:
+        '''
+        Table rows (| a | b |) without the table syntax, for the fallback when the parser is not available.
+        The separator row (| --- | :---: |) is dropped. The rows become "- a, b" lines, or "a, b." sentences for speech.
+        '''
         lines = []
         for line in text.split("\n"):
             stripped = line.strip()
@@ -71,9 +81,10 @@ class Text:
                 cells = [cell.strip() for cell in stripped.strip("|").split("|")]
                 if all(re.fullmatch(r':?-+:?', cell) for cell in cells if cell):
                     continue
-                line = ", ".join(cell for cell in cells if cell) + "."
+                joined = ", ".join(cell for cell in cells if cell)
+                line = joined + "." if speech else "- " + joined
             lines.append(line)
-        return " ".join(Text._remove_markdown_with_regex(" ".join(lines)).split())
+        return "\n".join(lines)
 
     @staticmethod
     def _remove_markdown_with_regex(text:str) -> str:
