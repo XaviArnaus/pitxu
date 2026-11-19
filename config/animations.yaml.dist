@@ -52,5 +52,6 @@ animations:
     sorry: "apologizing for a mistake, a limitation or a misunderstanding"
     blush: "flattered, embarrassed or shy"
   # [String] The animation shown while an answer is spoken when it has no emotion: the chatbot says `none`, it sends no tag, or the label is not one of `emotions`.
-  # It is one of `map`, and it is not offered to the chatbot. Without it the animations area stays empty in those cases.
-  default_emotion: bubble
+  # It also goes with what is spoken without the chatbot, like the greeting. It is one of `map` (it may also be one of `emotions`).
+  # Without it the animations area stays empty in those cases.
+  default_emotion: blush

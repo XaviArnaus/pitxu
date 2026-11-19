@@ -159,6 +159,16 @@ class Reactions(PyXavi):
             self.interaction.show_animation_while_speaking(label)
             return True
 
+        return self.show_default_animation()
+
+    def show_default_animation(self) -> bool:
+        """
+        Shows the default animation (`animations.default_emotion`) while something is spoken.
+        For what is spoken without going through the chatbot (like the greeting), and for the answers without emotion.
+
+        Returns:
+            bool: True if the animation was requested, False if there is no default configured.
+        """
         default_label = self._xconfig.get("animations.default_emotion", None)
         if not default_label:
             self._xlog.debug("🎭 No default animation configured (animations.default_emotion). No animation.")
