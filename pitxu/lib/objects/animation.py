@@ -3,7 +3,10 @@ import os
 
 import numpy as np
 from PIL import Image, GifImagePlugin
-GifImagePlugin.LOADING_STRATEGY = GifImagePlugin.LoadingStrategy.RGB_AFTER_DIFFERENT_PALETTE_ONLY
+# Every frame is composed in RGBA. The "palette only" strategies keep the frames as palette images, and when a GIF mixes
+#   disposal methods (the Noto emoji do) Pillow gets the transparency of many frames wrong: holes where the emoji is opaque.
+# The frames are decoded once (then they live in the disk cache), so the extra cost is only paid when the cache is built.
+GifImagePlugin.LOADING_STRATEGY = GifImagePlugin.LoadingStrategy.RGB_ALWAYS
 
 from pitxu.lib.objects.size import Size
 from pitxu.lib.utils.animation_cache import compute_fingerprint, build_cache_dir_name
@@ -222,7 +225,12 @@ class Animation:
         """
         Resizes a given frame to the desired size and returns the resized frame, always in the output color mode.
         """
-        resized = frame.resize(desired_size.to_image_point(), resample=Image.Resampling.LANCZOS)
+        if frame.mode == self.OUTPUT_COLOR_MODE:
+            # Resized with premultiplied alpha: the color under a transparent pixel (black) must not bleed into the edges,
+            #   otherwise the emoji gets a dark halo when it is composited.
+            resized = frame.convert("RGBa").resize(desired_size.to_image_point(), resample=Image.Resampling.LANCZOS).convert(self.OUTPUT_COLOR_MODE)
+        else:
+            resized = frame.resize(desired_size.to_image_point(), resample=Image.Resampling.LANCZOS)
         return resized if resized.mode == self.OUTPUT_COLOR_MODE else resized.convert(self.OUTPUT_COLOR_MODE)
 
     def _build_frame_cache_key_per_size(self, desired_size: Size) -> str:

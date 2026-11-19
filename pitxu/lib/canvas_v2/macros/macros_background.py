@@ -200,4 +200,10 @@ class MacrosBackground(MacrosBase):
         offset_y = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.y + ((height - desired_height_gif) // 2)
 
         # Paint the frame on the canvas, resizing it to fit into the display area if needed.
-        base_image.paste(frame_to_show, (offset_x, offset_y))
+        # Composite it, do not paste it: a paste replaces the pixels including their alpha, so the transparent parts of the emoji
+        #   would erase the fill of the area (a box around the emoji) instead of letting it show through.
+        if base_image.mode == "RGBA" and frame_to_show.mode == "RGBA":
+            base_image.alpha_composite(frame_to_show, dest=(offset_x, offset_y))
+        else:
+            frame_rgba = frame_to_show.convert("RGBA")
+            base_image.paste(frame_rgba, (offset_x, offset_y), mask=frame_rgba)

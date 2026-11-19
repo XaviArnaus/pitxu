@@ -3,7 +3,7 @@ import os
 
 # Bump it when the way the cached frames are generated changes (conversion, resize algorithm, format...),
 #   so every previously cached animation is considered stale and gets regenerated.
-ANIMATION_CACHE_VERSION = 1
+ANIMATION_CACHE_VERSION = 2  # 2: frames decoded with the right transparency (RGB_ALWAYS) and resized with premultiplied alpha
 
 DEFAULT_STORAGE_PATH = "storage/"
 DEFAULT_ANIMATION_CACHE_FOLDER = "animations/"
