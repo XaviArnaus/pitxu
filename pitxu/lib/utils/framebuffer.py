@@ -115,6 +115,34 @@ class Framebuffer(object):
         assert image.size == self.size
         self._write(converter(image))
 
+    def show_region(self, image: Image, box: tuple[int, int, int, int], swap_red_blue: bool = False):
+        """
+        Writes only a rectangle of the image to the device: box is (left, top, right, bottom), right and bottom excluded.
+        The rows of the rectangle are written one by one at their place, so what is outside of it is not touched.
+        Only for the format that the DSI screen has (RGBA image, 32 bits per pixel). With any other, it writes the whole image.
+        """
+        if (image.mode, self.bits_per_pixel) != ("RGBA", 32):
+            self.show(image, swap_red_blue=swap_red_blue)
+            return
+        assert image.size == self.size
+
+        left, top, right, bottom = box
+        left, top = max(0, left), max(0, top)
+        right, bottom = min(self.size[0], right), min(self.size[1], bottom)
+        if right <= left or bottom <= top:
+            return
+
+        data = image.crop((left, top, right, bottom)).tobytes("raw", "BGRA" if swap_red_blue else "RGBA")
+        bytes_per_pixel = self.bits_per_pixel // 8
+        row_bytes = (right - left) * bytes_per_pixel
+        if left == 0 and right == self.size[0]:
+            # Full rows are contiguous in the device: one write.
+            self._write(data, top * self.stride)
+            return
+        view = memoryview(data)
+        for row in range(bottom - top):
+            self._write(view[row * row_bytes:(row + 1) * row_bytes], (top + row) * self.stride + left * bytes_per_pixel)
+
     def _write(self, data: bytes, offset: int = 0):
         """ Writes the bytes at the offset of the device, over the connection that is kept open. """
         for attempt in range(2):

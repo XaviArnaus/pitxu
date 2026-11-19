@@ -657,6 +657,10 @@ class Visualizer(PyXavi):
             )
         )
     
+    def invalidate_screen(self):
+        """ Tells the Painter that the display was changed from outside (it was cleared directly): it will send the whole screen next time. """
+        self.painter.invalidate_screen()
+
     def clear_background(self):
 
         self.painter.paint(

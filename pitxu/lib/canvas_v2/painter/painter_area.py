@@ -36,6 +36,12 @@ class PainterArea:
         # If the current paint has the same key, the drawing is reused instead of drawn again.
         self.cached_key: str | None = None
         self.cached_image: Image.Image | None = None
+        # Goes up every time a new drawing is stored in the cache: two drawings of the area are the same only if they have the same version.
+        self.cache_version: int = 0
+        # The picture of this area when it has nothing to paint (the empty frame of the layout). Made once, on a first need.
+        self.empty_image: Image.Image | None = None
+        # What this area contributed to the image of the screen the last time it was composed (see Painter): None if never.
+        self.composed_token: tuple | None = None
 
         # These commands are always drawn in every loop iteration, even if they did not change.
         self.exception_loop_commands: list[str] = list(exception_loop_commands) if exception_loop_commands else []
@@ -128,6 +134,7 @@ class PainterArea:
     def store_in_cache(self, key: str, image: Image.Image):
         self.cached_key = key
         self.cached_image = image
+        self.cache_version += 1
 
     def reset_cache(self):
         self.cached_key = None

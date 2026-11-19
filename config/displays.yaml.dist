@@ -194,6 +194,12 @@ dsi_lcd:
     timing_log: False
     # [Float] Seconds of activity between two timing reports. Defaults to 10.0
     timing_log_interval: 10.0
+    # [Bool] Compose (and send to the display) only the rectangle of the screen that changed, instead of the whole screen
+    #   on every frame. Defaults to True. False goes back to the whole screen every time. The mocked display always stores whole frames.
+    partial_composition: True
+    # [Bool] Debug: on every partial composition, also composes the whole screen apart and compares them. If they differ
+    #   it logs a warning, and fixes the screen. Costs as much as a whole composition: keep it off unless you are checking.
+    verify_partial: False
   # Configuration of the layout of the screen.
   layout:
     # The left column of the top row is shared by two areas: top_left (above) and center_left (below).
