@@ -102,6 +102,25 @@ class MarkdownRenderer:
 
     # ------------------------- Public -------------------------
 
+    WARM_UP_SAMPLE: str = (
+        "# Title\n\nA paragraph with **bold**, *italic* and `code`.\n\n- an item\n- another item\n\n"
+        "| a | b |\n|---|---|\n| 1 | 2 |\n\n```\ncode block\n```\n")
+
+    def warm_up(self):
+        """
+        Does once what the first real block would do the first time: builds the parser, loads the monospaced fonts
+        of the ladder and goes through the layout and the drawing, on a small image that is thrown away.
+        On a slow device the first block pays for it otherwise (hundreds of milliseconds).
+        """
+        color = {"RGBA": (0, 0, 0, 255), "RGB": (0, 0, 0)}.get(self._color_mode, 0)
+        image = Image.new(self._color_mode, (320, 240))
+        # Every size of the ladder first, so their monospaced fonts are loaded too.
+        # The drawing goes last: it is the one that reports the timings, with everything measured before it.
+        blocks = parse_markdown(self.WARM_UP_SAMPLE)
+        for font_index in range(len(self._ladder)):
+            self._layout(blocks, font_index, 320, panel=True)
+        self.draw(ImageDraw.Draw(image), self.WARM_UP_SAMPLE, (0, 0, 320, 240), color)
+
     def draw(self, draw: ImageDraw.ImageDraw, text: str, box: tuple, text_color, center: bool = True) -> bool:
         """
         Draws the Markdown text inside the box (x0, y0, x1, y1).
@@ -163,9 +182,17 @@ class MarkdownRenderer:
 
     # ------------------------- Layout -------------------------
 
-    def _layout(self, blocks: list, font_index: int, max_width: int, panel: bool) -> tuple[list, bool]:
-        """ Turns the blocks into lines for the given font of the ladder. Returns the lines and if any line had to wrap. """
+    def _layout(self, blocks: list, font_index: int, max_width: int, panel: bool,
+                max_height: int | None = None) -> tuple[list, bool]:
+        """
+        Turns the blocks into lines for the given font of the ladder. Returns the lines and if any line had to wrap.
+
+        With max_height, it stops at the first block that makes the lines taller than that: the lines are then
+        incomplete, but still taller than max_height, which is all that the caller needs to know to discard them.
+        It saves laying out the rest of a text that does not fit in this font anyway.
+        """
         base_font = self._ladder[font_index]
+        used_height = 0
         heading_font = self._ladder[min(font_index + 1, len(self._ladder) - 1)]
         mono_font = self._mono_for(int(base_font.size))
 
@@ -219,6 +246,11 @@ class MarkdownRenderer:
                 block_lines[0].gap_before += gap
                 any_wrapped = any_wrapped or any(line.wrapped for line in block_lines)
                 lines.extend(block_lines)
+
+                if max_height is not None:
+                    used_height += self._total_height(block_lines)
+                    if used_height > max_height:
+                        break
 
         return lines, any_wrapped
 
@@ -468,7 +500,7 @@ class MarkdownRenderer:
         for font_index in reversed(range(len(self._ladder))):
             # One stage per size of the ladder, to see how many are tried and what each one costs.
             with self._timings.measure(f"layout:{int(self._ladder[font_index].size)}px"):
-                lines, any_wrapped = self._layout(blocks, font_index, max_width, panel)
+                lines, any_wrapped = self._layout(blocks, font_index, max_width, panel, max_height=max_height)
             if self._total_height(lines) > max_height:
                 continue
             if prefer_no_wrap and any_wrapped:
