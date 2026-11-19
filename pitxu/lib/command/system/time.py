@@ -5,14 +5,21 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.interaction.shortcuts.status import Status
 
 
 class SystemTime(PyXavi, Command):
 
     format = "%H:%M"
+    status_shortcuts: Status = None
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(SystemTime, self).init_pyxavi(config=config, params=params)
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            self._xlog.warning("Missing 'status_shortcuts' parameter in SystemTime initialization.")
 
     def get_local_system_clock_time(self) -> str:
         '''
@@ -22,6 +29,7 @@ class SystemTime(PyXavi, Command):
             str: The current time in Hour:Minute format
         '''
         try:
+            self.status_shortcuts.add_new_status_line(f"🔧 Time: Getting time from local system")
             return time.strftime(self.format, time.localtime())
         except Exception as e:
             self._xlog.error(f"Error getting current time: {e}")
