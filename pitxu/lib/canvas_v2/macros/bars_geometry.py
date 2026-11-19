@@ -142,10 +142,13 @@ class BarsGeometry:
                 lit.append(bars[middle_above + 1 + step])
         return lit
 
+    def countdown_lit_count(self, percentage: float) -> int:
+        """ How many slabs are lit for the given percentage left (0-100). It is also what tells two percentages apart on screen. """
+        return max(0, min(self.SLABS, math.ceil((percentage / 100) * self.SLABS)))
+
     def countdown_lit_slabs(self, percentage: float) -> list[tuple[int, int, int, int]]:
         """ The slabs that are lit for the given percentage left (0-100), from the left. """
-        lit_count = math.ceil((percentage / 100) * self.SLABS)
-        return self.slabs[:max(0, min(self.SLABS, lit_count))]
+        return self.slabs[:self.countdown_lit_count(percentage)]
 
     def scanner_slabs(self, step: int) -> list[tuple[tuple[int, int, int, int], float]]:
         """

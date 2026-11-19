@@ -720,14 +720,35 @@ class Painter(PyXavi):
         for dropped in self.areas[queue_name].drop_duplicates_of_type(interaction):
             self._log_debug(f"Removing previous duplicated interaction [{dropped.get_cache_key()}] from the queue.")
 
-        # In case that the current interaction is set to stay after painting, it could stay forever,
-        #   actually blocking anything else that comes afterwards.
-        # When it's managed by the busy flags, it will be removed whenever the flag changes,
-        #   but when it's a normal one, we should simply remove the current one once we get a new one.
+        # Get the current interaction so we can compare it with the new one and decide if we need to replace it or ignore it.
         current_interaction = self.get_current_interaction(queue_name)
+
+        # So we got a new one? Is a valid interaction and is not self/flag managed?
         if current_interaction is not None and \
             current_interaction.while_shared_memory_flag is None and \
             not current_interaction.remove_interaction_after_painting:
+
+            # The same paint as the current one, again: it would be drawn exactly as it is already, so there is nothing to do.
+            # Replacing it would reset the cache of the area, and so make a new draw (and flush) for the same picture.
+            # Only for the paints that declare what their cache key depends on (cache_control_parameters), because the
+            #   others (empty list) may change their parameters without it being visible in the key, and need the redraw.
+            # Not for the paints that come back to be maintained again, nor the ones that live by a flag or remove themselves.
+            if len(interaction.cache_control_parameters) > 0 and \
+                current_interaction.get_cache_key() == interaction.get_cache_key() and \
+                current_interaction is not interaction and \
+                current_interaction.while_shared_memory_flag is None and \
+                current_interaction.maintain_paint_for_seconds is None and \
+                interaction.maintain_paint_for_seconds is None and \
+                not interaction.remove_interaction_after_painting and \
+                not (isinstance(current_interaction, FramedPaint) and current_interaction.is_multi_frame()):
+                self.timings.count(f"same_paint_ignored:{queue_name}")
+                self._log_debug(f"Interaction [{interaction.get_cache_key()}] is the same as the current one in [{queue_name}]. Nothing changes on screen, ignoring it.")
+                return
+
+            # In case that the current interaction is set to stay after painting, it could stay forever,
+            #   actually blocking anything else that comes afterwards.
+            # When it's managed by the busy flags, it will be removed whenever the flag changes,
+            #   but when it's a normal one, we should simply remove the current one once we get a new one.
             self._log_debug(f"Current {queue_name} interaction [{current_interaction.name}] is set to stay after painting, but we received a new {queue_name} interaction [{interaction.name}]. Removing the current one to give priority to the new one.")
             self._remove_interaction(interaction=current_interaction, queue_name=queue_name)
         

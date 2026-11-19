@@ -122,6 +122,10 @@ class MacrosBackground(MacrosBase):
 
     # ---- The countdown (holding percentage) ----
 
+    def countdown_lit_count(self, percentage: float) -> int:
+        """ How many squares of the countdown are lit for the given percentage: the only thing that changes what is on screen. """
+        return self.bars.countdown_lit_count(percentage)
+
     def draw_interaction_holding_percentage(self, draw: ImageDraw.ImageDraw, params: dict):
         '''
         Draws on the given canvas a percentage bar indicating how much time is left
