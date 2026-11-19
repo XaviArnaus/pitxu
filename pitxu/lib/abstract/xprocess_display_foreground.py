@@ -24,11 +24,7 @@ class XprocessDisplayForeground(Xprocess):
         self.unset_busy()
 
     def _run_foreground_interaction(self, config: Config, logger: logging, action: XprocAction, param: any):
-        
-        if action == XprocAction.INITIALIZE_ANIMATIONS:
-            self._log_debug("XprocessDisplayForeground: Initializing animations in Visualizer.")
-            self.initialize_animations()
-        
+
         # Shows the message received
         if action == XprocAction.SHOW and param != "":
             self.show(param)
@@ -132,9 +128,6 @@ class XprocessDisplayForeground(Xprocess):
 
     # ------- Foreground Interaction functions ---------
 
-    def initialize_animations(self):
-        raise NotImplementedError("initialize_animations() must be implemented in Display Foreground subclasses.")
-    
     def show(self, text: str):
         raise NotImplementedError("show() must be implemented in Display Foreground subclasses.")
     

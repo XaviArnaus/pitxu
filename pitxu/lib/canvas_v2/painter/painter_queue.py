@@ -5,6 +5,7 @@ class PainterQueue:
     FOREGROUND: str = "foreground"
     STATUS: str = "status"
     BACKGROUND: str = "background"
+    ANIMATIONS: str = "animations"
     OVERALL: str = "overall"
     BUTTONS_LEFT: str = "buttons_left"
     BUTTONS_RIGHT: str = "buttons_right"

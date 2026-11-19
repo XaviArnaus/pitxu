@@ -19,17 +19,6 @@ class Background(ShortcutBase):
     
     # --------- (Proxy) Functions to trigger interactions ---------
     
-    def show_thinking(self):
-        """
-        Triggers a "thinking" interaction on the background display.
-
-        This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
-        """
-
-        self._log_debug("🤖 Triggering thinking interaction on background display.")
-
-        self.process_pool.send(self.get_queue(), XprocAction.THINKING)
-    
     def show_networking(self):
         """
         Triggers a "networking" interaction on the background display.

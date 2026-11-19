@@ -846,6 +846,8 @@ class MainClientPTT(PyXavi):
         self._interaction.clear_foreground_display()
         self._log_debug("Clearing the Background Display.")
         self._interaction.clear_background_display()
+        self._log_debug("Clearing the Animations Display.")
+        self._interaction.clear_animations_display()
 
     # ------- Stuff to do every minute -------
 
