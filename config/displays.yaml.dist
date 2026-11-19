@@ -194,6 +194,13 @@ dsi_lcd:
       height_share: 0.3
       # [Integer] Pixels between the outlines of top_left and center_left.
       gap: 6
+      # How the effects in center_left (the mouth, the countdown and the scanner) look. Their sizes are proportional to the area.
+      # [Integer] Columns of the KITT mouth: 3 or 5. With 5, the ones on the outside have even less rows.
+      mouth_columns: 3
+      # [Float] Gap between the columns of the mouth, in times the outer margin (12% of the height of the area).
+      mouth_column_gap: 2.0
+      # [Integer] Rounded corners of the rectangles, in pixels. 0 for square corners.
+      corner_radius: 1
   # What this display shows for each state. Animations always go in the top left.
   # Displays with less resources keep their own fixed effects and do not read this.
   effects:

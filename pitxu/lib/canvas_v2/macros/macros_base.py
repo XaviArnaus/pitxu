@@ -23,10 +23,6 @@ class MacrosBase(PyXavi):
     layout_info: dict[str, dict[str, Rectangle]] = None
     color_scheme_info: dict[str, dict[str, any]] = None
 
-    # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
-    LED_TO_LCD_OFFSET_X: int = 0
-    APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
-
     VERBOSE_DEBUG: bool = False
 
     def __init__(self, config: Config, params: Dictionary):

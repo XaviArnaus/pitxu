@@ -821,7 +821,7 @@ class Visualizer(PyXavi):
     def networking(self):
         """
         Shows that the network is busy, while the network busy flag is on.
-        The effect is the scanner in blue, in the center left.
+        The effect is the scanner in blue (the slabs of the countdown with a lit head going back and forth), in the center left.
         """
 
         self.painter.paint(
@@ -840,7 +840,7 @@ class Visualizer(PyXavi):
                         drawing_callback_parameters={"color": self.canvas.COLOR_BLUE},
                         cache_control_parameters=["current_loop_iteration"],
 
-                        loop_iterations=16,
+                        loop_iterations=self.macros_background.scanner_loop_iterations(),
                         delay_between_frames=self.interaction_delays.get("networking",
                                                                         self.interaction_delays.get("default_delay_between_frames",
                                                                                                     0.05)),
