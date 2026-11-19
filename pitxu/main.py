@@ -604,7 +604,11 @@ class Main(PyXavi):
             #       There may not be a second function call response.
             #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
             #       So the second time we may not be able to show the time on the screen, for example.
-            self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
+            self._xlog.info(f"Reacting to a Chatbot answer: \n\t" +
+                f"- Text: {chat_response.text}\n\t" +
+                f"- Function Calls: {chat_response.function_call_history.get_names()}\n\t" +
+                f"- Code blocks: {len(chat_response.code) if chat_response.code else 0}\n\t" +
+                f"- Emotion: {chat_response.emotion if chat_response.emotion else 'none'}")
             self._reactions.react_on_answer(chat_response=chat_response)
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))

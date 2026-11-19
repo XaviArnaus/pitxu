@@ -144,6 +144,7 @@ class Reactions(PyXavi):
             bool: True if the animation was requested, False otherwise (no emotion, or one that is not configured).
         """
         if label is None or label == "none":
+            self._xlog.debug(f"🎭 No emotion returned. No animation.")
             return False
 
         # A label the chatbot made up, or that was taken out of the config, is not worth an error.
