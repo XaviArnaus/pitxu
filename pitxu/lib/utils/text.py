@@ -41,6 +41,31 @@ class Text:
 
         return Text._remove_markdown_with_regex(Text._tables_to_lines(text))
 
+    # The tag the chatbot puts in its answers to tell how the answer feels, like [emotion: sad]
+    _EMOTION_TAG = re.compile(r'\[\s*emotion\s*[:=]\s*([^\]\n]*?)\s*\]\s*', re.IGNORECASE)
+
+    @staticmethod
+    def extract_emotion_tag(text: str) -> tuple[str, str | None]:
+        '''
+        Takes the emotion tag out of a text, so it is not shown nor spoken.
+
+        Any tag in the text is removed wherever it is (the chatbot is asked to put it first, but if it did not, it must still not be spoken).
+        The label of the first one is returned, in lower case and with no spaces around it.
+
+        Returns:
+            tuple[str, str | None]: The text without the tag and the label, None if there is no tag (or the text is not a string).
+        '''
+        if not isinstance(text, str) or text == "":
+            return text, None
+
+        match = Text._EMOTION_TAG.search(text)
+        if match is None:
+            return text, None
+
+        label = match.group(1).strip().lower() or None
+        # The tag usually takes the first line: the answer starts in the next one, without the blanks that were around the tag.
+        return Text._EMOTION_TAG.sub("", text).strip(), label
+
     @staticmethod
     def markdown_for_speech(text: str, tables: str = "rows") -> str:
         '''

@@ -38,6 +38,19 @@ class Animations(ShortcutBase):
 
         self.process_pool.send(self.get_queue(), XprocAction.THINKING)
 
+    def show_animation_while_speaking(self, animation: str):
+        """
+        Shows an animation (one of `animations.map`) on the animations display, for as long as the speaker is busy.
+
+        This needs the SHARED_SPEAKER_BUSY flag to be set by the Text To Speech process.
+        """
+
+        self._log_debug(f"🎞️ Triggering animation [{animation}] while speaking on animations display.")
+
+        self.process_pool.send(self.get_queue(), XprocAction.SHOW_ANIMATION_WHILE_SPEAKING, {
+            "animation": animation
+        })
+
     # --------- (Proxy) Functions to clear screens ---------
 
     def soft_clear(self):

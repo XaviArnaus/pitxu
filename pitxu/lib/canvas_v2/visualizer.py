@@ -823,6 +823,53 @@ class Visualizer(PyXavi):
             )
         )
     
+    def animation_while_speaking(self, params: dict):
+        """
+        Shows an animation in the top left, for as long as the speaker is busy (the same time the answer is spoken,
+        like the mouth in the background does). Then the area is cleared.
+
+        Args:
+            params: "animation" is the name of one of the animations of `animations.map`.
+        """
+
+        animation_name = params.get("animation", None)
+        try:
+            # Loaded here the first time it is used (the animations that are not preloaded are lazy).
+            frame_count = self.animations.get_animation(animation_name).get_frame_count()
+        except Exception as e:
+            self._xlog.warning(f"🟠 Cannot show the animation [{animation_name}] while speaking: {e}")
+            return
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        # The name has the animation, so the cache key of each animation is its own.
+                        name=f"AnimationWhileSpeakingAnimationPaint_{animation_name}",
+                        command=AnimationsCommand(AnimationsCommand.EMOTION),
+
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
+
+                        # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+                        loop_iterations=frame_count - 1,
+                        delay_between_frames=self.interaction_delays.get("emotion",
+                                                                        self.interaction_delays.get("default_delay_between_frames",
+                                                                                                    0.05)),
+
+                        # The parameter "current_loop_iteration" is added during the painting stage,
+                        # and it is the index of the frame to draw.
+                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback_parameters={"animation": animation_name},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
     def networking(self):
         """
         Shows that the network is busy, while the network busy flag is on.

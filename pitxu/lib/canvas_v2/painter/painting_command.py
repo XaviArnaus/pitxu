@@ -139,11 +139,14 @@ class AnimationsCommand(PaintingCommand):
 
     THINKING: str = "THINKING"
     IDLE: str = "IDLE"
+    # Any animation shown while something else happens (like the one that goes with the answer while it is spoken).
+    EMOTION: str = "EMOTION"
 
     def __init__(self, command: str):
         available_commands = [
             self.THINKING,
             self.IDLE,
+            self.EMOTION,
             self.CLEAR,
         ]
         super(AnimationsCommand, self).__init__(command, available_commands)

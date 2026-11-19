@@ -124,11 +124,37 @@ class Reactions(PyXavi):
                     align="left" if several_lines else "center",
                     valign="top" if several_lines else "center"
                 )
+                # And how the answer feels, as an animation while it is spoken.
+                # It is here, and not for the answers handled by a tool, because the tools show their own things.
+                #   (The day one of them asks for a specific animation, it simply wins over this: it goes in its own handler.)
+                self.show_emotion(chat_response.emotion if chat_response.error is None else "sad")
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response
         
     
+    def show_emotion(self, label: str | None) -> bool:
+        """
+        Shows the animation of an emotion while the answer is spoken, if there is one for it.
+
+        Args:
+            label (str | None): The emotion, as the chatbot says it (one of `animations.emotions`). None or "none" is no emotion.
+
+        Returns:
+            bool: True if the animation was requested, False otherwise (no emotion, or one that is not configured).
+        """
+        if label is None or label == "none":
+            return False
+
+        # A label the chatbot made up, or that was taken out of the config, is not worth an error.
+        if label not in (self._xconfig.get("animations.emotions", None) or {}):
+            self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones. No animation.")
+            return False
+
+        self._xlog.debug(f"🎭 Showing the emotion [{label}] while speaking.")
+        self.interaction.show_animation_while_speaking(label)
+        return True
+
     def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
         Reacts to the received function call response, meaning that a Tool was used,
@@ -226,7 +252,9 @@ class Reactions(PyXavi):
             icon="🚨",
             text=function_call_pair.function_response.response.get("result", "unknown"),
             font_size=self._get_canvas().FONT_SIZE_BIG)
-    
+        # No need to ask the chatbot how it feels about its own error.
+        self.show_emotion("sad")
+
     def handle_client_callback(self, function_call_pair: FunctionCallPair, text: str = None):
         self._xlog.debug("↩️  Reacting to a function call with a client callback: " + str(function_call_pair.function_name))
         

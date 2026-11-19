@@ -475,7 +475,13 @@ class Interaction(PyXavi):
         This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
         """
         self.animations.show_thinking()
-    
+
+    def show_animation_while_speaking(self, animation: str):
+        """
+        Shows an animation (one of `animations.map`) on the animations display, while the answer is spoken.
+        """
+        self.animations.show_animation_while_speaking(animation)
+
     def show_networking(self):
         """
         Triggers a "networking" interaction on the background display.

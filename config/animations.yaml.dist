@@ -37,3 +37,31 @@ animations:
     silence: "silence.gif"
     sorry: "sorry.gif"
     "yes": "yes.gif"
+  # [Dict] The animations the chatbot can choose from to express how its answer feels. The animation is shown while the answer is spoken.
+  # Each key is the name of an animation of `map` (the label the chatbot writes), and the value tells it when to pick it: it goes into its prompt, in English whatever the language of the answer.
+  # To offer a new emotion: add the animation to `map` and its label with a description here. Not listing any disables the feature.
+  # `none` is always offered by itself, for the answers that are neutral or just informative (no animation).
+  # The animations used while something happens (sleeping, thinking, bell, ear, eyes, silence, bubble) are not emotions: leave them out.
+  # `no` and `yes` need quotes, otherwise YAML reads them as booleans.
+  emotions:
+    "yes": "an affirmative answer, agreement, confirming something"
+    "no": "a negative answer, disagreement, refusing or declining something"
+    check: "a task or action was completed successfully"
+    cross: "a task or action failed, or something is not possible or was not found"
+    sad: "bad news, disappointment, or sympathy for a sad situation"
+    sorry: "apologizing for a mistake, a limitation or a misunderstanding"
+    blush: "flattered, embarrassed or shy"
+  # [Dict] The animations the chatbot can choose from to express how its answer feels. The animation is shown while the answer is spoken.
+  # Each key is the name of an animation of `map` (the label the chatbot writes), and the value tells it when to pick it: it goes into its prompt, in English whatever the language of the answer.
+  # To offer a new emotion: add the animation to `map` and its label with a description here. Not listing any disables the feature.
+  # `none` is always offered by itself, for the answers that are neutral or just informative (no animation).
+  # The animations used while something happens (sleeping, thinking, bell, ear, eyes, silence, bubble) are not emotions: leave them out.
+  # `no` and `yes` need quotes, otherwise YAML reads them as booleans.
+  emotions:
+    "yes": "an affirmative answer, agreement, confirming something"
+    "no": "a negative answer, disagreement, refusing or declining something"
+    check: "a task or action was completed successfully"
+    cross: "a task or action failed, or something is not possible or was not found"
+    sad: "bad news, disappointment, or sympathy for a sad situation"
+    sorry: "apologizing for a mistake, a limitation or a misunderstanding"
+    blush: "flattered, embarrassed or shy"

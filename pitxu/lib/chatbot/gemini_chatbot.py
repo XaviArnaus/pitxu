@@ -9,6 +9,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
+from pitxu.lib.utils.text import Text
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
@@ -135,6 +136,8 @@ class GeminiChatbot(PyXavi):
         for item in history:
             parts = item.parts if item.parts is not None else []
             text = "\n".join([part.text for part in parts if part.text is not None])
+            # The emotion tag is for the display only: whoever reads the history (like the memory summary) does not need it.
+            text, _ = Text.extract_emotion_tag(text)
             functions = {
                 "calls": [{ "name": part.function_call.name, "args": part.function_call.args } for part in parts if part.function_call is not None],
                 "responses": [{ "name": part.function_response.name, "response": part.function_response.response } for part in parts if part.function_response is not None]
@@ -199,11 +202,28 @@ class GeminiChatbot(PyXavi):
         self._xlog.info("🧠 Using model: " + str(self.MODEL))
         self._initialize_chat(tools=tools)
     
+    def _emotion_instruction(self) -> str:
+        """
+        The part of the system instruction that asks the chatbot to start its answers with an emotion tag, like `[emotion: sad]`.
+        It lists the emotions of `animations.emotions` (plus `none`). It is empty, so nothing is asked, if there are no emotions configured.
+        The labels are in English for every language, so it is a single text (chatbot.emotion_instruction) that is not translated.
+        """
+        emotions = self._xconfig.get("animations.emotions", None)
+        template = self._xconfig.get("chatbot.emotion_instruction", None)
+        if not emotions or not template:
+            return ""
+
+        labels = [f"- {label}: {description}" for label, description in emotions.items()]
+        labels.append("- none: a neutral or just informative answer")
+        return str(template) % "\n".join(labels)
+
     def _initialize_chat(self, tools: list):
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME),
+                system_instruction=(
+                    self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME)
+                ) + self._emotion_instruction(),
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
