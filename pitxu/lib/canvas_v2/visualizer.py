@@ -224,6 +224,7 @@ class Visualizer(PyXavi):
         #   - other status-like flags that we want to monitor to trigger some visualization when they are activated.
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
         self._setup_buttons_monitoring()
+        self._setup_countdown_cleanup()
 
         self._xlog.debug("Initialized Visualizer.")
     
@@ -874,7 +875,14 @@ class Visualizer(PyXavi):
             )
         )
 
-    def holding_percentage_end(self):
+    def holding_percentage_end(self, blank_screen: bool = True):
+        """
+        Takes the countdown bar away. If it is not there (it was already gone), nothing happens.
+
+        Args:
+            blank_screen: Blank the whole screen if nothing else is drawn after it. Right when the hold time is over,
+                False when something else is about to be drawn anyway (like the thinking animation).
+        """
         # Same name and command as the paint set by holding_percentage(), so the Painter can find it.
         self.painter.request_removal(
             BackgroundPaint(
@@ -882,7 +890,23 @@ class Visualizer(PyXavi):
                 command=BackgroundCommand(BackgroundCommand.HOLDER_PERCENTAGE),
             ),
             PainterQueue.BACKGROUND,
-            blank_screen=True)
+            blank_screen=blank_screen)
+
+    def _setup_countdown_cleanup(self):
+        """
+        Registers, once and forever, the callback that takes the countdown bar away when the chatbot starts thinking.
+        The thinking animation has its own area, so it does not take the place of the bar by itself any more
+        (it did when both were in the same queue).
+        """
+        def end_holding_percentage_when_thinking():
+            self.holding_percentage_end(blank_screen=False)
+
+        self.painter.get_painter_shared_memory().set_callback_for_shared_memory_flag(
+            name="end_holding_percentage_when_thinking",
+            shared_memory_flag=SHARED_CHATBOT_BUSY,
+            activation_value=True,
+            callback=end_holding_percentage_when_thinking,
+            is_dependant=False)
     
     # ----- Status paints -----
 

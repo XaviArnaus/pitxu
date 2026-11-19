@@ -800,8 +800,8 @@ class Main(PyXavi):
             reason (str): Who asks, for the logs.
             mute (bool): Mute the microphone, stopping the input stream. The hold time over case decides it by the wake up mode.
             clear_bar (bool): Take the countdown bar away and reset its counters. Only when the hold time is over,
-                otherwise the bar stays on screen until the next effect (thinking, speaking) takes its place,
-                or until the next listening phase draws it again.
+                otherwise the bar stays on screen until the thinking starts (the Visualizer takes it away then) or the
+                speaking effect takes its place, or until the next listening phase draws it again.
         """
         self._log_debug(f"🛑 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
 
