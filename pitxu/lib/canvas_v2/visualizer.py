@@ -657,6 +657,10 @@ class Visualizer(PyXavi):
             )
         )
     
+    def invalidate_screen(self):
+        """ Tells the Painter that the display was changed from outside (it was cleared directly): it will send the whole screen next time. """
+        self.painter.invalidate_screen()
+
     def clear_background(self):
 
         self.painter.paint(
@@ -855,6 +859,10 @@ class Visualizer(PyXavi):
 
     def holding_percentage(self, param: dict):
 
+        # The percentage changes many times per lit square. What is on screen only changes with the number of lit squares,
+        #   so that is what the cache key is made of: the Painter does not redraw (nor flush) for the same squares.
+        param = {**param, "lit": self.macros_background.countdown_lit_count(param.get("percentage", 0))}
+
         self.painter.paint(
             PaintObject(
                 paints_by_queue={
@@ -864,7 +872,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_background.draw_interaction_holding_percentage,
                         drawing_callback_parameters=param,
-                        cache_control_parameters=["percentage"],
+                        cache_control_parameters=["lit"],
 
                         overwrite_current_interaction_with_same_type=True,
 

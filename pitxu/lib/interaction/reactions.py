@@ -114,9 +114,15 @@ class Reactions(PyXavi):
                 self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
                 # The top right area does not render Markdown: show the text without its syntax.
                 #   (The OVERALL text blocks, shown by the tools, do render it.)
+                cleaned = Text.remove_markdown(chat_response.text)
+                self._xlog.debug(f"Foreground text after removing the Markdown: [{cleaned}]")
+                # Short text reads best centered; a list of lines reads best from the top left.
+                several_lines = "\n" in (cleaned or "").strip()
                 self.interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🧠",
-                    text=Text.remove_markdown(chat_response.text)
+                    text=cleaned,
+                    align="left" if several_lines else "center",
+                    valign="top" if several_lines else "center"
                 )
         
         # We return the possibly modified chat response, so it can be spoken or shown as well.

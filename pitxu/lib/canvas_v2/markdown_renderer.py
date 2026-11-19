@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw, ImageFont
 
-from pitxu.lib.utils.markdown_parser import Block, parse_markdown
+from pitxu.lib.utils.markdown_parser import Block, Span, parse_markdown
+from pitxu.lib.canvas_v2.painter.painter_timings import PainterTimings
 
 
 @dataclass
@@ -76,14 +77,17 @@ class MarkdownRenderer:
     PANEL_COLORS: dict = {"RGBA": (214, 214, 214, 255), "RGB": (214, 214, 214), "L": 214}
 
     def __init__(self, fonts: list, mono_font_file: str | None = None, mono_font_index: int = 0,
-                 color_mode: str = "RGBA"):
+                 color_mode: str = "RGBA", timings: PainterTimings | None = None):
         """
         Args:
             fonts (list): The ladder of fonts to try, in any order (they are sorted by size).
             mono_font_file (str): Font file for the code. Falls back to the regular font if it can not be loaded.
             mono_font_index (int): Face inside the file, for collections.
             color_mode (str): The mode of the image that we draw on. It defines the backgrounds for the code.
+            timings (PainterTimings): To measure where the time of every draw goes. It reports after each block.
+                Without it nothing is measured.
         """
+        self._timings: PainterTimings = timings if timings is not None else PainterTimings(False, lambda *_: None)
         by_size: dict[int, ImageFont.FreeTypeFont] = {}
         for font in fonts:
             by_size.setdefault(int(font.size), font)
@@ -98,16 +102,73 @@ class MarkdownRenderer:
 
     # ------------------------- Public -------------------------
 
+    WARM_UP_SAMPLE: str = (
+        "# Title\n\nA paragraph with **bold**, *italic* and `code`.\n\n- an item\n- another item\n\n"
+        "| a | b |\n|---|---|\n| 1 | 2 |\n\n```\ncode block\n```\n")
+
+    def warm_up(self):
+        """
+        Does once what the first real block would do the first time: builds the parser, loads the monospaced fonts
+        of the ladder and goes through the layout and the drawing, on a small image that is thrown away.
+        On a slow device the first block pays for it otherwise (hundreds of milliseconds).
+        """
+        color = {"RGBA": (0, 0, 0, 255), "RGB": (0, 0, 0)}.get(self._color_mode, 0)
+        image = Image.new(self._color_mode, (320, 240))
+        # Every size of the ladder first, so their monospaced fonts are loaded too.
+        # The drawing goes last: it is the one that reports the timings, with everything measured before it.
+        blocks = parse_markdown(self.WARM_UP_SAMPLE)
+        for font_index in range(len(self._ladder)):
+            self._layout(blocks, font_index, 320, panel=True)
+        self.draw(ImageDraw.Draw(image), self.WARM_UP_SAMPLE, (0, 0, 320, 240), color)
+
     def draw(self, draw: ImageDraw.ImageDraw, text: str, box: tuple, text_color, center: bool = True) -> bool:
         """
         Draws the Markdown text inside the box (x0, y0, x1, y1).
         Returns False, drawing nothing, when there is nothing to draw. Raises when the parsing or the drawing fail.
         """
-        blocks = parse_markdown(text)
-        if not blocks:
+        try:
+            with self._timings.measure("total"):
+                with self._timings.measure("parse"):
+                    blocks = parse_markdown(text)
+                if not blocks:
+                    return False
+                self._timings.count("text_chars", len(text))
+                self._timings.count("blocks", len(blocks))
+                self._draw_blocks(draw, blocks, box, text_color, panel=True, prefer_no_wrap=False,
+                                  halign="center" if center else "left", valign="center" if center else "top")
+            return True
+        finally:
+            self._timings.report_stages("Markdown renderer: text")
+
+    def draw_plain(self, draw: ImageDraw.ImageDraw, text: str, box: tuple, text_color,
+                   max_font_size: int | None = None, align: str = "center", valign: str = "center") -> bool:
+        """
+        Draws a text as it is, without any Markdown syntax meaning, inside the box (x0, y0, x1, y1).
+        It is the same fitting as the Markdown: the biggest font of the ladder that holds the text (wrapping the lines),
+        or the smallest with the text truncated by "…" if even that does not hold it. The line breaks of the text are kept.
+
+        Args:
+            max_font_size: The biggest size that can be used, in pixels. The font is reduced from there to fit. None: no limit.
+                If it is below the smallest of the ladder, the smallest is used.
+            align: "center" centers the block of text and each of its lines; "left" puts the block, and its lines, at the left.
+            valign: "center" or "top".
+        Returns False, drawing nothing, when there is nothing to draw.
+        """
+        if text is None or text.strip() == "":
             return False
-        self._draw_blocks(draw, blocks, box, text_color, center, panel=True, prefer_no_wrap=False)
-        return True
+        try:
+            with self._timings.measure("total"):
+                self._timings.count("text_chars", len(text))
+                blocks = [Block(kind="paragraph", spans=[Span(text=text.strip("\n"))])]
+                self._draw_blocks(
+                    draw, blocks, box, text_color, panel=False, prefer_no_wrap=False,
+                    halign="center" if align == "center" else "left",
+                    valign="center" if valign == "center" else "top",
+                    line_align="center" if align == "center" else "left",
+                    max_font_size=max_font_size)
+            return True
+        finally:
+            self._timings.report_stages("Markdown renderer: plain text")
 
     def draw_code(self, draw: ImageDraw.ImageDraw, code: str, box: tuple, text_color, center: bool = True) -> bool:
         """
@@ -116,22 +177,29 @@ class MarkdownRenderer:
         """
         if code is None or code.strip() == "":
             return False
-        self._draw_blocks(draw, [Block(kind="code", text=code)], box, text_color, center, panel=False, prefer_no_wrap=True)
-        return True
+        try:
+            with self._timings.measure("total"):
+                self._timings.count("text_chars", len(code))
+                self._draw_blocks(draw, [Block(kind="code", text=code)], box, text_color, panel=False, prefer_no_wrap=True,
+                                  halign="center" if center else "left", valign="center" if center else "top")
+            return True
+        finally:
+            self._timings.report_stages("Markdown renderer: code")
 
     # ------------------------- Fonts -------------------------
 
     def _mono_for(self, size: int) -> ImageFont.FreeTypeFont:
         if size not in self._mono_cache:
             font = None
-            if self._mono_file:
-                try:
-                    font = ImageFont.truetype(self._mono_file, size, index=self._mono_index)
-                except Exception:
-                    font = None
-            if font is None:
-                # The ladder font with the closest size.
-                font = min(self._ladder, key=lambda candidate: abs(int(candidate.size) - size))
+            with self._timings.measure("mono_font_load"):
+                if self._mono_file:
+                    try:
+                        font = ImageFont.truetype(self._mono_file, size, index=self._mono_index)
+                    except Exception:
+                        font = None
+                if font is None:
+                    # The ladder font with the closest size.
+                    font = min(self._ladder, key=lambda candidate: abs(int(candidate.size) - size))
             self._mono_cache[size] = font
         return self._mono_cache[size]
 
@@ -146,9 +214,17 @@ class MarkdownRenderer:
 
     # ------------------------- Layout -------------------------
 
-    def _layout(self, blocks: list, font_index: int, max_width: int, panel: bool) -> tuple[list, bool]:
-        """ Turns the blocks into lines for the given font of the ladder. Returns the lines and if any line had to wrap. """
+    def _layout(self, blocks: list, font_index: int, max_width: int, panel: bool,
+                max_height: int | None = None) -> tuple[list, bool]:
+        """
+        Turns the blocks into lines for the given font of the ladder. Returns the lines and if any line had to wrap.
+
+        With max_height, it stops at the first block that makes the lines taller than that: the lines are then
+        incomplete, but still taller than max_height, which is all that the caller needs to know to discard them.
+        It saves laying out the rest of a text that does not fit in this font anyway.
+        """
         base_font = self._ladder[font_index]
+        used_height = 0
         heading_font = self._ladder[min(font_index + 1, len(self._ladder) - 1)]
         mono_font = self._mono_for(int(base_font.size))
 
@@ -202,6 +278,11 @@ class MarkdownRenderer:
                 block_lines[0].gap_before += gap
                 any_wrapped = any_wrapped or any(line.wrapped for line in block_lines)
                 lines.extend(block_lines)
+
+                if max_height is not None:
+                    used_height += self._total_height(block_lines)
+                    if used_height > max_height:
+                        break
 
         return lines, any_wrapped
 
@@ -442,14 +523,62 @@ class MarkdownRenderer:
 
     # ------------------------- Fit -------------------------
 
-    def _fit(self, blocks: list, max_width: int, max_height: int, panel: bool, prefer_no_wrap: bool) -> list:
+    def _fit(self, blocks: list, max_width: int, max_height: int, panel: bool, prefer_no_wrap: bool,
+             max_font_size: int | None = None) -> list:
         """
         Picks the biggest font that holds all the text. If none does, takes the smallest and truncates.
         With prefer_no_wrap, a smaller font that does not wrap any line wins over a bigger one that does.
+        With max_font_size, the fonts of the ladder that are bigger than that are not an option.
         """
+        if prefer_no_wrap:
+            return self._fit_without_wrapping(blocks, max_width, max_height, panel)
+        top_index = len(self._ladder) - 1
+        if max_font_size is not None:
+            top_index = max(0, max([index for index, font in enumerate(self._ladder) if int(font.size) <= max_font_size], default=0))
+        return self._fit_biggest(blocks, max_width, max_height, panel, top_index)
+
+    def _fit_biggest(self, blocks: list, max_width: int, max_height: int, panel: bool, top_index: int) -> list:
+        """
+        The biggest font of the ladder that holds all the text, searching smartly: a bigger font never makes the text shorter,
+        so if the smallest font does not fit, none does (and the text is truncated, with one layout only), and otherwise
+        the biggest one that fits is found by bisection. Laying out a long text is the expensive part of drawing it.
+        """
+        def layout(font_index: int) -> list:
+            # One stage per size of the ladder, to see how many are tried and what each one costs.
+            with self._timings.measure(f"layout:{int(self._ladder[font_index].size)}px"):
+                lines, _ = self._layout(blocks, font_index, max_width, panel, max_height=max_height)
+            return lines
+
+        smallest_lines = layout(0)
+        if self._total_height(smallest_lines) > max_height:
+            # Nothing fits: truncate. The lines stop at the block that overflowed, which is all that truncating needs,
+            #   unless it is a single line (then it can not know if there was more text after it).
+            if len(smallest_lines) <= 1:
+                with self._timings.measure(f"layout:{int(self._ladder[0].size)}px"):
+                    smallest_lines, _ = self._layout(blocks, 0, max_width, panel)
+            with self._timings.measure("truncate"):
+                return self._truncate(smallest_lines, max_width, max_height)
+
+        best = smallest_lines
+        low, high = 1, top_index
+        while low <= high:
+            middle = (low + high) // 2
+            lines = layout(middle)
+            if self._total_height(lines) <= max_height:
+                best = lines
+                low = middle + 1
+            else:
+                high = middle - 1
+        return best
+
+    def _fit_without_wrapping(self, blocks: list, max_width: int, max_height: int, panel: bool) -> list:
+        """ For the code: a smaller font that does not wrap any line wins over a bigger one that does. """
+        prefer_no_wrap = True
         wrapped_fallback = None
         for font_index in reversed(range(len(self._ladder))):
-            lines, any_wrapped = self._layout(blocks, font_index, max_width, panel)
+            # One stage per size of the ladder, to see how many are tried and what each one costs.
+            with self._timings.measure(f"layout:{int(self._ladder[font_index].size)}px"):
+                lines, any_wrapped = self._layout(blocks, font_index, max_width, panel, max_height=max_height)
             if self._total_height(lines) > max_height:
                 continue
             if prefer_no_wrap and any_wrapped:
@@ -460,8 +589,10 @@ class MarkdownRenderer:
         if wrapped_fallback is not None:
             return wrapped_fallback
 
-        lines, _ = self._layout(blocks, 0, max_width, panel)
-        return self._truncate(lines, max_width, max_height)
+        with self._timings.measure(f"layout:{int(self._ladder[0].size)}px"):
+            lines, _ = self._layout(blocks, 0, max_width, panel)
+        with self._timings.measure("truncate"):
+            return self._truncate(lines, max_width, max_height)
 
     def _truncate(self, lines: list, max_width: int, max_height: int) -> list:
         """ Keeps the lines that fit and ends the last one with an ellipsis. """
@@ -518,22 +649,38 @@ class MarkdownRenderer:
     # ------------------------- Draw -------------------------
 
     def _draw_blocks(self, draw: ImageDraw.ImageDraw, blocks: list, box: tuple, text_color,
-                     center: bool, panel: bool, prefer_no_wrap: bool):
+                     panel: bool, prefer_no_wrap: bool, halign: str = "center", valign: str = "center",
+                     line_align: str = "left", max_font_size: int | None = None):
+        """
+        halign / valign: where the block of text goes in the box ("center" or "left" / "top").
+        line_align: how the lines are aligned inside the block ("left" or "center").
+        """
         x0, y0, x1, y1 = box
         width = int(x1 - x0)
         height = int(y1 - y0)
 
-        lines = self._fit(blocks, width, height, panel, prefer_no_wrap)
+        with self._timings.measure("fit"):
+            lines = self._fit(blocks, width, height, panel, prefer_no_wrap, max_font_size)
         if not lines:
             return
+        self._timings.count("lines_drawn", len(lines))
+
+        with self._timings.measure("paint"):
+            self._paint_lines(draw, lines, box, text_color, halign, valign, line_align, panel)
+
+    def _paint_lines(self, draw: ImageDraw.ImageDraw, lines: list, box: tuple, text_color,
+                     halign: str, valign: str, line_align: str, panel: bool):
+        x0, y0, x1, y1 = box
+        width = int(x1 - x0)
+        height = int(y1 - y0)
 
         total_height = self._total_height(lines)
         block_width = max(
             line.indent_px + line.width + (self.PANEL_PAD if line.panel else 0)
             for line in lines)
 
-        offset_x = x0 + ((width - block_width) // 2 if center and block_width < width else 0)
-        offset_y = y0 + ((height - total_height) // 2 if center and total_height < height else 0)
+        offset_x = x0 + ((width - block_width) // 2 if halign == "center" and block_width < width else 0)
+        offset_y = y0 + ((height - total_height) // 2 if valign == "center" and total_height < height else 0)
 
         # Where every line starts.
         tops: list[int] = []
@@ -547,6 +694,9 @@ class MarkdownRenderer:
 
         for line, top in zip(lines, tops):
             line_x = offset_x + line.indent_px
+            if line_align == "center" and line.kind == "paragraph":
+                # Each line of text centered in the block.
+                line_x += max(0, (block_width - line.indent_px - line.width) // 2)
             baseline = top + line.ascent
 
             if line.kind == "rule":

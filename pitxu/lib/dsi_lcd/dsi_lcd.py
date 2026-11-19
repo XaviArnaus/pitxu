@@ -194,7 +194,9 @@ class DsiLcd(XprocessDisplayCombined):
         # Clear the display.
         # Passing the display size just in case we want to clear the mocked LCD, to have a black image of the correct size.
         self.device.clear(screen_size=(self._display_size.x, self._display_size.y))
-    
+        # The Painter composes only what changed: it has to know that the display is not what it left.
+        self.visualizer.invalidate_screen()
+
     def soft_clear(self):
         self.clear_background()
         self.clear_animations()
