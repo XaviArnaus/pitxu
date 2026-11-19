@@ -496,7 +496,7 @@ class MainClientPTT(PyXavi):
                 self._interaction.show_init_phases(10, text="👋 Greeting")
                 self._interaction.show_idle()
                 # The greeting does not come from the chatbot, so there is no emotion: the default animation goes with it.
-                self._reactions.show_default_animation()
+                self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 

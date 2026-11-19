@@ -1669,7 +1669,7 @@ class Main(PyXavi):
             greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_night." + self._xparams.get("language"))
 
         # The greeting does not come from the chatbot, so there is no emotion: the default animation goes with it.
-        self._reactions.show_default_animation()
+        self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
         self._interaction.say(greeting)
 
     # ------- Stuff to do every minute -------

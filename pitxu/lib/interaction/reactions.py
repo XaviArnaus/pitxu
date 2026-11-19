@@ -133,11 +133,36 @@ class Reactions(PyXavi):
         return chat_response
         
     
+    # The reserved name of the animation that goes with what has no animation of its own: it is `animations.default_emotion`.
+    DEFAULT_ANIMATION: str = "default"
+
+    def show_animation(self, animation: str) -> bool:
+        """
+        Shows an animation (one of `animations.map`) while something is spoken. It is the one way to ask for it.
+
+        Args:
+            animation (str): The name of the animation. `default` is the one of `animations.default_emotion`:
+                what is spoken without the chatbot (like the greeting) and the answers without emotion use it,
+                so the animations area is not left empty while Pitxu talks.
+
+        Returns:
+            bool: True if the animation was requested, False if there is nothing to show (no default configured).
+        """
+        if animation == self.DEFAULT_ANIMATION:
+            animation = self._xconfig.get("animations.default_emotion", None)
+            if not animation:
+                self._xlog.debug("🎭 No default animation configured (animations.default_emotion). No animation.")
+                return False
+            self._xlog.debug(f"🎭 Using the default animation [{animation}].")
+
+        self._xlog.debug(f"🎭 Showing the animation [{animation}] while speaking.")
+        self.interaction.show_animation_while_speaking(animation)
+        return True
+
     def show_emotion(self, label: str | None) -> bool:
         """
-        Shows the animation of an emotion while the answer is spoken.
-        Without an emotion (none, no tag, or a label that is not configured) it is the default one (`animations.default_emotion`),
-        so the animations area is not left empty while Pitxu talks.
+        Shows the animation of the emotion the chatbot said the answer has.
+        Without a valid emotion (none, no tag, or a label that is not configured) it is the default animation.
 
         Args:
             label (str | None): The emotion, as the chatbot says it (one of `animations.emotions`).
@@ -155,28 +180,9 @@ class Reactions(PyXavi):
             # A label the chatbot made up, or that was taken out of the config, is not worth an error.
             self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones.")
         else:
-            self._xlog.debug(f"🎭 Showing the emotion [{label}] while speaking.")
-            self.interaction.show_animation_while_speaking(label)
-            return True
+            return self.show_animation(label)
 
-        return self.show_default_animation()
-
-    def show_default_animation(self) -> bool:
-        """
-        Shows the default animation (`animations.default_emotion`) while something is spoken.
-        For what is spoken without going through the chatbot (like the greeting), and for the answers without emotion.
-
-        Returns:
-            bool: True if the animation was requested, False if there is no default configured.
-        """
-        default_label = self._xconfig.get("animations.default_emotion", None)
-        if not default_label:
-            self._xlog.debug("🎭 No default animation configured (animations.default_emotion). No animation.")
-            return False
-
-        self._xlog.debug(f"🎭 Showing the default animation [{default_label}] while speaking.")
-        self.interaction.show_animation_while_speaking(default_label)
-        return True
+        return self.show_animation(self.DEFAULT_ANIMATION)
 
     def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
