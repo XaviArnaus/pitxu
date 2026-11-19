@@ -87,9 +87,6 @@ class DsiLcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
-    def initialize_animations(self):
-        self.visualizer.load_animations()
-
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
@@ -200,6 +197,7 @@ class DsiLcd(XprocessDisplayCombined):
     
     def soft_clear(self):
         self.clear_background()
+        self.clear_animations()
         self.clear_foreground()
     
     def clear_status(self):
@@ -210,24 +208,30 @@ class DsiLcd(XprocessDisplayCombined):
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
         self.visualizer.clear_background()
-        # ⚠️ Temporary: the animations area has its own queue now, but its own clear action does not exist yet.
-        self._xlog.info("Clearing DSI LCD animations interaction.")
-        self.visualizer.clear_animations()
     
     def clear_foreground(self):
         self._xlog.info("Clearing DSI LCD foreground interaction.")
         self.visualizer.clear_foreground()
 
 
-    # ------- Background functions ---------
-    
-    def show_speaking(self):
-        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
-        self.visualizer.speaking()
-    
+    # ------- Animations functions ---------
+
+    def initialize_animations(self):
+        self.visualizer.load_animations()
+
     def show_thinking(self):
         self._xlog.info(f"🤖 Showing thinking animation on DSI LCD.")
         self.visualizer.thinking()
+
+    def clear_animations(self):
+        self._xlog.info("Clearing DSI LCD animations interaction.")
+        self.visualizer.clear_animations()
+
+    # ------- Background functions ---------
+
+    def show_speaking(self):
+        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
+        self.visualizer.speaking()
 
     def show_networking(self):
         self._xlog.info(f"🌐 Showing networking effect on DSI LCD.")

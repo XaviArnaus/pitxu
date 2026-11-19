@@ -33,10 +33,6 @@ class XprocessDisplayBackground(Xprocess):
         if action == XprocAction.SAY:
             self.show_speaking()
         
-        # Show the thinking effect. Every display decides what it is.
-        if action == XprocAction.THINKING:
-            self.show_thinking()
-        
         # Show the networking effect. Every display decides what it is.
         if action == XprocAction.NETWORKING:
             self.show_networking()
@@ -87,9 +83,6 @@ class XprocessDisplayBackground(Xprocess):
     
     def show_speaking(self):
         raise NotImplementedError("show_speaking() must be implemented in Display Background subclasses.")
-    
-    def show_thinking(self):
-        raise NotImplementedError("show_thinking() must be implemented in Display Background subclasses.")
     
     def show_networking(self):
         raise NotImplementedError("show_networking() must be implemented in Display Background subclasses.")

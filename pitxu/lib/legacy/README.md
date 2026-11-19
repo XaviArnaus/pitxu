@@ -2,6 +2,12 @@
 
 Code that is not part of the main pipeline anymore, but that is not removed yet.
 
+> ⚠️ **Deprecated.** These displays are behind the current implementation: they know nothing about the Animations
+> area (`XprocessDisplayAnimations`, the `animations_display` setting), for example. Before using any of them,
+> they need to be updated according to the current implementation. `lcd` only has empty Animations methods,
+> so the actions that reach it don't fail; `matrix_led` and `eink` do not handle them at all (`matrix_led` no longer
+> receives the thinking effect).
+
 | Package | State |
 |---|---|
 | `canvas` | Canvas V1. Only used by `eink` and `lcd`. Goes away when both are off it. |

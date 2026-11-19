@@ -13,6 +13,7 @@ from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.speech_to_text.input_stream import InputStream
 
+from pitxu.lib.interaction.shortcuts.animations import Animations
 from pitxu.lib.interaction.shortcuts.background import Background
 from pitxu.lib.interaction.shortcuts.foreground import Foreground
 from pitxu.lib.interaction.shortcuts.status import Status
@@ -64,6 +65,7 @@ class Interaction(PyXavi):
     #   2. Make it easy to use, that's why it has all these methods and became so big.
     foreground: Foreground = None
     background: Background = None
+    animations: Animations = None
     status: Status = None
 
     # Subprocess control. Needs to be passed to the shortcuts
@@ -84,6 +86,9 @@ class Interaction(PyXavi):
     # Also. the display name IS ASSUMED TO BE THE SAME AS THE device_config_prefix passed to the display process.
     # The legacy displays are given as "module:Class" and imported only if they are used, so the main pipeline
     #   does not depend on them (nor on their drivers) unless they are configured.
+    # ⚠️ The legacy displays (eink, matrix_led, lcd) are DEPRECATED: they are behind the current implementation
+    #   (for example, they know nothing about the Animations area). They need to be updated according to the
+    #   current implementation before using them.
     map_display_name_to_instance_data = {
         "eink": ("pitxu.lib.legacy.eink.display:Display", QUEUE_EINK),
         "matrix_led": ("pitxu.lib.legacy.matrix_led:MatrixLed", QUEUE_MATRIX),
@@ -152,6 +157,8 @@ class Interaction(PyXavi):
         displays_to_use = []
         foreground_display = self._xconfig.get("displays.foreground_display", None)
         background_display = self._xconfig.get("displays.background_display", None)
+        # The animations display is the one that shows the emojis. Unless said otherwise, it is the background one.
+        animations_display = self._xconfig.get("displays.animations_display", None) or background_display
         status_display = self._xconfig.get("displays.status_display", None)
         # Now that we're here, just remember which queues to use for foreground and background
         # self.foreground_display_queue = self.map_display_name_to_instance_data.get(foreground_display, (None, None))[1]
@@ -167,6 +174,10 @@ class Interaction(PyXavi):
             "process_pool": self.process_pool,
             "display_queue": self.map_display_name_to_instance_data.get(background_display, (None, None))[1]
         }))
+        self.animations = Animations(config=self._xconfig, params=Dictionary({
+            "process_pool": self.process_pool,
+            "display_queue": self.map_display_name_to_instance_data.get(animations_display, (None, None))[1]
+        }))
         self.status = Status(config=self._xconfig, params=Dictionary({
             "process_pool": self.process_pool,
             "display_queue": self.map_display_name_to_instance_data.get(status_display, (None, None))[1]
@@ -181,6 +192,10 @@ class Interaction(PyXavi):
             and background_display in available_displays\
             and background_display not in displays_to_use:
             displays_to_use.append(background_display)
+        if animations_display is not None\
+            and animations_display in available_displays\
+            and animations_display not in displays_to_use:
+            displays_to_use.append(animations_display)
         if status_display is not None\
             and status_display in available_displays\
             and status_display not in displays_to_use:
@@ -204,10 +219,12 @@ class Interaction(PyXavi):
                 if display_name == background_display:
                     if self._xconfig.key_exists(f"{display_name}.delays.default_delay_between_frames"):
                         self.DEFAULT_DELAY_BETWEEN_FRAMES = self._xconfig.get(f"{display_name}.delays.default_delay_between_frames")
-                    if self._xconfig.key_exists(f"{display_name}.delays.thinking"):
-                        self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.speaking"):
                         self.map_actions_to_delays[XprocAction.SAY] = self._xconfig.get(f"{display_name}.delays.speaking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                # Animations display
+                if display_name == animations_display:
+                    if self._xconfig.key_exists(f"{display_name}.delays.thinking"):
+                        self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.idle"):
                         self.map_actions_to_delays[XprocAction.SHOW_IDLE] = self._xconfig.get(f"{display_name}.delays.idle", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                 # Status display
@@ -252,7 +269,7 @@ class Interaction(PyXavi):
         """
         # This is a clear candidate to be moved to the display class, but for now we keep it here because it's the only interaction we have that needs to be triggered after the initialization.
         self._xlog.info("Initializing animations in Visualizer through Interaction.")
-        self.process_pool.send(self.background.get_queue(), XprocAction.INITIALIZE_ANIMATIONS)
+        self.animations.initialize_animations()
     
     def is_wake_up_voice_wanted(self) -> bool:
         """
@@ -318,6 +335,7 @@ class Interaction(PyXavi):
 
         self.foreground.close()
         self.background.close()
+        self.animations.close()
         self.status.close()
 
         self.process_pool.get_memory_manager().force_all_flags_to_idle(is_closing=True)
@@ -452,11 +470,11 @@ class Interaction(PyXavi):
     
     def show_thinking(self):
         """
-        Triggers a "thinking" interaction on the background display.
+        Triggers a "thinking" interaction on the animations display.
 
         This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
         """
-        self.background.show_thinking()
+        self.animations.show_thinking()
     
     def show_networking(self):
         """
@@ -663,11 +681,15 @@ class Interaction(PyXavi):
 
     def clear_background_display(self):
         self.background.soft_clear()
-    
+
+    def clear_animations_display(self):
+        self.animations.soft_clear()
+
     def clear_combined_display(self):
         # They are combined, so we need to send the clear to all of them.
         self.clear_foreground_display()
         self.clear_background_display()
+        self.clear_animations_display()
     
     def clear_device(self):
         """
