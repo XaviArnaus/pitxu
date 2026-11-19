@@ -12,6 +12,8 @@ https://github.com/robertmuth/Pytorinox/blob/master/framebuffer.py
 
 """
 
+import os
+
 from PIL import Image
 
 
@@ -59,6 +61,11 @@ def _converter_rgba_rgb565_numpy(image: Image):
 def _converter_no_change(image: Image):
     return image.tobytes()
 
+
+def _converter_rgba_bgra(image: Image):
+    # The channels are swapped by the packer of PIL, in the same pass that makes the bytes.
+    return image.tobytes("raw", "BGRA")
+
 # anything that does not use numpy is hopelessly slow
 _CONVERTER = {
     ("RGBA", 16): _converter_rgba_rgb565_numpy,
@@ -85,18 +92,53 @@ class Framebuffer(object):
         self.bits_per_pixel = _read_and_convert_to_ints(
             config_dir + "/bits_per_pixel")[0]
         assert self.stride == self.bits_per_pixel // 8 * self.size[0]
+        # The device is opened on the first frame and kept open: opening it for every frame is a waste.
+        self._fd: int | None = None
 
     def __str__(self):
         args = (self.path, self.size, self.stride, self.bits_per_pixel)
         return "%s  size:%s  stride:%s  bits_per_pixel:%s" % args
 
-    # Note: performance is terrible even for medium resolutions
-    def show(self, image: Image):
-        converter = _CONVERTER[(image.mode, self.bits_per_pixel)]
+    # Note: performance is terrible even for medium resolutions without numpy, see _CONVERTER.
+    def show(self, image: Image, swap_red_blue: bool = False):
+        """
+        Writes the whole image to the device.
+
+        Args:
+            swap_red_blue: The image is RGBA but the device wants BGRA (32 bits per pixel). The swap is done while
+                converting, so the caller does not need to make copies of the image to swap the channels.
+        """
+        if swap_red_blue and (image.mode, self.bits_per_pixel) == ("RGBA", 32):
+            converter = _converter_rgba_bgra
+        else:
+            converter = _CONVERTER[(image.mode, self.bits_per_pixel)]
         assert image.size == self.size
-        out = converter(image)
-        with open(self.path, "wb") as fp:
-            fp.write(out)
+        self._write(converter(image))
+
+    def _write(self, data: bytes, offset: int = 0):
+        """ Writes the bytes at the offset of the device, over the connection that is kept open. """
+        for attempt in range(2):
+            try:
+                if self._fd is None:
+                    self._fd = os.open(self.path, os.O_WRONLY)
+                view = memoryview(data)
+                written = 0
+                while written < len(view):
+                    written += os.pwrite(self._fd, view[written:], offset + written)
+                return
+            except OSError:
+                # The device may have been reset: one more try with a fresh connection, then it is a real error.
+                self.close()
+                if attempt == 1:
+                    raise
+
+    def close(self):
+        if self._fd is not None:
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = None
 
     def on(self):
         pass

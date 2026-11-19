@@ -57,7 +57,8 @@ class FramebufferScreen(PyXavi, Device):
         pass
 
     def close(self):
-        # turn on the cursor again:       
+        self.framebuffer_screen.close()
+        # turn on the cursor again:
         try:
             result = check_output("TERM=linux sudo setterm -cursor on -foreground white -clear all | sudo tee /dev/tty1", shell=True).decode().strip()
         except Exception as e:
@@ -84,13 +85,10 @@ class FramebufferScreen(PyXavi, Device):
             image = self._preprocess_image(image)
             original_width, original_height = image.size
         
-        # The framebuffer appears to be in BGR, not in RGB. So, we need to convert the image.
-        # We assume here that the image is already in RGB format, because we set it in config.
-        r, g, b, a = image.split()
-        image = Image.merge("RGBA", (b, g, r, a))
-
-        # Finally, send the data to the device
-        self._flush_image_to_device(image)
+        # The framebuffer appears to be in BGR, not in RGB. The swap is done by the framebuffer while it converts
+        # the image, so we do not make copies of it here (split + merge were two full copies per frame).
+        # We assume here that the image is already in RGBA format, because we set it in config.
+        self._flush_image_to_device(image, swap_red_blue=True)
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """
@@ -118,8 +116,8 @@ class FramebufferScreen(PyXavi, Device):
         
         return cropped_img
     
-    def _flush_image_to_device(self, image: Image.Image, x=0, y=0):
-        self.framebuffer_screen.show(image)
+    def _flush_image_to_device(self, image: Image.Image, x=0, y=0, swap_red_blue: bool = False):
+        self.framebuffer_screen.show(image, swap_red_blue=swap_red_blue)
 
         # # Note: If performance is terrible, consider using numpy to write directly to the framebuffer device.
         
