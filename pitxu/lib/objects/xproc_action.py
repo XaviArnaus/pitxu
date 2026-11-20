@@ -44,6 +44,8 @@ class XprocAction:
     SHOW_TEXT_BLOCK: str = "SHOW_TEXT_BLOCK"
     SHOW_TEXT_BLOCK_WHILE_SPEAKING: str = "SHOW_TEXT_BLOCK_WHILE_SPEAKING"
     SHOW_ERROR: str = "SHOW_ERROR"
+    # Animations display: an animation (the emojis) shown while the speaker is busy.
+    SHOW_ANIMATION_WHILE_SPEAKING: str = "SHOW_ANIMATION_WHILE_SPEAKING"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"

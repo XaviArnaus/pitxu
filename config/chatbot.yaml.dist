@@ -22,6 +22,20 @@ chatbot:
   # [String] The name of the secondary LLM model to use for tool executions.
   # secondary_model: "gemini-2.5-flash"
   secondary_model: "gemini-3.1-flash-lite"
+  # [String] Added at the end of the system instruction (in any language) so the chatbot tells how its answer feels, as a first line `[emotion: <label>]`.
+  # The tag is removed from the answer before it is shown or spoken, and the label chooses the animation shown while it is spoken.
+  # The one `%s` is replaced by the list of labels (`animations.emotions`), so without them the instruction is not added at all.
+  # Written in English on purpose: the labels are the same in every language.
+  emotion_instruction: |
+
+        # Emotion tag
+
+        Start EVERY answer with a first line with exactly this format, and nothing else in that line:
+        [emotion: <label>]
+        The label tells how your answer feels. It is shown on a display as an animation while your answer is spoken, and it is never spoken.
+        Write it in English, whatever the language of your answer, and pick exactly one label from this list:
+        %s
+        Never invent a label. Use `none` when the answer is neutral or just informative, which is the most usual case. The answer itself starts in the next line.
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction:
     ca: |

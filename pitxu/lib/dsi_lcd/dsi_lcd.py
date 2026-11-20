@@ -225,6 +225,10 @@ class DsiLcd(XprocessDisplayCombined):
         self._xlog.info(f"🤖 Showing thinking animation on DSI LCD.")
         self.visualizer.thinking()
 
+    def show_animation_while_speaking(self, param: dict):
+        self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while speaking.")
+        self.visualizer.animation_while_speaking(param)
+
     def clear_animations(self):
         self._xlog.info("Clearing DSI LCD animations interaction.")
         self.visualizer.clear_animations()

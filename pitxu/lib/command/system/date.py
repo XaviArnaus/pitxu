@@ -5,6 +5,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
+from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
 
@@ -13,8 +14,15 @@ from datetime import datetime
 
 class SystemDate(PyXavi, Command):
 
+    status_shortcuts: Status = None
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(SystemDate, self).init_pyxavi(config=config, params=params)
+
+        if self._xparams.key_exists("status_shortcuts"):
+            self.status_shortcuts = self._xparams.get("status_shortcuts")
+        else:
+            self._xlog.warning("Missing 'status_shortcuts' parameter in SystemDate initialization.")
 
     format = "%Y-%m-%d"  # E.g., 2023-12-25
     displayed_format = "%d.%m.%Y"  # E.g., 25.12.2023
@@ -27,6 +35,8 @@ class SystemDate(PyXavi, Command):
             str: The current date in Year-Month-Day format
         '''
         try:
+            if self.status_shortcuts:
+                self.status_shortcuts.add_new_status_line(f"🔧 Date: Getting date from local system")
             return time.strftime(self.format, time.localtime())
         except Exception as e:
             self._xlog.error(f"Error getting current date: {e}")

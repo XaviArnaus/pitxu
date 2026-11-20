@@ -1,20 +1,19 @@
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
 
 from pyxavi import Config, Dictionary
 
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.macros.bars_geometry import BarsGeometry
 
-from pitxu.lib.objects.size import Size
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
 
 class MacrosBackground(MacrosBase):
     """
-    Drawings that take place in the background, and the animations.
+    Drawings that take place in the background.
 
     - The effects (the KITT mouth while speaking, the scanner while networking and the countdown bar) are drawn in the
         "center-left" area, as rectangles. Their geometry is proportional to the area, see BarsGeometry.
-    - The animations (the emojis) are drawn in the "top-left" area.
+    - The animations (the emojis) are drawn in the "top-left" area by MacrosAnimation.
 
     The old LED-emulation shapes are kept in pitxu/lib/legacy/macros_background_led.py.
     """
@@ -140,64 +139,3 @@ class MacrosBackground(MacrosBase):
 
         self._clear_area(draw)
         self._draw_rectangles(draw, self.bars.countdown_lit_slabs(percentage), self.canvas.COLOR_RED)
-
-    # ---- The animations ----
-
-    def merge_animation(self, base_image: Image.Image, params: dict):
-        '''
-        Draws a GIF on the LCD canvas.
-
-        Args:
-            draw: The canvas to draw on.
-            params: A dictionary containing the parameters for the drawing.
-                - gif_path: The path to the GIF file to draw.
-        '''
-        current_loop_iteration = params.get("current_loop_iteration", 0)
-        max_loop_iterations = params.get("max_loop_iterations", 0)
-        animation_name = params.get("animation", None)
-
-        # Before anything, draw the display_area frame.
-        draw = ImageDraw.Draw(base_image)
-        self.base_frame_for_display_area(draw=draw, params={"display_area": DisplayArea.ANIMATIONS})
-
-        # Peek into the loaded animation.
-        animation = self.animations.get_animation(animation_name) if self.animations is not None else None
-        if animation is None:
-            self._xlog.error(f"Animation '{animation_name}' not found.")
-            return
-
-        self._log_debug(f"Loaded GIF '{animation_name}' with {animation.get_frame_count()} frames. Picking index {current_loop_iteration}")
-
-        # Calculate the size to draw the frame, based on the layout info and the size of the frame.
-        width = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_2.x - self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.x
-        height = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_2.y - self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.y
-
-        # Also, we want to keep the aspect ratio of the original GIF, but resized to fit inside the given width and height.
-        original_width, original_height = animation.get_original_size()
-        aspect_ratio = (original_width / original_height)
-        if width / height > aspect_ratio:
-            # We are limited by the height, we need to calculate the width based on the aspect ratio.
-            desired_height_gif = height
-            desired_width_gif = int(height * aspect_ratio)
-        else:
-            # We are limited by the width, we need to calculate the height based on the aspect ratio.
-            desired_width_gif = width
-            desired_height_gif = int(width / aspect_ratio)
-        # Apply a final correction factor to make sure it fits into the display area, 
-        # taking in account some padding and the rounded corners of the LCD.
-        correction_factor = 0.8
-        desired_width_gif = int(desired_width_gif * correction_factor)
-        desired_height_gif = int(desired_height_gif * correction_factor)
-
-        # Calculate which frame to show based on the current loop iteration and max loop iterations
-        frame_to_show = self.animations.get_animation_frame(
-            animation_name, 
-            current_loop_iteration, 
-            desired_size=Size(width=desired_width_gif, height=desired_height_gif))
-
-        # Calculate the position to draw the frame, centered in the display area.
-        offset_x = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.x + ((width - desired_width_gif) // 2)
-        offset_y = self.layout_info["relative"][DisplayArea.ANIMATIONS].point_1.y + ((height - desired_height_gif) // 2)
-
-        # Paint the frame on the canvas, resizing it to fit into the display area if needed.
-        base_image.paste(frame_to_show, (offset_x, offset_y))

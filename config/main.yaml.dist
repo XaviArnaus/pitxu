@@ -28,6 +28,15 @@ app:
   # [Bool] The button also cuts the speech while it is being said, to get back to listening.
   #   It works whatever the wake_up_method is: the button is initialised for this alone if needed.
   button_interrupts_speech: true
+  # [Bool] Show the thinking effect as soon as the user stops speaking, instead of when the transcription arrives.
+  #   Only inside an ongoing interaction (hold time running), where the speech is almost certainly for the assistant.
+  #   If the text then turns out empty or not for the chatbot, the effect is taken back.
+  thinking_at_speech_end: true
+  # [Float] It only shows when the STT already has some text of what was said (otherwise it may be only noise). Seconds to wait
+  #   for that first text after the speech ended. If the STT finishes with nothing in the meantime, the effect is not shown.
+  thinking_at_speech_end_wait: 1.5
+  # [Float] Safety net: seconds after which the effect is taken back if nobody took it over (the chatbot) or cancelled it.
+  thinking_at_speech_end_timeout: 15
 
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
