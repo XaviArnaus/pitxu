@@ -325,7 +325,6 @@ class FasterWhisperStream(PyXavi):
         is_chunks_queue_empty: bool = False
         is_transcription_result_queue_empty: bool = False
         is_silence_input_queue_empty: bool = True
-        chunk_list_to_process: list = []
         while self.is_active:
             try:
                 # Get all current chunks on the queue. It should be only one,
@@ -337,202 +336,27 @@ class FasterWhisperStream(PyXavi):
                 #   - When receiving a None chunk, we requuest the transcription result from the Process, and expect to receive it in the output queue. 
                 #
                 # So this loop is consuming 3 queues.
-
-                # What was deferred waits for the previous context to finish. When it did, it is processed first.
-                self._release_deferred_items_if_possible()
+                #
+                # Each _consume_* returns (queue_was_empty, skip_rest_of_iteration). 
+                #   Skipping means going straight to the next iteration, as a `continue` would.
 
                 # Work to be done if we have chunks in the chunks queue (or deferred items released to be replayed).
-                if not self._replay_items and self._queue.empty():
-                    is_chunks_queue_empty = True
-                else:
-                    is_chunks_queue_empty = False
+                is_chunks_queue_empty, skip_rest = self._consume_next_chunk_item()
+                if skip_rest:
+                    continue
 
-                    # Replayed items first, they are older than anything in the queue. They are not in the queue, so no task_done().
-                    from_replay = bool(self._replay_items)
-                    item = self._replay_items.popleft() if from_replay else self._queue.get()
-
-                    # A new utterance while the previous one is still being finalized: keep it for later.
-                    if not from_replay and self._defer_if_finalizing(item):
-                        self._queue.task_done()
-                        continue
-
-                    # Check first for the markers
-                    if isinstance(item, str):
-                        # control marker, never audio
-                        if item == SttMarker.START:
-                            self._open_context_in_worker_thread()
-                        elif item == SttMarker.RESET:
-                            self.reset_context_and_state_in_transcription_thread()
-                        self._item_done(from_replay)
-                        continue
-
-                    # Get the next chunk from the queue.
-                    nanoseconds, data = item if self.add_timestamps_to_chunks else (None, item)
-
-                    if data is None:
-
-                        # We need to make sure that the chunks that we receive belong to the current context.
-                        # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
-                        if not self.allow_chunk_consumption:
-                            self._xlog.warning(f"🟠 Received audio chunk [None] while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
-                            self._item_done(from_replay)
-                            continue
-
-                        self._log_debug("✏️ Received None data from the queue, It should be the end of the stream.")
-
-                        # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
-                        self._support.dump_and_plot_all()
-                        self._support.clear_accumulated_audio()
-
-                        # After an early flush, the leftover can be only the quiet tail that the VAD waited for.
-                        #   Decoding it adds latency and invites hallucinations, so it is dropped.
-                        if len(self._ongoing_chunk_window) > 0 and self._ef_flushed and not self._ef_pending_has_speech:
-                            self._log_debug(f"✏️ Early flush: dropping {len(self._ongoing_chunk_window)} leftover chunks, all quiet.")
-                            self._ongoing_chunk_window = []
-
-                        # It is very possible that we have chunks without process at this point.
-                        if len(self._ongoing_chunk_window) > 0:
-
-                            # Update the current state of the transcription
-                            if not self._stt_state_machine.transition_to(TrascriptionState.LEFTOVER_CHUNK_PROCESSING, expected_current_states=[TrascriptionState.ONGOING_PROCESS_CHUNK]):
-                                current_state = self._stt_state_machine.get_transcription_state()
-                                self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state}to LEFTOVER_CHUNK_PROCESSING. Expected state was ONGOING_PROCESS_CHUNK.")
-
-                            self._log_debug(f"✏️ Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
-                            self.process_chunks(self._ongoing_chunk_window)
-                            self._ongoing_chunk_window = []
-                        
-                        # Clean anything LOCAL that would accumulate or trigger.
-                        chunk_list_to_process = []
-
-                        # Request the transcription result from the Process, and expect to receive it in the output queue.
-                        # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
-                        self.request_transcription()
-
-                        # Reset the watchdog timer for the transcription result.
-                        self._requested_at = time.monotonic()  
-
-                        # Update the transcription state
-                        if not self._stt_state_machine.transition_to(TrascriptionState.REQUESTED_TRANSCRIPTION, expected_current_states=[TrascriptionState.LEFTOVER_CHUNK_PROCESSING, TrascriptionState.ONGOING_PROCESS_CHUNK]):
-                            current_state = self._stt_state_machine.get_transcription_state()
-                            self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state} to REQUESTED_TRANSCRIPTION. Expected state was LEFTOVER_CHUNK_PROCESSING or ONGOING_PROCESS_CHUNK.")
-
-                        # Block the chunks from being consumed
-                        self.allow_chunk_consumption = False
-
-                        # Local state only. The process resets itself after emitting the final.
-                        self._ongoing_chunk_window = []
-                        self.final_transcription = ""
-
-                    else:
-
-                        # We need to make sure that the chunks that we receive belong to the current context.
-                        # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
-                        if not self.allow_chunk_consumption:
-                            current_state = self._stt_state_machine.get_transcription_state()
-                            # self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
-                            self._discarded_chunks += 1
-                            self._item_done(from_replay)
-                            continue
-
-                        # Update the current state of the transcription
-                        if self._stt_state_machine.get_transcription_state() == TrascriptionState.ONGOING_PROCESS_CHUNK:
-                            # We are already processing chunks, we just keep accumulating in the window.
-                            pass
-                        elif not self._stt_state_machine.transition_to(TrascriptionState.ONGOING_PROCESS_CHUNK, expected_current_states=[TrascriptionState.START_CONTEXT]):
-                            # Try the transition and, if fails, dump a log.
-                            current_state = self._stt_state_machine.get_transcription_state()
-                            self._xlog.warning(f"🟠 Failed to transition to ONGOING_PROCESS_CHUNK. Current state: {current_state}.")
-
-                        # Prepare the set of chunks to process
-                        if len(self._ongoing_chunk_window) >= self._chunks_window and self._windows_in_flight == 0:
-                            self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
-                            chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
-                            self._ongoing_chunk_window = []
-                            self._ef_pending_has_speech = False
-                        self._ongoing_chunk_window.append(data)
-
-                        # Quiet for a while? Decode what we have now, while the VAD still waits to confirm the end.
-                        if len(chunk_list_to_process) == 0 and self._early_flush_should_fire(data):
-                            self._log_debug(f"✏️ Early flush: audio quiet for {self._ef_quiet_seconds:.2f} s, decoding {len(self._ongoing_chunk_window)} pending chunks now.")
-                            chunk_list_to_process.extend(self._ongoing_chunk_window)
-                            self._ongoing_chunk_window = []
-                            self._ef_pending_has_speech = False
-                            self._ef_flushed = True
-                        elif len(chunk_list_to_process) > 0:
-                            # The regular window goes out now, the tracking still needs this chunk.
-                            self._early_flush_should_fire(data)
-
-                        # Process the prepared set of chunks
-                        if len(chunk_list_to_process) > 0:
-                            self._log_debug(f"✏️ Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
-                            self.process_chunks(chunk_list_to_process)
-                            chunk_list_to_process = []
-                    
-                    self._item_done(from_replay)
-                
                 # Work to be done if we have a transcription result in the transcription result queue.
-                if self.transcriptor_output_queue.empty():
-                    is_transcription_result_queue_empty = True
-                else:
-                    is_transcription_result_queue_empty = False
+                is_transcription_result_queue_empty, skip_rest = self._consume_transcription_result()
+                if skip_rest:
+                    continue
 
-                    # transcription_result = self.transcriptor_output_queue.get()
-
-                    # partial_transcription = transcription_result.get("partial_transcription", None) if isinstance(transcription_result, dict) else None
-                    # final_transcription = transcription_result.get("final_transcription", None) if isinstance(transcription_result, dict) else None
-
-                    # It's a tuple: (partial, final).
-                    # Both may be None.
-                    partial_transcription, final_transcription = self.transcriptor_output_queue.get()
-
-                    if self._abandoned_finals > 0:
-                        # Output from a context we gave up on. Drop everything up to and including its final.
-                        if final_transcription is not None:
-                            self._abandoned_finals -= 1
-                            self._xlog.warning("🟠 Dropped the late final of an abandoned context.")
-                        self.transcriptor_output_queue.task_done()
-                        continue
-
-                    # If we have a partial transcription, we can decrement the windows in flight counter, 
-                    #   as it means that the Process has finished processing a window and returned a result.
-                    if partial_transcription is not None:
-                        self._windows_in_flight = max(0, self._windows_in_flight - 1)
-
-                    # If we have a partial, share it in the values to be caught by whoever wants it.
-                    if partial_transcription is not None and len(partial_transcription) > 0:
-                        self.ongoing_transcription = partial_transcription
-                    
-                    # If we don't receive a final transcription, means that we're still transcribing.
-                    # There is no point on continuing the flow through the closing path.
-                    if final_transcription is not None: 
-                        self._handle_final_transcription(final_transcription)
-
-                    self.transcriptor_output_queue.task_done()
-                
                 # Work to be done if we have chunks in the Silence Input Queue, to calculate the dynamic RMS threshold for silence detection.
                 if self.is_dynamic_rms_silence_active():
-                    # Be careful, it's not tuned and very aggressive. 
-                    # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
-                    # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
-                    if self.silence_input_queue.empty():
-                        is_silence_input_queue_empty = True
-                    else:
-                        is_silence_input_queue_empty = False
+                    is_silence_input_queue_empty = self._consume_silence_chunk()
 
-                        silence_chunk = self.silence_input_queue.get()
-                        self.process_silence_chunk(silence_chunk)
-                        self.silence_input_queue.task_done()
+                # The watchdog for a final that never arrives.
+                self._abandon_transcription_if_overdue()
 
-                if self._stt_state_machine.get_transcription_state() == TrascriptionState.REQUESTED_TRANSCRIPTION \
-                        and time.monotonic() - self._requested_at > self._transcription_timeout:
-                    self._xlog.error(f"🛑 No final transcription after {self._transcription_timeout}s, abandoning this context.")
-                    self._abandoned_finals += 1
-                    # Nothing was delivered: a speech that waited behind this context is processed now.
-                    self._last_context_delivered_text = False
-                    self.reset_context_and_state_in_transcription_thread()
-                    self._notify_nothing_transcribed()
-                
                 if is_chunks_queue_empty and is_transcription_result_queue_empty and is_silence_input_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
                     time.sleep(self._sleep_when_no_chunks)
@@ -561,6 +385,206 @@ class FasterWhisperStream(PyXavi):
                 self._xlog.error(full_stack())
                 self.close()
                 return None
+
+    def _consume_next_chunk_item(self) -> tuple:
+        """
+        Takes the next item of the capture queue (or a replayed one) and processes it: control marker, end of the 
+        utterance or audio chunk.
+
+        Returns (queue_was_empty, skip_rest_of_iteration).
+        """
+        # What was deferred waits for the previous context to finish. When it did, it is processed first.
+        self._release_deferred_items_if_possible()
+
+        if not self._replay_items and self._queue.empty():
+            return True, False
+
+        # Replayed items first, they are older than anything in the queue. They are not in the queue, so no task_done().
+        from_replay = bool(self._replay_items)
+        item = self._replay_items.popleft() if from_replay else self._queue.get()
+
+        # A new utterance while the previous one is still being finalized: keep it for later.
+        if not from_replay and self._defer_if_finalizing(item):
+            self._queue.task_done()
+            return False, True
+
+        # Check first for the markers
+        if isinstance(item, str):
+            # control marker, never audio
+            if item == SttMarker.START:
+                self._open_context_in_worker_thread()
+            elif item == SttMarker.RESET:
+                self.reset_context_and_state_in_transcription_thread()
+            self._item_done(from_replay)
+            return False, True
+
+        # Get the next chunk from the queue.
+        nanoseconds, data = item if self.add_timestamps_to_chunks else (None, item)
+
+        # We need to make sure that the chunks that we receive belong to the current context.
+        # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
+        if not self.allow_chunk_consumption:
+            if data is None:
+                self._xlog.warning(f"🟠 Received audio chunk [None] while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
+            else:
+                self._discarded_chunks += 1
+            self._item_done(from_replay)
+            return False, True
+
+        if data is None:
+            self._handle_end_of_utterance()
+        else:
+            self._handle_audio_chunk(data)
+
+        self._item_done(from_replay)
+        return False, False
+
+    def _handle_end_of_utterance(self) -> None:
+        """ The VAD sent the end marker: process what is left and request the final transcription. """
+
+        self._log_debug("✏️ Received None data from the queue, It should be the end of the stream.")
+
+        # So the processing of all chunks is over, trigger the flush of all the audio dumps and plots, and clean it for next iterations.
+        self._support.dump_and_plot_all()
+        self._support.clear_accumulated_audio()
+
+        # After an early flush, the leftover can be only the quiet tail that the VAD waited for.
+        #   Decoding it adds latency and invites hallucinations, so it is dropped.
+        if len(self._ongoing_chunk_window) > 0 and self._ef_flushed and not self._ef_pending_has_speech:
+            self._log_debug(f"✏️ Early flush: dropping {len(self._ongoing_chunk_window)} leftover chunks, all quiet.")
+            self._ongoing_chunk_window = []
+
+        # It is very possible that we have chunks without process at this point.
+        if len(self._ongoing_chunk_window) > 0:
+
+            # Update the current state of the transcription
+            if not self._stt_state_machine.transition_to(TrascriptionState.LEFTOVER_CHUNK_PROCESSING, expected_current_states=[TrascriptionState.ONGOING_PROCESS_CHUNK]):
+                current_state = self._stt_state_machine.get_transcription_state()
+                self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state}to LEFTOVER_CHUNK_PROCESSING. Expected state was ONGOING_PROCESS_CHUNK.")
+
+            self._log_debug(f"✏️ Still {len(self._ongoing_chunk_window)} leftover audio chunks from the queue to process.")
+            self.process_chunks(self._ongoing_chunk_window)
+            self._ongoing_chunk_window = []
+
+        # Request the transcription result from the Process, and expect to receive it in the output queue.
+        # It is done like this because from the Process point of view, we don't know when the transcription actually finished.
+        self.request_transcription()
+
+        # Reset the watchdog timer for the transcription result.
+        self._requested_at = time.monotonic()  
+
+        # Update the transcription state
+        if not self._stt_state_machine.transition_to(TrascriptionState.REQUESTED_TRANSCRIPTION, expected_current_states=[TrascriptionState.LEFTOVER_CHUNK_PROCESSING, TrascriptionState.ONGOING_PROCESS_CHUNK]):
+            current_state = self._stt_state_machine.get_transcription_state()
+            self._xlog.warning(f"🟠 Received end of stream signal [None chunk] but can't transition from {current_state} to REQUESTED_TRANSCRIPTION. Expected state was LEFTOVER_CHUNK_PROCESSING or ONGOING_PROCESS_CHUNK.")
+
+        # Block the chunks from being consumed
+        self.allow_chunk_consumption = False
+
+        # Local state only. The process resets itself after emitting the final.
+        self._ongoing_chunk_window = []
+        self.final_transcription = ""
+
+    def _handle_audio_chunk(self, data: bytes) -> None:
+        """ Accumulates the chunk in the window, and sends a window to decode when it is full or the audio went quiet. """
+        chunk_list_to_process: list = []
+
+        # Update the current state of the transcription
+        if self._stt_state_machine.get_transcription_state() == TrascriptionState.ONGOING_PROCESS_CHUNK:
+            # We are already processing chunks, we just keep accumulating in the window.
+            pass
+        elif not self._stt_state_machine.transition_to(TrascriptionState.ONGOING_PROCESS_CHUNK, expected_current_states=[TrascriptionState.START_CONTEXT]):
+            # Try the transition and, if fails, dump a log.
+            current_state = self._stt_state_machine.get_transcription_state()
+            self._xlog.warning(f"🟠 Failed to transition to ONGOING_PROCESS_CHUNK. Current state: {current_state}.")
+
+        # Prepare the set of chunks to process
+        if len(self._ongoing_chunk_window) >= self._chunks_window and self._windows_in_flight == 0:
+            self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
+            chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
+            self._ongoing_chunk_window = []
+            self._ef_pending_has_speech = False
+        self._ongoing_chunk_window.append(data)
+
+        # Quiet for a while? Decode what we have now, while the VAD still waits to confirm the end.
+        if len(chunk_list_to_process) == 0 and self._early_flush_should_fire(data):
+            self._log_debug(f"✏️ Early flush: audio quiet for {self._ef_quiet_seconds:.2f} s, decoding {len(self._ongoing_chunk_window)} pending chunks now.")
+            chunk_list_to_process.extend(self._ongoing_chunk_window)
+            self._ongoing_chunk_window = []
+            self._ef_pending_has_speech = False
+            self._ef_flushed = True
+        elif len(chunk_list_to_process) > 0:
+            # The regular window goes out now, the tracking still needs this chunk.
+            self._early_flush_should_fire(data)
+
+        # Process the prepared set of chunks
+        if len(chunk_list_to_process) > 0:
+            self._log_debug(f"✏️ Got {len(chunk_list_to_process)} audio chunks from the queue to process.")
+            self.process_chunks(chunk_list_to_process)
+            chunk_list_to_process = []
+
+    def _consume_transcription_result(self) -> tuple:
+        """
+        Takes one output of the transcription Process, if any: a partial, a final, or both.
+
+        Returns (queue_was_empty, skip_rest_of_iteration).
+        """
+        if self.transcriptor_output_queue.empty():
+            return True, False
+
+        # It's a tuple: (partial, final).
+        # Both may be None.
+        partial_transcription, final_transcription = self.transcriptor_output_queue.get()
+
+        if self._abandoned_finals > 0:
+            # Output from a context we gave up on. Drop everything up to and including its final.
+            if final_transcription is not None:
+                self._abandoned_finals -= 1
+                self._xlog.warning("🟠 Dropped the late final of an abandoned context.")
+            self.transcriptor_output_queue.task_done()
+            return False, True
+
+        # If we have a partial transcription, we can decrement the windows in flight counter, 
+        #   as it means that the Process has finished processing a window and returned a result.
+        if partial_transcription is not None:
+            self._windows_in_flight = max(0, self._windows_in_flight - 1)
+
+        # If we have a partial, share it in the values to be caught by whoever wants it.
+        if partial_transcription is not None and len(partial_transcription) > 0:
+            self.ongoing_transcription = partial_transcription
+        
+        # If we don't receive a final transcription, means that we're still transcribing.
+        # There is no point on continuing the flow through the closing path.
+        if final_transcription is not None: 
+            self._handle_final_transcription(final_transcription)
+
+        self.transcriptor_output_queue.task_done()
+        return False, False
+
+    def _consume_silence_chunk(self) -> bool:
+        """ Takes one chunk of the silence input queue, if any. Returns True if the queue was empty. """
+        # Be careful, it's not tuned and very aggressive. 
+        # Drops some chunks that the model apparently can't tie the words together anymore, felling a drop in accuracy.
+        # Calculating the RMS does not hurt... beyond the processing power (and that's why there is a flag to deactivate it).
+        if self.silence_input_queue.empty():
+            return True
+
+        silence_chunk = self.silence_input_queue.get()
+        self.process_silence_chunk(silence_chunk)
+        self.silence_input_queue.task_done()
+        return False
+
+    def _abandon_transcription_if_overdue(self) -> None:
+        """ The final transcription did not arrive in time: give up on this context. """
+        if self._stt_state_machine.get_transcription_state() == TrascriptionState.REQUESTED_TRANSCRIPTION \
+                and time.monotonic() - self._requested_at > self._transcription_timeout:
+            self._xlog.error(f"🛑 No final transcription after {self._transcription_timeout}s, abandoning this context.")
+            self._abandoned_finals += 1
+            # Nothing was delivered: a speech that waited behind this context is processed now.
+            self._last_context_delivered_text = False
+            self.reset_context_and_state_in_transcription_thread()
+            self._notify_nothing_transcribed()
+
     
     def _notify_nothing_transcribed(self) -> None:
         """ Tells Main that this context ends without a transcription to process, if it asked to know. """
