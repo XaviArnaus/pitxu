@@ -16,6 +16,7 @@ import threading
 import queue
 import time
 import asyncio
+from collections import deque
 from multiprocessing import JoinableQueue
 
 try:
@@ -34,6 +35,8 @@ class FasterWhisperStream(PyXavi):
     - Early flush: when the audio goes quiet, the pending chunks are decoded right away, without waiting for the VAD
       to confirm the end of the speech (`vad.release` seconds later). That decode then overlaps with the VAD wait,
       and the final has almost nothing left to decode. See `_early_flush_should_fire()`.
+    - Speech that starts while the previous utterance is still being finalized is not lost: it waits (deferred) and,
+      if the previous one ended with nothing (noise), it is processed right after. See `_defer_if_finalizing()`.
     - A None chunk ends the utterance: leftovers are flushed and the final transcription is requested. If no final
       arrives within `transcription_timeout`, the context is abandoned and its late output is dropped.
     - The worker thread owns all STT context state (state machine, windows, flags).
@@ -78,6 +81,15 @@ class FasterWhisperStream(PyXavi):
     _abandoned_finals: int = 0
 
     _ongoing_chunk_window = []
+
+    # Utterance that started while the previous one was being finalized (see the class docstring). Items are the same as
+    #   in the capture queue: markers, chunks and the None that ends it. Only touched by the worker thread.
+    _deferred_items: list = []
+    # Deferred items that were released and are consumed before anything new from the capture queue.
+    _replay_items: deque = None
+    DEFERRED_ITEMS_LIMIT: int = 3000
+    # Did the last context end delivering a transcription to Main? If it did, Main is answering, so what was deferred is dropped.
+    _last_context_delivered_text: bool = False
 
     # Early flush (see the class docstring). Level tracking is per utterance and only touched by the worker thread.
     _early_flush_enabled: bool = True
@@ -225,6 +237,10 @@ class FasterWhisperStream(PyXavi):
         self._shared_memory.initialize_existing_shared_memory_flags()
         self._shared_memory.initialize_existing_shared_memory_values()
 
+        self._deferred_items = []
+        self._replay_items = deque()
+        self._last_context_delivered_text = False
+
         # Keeping track that Whisper is active
         self.is_active = True
         self.current_transcription_state = TrascriptionState.IDLE
@@ -322,21 +338,32 @@ class FasterWhisperStream(PyXavi):
                 #
                 # So this loop is consuming 3 queues.
 
-                # Work to be done if we have chunks in the chunks queue.
-                if self._queue.empty():
+                # What was deferred waits for the previous context to finish. When it did, it is processed first.
+                self._release_deferred_items_if_possible()
+
+                # Work to be done if we have chunks in the chunks queue (or deferred items released to be replayed).
+                if not self._replay_items and self._queue.empty():
                     is_chunks_queue_empty = True
                 else:
                     is_chunks_queue_empty = False
 
+                    # Replayed items first, they are older than anything in the queue. They are not in the queue, so no task_done().
+                    from_replay = bool(self._replay_items)
+                    item = self._replay_items.popleft() if from_replay else self._queue.get()
+
+                    # A new utterance while the previous one is still being finalized: keep it for later.
+                    if not from_replay and self._defer_if_finalizing(item):
+                        self._queue.task_done()
+                        continue
+
                     # Check first for the markers
-                    item = self._queue.get()
                     if isinstance(item, str):
                         # control marker, never audio
                         if item == SttMarker.START:
                             self._open_context_in_worker_thread()
                         elif item == SttMarker.RESET:
                             self.reset_context_and_state_in_transcription_thread()
-                        self._queue.task_done()
+                        self._item_done(from_replay)
                         continue
 
                     # Get the next chunk from the queue.
@@ -348,7 +375,7 @@ class FasterWhisperStream(PyXavi):
                         # allow_chunk_consumption is opened by the START marker and closed after the end of the utterance, the final result, or a reset.
                         if not self.allow_chunk_consumption:
                             self._xlog.warning(f"🟠 Received audio chunk [None] while the transcription is not in a state to consume it. Current state: {self.current_transcription_state.upper()}.")
-                            self._queue.task_done()
+                            self._item_done(from_replay)
                             continue
 
                         self._log_debug("✏️ Received None data from the queue, It should be the end of the stream.")
@@ -405,7 +432,7 @@ class FasterWhisperStream(PyXavi):
                             current_state = self._stt_state_machine.get_transcription_state()
                             # self._xlog.warning(f"🟠 Received audio chunk while the transcription is not in a state to consume it. Current state: {current_state}.")
                             self._discarded_chunks += 1
-                            self._queue.task_done()
+                            self._item_done(from_replay)
                             continue
 
                         # Update the current state of the transcription
@@ -442,7 +469,7 @@ class FasterWhisperStream(PyXavi):
                             self.process_chunks(chunk_list_to_process)
                             chunk_list_to_process = []
                     
-                    self._queue.task_done()
+                    self._item_done(from_replay)
                 
                 # Work to be done if we have a transcription result in the transcription result queue.
                 if self.transcriptor_output_queue.empty():
@@ -501,6 +528,8 @@ class FasterWhisperStream(PyXavi):
                         and time.monotonic() - self._requested_at > self._transcription_timeout:
                     self._xlog.error(f"🛑 No final transcription after {self._transcription_timeout}s, abandoning this context.")
                     self._abandoned_finals += 1
+                    # Nothing was delivered: a speech that waited behind this context is processed now.
+                    self._last_context_delivered_text = False
                     self.reset_context_and_state_in_transcription_thread()
                     self._notify_nothing_transcribed()
                 
@@ -593,6 +622,9 @@ class FasterWhisperStream(PyXavi):
         # Consumption stays blocked until a START marker arrives
         self.allow_chunk_consumption = False
         self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
+
+        # Remember the outcome: what waited behind this context is only processed if nothing was delivered.
+        self._last_context_delivered_text = finished_callback_triggered
 
         # Main was not called: nothing to process came out of this context.
         if not finished_callback_triggered:
@@ -719,6 +751,59 @@ class FasterWhisperStream(PyXavi):
     def is_speaker_busy(self) -> bool:
         return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
     
+    def _item_done(self, from_replay: bool) -> None:
+        """ Marks an item of the capture queue as processed. Replayed items did not come from the queue. """
+        if not from_replay:
+            self._queue.task_done()
+
+    def _defer_if_finalizing(self, item) -> bool:
+        """
+        A new utterance can start while the previous one is still waiting for its final transcription (typically a noise
+        that the VAD took for speech, whose final takes a second or two, and the user starts to speak meanwhile).
+        Opening a context then is not possible, and the speech used to be lost.
+        Now the new utterance (its START marker, its chunks and its end) is kept here, and released when the previous
+        context is over (see _release_deferred_items_if_possible()).
+
+        Returns True if the item was kept, so the caller must not process it now.
+        """
+        if self._deferred_items:
+            # Already deferring: everything of this utterance goes behind its START marker, in order.
+            if isinstance(item, str) and item == SttMarker.RESET:
+                # A reset discards everything, including what was waiting.
+                self._deferred_items = []
+                return False
+            if len(self._deferred_items) < self.DEFERRED_ITEMS_LIMIT:
+                self._deferred_items.append(item)
+            return True
+
+        if isinstance(item, str) and item == SttMarker.START \
+                and self._stt_state_machine.get_transcription_state() == TrascriptionState.REQUESTED_TRANSCRIPTION:
+            self._log_debug("✏️ New speech started while the previous one is being finalized: keeping it to process it next.")
+            self._deferred_items = [item]
+            return True
+
+        return False
+
+    def _release_deferred_items_if_possible(self) -> None:
+        """
+        When the previous context is over (IDLE), decides what happens with the utterance that waited:
+        - The previous one ended with nothing (noise): the waiting utterance is replayed, as if it had just happened.
+        - The previous one delivered a transcription: Main is answering it and the microphone is about to be muted,
+          so the waiting utterance is dropped, like any speech during an answer.
+        """
+        if not self._deferred_items:
+            return
+        if self._stt_state_machine.get_transcription_state() != TrascriptionState.IDLE:
+            return
+
+        deferred, self._deferred_items = self._deferred_items, []
+        if self._last_context_delivered_text:
+            self._xlog.info(f"🟠 Dropping the {len(deferred)} items of the speech that started while the previous one was being finalized: it was delivered to be answered.")
+            return
+
+        self._log_debug(f"✏️ The previous speech ended with nothing: processing now the one that waited ({len(deferred)} items).")
+        self._replay_items.extend(deferred)
+
     def _early_flush_reset(self):
         self._ef_level = 0.0
         self._ef_peak = 0.0
