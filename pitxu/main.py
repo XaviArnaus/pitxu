@@ -8,6 +8,7 @@ from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
+from pitxu.lib.utils.emoji_stats import EmojiStats
 from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
@@ -982,6 +983,9 @@ class Main(PyXavi):
             # Persist state
             self._safe_step("state persistence", self.persist_state)
 
+            # Save the emoji stats that are still in memory
+            self._safe_step("emoji stats", EmojiStats.flush)
+
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
@@ -1440,6 +1444,9 @@ class Main(PyXavi):
 
             # EVERY NIGHT AT 3 AM
             self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+
+            # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
+            self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
             self._scheduler.start()
         
         else:
@@ -1890,7 +1897,10 @@ class Main(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
-    
+
+        # The use of the emojis of the day goes to the stats file.
+        EmojiStats.flush()
+
 
     # ------------- Others -------------
 

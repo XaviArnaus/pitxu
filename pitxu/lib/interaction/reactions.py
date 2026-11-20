@@ -8,6 +8,7 @@ from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.utils.text import Text
+from pitxu.lib.utils.emoji_stats import EmojiStats
 
 from functools import partial
 from subprocess import call
@@ -58,6 +59,8 @@ class Reactions(PyXavi):
     
     def initialize(self):
         self._xlog.info("Initializing Reactions")
+        # Where the use of every emoji is saved (see EmojiStats).
+        EmojiStats.configure(self._xconfig)
 
         # The app state is shared with the whole app: a second one on the same file would overwrite it with stale data.
         if self._xparams.key_exists("state") and self._xparams.get("state") is not None:
@@ -147,18 +150,25 @@ class Reactions(PyXavi):
     # The reserved name of the animation that goes with what has no animation of its own: it is `animations.default_emotion`.
     DEFAULT_ANIMATION: str = "default"
 
-    def show_animation(self, animation: str) -> bool:
+    def show_animation(self, animation: str, how: str = None, invalid_label: str = None) -> bool:
         """
         Shows an animation (one of `animations.map`) while something is spoken. It is the one way to ask for it.
+        Every use is counted in the emoji stats (see EmojiStats), once the name is resolved.
 
         Args:
             animation (str): The name of the animation. `default` is the one of `animations.default_emotion`:
                 what is spoken without the chatbot (like the greeting) and the answers without emotion use it,
                 so the animations area is not left empty while Pitxu talks.
+            how (str): How it was decided, for the stats (see EmojiStats). By default it is "default" when the
+                animation is `default` and "requested" otherwise.
+            invalid_label (str): For the stats, the label the chatbot made up when how is "invalid".
 
         Returns:
             bool: True if the animation was requested, False if there is nothing to show (no default configured).
         """
+        if how is None:
+            how = "default" if animation == self.DEFAULT_ANIMATION else "requested"
+
         if animation == self.DEFAULT_ANIMATION:
             animation = self._xconfig.get("animations.default_emotion", None)
             if not animation:
@@ -168,6 +178,7 @@ class Reactions(PyXavi):
 
         self._xlog.debug(f"🎭 Showing the animation [{animation}] while speaking.")
         self.interaction.show_animation_while_speaking(animation)
+        EmojiStats.count(animation, how, invalid_label)
         return True
 
     def show_emotion(self, label: str | None) -> bool:
@@ -183,17 +194,22 @@ class Reactions(PyXavi):
         """
         emotions = self._xconfig.get("animations.emotions", None) or {}
 
+        invalid_label = None
         if label is None:
+            how = "no_tag"
             self._xlog.debug("🎭 The answer came without an emotion tag.")
         elif label == "none":
+            how = "none"
             self._xlog.debug("🎭 The chatbot says the answer is neutral [none].")
         elif label not in emotions:
             # A label the chatbot made up, or that was taken out of the config, is not worth an error.
+            how = "invalid"
+            invalid_label = label
             self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones.")
         else:
-            return self.show_animation(label)
+            return self.show_animation(label, how="chosen")
 
-        return self.show_animation(self.DEFAULT_ANIMATION)
+        return self.show_animation(self.DEFAULT_ANIMATION, how=how, invalid_label=invalid_label)
 
     def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
