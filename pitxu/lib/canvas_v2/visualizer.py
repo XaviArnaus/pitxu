@@ -6,6 +6,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
+from pitxu.lib.canvas_v2.macros.macros_animation import MacrosAnimation
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros.macros_buttons import MacrosButtons
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
@@ -44,6 +45,7 @@ class Visualizer(PyXavi):
     macros_foreground: MacrosForeground = None
     macros_status: MacrosStatus = None
     macros_background: MacrosBackground = None
+    macros_animation: MacrosAnimation = None
     macros_buttons: MacrosButtons = None
     animations: Animations = None
 
@@ -114,6 +116,7 @@ class Visualizer(PyXavi):
         self.macros_foreground = MacrosForeground(config, params)
         self.macros_status = MacrosStatus(config, params)
         self.macros_background = MacrosBackground(config, params)
+        self.macros_animation = MacrosAnimation(config, params)
         self.macros_buttons = MacrosButtons(config, params)
 
         # The painter is the one that will control the painting loop and trigger the macros to paint.
@@ -204,6 +207,7 @@ class Visualizer(PyXavi):
             ("macros_foreground", self.macros_foreground.__class__.__name__),
             ("macros_status", self.macros_status.__class__.__name__),
             ("macros_background", self.macros_background.__class__.__name__),
+            ("macros_animation", self.macros_animation.__class__.__name__),
             ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
             ("painter_queues", params.get("painter_queues", [])),
@@ -402,7 +406,7 @@ class Visualizer(PyXavi):
 
                         show_during_idle_mode=True,
 
-                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback=self.macros_animation.merge_animation,
                         drawing_callback_parameters={**params, "animation": "sleeping"},
                         cache_control_parameters=["current_loop_iteration"],
                     )
@@ -812,7 +816,7 @@ class Visualizer(PyXavi):
 
                         # The parameter "current_loop_iteration" is added during the painting stage,
                         # and it is the index of the frame to draw.
-                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback=self.macros_animation.merge_animation,
                         drawing_callback_parameters={"animation": animation_name},
                         cache_control_parameters=["current_loop_iteration"],
 
@@ -859,7 +863,7 @@ class Visualizer(PyXavi):
 
                         # The parameter "current_loop_iteration" is added during the painting stage,
                         # and it is the index of the frame to draw.
-                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback=self.macros_animation.merge_animation,
                         drawing_callback_parameters={"animation": animation_name},
                         cache_control_parameters=["current_loop_iteration"],
 
@@ -904,6 +908,76 @@ class Visualizer(PyXavi):
             )
         )
 
+    LISTENING_PAINT_NAME: str = "ListeningAnimationPaint"
+
+    def _listening_animation_name(self) -> str | None:
+        """ The animation shown while listening (`animations.listening`). None if there is none, or it is not available. """
+        if getattr(self, "_listening_animation_unavailable", False):
+            return None
+        name = self._xconfig.get("animations.listening", "listening")
+        if not name:
+            return None
+        try:
+            self.animations.get_animation(name)
+        except Exception as e:
+            # Said once: this is asked at every tick of the countdown.
+            self._listening_animation_unavailable = True
+            self._xlog.warning(f"🟠 The listening animation [{name}] (animations.listening) is not available, so none is shown: {e}")
+            return None
+        return name
+
+    def _show_listening_animation(self):
+        """
+        Shows the listening animation in the animations area, for as long as the countdown is there: the user can speak.
+        It is part of the countdown: it starts with it (holding_percentage()) and ends with it (holding_percentage_end()),
+        or when something else takes the area, like the thinking animation.
+        """
+        animation_name = self._listening_animation_name()
+        if animation_name is None:
+            return
+
+        # The countdown asks for it at every tick, and an animation that is already running must not restart.
+        current = self.painter.get_current_interaction(PainterQueue.ANIMATIONS)
+        if current is not None and current.name == self.LISTENING_PAINT_NAME:
+            return
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name=self.LISTENING_PAINT_NAME,
+                        command=AnimationsCommand(AnimationsCommand.LISTENING),
+
+                        # It has no flag to live by: it stays until the countdown ends (see _end_listening_animation()),
+                        #   or until another animation takes the area.
+                        loop_iterations=self.animations.get_animation(animation_name).get_frame_count() - 1,
+                        delay_between_frames=self.interaction_delays.get("listening",
+                                                                        self.interaction_delays.get("emotion",
+                                                                                                    self.interaction_delays.get("default_delay_between_frames",
+                                                                                                                                0.05))),
+
+                        drawing_callback=self.macros_animation.merge_animation,
+                        drawing_callback_parameters={"animation": animation_name},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
+    def _end_listening_animation(self):
+        """ Takes the listening animation away. If it is not there (it was already gone), nothing happens. """
+        # Same name and command as the paint set by _show_listening_animation(), so the Painter can find it.
+        self.painter.request_removal(
+            AnimationPaint(
+                name=self.LISTENING_PAINT_NAME,
+                command=AnimationsCommand(AnimationsCommand.LISTENING),
+            ),
+            PainterQueue.ANIMATIONS,
+            blank_screen=False)
+
     def holding_percentage(self, param: dict):
 
         # The percentage changes many times per lit square. What is on screen only changes with the number of lit squares,
@@ -930,6 +1004,9 @@ class Visualizer(PyXavi):
             )
         )
 
+        # The countdown means that the user can speak: Pitxu listens.
+        self._show_listening_animation()
+
     def holding_percentage_end(self, blank_screen: bool = True):
         """
         Takes the countdown bar away. If it is not there (it was already gone), nothing happens.
@@ -938,6 +1015,8 @@ class Visualizer(PyXavi):
             blank_screen: Blank the whole screen if nothing else is drawn after it. Right when the hold time is over,
                 False when something else is about to be drawn anyway (like the thinking animation).
         """
+        self._end_listening_animation()
+
         # Same name and command as the paint set by holding_percentage(), so the Painter can find it.
         self.painter.request_removal(
             BackgroundPaint(

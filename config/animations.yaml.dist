@@ -45,6 +45,9 @@ animations:
       badge: ear
       position: top-right
       badge_scale: 0.4
+  # [String] The animation shown while the assistant listens: from the start of the countdown (the user can speak) until
+  # the countdown ends or the thinking starts. Any animation of the `map` or the `composites`. Empty for none.
+  listening: listening
   # Mapping between animation name and file
   map:
     sleeping: "sleeping.gif"

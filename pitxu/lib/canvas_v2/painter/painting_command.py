@@ -141,12 +141,15 @@ class AnimationsCommand(PaintingCommand):
     IDLE: str = "IDLE"
     # Any animation shown while something else happens (like the one that goes with the answer while it is spoken).
     EMOTION: str = "EMOTION"
+    # The animation shown while the user can speak (the countdown phase).
+    LISTENING: str = "LISTENING"
 
     def __init__(self, command: str):
         available_commands = [
             self.THINKING,
             self.IDLE,
             self.EMOTION,
+            self.LISTENING,
             self.CLEAR,
         ]
         super(AnimationsCommand, self).__init__(command, available_commands)
