@@ -67,7 +67,7 @@ class Animation:
         cache_dir = None
         meta = None
         if self.cache_root:
-            cache_dir = os.path.join(self.cache_root, build_cache_dir_name(self.name, compute_fingerprint(self.file_path)))
+            cache_dir = os.path.join(self.cache_root, build_cache_dir_name(self.name, self._fingerprint()))
             meta = self._read_meta(cache_dir)
 
         missing_sizes: list[Size] = []
@@ -105,6 +105,13 @@ class Animation:
 
         # The full size frames are not kept. If someone needs them, they are decoded again.
         self.frames = []
+
+    def _fingerprint(self) -> str:
+        """
+        What identifies the content of this animation in the cache. A subclass that builds its frames from
+        something else than one GIF file overrides it.
+        """
+        return compute_fingerprint(self.file_path)
 
     def _read_meta(self, cache_dir: str) -> dict | None:
         try:
@@ -178,9 +185,15 @@ class Animation:
         """
         Decodes the GIF into full size frames in the output color mode.
         """
+        return self._decode_gif_file(self.file_path)
+
+    def _decode_gif_file(self, file_path: str) -> list[Image.Image]:
+        """
+        Decodes the given GIF file into full size frames in the output color mode.
+        """
         frames: list[Image.Image] = []
         try:
-            with Image.open(self.file_path) as gif:
+            with Image.open(file_path) as gif:
                 while True:
 
                     # Get the current index's frame as a standlone image.

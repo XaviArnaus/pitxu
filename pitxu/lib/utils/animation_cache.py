@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 
 # Bump it when the way the cached frames are generated changes (conversion, resize algorithm, format...),
@@ -19,6 +20,25 @@ def compute_fingerprint(file_path: str) -> str:
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             sha1.update(chunk)
+    return sha1.hexdigest()[:12]
+
+
+# Bump it when the way a composite animation is put together changes (position, scale, timing...)
+COMPOSITE_GENERATION_VERSION = 1
+
+
+def compute_composite_fingerprint(file_paths: list[str], spec: dict) -> str:
+    """
+    Short hash of the contents of all the GIF files a composite animation is made of, the way they are merged
+    (the spec) and the cache versions. Changing any of them regenerates the composite.
+    """
+    sha1 = hashlib.sha1()
+    sha1.update(f"v{ANIMATION_CACHE_VERSION}c{COMPOSITE_GENERATION_VERSION}".encode())
+    sha1.update(json.dumps(spec, sort_keys=True).encode())
+    for file_path in file_paths:
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                sha1.update(chunk)
     return sha1.hexdigest()[:12]
 
 

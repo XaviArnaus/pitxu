@@ -21,6 +21,30 @@ animations:
     enabled: True
     # [String] Where to store them. By default: `animations/` inside `storage.path`.
     # path: "storage/animations/"
+  # Crossfade between animations. When the animation on screen changes, the previous one does not vanish: it keeps
+  # playing underneath while it fades out, and the new one starts at once and fades in. The new one is never delayed.
+  crossfade:
+    # [Float] Seconds that both animations are blended. 0 turns the crossfade off.
+    duration: 0.25
+    # [Float] Only blend if the previous animation was drawn at most this many seconds ago. Longer than that, the area was
+    #   cleared in between and there is nothing to fade from.
+    max_gap: 0.25
+  # Composite animations: two animations of the `map` merged into one, a main one (`base`) with a smaller one (`badge`) in a
+  # corner. They are generated frame by frame at start (and cached on disk like the others, regenerated when a GIF or the
+  # definition here changes), and then used by their name anywhere an animation is used: in `emotions`, in `preload`...
+  # The name can't be one of the `map`. The badge plays once per loop of the base, so the loop is seamless.
+  #   base:        [String] Name of the main animation (in `map`). It sets the length and the size.
+  #   badge:       [String] Name of the small animation (in `map`).
+  #   position:    [String] Corner of the badge: top-right (default), top-left, bottom-right, bottom-left.
+  #   badge_scale: [Float] Width of the badge as a fraction of the width of the base. Default 0.4.
+  #   margin:      [Float] Distance from the corner as a fraction of the width of the base. Default 0.
+  composites:
+    # The assistant is listening: a calm smile with a moving ear.
+    listening:
+      base: smile-small
+      badge: ear
+      position: top-right
+      badge_scale: 0.4
   # Mapping between animation name and file
   map:
     sleeping: "sleeping.gif"
