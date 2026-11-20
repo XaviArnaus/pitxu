@@ -3,7 +3,6 @@ from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
-from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
