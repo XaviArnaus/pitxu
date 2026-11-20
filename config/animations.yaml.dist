@@ -7,6 +7,7 @@ animations:
   preload:
     - sleeping
     - thinking
+    - smile-small
   # [List] Display areas (from the layout) that draw animations. ⚠️ REMEMBER: whenever a new feature draws an
   # animation in another display area, add that area here. Only these areas get their frames prepared and cached on disk.
   # Others still work, but the frames are resized on demand every run and kept in memory only.
@@ -36,22 +37,93 @@ animations:
     sad: "sad.gif"
     silence: "silence.gif"
     sorry: "sorry.gif"
+    angry: "angry.gif"
+    astonished: "astonished.gif"
+    beautiful: "beautiful.gif"
+    cold: "cold.gif"
+    concerned: "concerned.gif"
+    crying: "crying.gif"
+    cursing: "cursing.gif"
+    delicious: "delicious.gif"
+    dizzy: "dizzy.gif"
+    exhaling: "exhaling.gif"
+    grinning: "grinning.gif"
+    hot: "hot.gif"
+    kissing: "kissing.gif"
+    laughing: "laughing.gif"
+    lol: "lol.gif"
+    love: "love.gif"
+    mind-blowing: "mind-blowing.gif"
+    monocle: "monocle.gif"
+    mouth-open: "mouth-open.gif"
+    not-understand: "not-understand.gif"
+    oops-negative: "oops-negative.gif"
+    oops-positive: "oops-positive.gif"
+    party: "party.gif"
+    peeking: "peeking.gif"
+    rise-eyebrow: "rise-eyebrow.gif"
+    rolling-eyes: "rolling-eyes.gif"
+    scared: "scared.gif"
+    screaming: "screaming.gif"
+    sick: "sick.gif"
+    smile-small: "smile-small.gif"
+    smile: "smile.gif"
+    sunglasses: "sunglasses.gif"
+    tired: "tired.gif"
+    wink: "wink.gif"
+    yawning: "yawning.gif"
+    yummy: "yummy.gif"
     "yes": "yes.gif"
   # [Dict] The animations the chatbot can choose from to express how its answer feels. The animation is shown while the answer is spoken.
   # Each key is the name of an animation of `map` (the label the chatbot writes), and the value tells it when to pick it: it goes into its prompt, in English whatever the language of the answer.
   # To offer a new emotion: add the animation to `map` and its label with a description here. Not listing any disables the feature.
   # `none` is always offered by itself, for the answers that are neutral or just informative: they get the `default_emotion`.
-  # The animations used while something happens (sleeping, thinking, bell, ear, eyes, silence, bubble) are not emotions: leave them out.
+  # The animations that are not a face (sleeping, thinking, bell, ear, eyes, silence, bubble, check, cross) are not emotions: leave them out.
+  # What check and cross meant (a task done, a task failed) is covered by the descriptions of `smile` and `sorry`.
   # `no` and `yes` need quotes, otherwise YAML reads them as booleans.
   emotions:
+    smile: "a friendly, warm or pleased answer; also a task or action that was completed successfully"
+    smile-small: "a calm, gentle or polite answer, mildly positive"
+    grinning: "being happy and upbeat, good news, enthusiasm"
+    laughing: "something is fun or cheerful, light-hearted joy"
+    lol: "something is really funny, a joke or a hilarious situation"
+    wink: "a playful, teasing or knowing remark, complicity"
+    love: "affection, gratitude or warmth toward the user"
+    beautiful: "admiring something lovely, beautiful or wonderful; being delighted"
+    kissing: "sending a kiss, a very affectionate goodbye or thanks"
+    blush: "flattered, embarrassed or shy"
+    yummy: "something tasty, a pleasant treat, food that sounds good"
+    delicious: "craving or watering at the mouth for food or a very tempting thing"
+    sunglasses: "something is cool, awesome, or being confident and relaxed about it"
+    party: "celebrating, congratulations, birthdays, a festive occasion"
+    astonished: "mild surprise, something unexpected or noteworthy"
+    mouth-open: "being impressed or taken aback, a 'wow' reaction"
+    mind-blowing: "something mind-blowing, an amazing or extraordinary fact"
+    scared: "fear, danger or a frightening situation"
+    screaming: "shock or horror, something terrifying or extremely alarming"
+    concerned: "worry, concern or care about a problem or risk"
+    sad: "bad news, disappointment, or sympathy for a sad situation"
+    crying: "very sad news, a heartbreaking or deeply moving situation"
+    sorry: "apologizing for a mistake, a limitation or a misunderstanding; also a task or action that failed, or something that is not possible or was not found"
+    angry: "frustration or annoyance about something unfair or irritating"
+    cursing: "extreme anger or outrage, something infuriating"
+    monocle: "examining, analysing or being skeptical and curious about a detail"
+    rise-eyebrow: "doubt or suspicion, something that sounds questionable or fishy"
+    rolling-eyes: "mild exasperation, boredom, or something obvious or silly"
+    not-understand: "confusion, not understanding the question or something unclear"
+    oops-positive: "a small mistake or an awkward moment that ends well, relief"
+    oops-negative: "an awkward or embarrassing mistake, nervousness, feeling uneasy"
+    peeking: "something embarrassing or scary to look at, covering the eyes, shyness"
+    dizzy: "being overwhelmed, confused or dizzy; too much information or chaos"
+    exhaling: "relief after a worry, a sigh of release or resignation"
+    tired: "being tired, exhausted, or a long and hard day"
+    yawning: "boredom, sleepiness or something dull; it is late"
+    sick: "feeling ill, nausea, disgust or something gross"
+    cold: "cold weather, freezing temperatures, shivering"
+    hot: "hot weather, heat, feeling overheated"
     "yes": "an affirmative answer, agreement, confirming something"
     "no": "a negative answer, disagreement, refusing or declining something"
-    check: "a task or action was completed successfully"
-    cross: "a task or action failed, or something is not possible or was not found"
-    sad: "bad news, disappointment, or sympathy for a sad situation"
-    sorry: "apologizing for a mistake, a limitation or a misunderstanding"
-    blush: "flattered, embarrassed or shy"
   # [String] The animation shown while an answer is spoken when it has no emotion: the chatbot says `none`, it sends no tag, or the label is not one of `emotions`.
   # It also goes with what is spoken without the chatbot, like the greeting. It is one of `map` (it may also be one of `emotions`).
   # Without it the animations area stays empty in those cases.
-  default_emotion: blush
+  default_emotion: smile-small
