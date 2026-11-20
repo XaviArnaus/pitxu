@@ -174,6 +174,18 @@ speech-to-text:
     #   If the mic is read at 48 kHz and resampled (input_samplerate: -1), each chunk is only ~21 ms, so ~200 chunks give a similar window.
     # chunks_window: 200 # Working in Mac
     chunks_window: 72 # Working in RPi
+    # Early flush: when the audio goes quiet, the pending chunks are decoded right away, without waiting for the VAD
+    #   to confirm the end of the speech (`vad.release` seconds later). The decode then overlaps with that wait and
+    #   the final transcription arrives much sooner. A wrong guess (a pause in the middle of a sentence) costs one extra decode.
+    early_flush:
+      # [Bool] Turns the early flush on or off. Off is the previous behaviour.
+      enabled: True
+      # [Float] Seconds of quiet audio before decoding what is pending.
+      silence_seconds: 0.35
+      # [Float] The audio is quiet when its level is below this fraction of the loudest level of the utterance.
+      quiet_ratio: 0.1
+      # [Integer] RMS (16 bit scale) the loudest level must reach before anything counts as quiet, so only noise never triggers it.
+      min_peak_rms: 300
     # [Float] The time in seconds to sleep when there are no chunks to process in the queue, in the Faster Whisper Streaming implementation. This is to avoid busy waiting and to give time to the other thread to add chunks to the queue.
     sleep_when_no_chunks: 0.03
     # [Float] The time in seconds to wait for a transcription to be completed before considering it abandoned.

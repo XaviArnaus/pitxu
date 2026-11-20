@@ -6,6 +6,7 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
+from pitxu.lib.canvas_v2.macros.macros_animation import MacrosAnimation
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
 from pitxu.lib.canvas_v2.macros.macros_buttons import MacrosButtons
 from pitxu.lib.canvas_v2.macros.macros_foreground import MacrosForeground
@@ -13,8 +14,8 @@ from pitxu.lib.canvas_v2.macros.macros_status import MacrosStatus
 from pitxu.lib.canvas_v2.macros.macros_layout import MacrosLayout
 from pitxu.lib.canvas_v2.macros.macros_overlay import MacrosOverlay
 from pitxu.lib.canvas_v2.painter.painter import Painter, PainterQueue
-from pitxu.lib.canvas_v2.painter.painting_command import OverallCommand, ForegroundCommand, StatusCommand, ButtonsCommand, BackgroundCommand
-from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, ForegroundPaint, BackgroundPaint, OverallPaint, StatusPaint, AnimationPaint, ButtonsPaint
+from pitxu.lib.canvas_v2.painter.painting_command import OverallCommand, ForegroundCommand, StatusCommand, ButtonsCommand, BackgroundCommand, AnimationsCommand
+from pitxu.lib.canvas_v2.painter.paint_object import PaintObject, BasePaint, ForegroundPaint, BackgroundPaint, OverallPaint, StatusPaint, AnimationPaint, ButtonsPaint
 from pitxu.lib.canvas_v2.buttons import BUTTONS, COLUMN_TO_DISPLAY_AREA
 from pitxu.lib.objects.point import Point
 
@@ -44,6 +45,7 @@ class Visualizer(PyXavi):
     macros_foreground: MacrosForeground = None
     macros_status: MacrosStatus = None
     macros_background: MacrosBackground = None
+    macros_animation: MacrosAnimation = None
     macros_buttons: MacrosButtons = None
     animations: Animations = None
 
@@ -114,6 +116,7 @@ class Visualizer(PyXavi):
         self.macros_foreground = MacrosForeground(config, params)
         self.macros_status = MacrosStatus(config, params)
         self.macros_background = MacrosBackground(config, params)
+        self.macros_animation = MacrosAnimation(config, params)
         self.macros_buttons = MacrosButtons(config, params)
 
         # The painter is the one that will control the painting loop and trigger the macros to paint.
@@ -123,7 +126,6 @@ class Visualizer(PyXavi):
         #   - layout_position_to_queue_name: to know where to queue the different interactions based on their layout position.
         #   - drawing_callbacks: to know which macros to trigger for each interaction type.
         #   - painter_queues: to know the queues to use for the different interactions.
-        #   - painter_priorities: to know the interactions that have priority over others in each queue (that will remove previous ones in the queue)
         #   - exception_loop_interactions: to know the interactions that will not be considered in the loop execution time calculation.
         #   - painter_queues_with_paints_that_slows_down_the_loop: to know which queues we should consider that their paints can slow down the loop, to be able to log warnings when the loop is taking too long, and identify which interaction is causing it.
         params.set("drawing_callbacks", {
@@ -159,7 +161,8 @@ class Visualizer(PyXavi):
             },
         })
         params.set("layout_position_to_queue_name", {
-            DisplayArea.EFFECTS: PainterQueue.BACKGROUND,
+            DisplayArea.ANIMATIONS: PainterQueue.ANIMATIONS,
+            DisplayArea.BACKGROUND: PainterQueue.BACKGROUND,
             DisplayArea.MESSAGES: PainterQueue.FOREGROUND,
             DisplayArea.STATUS: PainterQueue.STATUS,
             DisplayArea.BUTTONS_LEFT: PainterQueue.BUTTONS_LEFT,
@@ -170,18 +173,17 @@ class Visualizer(PyXavi):
         #   - OVERALL has to be the LAST one: it covers the whole screen (overlays, code and text blocks).
         #   - Anything new that has its own display area goes BEFORE OVERALL, otherwise it would paint over the overlays.
         params.set("painter_queues", [
-            PainterQueue.BACKGROUND, 
-            PainterQueue.STATUS, 
+            PainterQueue.BACKGROUND,
+            PainterQueue.ANIMATIONS,
+            PainterQueue.STATUS,
             PainterQueue.FOREGROUND, 
             PainterQueue.BUTTONS_LEFT,
             PainterQueue.BUTTONS_RIGHT,
             PainterQueue.OVERALL,
         ])
-        params.set("painter_priorities", {
-            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING]
-        })
         params.set("painter_exception_loop_interactions", {
-            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.THINKING, BackgroundCommand.NETWORKING]
+            PainterQueue.BACKGROUND: [BackgroundCommand.SPEAKING, BackgroundCommand.NETWORKING],
+            PainterQueue.ANIMATIONS: [AnimationsCommand.THINKING]
         })
         # The queues in which a paint is static and don't need fast loop iterations.
         # ⚠️ A persistent paint in any queue NOT listed here (like the buttons panel) prevents the loop from slowing down.
@@ -205,10 +207,10 @@ class Visualizer(PyXavi):
             ("macros_foreground", self.macros_foreground.__class__.__name__),
             ("macros_status", self.macros_status.__class__.__name__),
             ("macros_background", self.macros_background.__class__.__name__),
+            ("macros_animation", self.macros_animation.__class__.__name__),
             ("drawing_callbacks", list(params.get("drawing_callbacks", {}).keys())),
             ("layout_position_to_queue_name", params.get("layout_position_to_queue_name", {})),
             ("painter_queues", params.get("painter_queues", [])),
-            ("painter_priorities", params.get("painter_priorities", {})),
             ("painter_exception_loop_interactions", params.get("painter_exception_loop_interactions", {})),
             ("painter_queues_with_paints_that_slow_down_the_loop", params.get("painter_queues_with_paints_that_slow_down_the_loop", [])),
             ("interaction_delays", self.interaction_delays),
@@ -226,6 +228,7 @@ class Visualizer(PyXavi):
         #   - other status-like flags that we want to monitor to trigger some visualization when they are activated.
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
         self._setup_buttons_monitoring()
+        self._setup_countdown_cleanup()
 
         self._xlog.debug("Initialized Visualizer.")
     
@@ -251,7 +254,7 @@ class Visualizer(PyXavi):
 
         # Only the display areas that draw animations need their frames prepared (and cached on disk).
         # A size that was not prepared still works, but it is resized on demand and kept in memory only.
-        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.EFFECTS])
+        display_areas_with_animations = self._xconfig.get("animations.display_areas", [DisplayArea.ANIMATIONS])
 
         animation_sizes_per_display_area = {}
         for display_area, rectangle in self.layout_info["relative"].items():
@@ -388,9 +391,9 @@ class Visualizer(PyXavi):
                         # remove_interaction_after_painting=True,
                         ignore_maintain_time=False,
                     ),
-                    PainterQueue.BACKGROUND: AnimationPaint(
-                        name="IdleBackgroundPaint",
-                        command=BackgroundCommand(BackgroundCommand.IDLE),
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name="IdleAnimationPaint",
+                        command=AnimationsCommand(AnimationsCommand.IDLE),
 
                         while_shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
                         while_shared_memory_flag_value=True,
@@ -403,7 +406,7 @@ class Visualizer(PyXavi):
 
                         show_during_idle_mode=True,
 
-                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback=self.macros_animation.merge_animation,
                         drawing_callback_parameters={**params, "animation": "sleeping"},
                         cache_control_parameters=["current_loop_iteration"],
                     )
@@ -658,6 +661,10 @@ class Visualizer(PyXavi):
             )
         )
     
+    def invalidate_screen(self):
+        """ Tells the Painter that the display was changed from outside (it was cleared directly): it will send the whole screen next time. """
+        self.painter.invalidate_screen()
+
     def clear_background(self):
 
         self.painter.paint(
@@ -669,7 +676,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_layout.base_frame_for_display_area,
                         drawing_callback_parameters={
-                            "display_area": DisplayArea.EFFECTS,
+                            "display_area": DisplayArea.BACKGROUND,
                         },
 
                         # final_screen_clearing=False,
@@ -678,7 +685,27 @@ class Visualizer(PyXavi):
                 }
             )
         )
-    
+
+    def clear_animations(self):
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: BasePaint(
+                        name="ClearAnimationsPaint",
+                        command=AnimationsCommand(AnimationsCommand.CLEAR),
+
+                        drawing_callback=self.macros_layout.base_frame_for_display_area,
+                        drawing_callback_parameters={
+                            "display_area": DisplayArea.ANIMATIONS,
+                        },
+
+                        remove_interaction_after_painting=True
+                    )
+                }
+            )
+        )
+
     # ---- BACKGROUND PAINTS ----
 
     def _speaking_animation_follows_audio(self) -> bool:
@@ -774,9 +801,9 @@ class Visualizer(PyXavi):
         self.painter.paint(
             PaintObject(
                 paints_by_queue={
-                    PainterQueue.BACKGROUND: AnimationPaint(
-                        name="AnimationWhileThinkingBackgroundPaint",
-                        command=BackgroundCommand(BackgroundCommand.THINKING),
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name="AnimationWhileThinkingAnimationPaint",
+                        command=AnimationsCommand(AnimationsCommand.THINKING),
 
                         while_shared_memory_flag=SHARED_CHATBOT_BUSY,
                         while_shared_memory_flag_value=True,
@@ -789,7 +816,7 @@ class Visualizer(PyXavi):
 
                         # The parameter "current_loop_iteration" is added during the painting stage,
                         # and it is the index of the frame to draw.
-                        drawing_callback=self.macros_background.merge_animation,
+                        drawing_callback=self.macros_animation.merge_animation,
                         drawing_callback_parameters={"animation": animation_name},
                         cache_control_parameters=["current_loop_iteration"],
 
@@ -800,10 +827,57 @@ class Visualizer(PyXavi):
             )
         )
     
+    def animation_while_speaking(self, params: dict):
+        """
+        Shows an animation in the top left, for as long as the speaker is busy (the same time the answer is spoken,
+        like the mouth in the background does). Then the area is cleared.
+
+        Args:
+            params: "animation" is the name of one of the animations of `animations.map`.
+        """
+
+        animation_name = params.get("animation", None)
+        try:
+            # Loaded here the first time it is used (the animations that are not preloaded are lazy).
+            frame_count = self.animations.get_animation(animation_name).get_frame_count()
+        except Exception as e:
+            self._xlog.warning(f"🟠 Cannot show the animation [{animation_name}] while speaking: {e}")
+            return
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        # The name has the animation, so the cache key of each animation is its own.
+                        name=f"AnimationWhileSpeakingAnimationPaint_{animation_name}",
+                        command=AnimationsCommand(AnimationsCommand.EMOTION),
+
+                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
+                        while_shared_memory_flag_value=True,
+
+                        # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+                        loop_iterations=frame_count - 1,
+                        delay_between_frames=self.interaction_delays.get("emotion",
+                                                                        self.interaction_delays.get("default_delay_between_frames",
+                                                                                                    0.05)),
+
+                        # The parameter "current_loop_iteration" is added during the painting stage,
+                        # and it is the index of the frame to draw.
+                        drawing_callback=self.macros_animation.merge_animation,
+                        drawing_callback_parameters={"animation": animation_name},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
     def networking(self):
         """
         Shows that the network is busy, while the network busy flag is on.
-        The effect is the scanner in blue, in the top left.
+        The effect is the scanner in blue (the squares of the countdown with a lit head going back and forth), in the center left.
         """
 
         self.painter.paint(
@@ -822,7 +896,7 @@ class Visualizer(PyXavi):
                         drawing_callback_parameters={"color": self.canvas.COLOR_BLUE},
                         cache_control_parameters=["current_loop_iteration"],
 
-                        loop_iterations=16,
+                        loop_iterations=self.macros_background.scanner_loop_iterations(),
                         delay_between_frames=self.interaction_delays.get("networking",
                                                                         self.interaction_delays.get("default_delay_between_frames",
                                                                                                     0.05)),
@@ -834,7 +908,81 @@ class Visualizer(PyXavi):
             )
         )
 
+    LISTENING_PAINT_NAME: str = "ListeningAnimationPaint"
+
+    def _listening_animation_name(self) -> str | None:
+        """ The animation shown while listening (`animations.listening`). None if there is none, or it is not available. """
+        if getattr(self, "_listening_animation_unavailable", False):
+            return None
+        name = self._xconfig.get("animations.listening", "listening")
+        if not name:
+            return None
+        try:
+            self.animations.get_animation(name)
+        except Exception as e:
+            # Said once: this is asked at every tick of the countdown.
+            self._listening_animation_unavailable = True
+            self._xlog.warning(f"🟠 The listening animation [{name}] (animations.listening) is not available, so none is shown: {e}")
+            return None
+        return name
+
+    def _show_listening_animation(self):
+        """
+        Shows the listening animation in the animations area, for as long as the countdown is there: the user can speak.
+        It is part of the countdown: it starts with it (holding_percentage()) and ends with it (holding_percentage_end()),
+        or when something else takes the area, like the thinking animation.
+        """
+        animation_name = self._listening_animation_name()
+        if animation_name is None:
+            return
+
+        # The countdown asks for it at every tick, and an animation that is already running must not restart.
+        current = self.painter.get_current_interaction(PainterQueue.ANIMATIONS)
+        if current is not None and current.name == self.LISTENING_PAINT_NAME:
+            return
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.ANIMATIONS: AnimationPaint(
+                        name=self.LISTENING_PAINT_NAME,
+                        command=AnimationsCommand(AnimationsCommand.LISTENING),
+
+                        # It has no flag to live by: it stays until the countdown ends (see _end_listening_animation()),
+                        #   or until another animation takes the area.
+                        loop_iterations=self.animations.get_animation(animation_name).get_frame_count() - 1,
+                        delay_between_frames=self.interaction_delays.get("listening",
+                                                                        self.interaction_delays.get("emotion",
+                                                                                                    self.interaction_delays.get("default_delay_between_frames",
+                                                                                                                                0.05))),
+
+                        drawing_callback=self.macros_animation.merge_animation,
+                        drawing_callback_parameters={"animation": animation_name},
+                        cache_control_parameters=["current_loop_iteration"],
+
+                        final_area_clearing=True,
+                        remove_interaction_after_painting=False
+                    )
+                }
+            )
+        )
+
+    def _end_listening_animation(self):
+        """ Takes the listening animation away. If it is not there (it was already gone), nothing happens. """
+        # Same name and command as the paint set by _show_listening_animation(), so the Painter can find it.
+        self.painter.request_removal(
+            AnimationPaint(
+                name=self.LISTENING_PAINT_NAME,
+                command=AnimationsCommand(AnimationsCommand.LISTENING),
+            ),
+            PainterQueue.ANIMATIONS,
+            blank_screen=False)
+
     def holding_percentage(self, param: dict):
+
+        # The percentage changes many times per lit square. What is on screen only changes with the number of lit squares,
+        #   so that is what the cache key is made of: the Painter does not redraw (nor flush) for the same squares.
+        param = {**param, "lit": self.macros_background.countdown_lit_count(param.get("percentage", 0))}
 
         self.painter.paint(
             PaintObject(
@@ -845,7 +993,7 @@ class Visualizer(PyXavi):
 
                         drawing_callback=self.macros_background.draw_interaction_holding_percentage,
                         drawing_callback_parameters=param,
-                        cache_control_parameters=["percentage"],
+                        cache_control_parameters=["lit"],
 
                         overwrite_current_interaction_with_same_type=True,
 
@@ -856,7 +1004,24 @@ class Visualizer(PyXavi):
             )
         )
 
-    def holding_percentage_end(self):
+        # The countdown means that the user can speak: Pitxu listens.
+        self._show_listening_animation()
+
+    def holding_percentage_end(self, blank_screen: bool = True, end_listening_animation: bool = True):
+        """
+        Takes the countdown bar away. If it is not there (it was already gone), nothing happens.
+        The listening animation goes with it, unless something else is about to take its place.
+
+        Args:
+            blank_screen: Blank the whole screen if nothing else is drawn after it. Right when the hold time is over,
+                False when something else is about to be drawn anyway (like the thinking animation).
+            end_listening_animation: Remove the listening animation too. False when the thinking animation is coming:
+                it replaces the listening one by itself, in the same painter iteration, so the two crossfade. Removing it
+                first, in a request of its own, could leave the area empty until the thinking arrives.
+        """
+        if end_listening_animation:
+            self._end_listening_animation()
+
         # Same name and command as the paint set by holding_percentage(), so the Painter can find it.
         self.painter.request_removal(
             BackgroundPaint(
@@ -864,7 +1029,24 @@ class Visualizer(PyXavi):
                 command=BackgroundCommand(BackgroundCommand.HOLDER_PERCENTAGE),
             ),
             PainterQueue.BACKGROUND,
-            blank_screen=True)
+            blank_screen=blank_screen)
+
+    def _setup_countdown_cleanup(self):
+        """
+        Registers, once and forever, the callback that takes the countdown bar away when the chatbot starts thinking.
+        The thinking animation has its own area, so it does not take the place of the bar by itself any more
+        (it did when both were in the same queue).
+        """
+        def end_holding_percentage_when_thinking():
+            # The listening animation stays: the thinking one takes its place when it arrives (crossfading with it).
+            self.holding_percentage_end(blank_screen=False, end_listening_animation=False)
+
+        self.painter.get_painter_shared_memory().set_callback_for_shared_memory_flag(
+            name="end_holding_percentage_when_thinking",
+            shared_memory_flag=SHARED_CHATBOT_BUSY,
+            activation_value=True,
+            callback=end_holding_percentage_when_thinking,
+            is_dependant=False)
     
     # ----- Status paints -----
 

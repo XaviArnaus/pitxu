@@ -209,8 +209,12 @@ class SharedMemoryMonitor(PyXavi):
             ))
         return result
     
-    def did_shared_memory_flag_change_to_activation_value(self, shared_memory_flag: int, activation_value: bool, is_dependant: bool) -> bool:
-        current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
+    def did_shared_memory_flag_change_to_activation_value(
+        self, shared_memory_flag: int, activation_value: bool, is_dependant: bool, current_value: bool | None = None
+    ) -> bool:
+        # The worker passes the value it sampled at the start of the pass, so every decision of the pass is based on the same one.
+        if current_value is None:
+            current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
         previous_value = self._shared_memory_flag_previous_value.get(shared_memory_flag, None)
         # return previous_value is not None and current_value != previous_value and current_value == activation_value
         if previous_value is None and current_value == activation_value and not is_dependant:
@@ -361,13 +365,21 @@ class SharedMemoryMonitor(PyXavi):
                 # If we don't do it this way, the first callback already updates the value and 
                 #   other possible callbacks for the same flag and value won't be triggered.
                 callbacks_to_trigger = []
-                for name, shared_memory_flag, activation_value, callback, is_dependant in self._shared_memory_flag_to_callback:
+                # Every flag is read ONCE per pass. What the pass decides, and what it records as "previous" afterwards,
+                #   is what it SAW. Re-reading after the callbacks would swallow a flag that flipped back meanwhile.
+                registered = list(self._shared_memory_flag_to_callback)
+                snapshot = {flag: self.shared_memory.read_shared_memory_flag(flag) for _, flag, _, _, _ in registered}
+                # The flags with a dependant callback that has to wait: their transition must stay pending.
+                waiting_flags = set()
+                for name, shared_memory_flag, activation_value, callback, is_dependant in registered:
 
                     # Did the flag change to anything we're monitoring?
-                    if self.did_shared_memory_flag_change_to_activation_value(shared_memory_flag, activation_value, is_dependant):
+                    if self.did_shared_memory_flag_change_to_activation_value(
+                            shared_memory_flag, activation_value, is_dependant, snapshot[shared_memory_flag]):
 
                         # Are we checking a dependant callback? If so, did the previous one already ran?
                         if is_dependant and not self.did_previous_callback_to_dependant_ran_already(name, shared_memory_flag, activation_value):
+                            waiting_flags.add(shared_memory_flag)
                             self._log_debug(f"🚩  Dependant callback for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} and value {activation_value} is waiting for the previous callback to run.")
                         else:
 
@@ -380,10 +392,21 @@ class SharedMemoryMonitor(PyXavi):
                     self._log_debug(f"🚩  Triggering callback [{name}] for the flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} at value {activation_value}.")
                     self.trigger_callback_for_shared_memory_flag(name, shared_memory_flag, activation_value)
                 
-                # Finally, we update the previous value of the flags that changed, to be able to detect future changes.
-                for _, shared_memory_flag, _, _ in callbacks_to_trigger:
-                    self._log_debug(f"🚩  Updating previous value for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} after triggering callbacks.")
-                    self.update_shared_memory_flag_monitored_previous_value(shared_memory_flag)
+                # Finally, we record what we saw for ALL the monitored flags (not only the ones that triggered, otherwise
+                #   a flag with a single activation value never learns that it went back, and its next change is missed),
+                #   except the ones with a dependant callback still waiting.
+                for shared_memory_flag, seen_value in snapshot.items():
+                    if shared_memory_flag in waiting_flags:
+                        continue
+                    self._shared_memory_flag_previous_value[shared_memory_flag] = seen_value
+                    if not callbacks_to_trigger:
+                        continue
+                    live_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
+                    if live_value != seen_value:
+                        # It flipped while the callbacks ran. It is not lost: the next pass sees it as a change.
+                        self._xlog.warning(
+                            f"🚩  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} changed "
+                            f"from {seen_value} to {live_value} while the callbacks were running. It will be handled in the next pass.")
                 
                 # If we had any callback to trigger, let the subclasses react (the Painter one resumes its loop).
                 if callbacks_to_trigger:

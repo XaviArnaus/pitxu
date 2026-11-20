@@ -9,6 +9,7 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
+from pitxu.lib.abstract.xprocess_display_animations import XprocessDisplayAnimations
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
@@ -190,7 +191,7 @@ class XprocessPool(PyXavi):
         else:
             self._xlog.error("process [" + name + "] does not exist in the pool.")
 
-    def get_process(self, name: str) -> Xprocess | XprocessDisplayBackground | XprocessDisplayForeground | None:
+    def get_process(self, name: str) -> Xprocess | XprocessDisplayBackground | XprocessDisplayAnimations | XprocessDisplayForeground | None:
         if name in self._process:
             return self._process[name]
         else:

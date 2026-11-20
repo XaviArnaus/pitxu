@@ -87,9 +87,6 @@ class DsiLcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
-    def initialize_animations(self):
-        self.visualizer.load_animations()
-
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
@@ -197,9 +194,12 @@ class DsiLcd(XprocessDisplayCombined):
         # Clear the display.
         # Passing the display size just in case we want to clear the mocked LCD, to have a black image of the correct size.
         self.device.clear(screen_size=(self._display_size.x, self._display_size.y))
-    
+        # The Painter composes only what changed: it has to know that the display is not what it left.
+        self.visualizer.invalidate_screen()
+
     def soft_clear(self):
         self.clear_background()
+        self.clear_animations()
         self.clear_foreground()
     
     def clear_status(self):
@@ -216,15 +216,28 @@ class DsiLcd(XprocessDisplayCombined):
         self.visualizer.clear_foreground()
 
 
-    # ------- Background functions ---------
-    
-    def show_speaking(self):
-        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
-        self.visualizer.speaking()
-    
+    # ------- Animations functions ---------
+
+    def initialize_animations(self):
+        self.visualizer.load_animations()
+
     def show_thinking(self):
         self._xlog.info(f"🤖 Showing thinking animation on DSI LCD.")
         self.visualizer.thinking()
+
+    def show_animation_while_speaking(self, param: dict):
+        self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while speaking.")
+        self.visualizer.animation_while_speaking(param)
+
+    def clear_animations(self):
+        self._xlog.info("Clearing DSI LCD animations interaction.")
+        self.visualizer.clear_animations()
+
+    # ------- Background functions ---------
+
+    def show_speaking(self):
+        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
+        self.visualizer.speaking()
 
     def show_networking(self):
         self._xlog.info(f"🌐 Showing networking effect on DSI LCD.")

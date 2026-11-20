@@ -1,15 +1,13 @@
 import logging
-import os
+import threading
 
 from PIL import ImageDraw
 
 from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.objects import Point
 
-from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.macros.macros_base import MacrosBase
 from pitxu.lib.canvas_v2.layout_info import DisplayArea
-from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
 from pitxu.lib.utils import markdown_parser
 
 class MacrosOverlay(MacrosBase):
@@ -29,7 +27,8 @@ class MacrosOverlay(MacrosBase):
     # The padding of the content from the borders of the screen, like in the plain drawing.
     MARKDOWN_BOX_PADDING: int = 15
 
-    _markdown_renderer: MarkdownRenderer = None
+    # The renderer (see MacrosBase.get_markdown_renderer()) is shared by the warm-up thread and the Painter, and it is not meant for two at the same time.
+    _markdown_lock: threading.RLock = None
 
     def __init__(self, config: Config, params: Dictionary):
         super(MacrosOverlay, self).__init__(config, params)
@@ -37,26 +36,21 @@ class MacrosOverlay(MacrosBase):
         # The Markdown parser logs a lot at DEBUG: INFO unless the config says otherwise.
         markdown_parser.set_log_level(self._xconfig.get("libs_logger.markdown_it.loglevel", logging.INFO))
 
+        self._markdown_lock = threading.RLock()
+        # The first block would pay for building the parser and loading fonts (it took 300 ms on the Pi): do it now, off the Painter.
+        if self._xconfig.get("canvas.markdown.enabled", True) and self._xconfig.get("canvas.markdown.warm_up", True):
+            threading.Thread(name="MarkdownWarmUp", target=self._warm_up_markdown, daemon=True).start()
+
         self._xlog.debug("Initialized MacrosOverlay.")
 
-    def _get_markdown_renderer(self) -> MarkdownRenderer:
-        """ Created on the first use: it needs the fonts of the canvas, and nobody pays for it until the first block. """
-        if self._markdown_renderer is None:
-            mono_file = os.path.join(
-                self._xconfig.get("fonts.path", Canvas.DEFAULT_FONT_PATH),
-                self._xconfig.get("fonts.mono_filename", "Font.ttc"))
-            self._markdown_renderer = MarkdownRenderer(
-                fonts=[
-                    self.canvas.FONT_TINY,
-                    self.canvas.FONT_SMALL,
-                    self.canvas.FONT_MEDIUM,
-                    self.canvas.FONT_BIG,
-                    self.canvas.FONT_HUGE
-                ],
-                mono_font_file=mono_file,
-                mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
-                color_mode=self.canvas.COLOR_MODE)
-        return self._markdown_renderer
+    def _warm_up_markdown(self):
+        """ Runs in its own thread, at the start. A failure only means that the first block pays for it, as before. """
+        try:
+            with self._markdown_lock:
+                self.get_markdown_renderer().warm_up()
+            self._xlog.debug("Markdown renderer warmed up.")
+        except Exception as e:
+            self._xlog.warning(f"Could not warm up the Markdown renderer: {e}")
 
     def _draw_with_markdown_renderer(self, draw: ImageDraw.ImageDraw, text: str, text_color, is_code: bool) -> bool:
         """
@@ -73,10 +67,11 @@ class MacrosOverlay(MacrosBase):
             self._display_size.y - self.MARKDOWN_BOX_PADDING - 2)
 
         try:
-            renderer = self._get_markdown_renderer()
-            if is_code:
-                return renderer.draw_code(draw, text, box, text_color)
-            return renderer.draw(draw, text, box, text_color)
+            with self._markdown_lock:
+                renderer = self.get_markdown_renderer()
+                if is_code:
+                    return renderer.draw_code(draw, text, box, text_color)
+                return renderer.draw(draw, text, box, text_color)
         except Exception as e:
             self._xlog.warning(f"Could not render the {'code' if is_code else 'text'} block with the Markdown renderer, drawing it plain: {e}")
             self._xlog.debug(full_stack())

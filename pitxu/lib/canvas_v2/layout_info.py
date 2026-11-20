@@ -13,8 +13,10 @@ class DisplayArea:
     The areas of the screen, named by what is shown in them. The value is the key of the area in the layout.
     To move an intention to another area, change it here.
     """
-    # Animations and effects
-    EFFECTS: str = "top_left"
+    # Animations (emojis)
+    ANIMATIONS: str = "top_left"
+    # What reacts to the state of the system in the background (the mouth, the countdown bar...), under the animations
+    BACKGROUND: str = "center_left"
     # Texts, feedback and other messages
     MESSAGES: str = "top_right"
     # The status line
@@ -60,7 +62,8 @@ class LayoutInfo(PyXavi):
 
         # These are the areas of the screen where to merge the elements.
         # They do not include the margins. The offsets are calculated only so we can merge the display areas inside the main image.
-        base_top_left = Rectangle(
+        # The left column of the top row. It is not an area: top_left and center_left share it, see below.
+        base_left_column = Rectangle(
             Point(0,0),
             Point(math.ceil(self._display_size.x * top_columns_percentages[0]), math.ceil(self._display_size.y * rows_percentages[0]))
         )
@@ -88,10 +91,6 @@ class LayoutInfo(PyXavi):
         # These are the the sizes relatives to each area.
         # This means that the offsets are calculated to be relative to the area, not to the full screen.
         # They include the margins, so they are the ones to draw above, not to be used to merge into the main image.
-        relative_top_left = Rectangle(
-            Point(padding, padding),
-            Point((base_top_left.point_2.x - base_top_left.point_1.x) - (padding // 2), (base_top_left.point_2.y - base_top_left.point_1.y) - (padding // 2))
-        )
         relative_top_right = Rectangle(
             Point(padding // 2, padding),
             Point((base_top_right.point_2.x - base_top_right.point_1.x) - padding, (base_top_right.point_2.y - base_top_right.point_1.y) - (padding // 2))
@@ -119,7 +118,7 @@ class LayoutInfo(PyXavi):
         useful_width = self._display_size.x - (2 * padding) + 1
         useful_height = self._display_size.y - (2 * padding) + 2
 
-        top_left = Rectangle(
+        padded_left_column = Rectangle(
             Point(padding, padding),
             Point(math.ceil(useful_width * top_columns_percentages[0]), (padding // 2) + math.ceil(useful_height * rows_percentages[0]))
         )
@@ -144,9 +143,52 @@ class LayoutInfo(PyXavi):
             Point(padding + useful_width, padding + useful_height)
         )
 
+        # The left column of the top row holds two sibling areas, top_left (above) and center_left (below), like any other.
+        # They are calculated from the column, and the relative ones from the padded ones, so they can't drift apart.
+        center_left_height_share = float(self._xconfig.get("dsi_lcd.layout.center_left.height_share", 0.3))
+        center_left_gap = int(self._xconfig.get("dsi_lcd.layout.center_left.gap", 6))
+        if not 0.1 <= center_left_height_share <= 0.9:
+            raise ValueError(f"'dsi_lcd.layout.center_left.height_share' must be between 0.1 and 0.9, got {center_left_height_share}.")
+        if center_left_gap < 0:
+            raise ValueError(f"'dsi_lcd.layout.center_left.gap' can't be negative, got {center_left_gap}.")
+
+        left_column_usable_height = (padded_left_column.point_2.y - padded_left_column.point_1.y) - center_left_gap
+        center_left_height = round(left_column_usable_height * center_left_height_share)
+        top_left_height = left_column_usable_height - center_left_height
+
+        top_left = Rectangle(
+            padded_left_column.point_1,
+            Point(padded_left_column.point_2.x, padded_left_column.point_1.y + top_left_height)
+        )
+        center_left = Rectangle(
+            Point(padded_left_column.point_1.x, top_left.point_2.y + center_left_gap),
+            padded_left_column.point_2
+        )
+
+        # The areas of the screen (the images to merge) share the column, split in the middle of the gap.
+        split_y = top_left.point_2.y + (center_left_gap // 2)
+        base_top_left = Rectangle(
+            base_left_column.point_1,
+            Point(base_left_column.point_2.x, split_y)
+        )
+        base_center_left = Rectangle(
+            Point(base_left_column.point_1.x, split_y),
+            base_left_column.point_2
+        )
+
+        # The relative ones are the padded ones, in the coordinates of their own area.
+        def relative_to(base: Rectangle, padded: Rectangle) -> Rectangle:
+            return Rectangle(
+                Point(padded.point_1.x - base.point_1.x, padded.point_1.y - base.point_1.y),
+                Point(padded.point_2.x - base.point_1.x, padded.point_2.y - base.point_1.y)
+            )
+        relative_top_left = relative_to(base_top_left, top_left)
+        relative_center_left = relative_to(base_center_left, center_left)
+
         return {
             "base": {
                 "top_left": base_top_left,
+                "center_left": base_center_left,
                 "top_right": base_top_right,
                 "bottom_left": base_bottom_left,
                 "bottom_center": base_bottom_center,
@@ -155,6 +197,7 @@ class LayoutInfo(PyXavi):
             },
             "relative": {
                 "top_left": relative_top_left,
+                "center_left": relative_center_left,
                 "top_right": relative_top_right,
                 "bottom_left": relative_bottom_left,
                 "bottom_center": relative_bottom_center,
@@ -163,6 +206,7 @@ class LayoutInfo(PyXavi):
             },
             "padded": {
                 "top_left": top_left,
+                "center_left": center_left,
                 "top_right": top_right,
                 "bottom_left": bottom_left,
                 "bottom_center": bottom_center,
@@ -206,6 +250,11 @@ class LayoutInfo(PyXavi):
             "top_left": {
                 "outline": frame_color,
                 # We don't want any background in the top-left corner
+                "fill": self.canvas.COLOR_BACKGROUND
+            },
+            "center_left": {
+                "outline": frame_color,
+                # Same as top-left: no background
                 "fill": self.canvas.COLOR_BACKGROUND
             },
             "top_right": {

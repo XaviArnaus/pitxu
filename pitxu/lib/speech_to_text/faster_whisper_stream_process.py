@@ -15,6 +15,7 @@ from faster_whisper import WhisperModel
 from faster_whisper.transcribe import Segment
 import os
 import numpy as np
+import time
 import logging
 import re
 
@@ -403,6 +404,7 @@ class FasterWhisperStreamProcess(Xprocess):
                 self._log_debug(f"FasterWhisper Stream: Silent window (RMS {new_audio_rms:.4f} < {self._silent_window_rms}), skipping decode.")
                 segments = []
             else:
+                decode_started = time.monotonic()
                 segments, _ = self._model.transcribe(
                     audio_to_process,
                     beam_size=self._beam_size,
@@ -423,6 +425,13 @@ class FasterWhisperStreamProcess(Xprocess):
 
                 # The transcription is returned as a generator. Get the segments themselves.
                 segments = list(segments)
+
+                # How long this window took against the audio it holds. Over 1.0 the process falls behind the speech, the
+                #   windows pile up, and what is left when the user stops is what makes them wait.
+                decode_seconds = time.monotonic() - decode_started
+                self._xlog.debug(
+                    f"⏱️ Decoded a window of {audio_s:.2f}s of audio ({len(chunk_list)} chunks) in {decode_seconds:.2f}s "
+                    f"(real time factor {decode_seconds / audio_s if audio_s > 0 else 0:.2f}).")
 
             # Trying to identify hallucinations by looking at the confidence of the segments,
             # and if we have "n" consecutive low confidence segments, we consider that the model is hallucinating 
@@ -748,10 +757,31 @@ class FasterWhisperStreamProcess(Xprocess):
         """
         Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
         """
-        self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
-        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", self._samplerate))
-        self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
-        self._log_debug("Faster Whisper model warmed up successfully.")
+        sample_rate = self._xparams.get("audio_parameters.stt_samplerate", self._samplerate)
+        self._xlog.info("Warming up the Faster Whisper model...")
+        started = time.monotonic()
+        try:
+            # Low level noise, not pure silence: silence makes the decoder give up early, and the point is to run
+            #   everything that a real window runs (encoder, decoder, and the alignment of the word timestamps).
+            rng = np.random.default_rng(0)
+            audio = (rng.standard_normal(int(2.0 * sample_rate)) * 0.02).astype(np.float32)
+            # ⚠️ transcribe() returns a generator: nothing is computed until it is consumed. Without the list() this
+            #   "warm up" only extracted the features, and the first real utterance paid for the whole first inference.
+            # The same options of the real path, so the same code and the same buffers are the ones warmed up.
+            segments, _ = self._model.transcribe(
+                audio,
+                beam_size=self._beam_size,
+                temperature=self._temperature,
+                language=self.language,
+                word_timestamps=True,
+                condition_on_previous_text=False,
+                repetition_penalty=self._repetition_penalty,
+                max_new_tokens=40)
+            produced = len(list(segments))
+            self._xlog.info(f"Faster Whisper model warmed up in {time.monotonic() - started:.2f}s ({produced} segments).")
+        except Exception as e:
+            # A failing warm-up must never prevent the process from working.
+            self._xlog.warning(f"🟠 The Faster Whisper warm-up failed after {time.monotonic() - started:.2f}s, the first utterance will be slower: {e}")
 
     def _generate_silent_audio_chunk(self, duration_seconds: float = 1.0,
                                  sample_rate: int = 16000,

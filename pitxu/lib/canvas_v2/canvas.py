@@ -282,15 +282,25 @@ class Canvas(PyXavi):
 
         return new_image
 
-    def combine_into_image(self, overlay_image: Image.Image, position: Point = Point(0,0), use_alpha_composite: bool = True):
+    def combine_into_image(self, overlay_image: Image.Image, position: Point = Point(0,0), use_alpha_composite: bool = True,
+                           source_box: tuple[int, int, int, int] | None = None):
         """
         Combines the given overlay image onto the working image at the given position.
+
+        With source_box (left, top, right, bottom, in the coordinates of the overlay image), only that part of the overlay
+        is combined, and the position is where that part goes. It allows to repaint only a region of the working image.
         """
         base_image = self.get_image(clear_background=False)
         if use_alpha_composite:
-            base_image.alpha_composite(overlay_image, dest=(position.x, position.y))
+            if source_box is None:
+                base_image.alpha_composite(overlay_image, dest=(position.x, position.y))
+            else:
+                base_image.alpha_composite(overlay_image, dest=(position.x, position.y), source=source_box)
         else:
-            base_image.paste(overlay_image, (position.x, position.y))
+            if source_box is None:
+                base_image.paste(overlay_image, (position.x, position.y))
+            else:
+                base_image.paste(overlay_image.crop(source_box), (position.x, position.y))
         self._log_debug(f"Combined ({'alpha_composite' if use_alpha_composite else 'paste'}) overlay image of size {overlay_image.size} at position ({position.x}, {position.y}) onto working image.")
 
     def get_font_by_size(self, size: int) -> ImageFont:

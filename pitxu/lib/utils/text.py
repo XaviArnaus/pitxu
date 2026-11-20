@@ -25,10 +25,35 @@ class Text(PyXaviText):
             # A text made only of syntax (like "**") would end up empty. Better the basic cleaning than nothing.
             if plain_text != "":
                 return plain_text
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Markdown parser failed removing the syntax, using the basic cleaning: {e}")
 
-        return Text._remove_markdown_with_regex(text)
+        return Text._remove_markdown_with_regex(Text._tables_to_lines(text))
+
+    # The tag the chatbot puts in its answers to tell how the answer feels, like [emotion: sad]
+    _EMOTION_TAG = re.compile(r'\[\s*emotion\s*[:=]\s*([^\]\n]*?)\s*\]\s*', re.IGNORECASE)
+
+    @staticmethod
+    def extract_emotion_tag(text: str) -> tuple[str, str | None]:
+        '''
+        Takes the emotion tag out of a text, so it is not shown nor spoken.
+
+        Any tag in the text is removed wherever it is (the chatbot is asked to put it first, but if it did not, it must still not be spoken).
+        The label of the first one is returned, in lower case and with no spaces around it.
+
+        Returns:
+            tuple[str, str | None]: The text without the tag and the label, None if there is no tag (or the text is not a string).
+        '''
+        if not isinstance(text, str) or text == "":
+            return text, None
+
+        match = Text._EMOTION_TAG.search(text)
+        if match is None:
+            return text, None
+
+        label = match.group(1).strip().lower() or None
+        # The tag usually takes the first line: the answer starts in the next one, without the blanks that were around the tag.
+        return Text._EMOTION_TAG.sub("", text).strip(), label
 
     @staticmethod
     def markdown_for_speech(text: str, tables: str = "rows") -> str:
@@ -54,6 +79,15 @@ class Text(PyXaviText):
             pass
 
         # The rows of a table: the separator row (| --- | :---: |) is noise for the voice, the others become their cells in a sentence.
+        lines = Text._tables_to_lines(text, speech=True).split("\n")
+        return " ".join(Text._remove_markdown_with_regex(" ".join(lines)).split())
+
+    @staticmethod
+    def _tables_to_lines(text: str, speech: bool = False) -> str:
+        '''
+        Table rows (| a | b |) without the table syntax, for the fallback when the parser is not available.
+        The separator row (| --- | :---: |) is dropped. The rows become "- a, b" lines, or "a, b." sentences for speech.
+        '''
         lines = []
         for line in text.split("\n"):
             stripped = line.strip()
@@ -61,9 +95,10 @@ class Text(PyXaviText):
                 cells = [cell.strip() for cell in stripped.strip("|").split("|")]
                 if all(re.fullmatch(r':?-+:?', cell) for cell in cells if cell):
                     continue
-                line = ", ".join(cell for cell in cells if cell) + "."
+                joined = ", ".join(cell for cell in cells if cell)
+                line = joined + "." if speech else "- " + joined
             lines.append(line)
-        return " ".join(Text._remove_markdown_with_regex(" ".join(lines)).split())
+        return "\n".join(lines)
 
     @staticmethod
     def _remove_markdown_with_regex(text:str) -> str:

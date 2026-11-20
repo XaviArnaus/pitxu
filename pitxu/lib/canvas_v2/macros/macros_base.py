@@ -1,8 +1,13 @@
+import logging
+import os
+
 from PIL import ImageDraw,ImageFont
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.animations import Animations
+from pitxu.lib.canvas_v2.markdown_renderer import MarkdownRenderer
+from pitxu.lib.canvas_v2.painter.painter_timings import PainterTimings
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.objects import Rectangle, Point
 from pitxu.lib.canvas_v2.canvas import Canvas
@@ -19,13 +24,11 @@ class MacrosBase(PyXavi):
     }
     canvas: Canvas = None
     animations: Animations = None
+    # Created on the first use, see get_markdown_renderer().
+    _markdown_renderer: MarkdownRenderer = None
 
     layout_info: dict[str, dict[str, Rectangle]] = None
     color_scheme_info: dict[str, dict[str, any]] = None
-
-    # Pixels to offset in X axis (both sides) when drawing LED points over the LCD canvas
-    LED_TO_LCD_OFFSET_X: int = 0
-    APPLY_LED_TO_LCD_OFFSET_TO_ALL: bool = False
 
     VERBOSE_DEBUG: bool = False
 
@@ -58,6 +61,34 @@ class MacrosBase(PyXavi):
 
     def get_canvas(self) -> Canvas:
         return self.canvas
+
+    def get_markdown_renderer(self) -> MarkdownRenderer:
+        """
+        The renderer that fits text (Markdown or plain) in an area, with the fonts of the canvas.
+        Created on the first use: it needs the fonts of the canvas, and nobody pays for it until the first text.
+        """
+        if self._markdown_renderer is None:
+            mono_file = os.path.join(
+                self._xconfig.get("fonts.path", Canvas.DEFAULT_FONT_PATH),
+                self._xconfig.get("fonts.mono_filename", "Font.ttc"))
+            # Same switch as the Painter loop: where the time of every block goes is logged when it is on.
+            timings = PainterTimings(
+                enabled=bool(self._xconfig.get("dsi_lcd.painter.timing_log", False)),
+                log_callback=lambda title, lines: self.log_summary(title, lines, log_level=logging.INFO))
+            with timings.measure("renderer_creation"):
+                self._markdown_renderer = MarkdownRenderer(
+                    fonts=[
+                        self.canvas.FONT_TINY,
+                        self.canvas.FONT_SMALL,
+                        self.canvas.FONT_MEDIUM,
+                        self.canvas.FONT_BIG,
+                        self.canvas.FONT_HUGE
+                    ],
+                    mono_font_file=mono_file,
+                    mono_font_index=int(self._xconfig.get("fonts.mono_index", 1)),
+                    color_mode=self.canvas.COLOR_MODE,
+                    timings=timings)
+        return self._markdown_renderer
 
     def get_display_size(self) -> Point:
         return self._display_size
