@@ -89,6 +89,8 @@ class Main(PyXavi):
     # True while the thinking effect was started when the speech ended, before the transcription is known.
     #   Whoever decides that the chatbot is not going to answer must cancel it. See _show_thinking_at_speech_end().
     _early_thinking: bool = False
+    # The watchdog of the early thinking (see _show_thinking_at_speech_end()).
+    _early_thinking_watchdog: asyncio.TimerHandle = None
     _supported_languages: list[str] = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
@@ -342,15 +344,25 @@ class Main(PyXavi):
                 self._log_debug("Redirecting from VAD detected speech finished callback to Transcription finished callback, for non-streaming engines...")
                 await self.main_execution_on_transcription_finished()
             else:
-                self._show_thinking_at_speech_end()
+                await self._show_thinking_at_speech_end()
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
             self._xlog.error(full_stack())
     
-    def _show_thinking_at_speech_end(self):
+    def _transcription_has_text(self) -> bool:
+        """ True if the STT has already decoded some text of the current utterance (the partial transcription). """
+        text = getattr(self._dictate, "get_ongoing_transcription", lambda: "")()
+        return bool(text and text.strip())
+
+    async def _show_thinking_at_speech_end(self):
         """
-        Starts the thinking effect as soon as the user stops speaking, without waiting for the transcription,
+        Starts the thinking effect as soon as the user stops speaking, without waiting for the final transcription,
         which comes a bit later. It only gives the feedback earlier: nothing else is decided here.
+
+        Only when there is something to process: the STT must already have decoded some text of this utterance.
+        If there is none, it may be only noise (a keyboard, a chair...) and showing that Pitxu is thinking would
+          be a lie, so it waits for the first text up to `app.thinking_at_speech_end_wait` seconds, and gives up if the
+          STT ends the utterance with nothing meanwhile.
 
         It is done only inside an ongoing interaction (the hold time is running), where the speech is almost
           certainly for Pitxu. Outside of it the speech needs a trigger word, which is only known with the
@@ -367,21 +379,75 @@ class Main(PyXavi):
         if not self._text_continues_ongoing_interaction(""):
             return
 
+        # Is there anything to process? Wait a bit for the first decoded text, unless the STT already finished with nothing.
+        deadline = time.monotonic() + float(self._xconfig.get("app.thinking_at_speech_end_wait", 1.5))
+        while not self._transcription_has_text():
+            if time.monotonic() >= deadline or not self._interaction.is_transcriber_busy() or not self._is_pitxu_active:
+                self._log_debug("🤔 Speech ended but there is no transcribed text (yet): not showing the thinking effect early.")
+                return
+            await asyncio.sleep(0.05)
+        # The utterance may have ended (and the normal flow taken over) while we waited.
+        if self._early_thinking or not self._interaction.is_transcriber_busy():
+            return
+
         self._log_debug("🤔 Speech ended inside an ongoing interaction: showing the thinking effect now, before the transcription.")
         self._early_thinking = True
         self._interaction.show_thinking()
         self._interaction.set_chatbot_busy()
 
-    def _cancel_early_thinking(self):
+        # Safety net: whatever goes wrong with the transcription (no answer from STT, a lost callback...), the effect
+        #   must not stay on forever.
+        timeout = float(self._xconfig.get("app.thinking_at_speech_end_timeout", 15))
+        try:
+            self._early_thinking_watchdog = asyncio.get_running_loop().call_later(timeout, self._early_thinking_timed_out)
+        except RuntimeError:
+            self._early_thinking_watchdog = None
+
+    def _release_early_thinking(self) -> bool:
+        """
+        The early thinking is not pending any more (it was cancelled, or the chatbot path took it over).
+        Returns True if it was pending.
+        """
+        if self._early_thinking_watchdog is not None:
+            self._early_thinking_watchdog.cancel()
+            self._early_thinking_watchdog = None
+        was_pending = self._early_thinking
+        self._early_thinking = False
+        return was_pending
+
+    def _cancel_early_thinking(self) -> bool:
         """
         Takes the thinking effect back when it was started at the end of the speech but the chatbot is not going to
         answer (nothing recognised, ignored text, or a local answer). Does nothing if it was not started.
+        Returns True if it was started, so there was something to take back.
         """
-        if not self._early_thinking:
-            return
-        self._early_thinking = False
+        if not self._release_early_thinking():
+            return False
         self._log_debug("🤔 Cancelling the thinking effect started at the end of the speech.")
         self._interaction.unset_chatbot_busy()
+        return True
+
+    def _early_thinking_timed_out(self):
+        """ Nobody took over the early thinking in time: take it back and give the turn back to the user. """
+        self._early_thinking_watchdog = None
+        if not self._early_thinking or not self._is_pitxu_active:
+            return
+        self._xlog.warning("🟠 The thinking effect started at the end of the speech was not taken over in time, cancelling it.")
+        self._cancel_early_thinking()
+        self._start_listening_phase("early thinking timed out", reset_mark=False)
+
+    async def main_execution_on_transcription_empty(self):
+        """
+        Called when the STT ends a context with nothing to process (noise, a keyboard, silence). The normal flow is not
+        triggered then, so if the thinking effect was started at the end of the speech, nobody else would take it back.
+        The turn goes back to the user, like when the transcription arrives empty.
+        """
+        try:
+            if self._cancel_early_thinking():
+                self._start_listening_phase("nothing recognised", reset_mark=False)
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_transcription_empty(): " + str(e))
+            self._xlog.error(full_stack())
 
     async def main_execution_on_transcription_finished(self, final_transcription: str = None):
         """
@@ -627,8 +693,7 @@ class Main(PyXavi):
         self._interaction.set_idle_mode_off()
 
         # The thinking effect may be already running since the end of the speech. From here this path owns it.
-        thinking_already_shown = self._early_thinking
-        self._early_thinking = False
+        thinking_already_shown = self._release_early_thinking()
 
         # We set it as busy in shared memory, so the Background Display can show the thinking effect
         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
@@ -1295,6 +1360,7 @@ class Main(PyXavi):
                     "support": self._support,
                     "stt_state_machine": self._stt_state_machine,
                     "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                    "on_transcription_empty_callback": self.main_execution_on_transcription_empty,
                     "main_event_loop": asyncio.get_event_loop(),
                     "language": self._xparams.get("language"),
                     "audio_parameters": self._audio_parameters,

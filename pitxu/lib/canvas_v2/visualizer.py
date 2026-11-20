@@ -1007,15 +1007,20 @@ class Visualizer(PyXavi):
         # The countdown means that the user can speak: Pitxu listens.
         self._show_listening_animation()
 
-    def holding_percentage_end(self, blank_screen: bool = True):
+    def holding_percentage_end(self, blank_screen: bool = True, end_listening_animation: bool = True):
         """
         Takes the countdown bar away. If it is not there (it was already gone), nothing happens.
+        The listening animation goes with it, unless something else is about to take its place.
 
         Args:
             blank_screen: Blank the whole screen if nothing else is drawn after it. Right when the hold time is over,
                 False when something else is about to be drawn anyway (like the thinking animation).
+            end_listening_animation: Remove the listening animation too. False when the thinking animation is coming:
+                it replaces the listening one by itself, in the same painter iteration, so the two crossfade. Removing it
+                first, in a request of its own, could leave the area empty until the thinking arrives.
         """
-        self._end_listening_animation()
+        if end_listening_animation:
+            self._end_listening_animation()
 
         # Same name and command as the paint set by holding_percentage(), so the Painter can find it.
         self.painter.request_removal(
@@ -1033,7 +1038,8 @@ class Visualizer(PyXavi):
         (it did when both were in the same queue).
         """
         def end_holding_percentage_when_thinking():
-            self.holding_percentage_end(blank_screen=False)
+            # The listening animation stays: the thinking one takes its place when it arrives (crossfading with it).
+            self.holding_percentage_end(blank_screen=False, end_listening_animation=False)
 
         self.painter.get_painter_shared_memory().set_callback_for_shared_memory_flag(
             name="end_holding_percentage_when_thinking",

@@ -51,6 +51,10 @@ class FasterWhisperStream(PyXavi):
     transcriptor_input_queue: JoinableQueue = None
     transcriptor_output_queue: JoinableQueue = None
     on_transcription_finished_callback: callable = None
+    # Optional. Called (like the one above, as a coroutine in the main event loop) when a context ends with nothing to
+    #   process: an empty final transcription (noise, a keyboard...) or one that never arrived. So whoever reacted to the
+    #   end of the speech before the transcription was known (like the early thinking) can take it back.
+    on_transcription_empty_callback: callable = None
 
     # Queue used by the PreProcessor to calculate the dynamic RMS threshold for silence detection, based on the background noise level.
     silence_input_queue: JoinableQueue = None
@@ -134,6 +138,9 @@ class FasterWhisperStream(PyXavi):
         else:
             raise ValueError("No callback provided for when the transcription finishes in params to FasterWhisperStream class")
         
+        if self._xparams.key_exists("on_transcription_empty_callback"):
+            self.on_transcription_empty_callback = self._xparams.get("on_transcription_empty_callback")
+
         # Get the callback's context for when the user finishes speaking, or use defaults.
         if self._xparams.key_exists("main_event_loop"):
             self.main_event_loop = self._xparams.get("main_event_loop")
@@ -495,6 +502,7 @@ class FasterWhisperStream(PyXavi):
                     self._xlog.error(f"🛑 No final transcription after {self._transcription_timeout}s, abandoning this context.")
                     self._abandoned_finals += 1
                     self.reset_context_and_state_in_transcription_thread()
+                    self._notify_nothing_transcribed()
                 
                 if is_chunks_queue_empty and is_transcription_result_queue_empty and is_silence_input_queue_empty:
                     # Sleep for a short time to avoid busy waiting, and to give time to the other threads to add chunks to the queue.
@@ -525,7 +533,17 @@ class FasterWhisperStream(PyXavi):
                 self.close()
                 return None
     
+    def _notify_nothing_transcribed(self) -> None:
+        """ Tells Main that this context ends without a transcription to process, if it asked to know. """
+        if self.on_transcription_empty_callback is None:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(self.on_transcription_empty_callback(), self.main_event_loop)
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not notify that nothing was transcribed: {e}")
+
     def _handle_final_transcription(self, final_transcription: str) -> None:
+        finished_callback_triggered = False
         # Update the current state of the transcription
         if not self._stt_state_machine.transition_to(TrascriptionState.FINAL_TRANSCRIPTION, expected_current_states=[TrascriptionState.REQUESTED_TRANSCRIPTION]):
             current_state = self._stt_state_machine.get_transcription_state()
@@ -551,6 +569,7 @@ class FasterWhisperStream(PyXavi):
                 self._log_debug("✏️ Triggering on_transcription_finished_callback callback after receiving transcription result from the Process.")
                 # Be careful, it's part of asyncio loop.
                 asyncio.run_coroutine_threadsafe(self.on_transcription_finished_callback(self.final_transcription), self.main_event_loop)
+                finished_callback_triggered = True
                 # At this point, we should have the transcription queue empty, but sometimes we receive the transcription result again.
                 #   Then, the callback is called twice, making the whole chatbot & TTS to be repeated.
                 if not self.transcriptor_output_queue.empty():
@@ -574,6 +593,10 @@ class FasterWhisperStream(PyXavi):
         # Consumption stays blocked until a START marker arrives
         self.allow_chunk_consumption = False
         self._shared_memory.write_shared_memory_flag(SHARED_TRANSCRIBER_BUSY, False)
+
+        # Main was not called: nothing to process came out of this context.
+        if not finished_callback_triggered:
+            self._notify_nothing_transcribed()
 
     def process_silence_chunk(self, chunk: bytes):
         """
