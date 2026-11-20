@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, TerminalColor, full_stack
+from pyxavi import Config, Dictionary, Stopwatch, TerminalColor, full_stack
 
 import signal
 
@@ -6,7 +6,6 @@ from definitions import SHARED_WAKE_UP_BUTTON_PRESSED, SHARED_FIRST_AUDIO_TIMEST
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
-from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance

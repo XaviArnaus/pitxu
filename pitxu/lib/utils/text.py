@@ -1,22 +1,12 @@
-import emoji
+from pyxavi import Text as PyXaviText
+import logging
 import re
 import unicodedata
 
 
-class Text:
+class Text(PyXaviText):
+    # remove_emojis() comes from pyxavi's Text
 
-    @staticmethod
-    def remove_emojis(text: str) -> str:
-        return Text._get_emoji_regexp().sub(r'', text)
-
-    @staticmethod
-    def _get_emoji_regexp():
-        # Sort emoji by length to make sure multi-character emojis are
-        # matched first
-        emojis = sorted(emoji.EMOJI_DATA, key=len, reverse=True)
-        pattern = '(' + '|'.join(re.escape(u) for u in emojis) + ')'
-        return re.compile(pattern)
-    
     @staticmethod
     def remove_markdown(text:str) -> str:
         '''
