@@ -31,6 +31,9 @@ class FasterWhisperStream(PyXavi):
       into windows of `chunks_window`, and sends them to FasterWhisperStreamProcess.
     - Only one window is in flight at a time. While the model is busy, chunks accumulate and go out in the next,
       larger window, so the backlog adapts to the model's speed.
+    - Early flush: when the audio goes quiet, the pending chunks are decoded right away, without waiting for the VAD
+      to confirm the end of the speech (`vad.release` seconds later). That decode then overlaps with the VAD wait,
+      and the final has almost nothing left to decode. See `_early_flush_should_fire()`.
     - A None chunk ends the utterance: leftovers are flushed and the final transcription is requested. If no final
       arrives within `transcription_timeout`, the context is abandoned and its late output is dropped.
     - The worker thread owns all STT context state (state machine, windows, flags).
@@ -71,6 +74,19 @@ class FasterWhisperStream(PyXavi):
     _abandoned_finals: int = 0
 
     _ongoing_chunk_window = []
+
+    # Early flush (see the class docstring). Level tracking is per utterance and only touched by the worker thread.
+    _early_flush_enabled: bool = True
+    _early_flush_silence_seconds: float = 0.35
+    _early_flush_quiet_ratio: float = 0.1
+    _early_flush_min_peak: int = 300
+    _early_flush_samplerate: int = 16000
+    _ef_level: float = 0.0
+    _ef_peak: float = 0.0
+    _ef_quiet_seconds: float = 0.0
+    _ef_pending_has_speech: bool = False
+    _ef_flushed: bool = False
+
     _worker_thread: threading.Thread = None
     final_transcription: str = ""
     ongoing_transcription: str = ""
@@ -166,9 +182,17 @@ class FasterWhisperStream(PyXavi):
             self._sleep_when_no_chunks = sleep_when_no_chunks
             self._transcription_timeout = transcription_timeout
 
+            prefix = "speech-to-text.faster_whisper_streaming.early_flush."
+            self._early_flush_enabled = bool(self._xconfig.get(prefix + "enabled", True))
+            self._early_flush_silence_seconds = float(self._xconfig.get(prefix + "silence_seconds", 0.35))
+            self._early_flush_quiet_ratio = float(self._xconfig.get(prefix + "quiet_ratio", 0.1))
+            self._early_flush_min_peak = int(self._xconfig.get(prefix + "min_peak_rms", 300))
+            self._early_flush_samplerate = int(self._xparams.get("audio_parameters.stt_samplerate", 16000) or 16000)
+
             logging_parts.append(("Chunks window", chunks_window))
             logging_parts.append(("Sleep when no chunks", sleep_when_no_chunks))
             logging_parts.append(("Transcription timeout", transcription_timeout))
+            logging_parts.append(("Early flush", f"{self._early_flush_enabled} (after {self._early_flush_silence_seconds} s quiet, ratio {self._early_flush_quiet_ratio})"))
             logging_parts.append(("Dynamic RMS silence active", self.is_dynamic_rms_silence_active()))
             logging_parts.append(("Dynamic RMS max level", self.dynamic_rms_max_level))
             logging_parts.append(("Dynamic RMS hysteresis multiply", self.hysteresis_multiply))
@@ -237,6 +261,7 @@ class FasterWhisperStream(PyXavi):
         self.ongoing_transcription = ""
         self.allow_chunk_consumption = True
         self._windows_in_flight = 0
+        self._early_flush_reset()
         self.request_reset_context()
     
     def reset_context_and_state_in_transcription_thread(self):
@@ -249,6 +274,7 @@ class FasterWhisperStream(PyXavi):
         self.final_transcription = ""
         self.ongoing_transcription = ""
         self._windows_in_flight = 0
+        self._early_flush_reset()
         self.request_reset_context()
     
     def get_transcription(self) -> str:
@@ -324,6 +350,12 @@ class FasterWhisperStream(PyXavi):
                         self._support.dump_and_plot_all()
                         self._support.clear_accumulated_audio()
 
+                        # After an early flush, the leftover can be only the quiet tail that the VAD waited for.
+                        #   Decoding it adds latency and invites hallucinations, so it is dropped.
+                        if len(self._ongoing_chunk_window) > 0 and self._ef_flushed and not self._ef_pending_has_speech:
+                            self._log_debug(f"✏️ Early flush: dropping {len(self._ongoing_chunk_window)} leftover chunks, all quiet.")
+                            self._ongoing_chunk_window = []
+
                         # It is very possible that we have chunks without process at this point.
                         if len(self._ongoing_chunk_window) > 0:
 
@@ -383,7 +415,19 @@ class FasterWhisperStream(PyXavi):
                             self._log_debug(f"✏️ Ongoing chunk window exceeded the limit of {self._chunks_window} chunks. Processing.")
                             chunk_list_to_process.extend(self._ongoing_chunk_window.copy())
                             self._ongoing_chunk_window = []
+                            self._ef_pending_has_speech = False
                         self._ongoing_chunk_window.append(data)
+
+                        # Quiet for a while? Decode what we have now, while the VAD still waits to confirm the end.
+                        if len(chunk_list_to_process) == 0 and self._early_flush_should_fire(data):
+                            self._log_debug(f"✏️ Early flush: audio quiet for {self._ef_quiet_seconds:.2f} s, decoding {len(self._ongoing_chunk_window)} pending chunks now.")
+                            chunk_list_to_process.extend(self._ongoing_chunk_window)
+                            self._ongoing_chunk_window = []
+                            self._ef_pending_has_speech = False
+                            self._ef_flushed = True
+                        elif len(chunk_list_to_process) > 0:
+                            # The regular window goes out now, the tracking still needs this chunk.
+                            self._early_flush_should_fire(data)
 
                         # Process the prepared set of chunks
                         if len(chunk_list_to_process) > 0:
@@ -652,6 +696,50 @@ class FasterWhisperStream(PyXavi):
     def is_speaker_busy(self) -> bool:
         return self._shared_memory.read_shared_memory_flag(SHARED_SPEAKER_BUSY)
     
+    def _early_flush_reset(self):
+        self._ef_level = 0.0
+        self._ef_peak = 0.0
+        self._ef_quiet_seconds = 0.0
+        self._ef_pending_has_speech = False
+        self._ef_flushed = False
+
+    def _early_flush_should_fire(self, data: bytes) -> bool:
+        """
+        Tracks the level of the audio and tells if the pending chunks should be decoded now.
+
+        It is "quiet" when the (smoothed) level falls below `quiet_ratio` of the loudest level of the utterance.
+        After `silence_seconds` of it, and if there is something new to decode and the model is free, it fires.
+        A wrong guess only costs one extra decode (the merge of windows takes care of the overlap), and with no
+        early flush the behaviour is the same as before.
+        """
+        if not self._early_flush_enabled or not data:
+            return False
+
+        usable = len(data) - (len(data) % 2)
+        if usable == 0:
+            return False
+        rms = audioop.rms(data[:usable], 2)
+        seconds = usable / (2.0 * self._early_flush_samplerate)
+
+        # Smoothed over a few chunks, so a dip between two syllables is not a silence.
+        self._ef_level = rms if self._ef_level == 0.0 else 0.5 * self._ef_level + 0.5 * rms
+        self._ef_peak = max(self._ef_peak, self._ef_level)
+
+        is_quiet = self._ef_peak >= self._early_flush_min_peak and self._ef_level < self._early_flush_quiet_ratio * self._ef_peak
+        if is_quiet:
+            self._ef_quiet_seconds += seconds
+        else:
+            self._ef_quiet_seconds = 0.0
+            self._ef_pending_has_speech = True
+
+        return (
+            is_quiet
+            and self._ef_quiet_seconds >= self._early_flush_silence_seconds
+            and self._ef_pending_has_speech
+            and self._windows_in_flight == 0
+            and len(self._ongoing_chunk_window) > 0
+        )
+
     def process_chunks(self, chunks: list[bytes]) -> str:
         self._log_debug("Sending chunks window to be transcribed into the process")
         self._windows_in_flight += 1
