@@ -86,6 +86,9 @@ class Main(PyXavi):
     _scheduler: BackgroundScheduler = None
 
     _stopwatch: Stopwatch = None
+    # True while the thinking effect was started when the speech ended, before the transcription is known.
+    #   Whoever decides that the chatbot is not going to answer must cancel it. See _show_thinking_at_speech_end().
+    _early_thinking: bool = False
     _supported_languages: list[str] = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
@@ -338,10 +341,48 @@ class Main(PyXavi):
             if self._xconfig.get("speech-to-text.engine") not in ["faster_whisper_streaming"]:
                 self._log_debug("Redirecting from VAD detected speech finished callback to Transcription finished callback, for non-streaming engines...")
                 await self.main_execution_on_transcription_finished()
+            else:
+                self._show_thinking_at_speech_end()
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
             self._xlog.error(full_stack())
     
+    def _show_thinking_at_speech_end(self):
+        """
+        Starts the thinking effect as soon as the user stops speaking, without waiting for the transcription,
+        which comes a bit later. It only gives the feedback earlier: nothing else is decided here.
+
+        It is done only inside an ongoing interaction (the hold time is running), where the speech is almost
+          certainly for Pitxu. Outside of it the speech needs a trigger word, which is only known with the
+          transcription, and the effect would flash on every background conversation.
+        If afterwards the transcription turns out to be empty or not for the chatbot, _cancel_early_thinking() takes it back.
+        """
+        if not self._xconfig.get("app.thinking_at_speech_end", True):
+            return
+        if self._early_thinking or not self._is_pitxu_active:
+            return
+        # The transcription may already be there (then this callback is late, and the answer path starts its own thinking).
+        if not self._interaction.is_transcriber_busy():
+            return
+        if not self._text_continues_ongoing_interaction(""):
+            return
+
+        self._log_debug("🤔 Speech ended inside an ongoing interaction: showing the thinking effect now, before the transcription.")
+        self._early_thinking = True
+        self._interaction.show_thinking()
+        self._interaction.set_chatbot_busy()
+
+    def _cancel_early_thinking(self):
+        """
+        Takes the thinking effect back when it was started at the end of the speech but the chatbot is not going to
+        answer (nothing recognised, ignored text, or a local answer). Does nothing if it was not started.
+        """
+        if not self._early_thinking:
+            return
+        self._early_thinking = False
+        self._log_debug("🤔 Cancelling the thinking effect started at the end of the speech.")
+        self._interaction.unset_chatbot_busy()
+
     async def main_execution_on_transcription_finished(self, final_transcription: str = None):
         """
         This method is called when the Transcription is finished (receiving a None in the transcription).
@@ -390,6 +431,8 @@ class Main(PyXavi):
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
+                self._cancel_early_thinking()
+
                 # Back to listening to let the user try again. The hold time keeps counting, it is not a new interaction.
                 self._start_listening_phase("nothing recognised", reset_mark=False)
 
@@ -422,6 +465,7 @@ class Main(PyXavi):
             if text_has_exit_intention and text_continues_ongoing_interaction:
 
                 self._log_debug("Detection: We're inside hold interaction time and the user wants to exit.")
+                self._cancel_early_thinking()
 
                 # An interaction comes, stop the idle mode.
                 self._interaction.set_idle_mode_off()
@@ -439,6 +483,7 @@ class Main(PyXavi):
             elif text_is_only_trigger_words:
 
                 self._log_debug("Detection: Text only has trigger words.")
+                self._cancel_early_thinking()
                                 
                 # An interaction comes, stop the idle mode.
                 self._interaction.set_idle_mode_off()
@@ -466,6 +511,7 @@ class Main(PyXavi):
 
             # Anything else is ignored.
             else:
+                self._cancel_early_thinking()
                 self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
@@ -528,6 +574,12 @@ class Main(PyXavi):
             self._xlog.error(full_stack())
             we_are_in_error_state = True
 
+        # Whatever happened, the thinking started at the end of the speech must not stay on.
+        try:
+            self._cancel_early_thinking()
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not cancel the early thinking effect: {e}")
+
         # At this point, the whole interaction is done.
         # But we may have arrived here from within an exception, that leaves the app unusable.
         # So because we don't want to close the app we don't use the close_nicely() method, as it finishes the app, 
@@ -574,10 +626,15 @@ class Main(PyXavi):
         # An interaction comes, stop the idle mode.
         self._interaction.set_idle_mode_off()
 
+        # The thinking effect may be already running since the end of the speech. From here this path owns it.
+        thinking_already_shown = self._early_thinking
+        self._early_thinking = False
+
         # We set it as busy in shared memory, so the Background Display can show the thinking effect
         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
         #   to react on the busy flag changes and be displayed on time.
-        self._interaction.show_thinking()
+        if not thinking_already_shown:
+            self._interaction.show_thinking()
         # I am going to try to show the question while thinking.
         # It may give some time to the LCD to show the previous called thinking effect.
         self._interaction.show_arbitrary_text_on_foreground_while_thinking(
