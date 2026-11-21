@@ -15,6 +15,8 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
+import weakref
 from datetime import datetime, timedelta
 
 class Memory(PyXavi):
@@ -53,8 +55,15 @@ class Memory(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
 
-        if id(self._xconfig) not in Memory._validated_configs:
-            Memory._validated_configs.add(id(self._xconfig))
+        config_id = id(self._xconfig)
+        if config_id not in Memory._validated_configs:
+            Memory._validated_configs.add(config_id)
+            try:
+                # An id can be reused once its object is gone: forget it then.
+                weakref.finalize(self._xconfig, Memory._validated_configs.discard, config_id)
+            except TypeError:
+                # It can't be tracked: it is validated every time, that is cheap and silent once the values are fixed.
+                Memory._validated_configs.discard(config_id)
             MemoryConfigValidator.validate(self._xconfig, self._xlog)
 
         if not params.key_exists("api_key"):
@@ -451,16 +460,70 @@ class Memory(PyXavi):
         presented.update({key: entry[key] for key in keys if entry.get(key) is not None})
         return presented
 
-    def search_memory_by_summary(self, summary: str) -> list[dict]:
-        """ Entries whose summary has the text, in both memories. The short term ones come first, the newest first. """
-        like = "%" + summary.lower() + "%"
-        short = self._fetch_entries(
-            f"SELECT {self.ENTRY_COLUMNS}, topic_id, status FROM {self.TABLE_SHORT_TIME_MEMORY} "
-            "WHERE LOWER(summary) LIKE ? ORDER BY id DESC", (like,))
-        topics = [row["topic_id"] for row in self._fetch_entries(
-            f"SELECT DISTINCT topic_id FROM {self.TABLE_LONG_TIME_MEMORY} "
-            "WHERE language IS NOT NULL AND topic_id IS NOT NULL AND LOWER(summary) LIKE ?", (like,))]
-        return self._merge_search_results(short, topics)
+    # Words that carry nothing to search for, in the languages of the application.
+    STOP_WORDS = frozenset(
+        "the and for with have has did does you your are was were about from that this what which who when where how tell "
+        "remember know "
+        "que cual cuales quien cuando donde como tengo tiene tienes sobre para con los las una uno del recuerdas sabes "
+        "quin quina quan com tinc tens amb els les per recordes saps "
+        "der die das und mit für über ein eine was welche wer wann wie habe hast erinnerst weißt weisst".split())
+    SEARCH_MAX_RESULTS = 8
+
+    @staticmethod
+    def _normalize_for_search(text: str) -> str:
+        """ Lowercase and without accents, so "Vehículos" and "vehiculos" are the same. """
+        decomposed = unicodedata.normalize("NFKD", str(text).lower())
+        return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+    @classmethod
+    def _query_words(cls, query: str) -> list[str]:
+        words = [word for word in re.findall(r"\w+", cls._normalize_for_search(query))
+                 if len(word) >= 3 and word not in cls.STOP_WORDS]
+        return list(dict.fromkeys(words))
+
+    @classmethod
+    def _search_score(cls, words: list[str], phrase: str, summary: str, content: str) -> int:
+        """
+        How well an entry answers the search. A word in the summary counts 2, in the content 1 (as part of a word:
+        "vehicle" finds "vehicles"). The whole text of the search inside the summary adds 3.
+        """
+        summary, content = cls._normalize_for_search(summary), cls._normalize_for_search(content)
+        score = sum(2 if word in summary else 1 for word in words if word in summary or word in content)
+        if phrase and phrase in summary:
+            score += 3
+        return score
+
+    def search_memory_by_summary(self, query: str) -> list[dict]:
+        """
+        Entries about the keywords of the query, in the summary or in the content, in both memories.
+        Any of the words counts, and the best matches come first (at most `memory.search.max_results`).
+        The short term ones come before the long term ones. Short and long terms are presented as `_merge_search_results`.
+        """
+        phrase = self._normalize_for_search(query).strip()
+        words = self._query_words(query) or ([phrase] if phrase else [])
+        if not words:
+            return []
+
+        short_scores, short = {}, []
+        for row in self._fetch_entries(
+                f"SELECT {self.ENTRY_COLUMNS}, topic_id, status FROM {self.TABLE_SHORT_TIME_MEMORY}"):
+            score = self._search_score(words, phrase, row["summary"], row["content"])
+            if score > 0:
+                short.append(row)
+                short_scores[row["id"]] = score
+
+        # A topic is found by any of its versions (a language that is not the one of the conversation too).
+        topic_scores: dict[int, int] = {}
+        for row in self._fetch_entries(
+                f"SELECT topic_id, summary, content FROM {self.TABLE_LONG_TIME_MEMORY} "
+                "WHERE language IS NOT NULL AND topic_id IS NOT NULL AND stale = 0"):
+            score = self._search_score(words, phrase, row["summary"], row["content"])
+            if score > topic_scores.get(row["topic_id"], 0):
+                topic_scores[row["topic_id"]] = score
+
+        limit = self._xconfig.get("memory.search.max_results", self.SEARCH_MAX_RESULTS)
+        return self._merge_search_results(short, list(topic_scores), short_scores=short_scores,
+                                          topic_scores=topic_scores, limit=int(limit))
 
     def search_memory_by_date(self, date_str: str) -> list[dict]:
         """ Entries created (the long term ones, also updated) on that date, in both memories. """
@@ -491,21 +554,37 @@ class Memory(PyXavi):
             f"SELECT {self.ENTRY_COLUMNS}, topic_id, updated_at FROM {self.TABLE_LONG_TIME_MEMORY} WHERE id = ?", (entry_id,))
         return self._present_long(rows[0], self._forget_requests_by_topic(), self._pending_corrections_by_topic()) if rows else None
 
-    def _merge_search_results(self, short_rows: list[dict], topic_ids: list[int]) -> list[dict]:
+    def _merge_search_results(self, short_rows: list[dict], topic_ids: list[int], short_scores: dict = None,
+                              topic_scores: dict = None, limit: int = None) -> list[dict]:
         """
         Short term first, then the long term topics in the language of the session.
         A short term entry that is already consolidated in a topic that is in the results is not repeated: the topic
         has it (and more). The ones that wait for the consolidation, or that are not in a topic, are always there.
+
+        With scores and a limit, only the `limit` best matches stay (the short term first when they tie), and
+        they are presented in the same order: short term, then long term, each one with the best first.
         """
         long_rows = self._resolve_long_topics(topic_ids)
         topics_found = {row["topic_id"] for row in long_rows}
+        short_rows = [entry for entry in short_rows
+                      if not (entry["status"] in ("consolidated", "ignored") and entry["topic_id"] in topics_found)]
+
+        if limit is not None:
+            short_scores, topic_scores = short_scores or {}, topic_scores or {}
+            short_rows = sorted(short_rows, key=lambda entry: (-short_scores.get(entry["id"], 0), -entry["id"]))
+            long_rows = sorted(long_rows, key=lambda row: -topic_scores.get(row["topic_id"], 0))
+            ranked = sorted(
+                [(short_scores.get(entry["id"], 0), 0, index) for index, entry in enumerate(short_rows)] +
+                [(topic_scores.get(row["topic_id"], 0), 1, index) for index, row in enumerate(long_rows)],
+                key=lambda item: (-item[0], item[1], item[2]))[:max(1, limit)]
+            kept_short = {index for _, kind, index in ranked if kind == 0}
+            kept_long = {index for _, kind, index in ranked if kind == 1}
+            short_rows = [entry for index, entry in enumerate(short_rows) if index in kept_short]
+            long_rows = [row for index, row in enumerate(long_rows) if index in kept_long]
+
         forgets = self._forget_requests_by_topic()
         corrections = self._pending_corrections_by_topic()
-        results = []
-        for entry in short_rows:
-            if entry["status"] in ("consolidated", "ignored") and entry["topic_id"] in topics_found:
-                continue
-            results.append(self.present_entry(entry, self.PREFIX_SHORT))
+        results = [self.present_entry(entry, self.PREFIX_SHORT) for entry in short_rows]
         results.extend(self._present_long(row, forgets, corrections) for row in long_rows)
         return results
 

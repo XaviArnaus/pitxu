@@ -57,6 +57,8 @@ chatbot:
 
         ## Reading
         - When a question may depend on something you could have remembered (names, places, preferences, plans, "my", "our", "last time"), search the memory first, silently, and then answer. Do not say that you don't know before searching.
+        - Search with one to three short keywords (a name, a thing), never with the whole question. The search looks in the short term and in the long term memory.
+        - If nothing is found, try other keywords or synonyms (also in another language) before saying that you don't remember. The last 5 entries are only the most recent ones: they are not the whole memory.
 
         ## Speaking about it
         - Do not mention that you saved, updated or searched the memory: the screen already shows it.
@@ -140,6 +142,7 @@ chatbot:
 
         - Les entrades noves sempre es creen a la memòria a curt termini. Cada nit les entrades a curt termini es consoliden a la memòria a llarg termini, que és de només lectura.
         - Les cerques miren a les dues memòries i les entrades a curt termini (més recents) surten primer. Si dues entrades es contradiuen, guanya la més recent (`created_at`).
+        - Per buscar informació, fes servir una a tres paraules clau curtes (un nom, una cosa), mai tota la pregunta. Si no trobes res, prova altres paraules o sinònims abans de dir que no ho recordes. Les últimes 5 entrades només són les més recents: no són tota la memòria.
         - Pots actualitzar una entrada "L:" igualment: l'eina desa una correcció que ja és visible i que s'aplicarà durant la nit. Digues breument a l'usuari que la correcció queda desada.
         - Quan actualitzis una entrada, envia SEMPRE el contingut complet i corregit (tot el que continua sent cert, més el canvi), mai només el canvi: substitueix l'entrada sencera.
         - Si una entrada "L:" té el camp `pending_correction`, l'entrada que indica ("S:<número>") és més nova i té el contingut corregit: respon amb aquella.
@@ -251,6 +254,7 @@ chatbot:
 
         - Las entradas nuevas siempre se crean en la memoria a corto plazo. Cada noche las entradas a corto plazo se consolidan en la memoria a largo plazo, que es de solo lectura.
         - Las búsquedas miran en las dos memorias y las entradas a corto plazo (más recientes) salen primero. Si dos entradas se contradicen, gana la más reciente (`created_at`).
+        - Para buscar información, usa una a tres palabras clave cortas (un nombre, una cosa), nunca toda la pregunta. Si no encuentras nada, prueba otras palabras o sinónimos antes de decir que no lo recuerdas. Las últimas 5 entradas son solo las más recientes: no son toda la memoria.
         - Puedes actualizar una entrada "L:" igualmente: la herramienta guarda una corrección que ya es visible y que se aplicará durante la noche. Dile brevemente al usuario que la corrección queda guardada.
         - Cuando actualices una entrada, envía SIEMPRE el contenido completo y corregido (todo lo que sigue siendo cierto, más el cambio), nunca solo el cambio: sustituye la entrada entera.
         - Si una entrada "L:" tiene el campo `pending_correction`, la entrada que indica ("S:<número>") es más nueva y tiene el contenido corregido: responde con esa.
@@ -362,6 +366,7 @@ chatbot:
 
         - New entries are always created in the short term memory. Every night the short term entries are consolidated into the long term memory, which is read-only.
         - Searches look in both memories and the short term entries (the most recent ones) come first. If two entries contradict each other, the most recent one (`created_at`) wins.
+        - To find information, search with one to three short keywords (a name, a thing), never with the whole question. If nothing is found, try other words or synonyms before saying that you don't remember. The last 5 entries are only the most recent ones: they are not the whole memory.
         - You can still update an "L:" entry: the tool saves a correction that is visible right away and gets applied overnight. Briefly tell the user that the correction is saved.
         - When you update an entry, ALWAYS send the complete corrected content (everything that is still true, plus the change), never only the change: it replaces the whole entry.
         - If an "L:" entry has the field `pending_correction`, the entry it points to ("S:<number>") is newer and has the corrected content: answer with that one.
@@ -473,6 +478,7 @@ chatbot:
 
         - Neue Einträge werden immer im Kurzzeitgedächtnis erstellt. Jede Nacht werden die Kurzzeiteinträge in das Langzeitgedächtnis konsolidiert, das schreibgeschützt ist.
         - Suchen schauen in beide Speicher, und die Kurzzeiteinträge (die aktuelleren) kommen zuerst. Widersprechen sich zwei Einträge, gewinnt der neuere (`created_at`).
+        - Um Informationen zu finden, suche mit ein bis drei kurzen Stichwörtern (ein Name, eine Sache), nie mit der ganzen Frage. Wenn nichts gefunden wird, probiere andere Wörter oder Synonyme, bevor du sagst, dass du dich nicht erinnerst. Die letzten 5 Einträge sind nur die neuesten: Sie sind nicht das ganze Gedächtnis.
         - Einen "L:"-Eintrag kannst du trotzdem aktualisieren: Das Werkzeug speichert eine Korrektur, die sofort sichtbar ist und über Nacht übernommen wird. Sag dem Benutzer kurz, dass die Korrektur gespeichert ist.
         - Wenn du einen Eintrag aktualisierst, sende IMMER den vollständigen korrigierten Inhalt (alles, was noch gilt, plus die Änderung), niemals nur die Änderung: Er ersetzt den ganzen Eintrag.
         - Hat ein "L:"-Eintrag das Feld `pending_correction`, ist der Eintrag, auf den es verweist ("S:<Zahl>"), neuer und hat den korrigierten Inhalt: Antworte mit diesem.

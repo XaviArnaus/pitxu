@@ -4,6 +4,7 @@ import shutil
 import sys
 import threading
 import time
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -148,3 +149,71 @@ class ChatbotMemoryTests(unittest.TestCase):
         try: W2=Memory(config=C,params=Dictionary({"api_key":"k","language":"en"})); W2.db.connection.execute("update long_time_memory set content='x'"); denied=False
         except sqlite3.DatabaseError: denied=True
         check("write protection holds",denied)
+
+
+class SearchTests(unittest.TestCase):
+    """ The search by keywords over both memories: natural queries must find the long term entries too. """
+
+    def setUp(self):
+        self.tmp, self.config, self.writer, self.consolidator = env()
+        self.tools = tools(self.config)
+
+    def _ids(self, query):
+        result = self.tools.get_memory_entries_by_summary(query)
+        return [entry["id"] for entry in result] if isinstance(result, list) else []
+
+    def _long_vehicles(self):
+        return [x["id"] for x in self.tools.get_memory_entries_by_summary("vehicles") if x["id"].startswith("L:")][0]
+
+    def test_natural_queries_find_the_long_term_entry(self):
+        vehicles = self._long_vehicles()
+        for query in ["vehicles", "moto", "Montesa",              # the title, a word of the title, a word only in the content
+                      "vehicles moto", "what vehicles do I have",   # several words, a whole question
+                      "blue hatchback", "Vehículos", "vehiculos"]:   # content only, accents
+            self.assertIn(vehicles, self._ids(query), query)
+
+    def test_a_synonym_that_is_nowhere_finds_nothing(self):
+        self.assertEqual(self._ids("motorbike"), [])
+        self.assertIsInstance(self.tools.get_memory_entries_by_summary("motorbike"), str)
+
+    def test_nothing_to_search_for_finds_nothing(self):
+        self.assertEqual(self._ids("do it"), [])     # only stop words and short words, and no entry has that text
+        self.assertEqual(self._ids("   "), [])
+
+    def test_the_content_of_short_term_entries_is_searched_too(self):
+        entry = self.tools.create_memory_entry("Trip plans", "We go to Altafulla in August")
+        self.assertIn(entry["id"], self._ids("Altafulla"))
+
+    def test_the_best_matches_come_first_and_the_short_term_wins_ties(self):
+        short = self.tools.create_memory_entry("Montesa vehicles", "the moto")
+        ids = self._ids("Montesa vehicles")
+        self.assertEqual(ids[0], short["id"])
+        self.assertTrue(any(i.startswith("L:") for i in ids))
+        self.assertLess(ids.index(short["id"]), [i for i in range(len(ids)) if ids[i].startswith("L:")][0])
+
+    def test_the_results_are_limited(self):
+        for number in range(12):
+            self.tools.create_memory_entry(f"Dog walk {number}", "the dog needs a walk")
+        self.assertEqual(len(self._ids("dog walk")), 8)
+        _, limited_config, _, _ = env(**{"memory.search.max_results": 3})
+        limited = tools(limited_config)
+        for number in range(6):
+            limited.create_memory_entry(f"Cat nap {number}", "the cat sleeps")
+        self.assertEqual(len(limited.get_memory_entries_by_summary("cat")), 3)
+
+    def test_the_relevant_long_term_entry_is_not_cut_by_many_weak_short_term_ones(self):
+        for number in range(12):
+            self.tools.create_memory_entry(f"Note {number}", "something about a moto")
+        ids = self._ids("vehicles moto")
+        self.assertIn(self._long_vehicles(), ids)
+
+    def test_a_consolidated_entry_is_still_not_repeated(self):
+        add(self.writer, "vehicles: sold montesa", "c")
+        real = Memory.request_llm_json
+        Memory.request_llm_json = fake_llm
+        try:
+            self.consolidator.run("test")
+        finally:
+            Memory.request_llm_json = real
+        result = self.tools.get_memory_entries_by_summary("vehicles montesa")
+        self.assertFalse(any(entry["summary"] == "vehicles: sold montesa" for entry in result))

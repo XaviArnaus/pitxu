@@ -43,6 +43,7 @@ class MemoryConfigValidator:
             ("memory.summarization.fallback_save_raw", True, "True or False", boolean),
             ("memory.summarization_model", "gemini-3.1-flash-lite", "a model name", text),
             ("memory.consolidation_model", "gemini-3.1-flash-lite", "a model name", text),
+            ("memory.search.max_results", 8, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
             ("memory.short_term.retention_days", 14, "a number of days, 0 or more", lambda v: number(v) and v >= 0),
             ("memory.consolidation.enabled", True, "True or False", boolean),
             ("memory.consolidation.hour", 3, "an integer between 0 and 23", lambda v: integer(v) and 0 <= v <= 23),

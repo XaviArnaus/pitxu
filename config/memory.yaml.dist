@@ -39,6 +39,9 @@ memory:
   summarization_model: gemini-3.1-flash-lite
   # [String] Model to use for the nightly consolidation of the memory and for the translations of the memory entries.
   consolidation_model: gemini-3.1-flash-lite
+  search:
+    # [Integer] Entries that a search by the chatbot returns at most (the best matches).
+    max_results: 8
   short_term:
     # [Integer] Days that the short term entries stay after being consolidated, and then they are deleted.
     #   Meanwhile they are the most recent information, and the chatbot reads them before the long term memory.

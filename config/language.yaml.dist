@@ -20,10 +20,10 @@ language:
     de: ["tschüss", "beenden", "ende"]
   # [String] Warm up question. Should be simple and without using external tools
   warmup_question: 
-    ca: "Reconeix que estàs llest, i recupera les últimes 5 entrades de memòria per agafar context."
-    es: "Reconoce que estás listo, y recupera las últimas 5 entradas de memoria para obtener contexto."
-    en: "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context."
-    de: "Bestätige, dass du bereit bist, und rufe die letzten 5 Speicher-Einträge ab, um Kontext zu erhalten."
+    ca: "Reconeix que estàs llest, i recupera les últimes 5 entrades de memòria per agafar context (només són les més recents; la resta de la informació es troba cercant)."
+    es: "Reconoce que estás listo, y recupera las últimas 5 entradas de memoria para obtener contexto (solo son las más recientes; el resto de la información se encuentra buscando)."
+    en: "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context (they are only the most recent ones; the rest of the information is found by searching)."
+    de: "Bestätige, dass du bereit bist, und rufe die letzten 5 Speicher-Einträge ab, um Kontext zu erhalten (sie sind nur die neuesten; die übrigen Informationen findest du durch Suchen)."
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"

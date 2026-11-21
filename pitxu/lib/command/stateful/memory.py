@@ -57,29 +57,32 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.entry_creation_error." + self._xparams.get("language"))
 
-    def get_memory_entries_by_summary(self, summary: str) -> list[dict] | str:
+    def get_memory_entries_by_summary(self, keywords: str) -> list[dict] | str:
         '''
-        Retrieve memory entries by summary, from the short term (recent) and the long term (consolidated) memories.
+        Search the memory by keywords. It looks in the title and in the content of the entries, in the short term
+        (recent) and in the long term (consolidated, older) memories, and returns the best matches.
         The short term entries come first, and they are the most recent information.
+        Use one to three short keywords, like "motorbike" or "Montesa", not a whole sentence. If nothing is found,
+        try again with other words or synonyms before concluding that there is no information.
     
         Args:
-            summary (str): The summary of the memory entry to retrieve.
+            keywords (str): The words to search for.
 
         Returns:
             list[dict] | str: If successful, returns a list of memory entries; otherwise, an error message.
         '''
-        self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{summary}]")
+        self._xlog.info(f"Ⓜ️ Request for Retrieving memory entries for [{keywords}]")
         if self.status_shortcuts:
-            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get all like [{summary}]")
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Search [{keywords}]")
 
         try:
-            memory_entries = self._memory.search_memory_by_summary(summary)
+            memory_entries = self._memory.search_memory_by_summary(keywords)
             if memory_entries:
                 return memory_entries
             else:
-                return self._xconfig.get("language.memory.entries_not_found." + self._xparams.get("language")) % summary
+                return self._xconfig.get("language.memory.entries_not_found." + self._xparams.get("language")) % keywords
         except Exception as e:
-            self._xlog.error(f"🛑 Error retrieving memory entries for [{summary}]: {e}")
+            self._xlog.error(f"🛑 Error retrieving memory entries for [{keywords}]: {e}")
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
@@ -135,7 +138,8 @@ class StatefulMemory(PyXavi, Command):
     
     def get_last_five_memory_entries(self) -> list[dict] | str:
         '''
-        Retrieve the last five memory entries created (the recent information, short term memory).
+        Retrieve the last five memory entries created. They are only the most recent ones (short term memory):
+        it is NOT how to find a piece of information, for that search by keywords, that also looks in the long term memory.
 
         Returns:
             list[dict] | str: If successful, returns a list of the last five memory entries; otherwise, an error message.

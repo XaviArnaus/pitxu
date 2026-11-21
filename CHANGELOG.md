@@ -12,6 +12,7 @@
 - Write protection of the long term memory in the database itself for everything that is not the consolidation.
 - Validation of the memory settings at startup (a wrong value is reported and replaced by its default), and `util -u check_config` to compare the live config files with the `.dist`.
 - The chatbot uses the memory on its own (`chatbot.memory_autonomy`): it saves what is worth keeping without asking or announcing it, and searches before answering. What it writes is notified in the top-right area with the summary line, instead of the full screen.
+- The memory search is by keywords (title and content, any word, ranked) in both memories, so natural queries find the long term entries too.
 - Test suite in `test/` (`make unittests`). The scripts for the sound hardware moved to `test/hardware/`.
 
 ### Changed
