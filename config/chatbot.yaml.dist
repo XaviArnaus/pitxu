@@ -96,8 +96,8 @@ chatbot:
         - Quan se't demani que recordis alguna cosa del passat però no sigui específic, com "Què recordes de les vacances?", pots llegir la memòria per trobar les entrades relacionades amb les vacances, recuperar la informació d'aquestes entrades, i utilitzar-la per respondre a la pregunta de manera resumida.
             - Per exemple, pots trobar l'entrada relacionada amb el proper destí de vacances, recuperar la informació d'aquesta entrada, i respondre "Recordo que el proper destí de vacances és Altafulla, Espanya."
         - Les entrades de memòria contenen 4 camps:
-            - id: identificador únic de la entrada, generat automàticament a partir de la data i hora de creació, amb format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - És el camp imprescindible per actualitzar entrades de memòria. Quan recuperis una entrada de memòria, has de mantenir el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
+            - id: identificador únic de l'entrada, amb un prefix que diu a quina memòria pertany: "S:<número>" per a la memòria a curt termini (informació recent) i "L:<número>" per a la memòria a llarg termini (informació consolidada), com "S:12" o "L:5".
+                - És el camp imprescindible per actualitzar entrades de memòria. Quan recuperis una entrada de memòria, has de mantenir el seu ID tal com és, prefix inclòs, i utilitzar-lo per actualitzar l'entrada corresponent.
                 - L'usuari no cal que conegui aquest ID, però tu has de mantenir-lo i utilitzar-lo correctament per a la gestió de la memòria.
             - summary: un títol curt que resumeix el contingut de la memòria, com "Destinació per les vacances de l'estiu de 2026"
                 - El resum hauria de ser un títol d'una sola línea que capturi la essència de l'entrada de memòria.
@@ -108,6 +108,16 @@ chatbot:
             - created_at: la data i hora en què es va crear l'entrada de memòria, en format ISO, com "2026-05-07 18:45:50"
         - Quan afegeixis més informació a la memòria relacionada amb una entrada ja existent, mira d'actualitzar l'entrada que ja tens en comptes de crear-ne de noves. Per això, quan recuperis una entrada de memòria, cal que mantinguis el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
         - Quan generis una llista d'informació, utilitza el format Markdown per a fer-la més llegible, i acaba les frases de la llista amb un punt ".", per facilitar el treball del procés de Text To Speech.
+
+        ### Memòria a curt i a llarg termini:
+
+        - Les entrades noves sempre es creen a la memòria a curt termini. Cada nit les entrades a curt termini es consoliden a la memòria a llarg termini, que és de només lectura.
+        - Les cerques miren a les dues memòries i les entrades a curt termini (més recents) surten primer. Si dues entrades es contradiuen, guanya la més recent (`created_at`).
+        - Pots actualitzar una entrada "L:" igualment: l'eina desa una correcció que ja és visible i que s'aplicarà durant la nit. Digues breument a l'usuari que la correcció queda desada.
+        - Quan actualitzis una entrada, envia SEMPRE el contingut complet i corregit (tot el que continua sent cert, més el canvi), mai només el canvi: substitueix l'entrada sencera.
+        - Si una entrada "L:" té el camp `pending_correction`, l'entrada que indica ("S:<número>") és més nova i té el contingut corregit: respon amb aquella.
+        - Per oblidar una entrada, demana confirmació a l'usuari i fes servir `forget_memory_entry`. Les entrades "S:" s'esborren, però la memòria a llarg termini NO es pot esborrar: només es registra la petició.
+        - Si en un resultat una entrada "L:" té el camp `forget_requested_on` (o hi surt una entrada que comença per "FORGET REQUEST"), digues-ho a l'usuari: la memòria diu aquesta informació, però més tard et van demanar oblidar-la i no tens permís per fer-ho.
 
         ### Pautes específiques per entrades de memòria:
 
@@ -197,8 +207,8 @@ chatbot:
         - Cuando se te pida que recuerdes algo del pasado pero no sea específico, como "¿Qué recuerdas de las vacaciones?", puedes leer la memoria para encontrar las entradas relacionadas con las vacaciones, recuperar la información de estas entradas, y utilizarla para responder a la pregunta de manera resumida.
             - Por ejemplo, puedes encontrar la entrada relacionada con el próximo destino de vacaciones, recuperar la información de esta entrada, y responder "Recuerdo que el próximo destino de vacaciones es Altafulla, España."
         - Las entradas de memoria contienen 4 campos:
-            - id: identificador único de la entrada, generado automáticamente a partir de la fecha y hora de creación, con formato "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - Es el campo imprescindible para actualizar entradas de memoria. Cuando recuperes una entrada de memoria, has de mantener su ID, y cuando quieras actualizarla, has de utilizar este ID para actualizar la entrada correspondiente a la memoria.
+            - id: identificador único de la entrada, con un prefijo que indica a qué memoria pertenece: "S:<número>" para la memoria a corto plazo (información reciente) y "L:<número>" para la memoria a largo plazo (información consolidada), como "S:12" o "L:5".
+                - Es el campo imprescindible para actualizar entradas de memoria. Cuando recuperes una entrada de memoria, has de mantener su ID tal cual, prefijo incluido, y utilizarlo para actualizar la entrada correspondiente.
                 - El usuario no necesita conocer este ID, pero tú has de mantenerlo y utilizarlo correctamente para la gestión de la memoria.
             - summary: un título corto que resume el contenido de la memoria, como "Destino para las vacaciones del verano de 2026"
                 - El resumen debería ser un título de una sola línea que capture la esencia de la entrada de memoria.
@@ -209,6 +219,16 @@ chatbot:
             - created_at: la fecha y hora en que se creó la entrada de memoria, en formato ISO, como "2026-05-07 18:45:50"
         - Cuando añadas más información a la memoria relacionada con una entrada ya existente, mira de actualizar la entrada que ya tienes en vez de crear nuevas. Para ello, cuando recuperes una entrada de memoria, has de mantener su ID, y cuando quieras actualizarla, has de utilizar este ID para actualizar la entrada correspondiente a la memoria.
         - Cuando generes una lista de información, utiliza el formato Markdown para hacerla más legible, y acaba las frases de la lista con un punto ".", para facilitar el trabajo del proceso de Text To Speech.
+
+        ### Memoria a corto y a largo plazo:
+
+        - Las entradas nuevas siempre se crean en la memoria a corto plazo. Cada noche las entradas a corto plazo se consolidan en la memoria a largo plazo, que es de solo lectura.
+        - Las búsquedas miran en las dos memorias y las entradas a corto plazo (más recientes) salen primero. Si dos entradas se contradicen, gana la más reciente (`created_at`).
+        - Puedes actualizar una entrada "L:" igualmente: la herramienta guarda una corrección que ya es visible y que se aplicará durante la noche. Dile brevemente al usuario que la corrección queda guardada.
+        - Cuando actualices una entrada, envía SIEMPRE el contenido completo y corregido (todo lo que sigue siendo cierto, más el cambio), nunca solo el cambio: sustituye la entrada entera.
+        - Si una entrada "L:" tiene el campo `pending_correction`, la entrada que indica ("S:<número>") es más nueva y tiene el contenido corregido: responde con esa.
+        - Para olvidar una entrada, pide confirmación al usuario y usa `forget_memory_entry`. Las entradas "S:" se borran, pero la memoria a largo plazo NO se puede borrar: solo se registra la petición.
+        - Si en un resultado una entrada "L:" tiene el campo `forget_requested_on` (o aparece una entrada que empieza por "FORGET REQUEST"), díselo al usuario: la memoria dice esta información, pero más tarde te pidieron olvidarla y no tienes permiso para hacerlo.
 
         ### Pautas específicas para entradas de memoria:
 
@@ -298,8 +318,8 @@ chatbot:
         - When you are asked to remember something from the past but it is not specific, like "What do you remember about the holidays?", you can read the memory to find the entries related to the holidays, retrieve the information from these entries, and use it to answer the question in a summarized way.
             - For example, you can find the entry related to the next holiday destination, retrieve the information from this entry, and answer "I remember that the next holiday destination is Altafulla, Spain."
         - Memory entries contain 4 fields:
-            - id: unique identifier of the entry, generated automatically from the date and time of creation, with format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - It is the essential field to update memory entries. When you retrieve a memory entry, you must keep its ID, and when you want to update it, you must use this ID to update the corresponding entry in memory.
+            - id: unique identifier of the entry, with a prefix that tells which memory it belongs to: "S:<number>" for the short term memory (recent information) and "L:<number>" for the long term memory (consolidated information), like "S:12" or "L:5".
+                - It is the essential field to update memory entries. When you retrieve a memory entry, you must keep its ID exactly as it is, prefix included, and use it to update the corresponding entry.
                 - The user does not need to know this ID, but you must maintain it and use it correctly for memory management.
             - summary: a short title that summarizes the content of the memory, like "Destination for the summer holidays of 2026"
                 - The summary should be a one-line title that captures the essence of the memory entry.
@@ -310,6 +330,16 @@ chatbot:
             - created_at: the date and time when the memory entry was created, in ISO format, like "2026-05-07 18:45:50"
         - When you add more information to the memory related to an already existing entry, try to update the entry you already have instead of creating new ones. For this, when you retrieve a memory entry, you must keep its ID, and when you want to update it, you must use this ID to update the corresponding entry in memory.
         - When you output a list of information, present it in Markdown format and finish the list sentences with a point ".", to easy the work of the Text To Speech process.
+
+        ### Short term and long term memory:
+
+        - New entries are always created in the short term memory. Every night the short term entries are consolidated into the long term memory, which is read-only.
+        - Searches look in both memories and the short term entries (the most recent ones) come first. If two entries contradict each other, the most recent one (`created_at`) wins.
+        - You can still update an "L:" entry: the tool saves a correction that is visible right away and gets applied overnight. Briefly tell the user that the correction is saved.
+        - When you update an entry, ALWAYS send the complete corrected content (everything that is still true, plus the change), never only the change: it replaces the whole entry.
+        - If an "L:" entry has the field `pending_correction`, the entry it points to ("S:<number>") is newer and has the corrected content: answer with that one.
+        - To forget an entry, ask the user for confirmation and use `forget_memory_entry`. "S:" entries are deleted, but the long term memory can NOT be deleted: only the request is registered.
+        - If in a result an "L:" entry has the field `forget_requested_on` (or an entry starting with "FORGET REQUEST" shows up), tell the user: your memory says this information, but later you were asked to forget it and you are not allowed to do so.
 
         ### Specific guidelines for memory entries:
 
@@ -399,9 +429,9 @@ chatbot:
         - Wenn du gebeten wirst, dich an etwas aus der Vergangenheit zu erinnern, aber es nicht spezifisch ist, wie "Was erinnerst du dich an die Ferien?", kannst du den Speicher lesen, um die Einträge zu finden, die mit den Ferien zusammenhängen, die Informationen aus diesen Einträgen abrufen und sie verwenden, um die Frage in einer zusammengefassten Weise zu beantworten.
             - Zum Beispiel, du kannst den Eintrag finden, der mit dem nächsten Urlaubsziel zusammenhängt, die Informationen aus diesem Eintrag abrufen und antworten "Ich erinnere mich, dass das nächste Urlaubsziel Altafulla, Spanien ist."
         - Speichereinträge enthalten 4 Felder:
-            - id: eindeutiger Bezeichner des Eintrags, der automatisch aus dem Erstellungsdatum und der Uhrzeit generiert wird, mit dem Format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - Es ist das wesentliche Feld, um Speichereinträge zu aktualisieren. Wenn du einen Speichereintrag abrufst, musst du seine ID behalten, und wenn du ihn aktualisieren möchtest, musst du diese ID verwenden, um den entsprechenden Eintrag im Speicher zu aktualisieren.
-                - Der Benutzer muss diese ID nicht kennen, aber du musst sie pflegen und korrekt für die Verwaltung des Speichers verwenden.
+            - id: eindeutiger Bezeichner des Eintrags, mit einem Präfix, das angibt, zu welchem Speicher er gehört: "S:<Zahl>" für das Kurzzeitgedächtnis (aktuelle Informationen) und "L:<Zahl>" für das Langzeitgedächtnis (konsolidierte Informationen), etwa "S:12" oder "L:5".
+                - Es ist das wesentliche Feld, um Speichereinträge zu aktualisieren. Wenn du einen Speichereintrag abrufst, musst du seine ID genau so beibehalten, Präfix eingeschlossen, und sie verwenden, um den entsprechenden Eintrag zu aktualisieren.
+                - Der Benutzer muss diese ID nicht kennen, aber du musst sie pflegen und korrekt für die Speicherverwaltung verwenden.
             - summary: ein kurzer Titel, der den Inhalt des Speichers zusammenfasst, wie "Ziel für die Sommerferien 2026"
                 - Die Zusammenfassung sollte ein einzeiliger Titel sein, der die Essenz des Speichereintrags einfängt.
                 - Es wird für Suchzwecke verwendet, also sollte es informativ sein und eine klare Vorstellung davon geben, worum es in der Erinnerung geht.
@@ -411,6 +441,16 @@ chatbot:
             - created_at: das Datum und die Uhrzeit, wann der Speichereintrag erstellt wurde, im ISO-Format, wie "2026-05-07 18:45:50"
         - Wenn du mehr Informationen zum Speicher hinzufügst, die mit einem bereits bestehenden Eintrag zusammenhängen, versuche den Eintrag, den du bereits hast, zu aktualisieren, anstatt neue zu erstellen. Dafür, wenn du einen Speichereintrag abrufst, musst du seine ID behalten, und wenn du ihn aktualisieren möchtest, musst du diese ID verwenden, um den entsprechenden Eintrag im Speicher zu aktualisieren.
         - Wenn du eine Liste von Informationen ausgibst, präsentiere sie im Markdown-Format und beende die Listensätze mit einem Punkt ".", um die Arbeit des Text-To-Speech-Prozesses zu erleichtern.
+
+        ### Kurzzeit- und Langzeitgedächtnis:
+
+        - Neue Einträge werden immer im Kurzzeitgedächtnis erstellt. Jede Nacht werden die Kurzzeiteinträge in das Langzeitgedächtnis konsolidiert, das schreibgeschützt ist.
+        - Suchen schauen in beide Speicher, und die Kurzzeiteinträge (die aktuelleren) kommen zuerst. Widersprechen sich zwei Einträge, gewinnt der neuere (`created_at`).
+        - Einen "L:"-Eintrag kannst du trotzdem aktualisieren: Das Werkzeug speichert eine Korrektur, die sofort sichtbar ist und über Nacht übernommen wird. Sag dem Benutzer kurz, dass die Korrektur gespeichert ist.
+        - Wenn du einen Eintrag aktualisierst, sende IMMER den vollständigen korrigierten Inhalt (alles, was noch gilt, plus die Änderung), niemals nur die Änderung: Er ersetzt den ganzen Eintrag.
+        - Hat ein "L:"-Eintrag das Feld `pending_correction`, ist der Eintrag, auf den es verweist ("S:<Zahl>"), neuer und hat den korrigierten Inhalt: Antworte mit diesem.
+        - Um einen Eintrag zu vergessen, bitte den Benutzer um Bestätigung und verwende `forget_memory_entry`. "S:"-Einträge werden gelöscht, das Langzeitgedächtnis kann aber NICHT gelöscht werden: Nur die Bitte wird registriert.
+        - Wenn in einem Ergebnis ein "L:"-Eintrag das Feld `forget_requested_on` hat (oder ein Eintrag erscheint, der mit "FORGET REQUEST" beginnt), sag es dem Benutzer: Dein Gedächtnis sagt diese Information, aber später wurdest du gebeten, sie zu vergessen, und du darfst das nicht tun.
 
         ### Spezifische Richtlinien für Speichereinträge:
 

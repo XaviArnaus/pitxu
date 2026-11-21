@@ -35,6 +35,7 @@ class StatefulMemory(PyXavi, Command):
     def create_memory_entry(self, summary: str, content: str) -> dict | str:
         '''
         Create a new memory entry with the specified summary and content.
+        New entries are always created in the short term memory (the recent information).
 
         Args:
             summary (str): The summary of the memory entry.
@@ -48,7 +49,7 @@ class StatefulMemory(PyXavi, Command):
             if self.status_shortcuts:
                 self.status_shortcuts.add_new_status_line(f"🔧 Memory: New [{summary}]")
             created_entry = self._memory.create_short_memory_entry(summary, content)
-            return created_entry
+            return Memory.present_entry(created_entry, Memory.PREFIX_SHORT)
 
         except Exception as e:
             self._xlog.error(f"🛑 Error creating memory entry [{summary}]: {e}")
@@ -57,7 +58,8 @@ class StatefulMemory(PyXavi, Command):
 
     def get_memory_entries_by_summary(self, summary: str) -> list[dict] | str:
         '''
-        Retrieve memory entries by summary.
+        Retrieve memory entries by summary, from the short term (recent) and the long term (consolidated) memories.
+        The short term entries come first, and they are the most recent information.
     
         Args:
             summary (str): The summary of the memory entry to retrieve.
@@ -70,7 +72,7 @@ class StatefulMemory(PyXavi, Command):
             self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get all like [{summary}]")
 
         try:
-            memory_entries = self._memory.get_short_memory_by_summary_like(summary)
+            memory_entries = self._memory.search_memory_by_summary(summary)
             if memory_entries:
                 return memory_entries
             else:
@@ -82,7 +84,7 @@ class StatefulMemory(PyXavi, Command):
     
     def get_memory_entries_by_date(self, date: str) -> list[dict] | str:
         '''
-        Retrieve all memory entries by date.
+        Retrieve all memory entries by date, from the short term (recent) and the long term (consolidated) memories.
 
         Args:
             date (str): The date of the memory entries to retrieve in YYYY-MM-DD format.
@@ -95,7 +97,7 @@ class StatefulMemory(PyXavi, Command):
             self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get all for [{date}]")
 
         try:
-            memory_entries = self._memory.get_short_memory_by_date(date)
+            memory_entries = self._memory.search_memory_by_date(date)
             if memory_entries:
                 return memory_entries
             else:
@@ -105,12 +107,12 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
-    def get_memory_entry_by_id(self, entry_id: int) -> dict | str:
+    def get_memory_entry_by_id(self, entry_id: str) -> dict | str:
         '''
         Retrieve a memory entry by its ID.
 
         Args:
-            entry_id (int): The ID of the memory entry to retrieve.
+            entry_id (str): The ID of the memory entry to retrieve, exactly as it was returned, like "S:12" or "L:5".
 
         Returns:
             dict | str: If successful, returns the memory entry; otherwise, an error message.
@@ -120,7 +122,7 @@ class StatefulMemory(PyXavi, Command):
             self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get by ID [{entry_id}]")
 
         try:
-            memory_entry = self._memory.get_short_memory_by_id(entry_id)
+            memory_entry = self._memory.get_memory_by_ref(entry_id)
             if memory_entry:
                 return memory_entry
             else:
@@ -132,7 +134,7 @@ class StatefulMemory(PyXavi, Command):
     
     def get_last_five_memory_entries(self) -> list[dict] | str:
         '''
-        Retrieve the last five memory entries.
+        Retrieve the last five memory entries created (the recent information, short term memory).
 
         Returns:
             list[dict] | str: If successful, returns a list of the last five memory entries; otherwise, an error message.
@@ -142,7 +144,7 @@ class StatefulMemory(PyXavi, Command):
             self.status_shortcuts.add_new_status_line(f"🔧 Memory: Get last five entries")
 
         try:
-            memory_entries = self._memory.get_last_short_memory_entries(limit=5)
+            memory_entries = self._memory.get_recent_memory(limit=5)
             if memory_entries:
                 return memory_entries
             else:
@@ -152,36 +154,83 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return self._xconfig.get("language.memory.retrieval_error." + self._xparams.get("language"))
     
-    def update_memory_entry_by_id(self, entry_id: int, summary: str = None, content: str = None) -> dict | str:
+    def update_memory_entry_by_id(self, entry_id: str, summary: str = None, content: str = None) -> dict | str:
         '''
-        Update a memory entry by its ID with the given summary and/or content.
+        Update a memory entry by its ID with the given summary and content.
+        An "S:" entry (short term) is updated right away. An "L:" entry (long term memory) is read-only: the update
+        is saved as a new correction, that is visible right away and gets applied to the long term memory overnight.
+        Always send the COMPLETE corrected summary and content (all that is still true, plus the change), never only
+        the change: they replace the entry as a whole.
 
         Args:
-            entry_id (int): The ID of the memory entry to update.
-            summary (str, optional): The new summary for the memory entry. Defaults to None.
-            content (str, optional): The new content for the memory entry. Defaults to None.
+            entry_id (str): The ID of the memory entry to update, exactly as it was returned, like "S:12" or "L:5".
+            summary (str): The new summary for the memory entry.
+            content (str): The new content for the memory entry.
 
         Returns:
-            dict | str: The updated memory entry or an error message.
+            dict | str: The updated memory entry (or the saved correction) or an error message.
         '''
         self._xlog.info(f"Ⓜ️ Request for Updating memory entry with ID [{entry_id}] with summary [{summary}] and content [{content}]")
         if self.status_shortcuts:
             self.status_shortcuts.add_new_status_line(f"🔧 Memory: Update memory with ID [{entry_id}]")
-        entry = self._memory.get_short_memory_by_id(entry_id)
-        if entry is None:
-            error = f"🛑 Memory entry with ID [{entry_id}] not found."
-            self._xlog.error(error)
-            return error
-        
+
         if summary is None or content is None:
             error = f"⚠️ Memory entry with ID [{entry_id}] intended to be updated with summary [{summary}] and content [{content}]. One of the fields is None, so it will not be updated."
             self._xlog.warning(error)
             return error
-        return self._memory.update_short_memory_entry_by_id(entry_id=entry_id, summary=summary, content=content)
-    
+        try:
+            outcome = self._memory.update_memory_by_ref(entry_id, summary=summary, content=content)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error updating memory entry [{entry_id}]: {e}")
+            self._xlog.debug(full_stack())
+            return self._message("entry_creation_error")
+        if outcome["result"] == "updated":
+            return outcome["entry"]
+        if outcome["result"] == "correction_saved":
+            return {**outcome["entry"], "note": self._message("long_term_correction_saved")}
+        return self._message_for_failed_outcome(outcome["result"], entry_id)
+
+    def forget_memory_entry(self, entry_id: str) -> dict | str:
+        '''
+        Forget a memory entry because the user asks to. Ask the user for confirmation first.
+        An "S:" entry (short term) that is not part of the long term memory is deleted.
+        The long term memory ("L:" entries) can NOT be deleted: the request is registered, but the information stays.
+        Tell the user when this is the case.
+
+        Args:
+            entry_id (str): The ID of the memory entry to forget, exactly as it was returned, like "S:12" or "L:5".
+
+        Returns:
+            dict | str: The forgotten entry (with a note when it could not be deleted) or an error message.
+        '''
+        self._xlog.info(f"Ⓜ️ Request for Forgetting memory entry with ID [{entry_id}]")
+        if self.status_shortcuts:
+            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Forget ID [{entry_id}]")
+        try:
+            outcome = self._memory.forget_memory_by_ref(entry_id)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error forgetting memory entry [{entry_id}]: {e}")
+            self._xlog.debug(full_stack())
+            return self._message("entry_creation_error")
+        if outcome["result"] == "deleted":
+            return {**outcome["entry"], "note": self._message("short_entry_deleted")}
+        if outcome["result"] == "forget_registered":
+            return {**outcome["entry"], "note": self._message("long_term_forget_registered")}
+        return self._message_for_failed_outcome(outcome["result"], entry_id)
+
+    def _message(self, key: str) -> str:
+        return self._xconfig.get("language.memory." + key + "." + self._xparams.get("language"))
+
+    def _message_for_failed_outcome(self, result: str, entry_id: str) -> str:
+        if result == "invalid":
+            return self._message("invalid_entry_id") % entry_id
+        if result == "protected":
+            return self._message("entry_protected")
+        return self._message("entry_not_found") % entry_id
+
     def update_last_memory_entry(self, summary: str = None, content: str = None) -> dict | None:
         '''
-        Update the last memory entry with the given summary and/or content.
+        Update the last memory entry (short term) with the given summary and/or content.
         It is useful when the user wants to correct or add information to the last memory entry created, which is usually the one related to the current chatbot conversation.
 
         Args:
@@ -279,6 +328,7 @@ class StatefulMemory(PyXavi, Command):
                 self.get_last_five_memory_entries,
                 self.update_last_memory_entry,
                 self.update_memory_entry_by_id,
+                self.forget_memory_entry,
                 self.remember_this_conversation]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
@@ -290,6 +340,6 @@ class StatefulMemory(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
+        if function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "forget_memory_entry", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback

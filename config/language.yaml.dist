@@ -391,6 +391,31 @@ language:
       es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
       en: "I'm sorry, there was an error retrieving the memory entries."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."
+    long_term_correction_saved:
+      ca: "Desat com a correcció pendent de la memòria a llarg termini. Ja és visible i s'aplicarà durant la nit."
+      es: "Guardado como corrección pendiente de la memoria a largo plazo. Ya es visible y se aplicará durante la noche."
+      en: "Saved as a pending correction of the long term memory. It is visible right away and will be applied overnight."
+      de: "Als ausstehende Korrektur des Langzeitgedächtnisses gespeichert. Sie ist sofort sichtbar und wird über Nacht übernommen."
+    long_term_forget_registered:
+      ca: "La memòria a llarg termini no es pot esborrar. S'ha registrat la petició d'oblidar-ho, però la informació es manté."
+      es: "La memoria a largo plazo no se puede borrar. Se ha registrado la petición de olvidarlo, pero la información se mantiene."
+      en: "The long term memory cannot be deleted. The request to forget it was registered, but the information is kept."
+      de: "Das Langzeitgedächtnis kann nicht gelöscht werden. Die Bitte, es zu vergessen, wurde registriert, die Information bleibt aber erhalten."
+    short_entry_deleted:
+      ca: "Entrada esborrada."
+      es: "Entrada borrada."
+      en: "Entry deleted."
+      de: "Eintrag gelöscht."
+    entry_protected:
+      ca: "Aquesta entrada no es pot modificar."
+      es: "Esta entrada no se puede modificar."
+      en: "This entry cannot be modified."
+      de: "Dieser Eintrag kann nicht geändert werden."
+    invalid_entry_id:
+      ca: "L'identificador %s no és vàlid. Fes servir l'identificador tal com el vas rebre, com S:12 o L:5."
+      es: "El identificador %s no es válido. Usa el identificador tal como lo recibiste, como S:12 o L:5."
+      en: "The id %s is not valid. Use the id exactly as it was returned, like S:12 or L:5."
+      de: "Die ID %s ist nicht gültig. Verwende die ID genau so, wie du sie erhalten hast, etwa S:12 oder L:5."
     summarization_error:
       ca: "Ho sento, hi ha hagut un error en resumir l'historial de xat en una entrada de memòria."
       es: "Lo siento, ha habido un error al resumir el historial de chat en una entrada de memoria."

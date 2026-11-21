@@ -371,13 +371,229 @@ class Memory(PyXavi):
         """
         Deletes the short term entries that were consolidated (or ignored) more than retention_days ago.
         Until then they stay: they are the most recent information and the chatbot reads them first.
-        Whatever is pending or failed is never deleted. Returns how many were deleted.
+        Whatever is pending or failed is never deleted, nor the forget requests. Returns how many were deleted.
         """
         cutoff = (Xtime.now() - timedelta(days=retention_days)).isoformat()
         return self._execute(
             f"DELETE FROM {self.TABLE_SHORT_TIME_MEMORY} "
-            "WHERE status IN ('consolidated', 'ignored') AND consolidated_at IS NOT NULL AND consolidated_at < ?",
-            (cutoff,)).rowcount
+            "WHERE status IN ('consolidated', 'ignored') AND consolidated_at IS NOT NULL AND consolidated_at < ? "
+            "AND summary NOT LIKE ?",
+            (cutoff, self.FORGET_REQUEST_PREFIX + "%")).rowcount
+
+    # ----- What the chatbot reads and edits: both memories, the short term one first -----
+    #
+    # Every entry it sees carries an id with a prefix that tells where it is: "S:12" (short term) or "L:5" (long term).
+    # It can create and edit short term entries only. About a long term one, what it asks for becomes a short term entry:
+    #   - an edit is a correction, that the nightly consolidation applies to the topic (and it is visible right away),
+    #   - a "forget" is only registered: the long term memory is never deleted by it, because it holds the preload.
+
+    PREFIX_SHORT = "S"
+    PREFIX_LONG = "L"
+    # The summary of a forget request. They are never consolidated nor pruned: removing them is a manual action.
+    FORGET_REQUEST_PREFIX = "FORGET REQUEST (not applied): "
+
+    @staticmethod
+    def parse_ref(ref) -> tuple[str, int] | None:
+        """ "S:12" -> ("S", 12), "L:5" -> ("L", 5). A bare number is a short term id. Anything else is None. """
+        match = re.fullmatch(r"(?:([SL])\s*[:\-]\s*)?(\d+)", str(ref).strip().upper())
+        if match is None:
+            return None
+        return (match.group(1) or Memory.PREFIX_SHORT, int(match.group(2)))
+
+    @staticmethod
+    def present_entry(entry: dict, prefix: str) -> dict:
+        """ The entry as the chatbot gets it: only what is useful, with the prefixed id. """
+        keys = ["summary", "content", "created_at", "language", "updated_at", "forget_requested_on", "pending_correction"]
+        presented = {"id": f"{prefix}:{entry['id']}"}
+        presented.update({key: entry[key] for key in keys if entry.get(key) is not None})
+        return presented
+
+    def search_memory_by_summary(self, summary: str) -> list[dict]:
+        """ Entries whose summary has the text, in both memories. The short term ones come first, the newest first. """
+        like = "%" + summary.lower() + "%"
+        short = self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, topic_id, status FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE LOWER(summary) LIKE ? ORDER BY id DESC", (like,))
+        topics = [row["topic_id"] for row in self._fetch_entries(
+            f"SELECT DISTINCT topic_id FROM {self.TABLE_LONG_TIME_MEMORY} "
+            "WHERE language IS NOT NULL AND topic_id IS NOT NULL AND LOWER(summary) LIKE ?", (like,))]
+        return self._merge_search_results(short, topics)
+
+    def search_memory_by_date(self, date_str: str) -> list[dict]:
+        """ Entries created (the long term ones, also updated) on that date, in both memories. """
+        date = Xtime.str_to_datetime(date_str, "%Y-%m-%d").date().isoformat()
+        short = self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, topic_id, status FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE DATE(created_at) = ? ORDER BY id", (date,))
+        topics = [row["topic_id"] for row in self._fetch_entries(
+            f"SELECT DISTINCT topic_id FROM {self.TABLE_LONG_TIME_MEMORY} "
+            "WHERE language IS NOT NULL AND topic_id IS NOT NULL AND (DATE(created_at) = ? OR DATE(updated_at) = ?)",
+            (date, date))]
+        return self._merge_search_results(short, topics)
+
+    def get_recent_memory(self, limit: int = 5) -> list[dict]:
+        """ The last short term entries, the recent information. """
+        return [self.present_entry(entry, self.PREFIX_SHORT) for entry in self.get_last_short_memory_entries(limit=limit) or []]
+
+    def get_memory_by_ref(self, ref) -> dict | None:
+        """ One entry by its prefixed id. None when the id is not valid or does not exist. """
+        parsed = self.parse_ref(ref)
+        if parsed is None:
+            return None
+        prefix, entry_id = parsed
+        if prefix == self.PREFIX_SHORT:
+            entry = self.get_short_memory_by_id(entry_id)
+            return self.present_entry(entry, prefix) if entry else None
+        rows = self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, topic_id, updated_at FROM {self.TABLE_LONG_TIME_MEMORY} WHERE id = ?", (entry_id,))
+        return self._present_long(rows[0], self._forget_requests_by_topic(), self._pending_corrections_by_topic()) if rows else None
+
+    def _merge_search_results(self, short_rows: list[dict], topic_ids: list[int]) -> list[dict]:
+        """
+        Short term first, then the long term topics in the language of the session.
+        A short term entry that is already consolidated in a topic that is in the results is not repeated: the topic
+        has it (and more). The ones that wait for the consolidation, or that are not in a topic, are always there.
+        """
+        long_rows = self._resolve_long_topics(topic_ids)
+        topics_found = {row["topic_id"] for row in long_rows}
+        forgets = self._forget_requests_by_topic()
+        corrections = self._pending_corrections_by_topic()
+        results = []
+        for entry in short_rows:
+            if entry["status"] in ("consolidated", "ignored") and entry["topic_id"] in topics_found:
+                continue
+            results.append(self.present_entry(entry, self.PREFIX_SHORT))
+        results.extend(self._present_long(row, forgets, corrections) for row in long_rows)
+        return results
+
+    def _resolve_long_topics(self, topic_ids: list[int]) -> list[dict]:
+        """
+        One row per topic: in the language of the session if it has it, otherwise in the default one, otherwise in
+        any. A version waiting to be regenerated (stale) is never returned: it has outdated content.
+        """
+        if not topic_ids:
+            return []
+        marks = ",".join("?" for _ in topic_ids)
+        rows = self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, topic_id, updated_at FROM {self.TABLE_LONG_TIME_MEMORY} "
+            f"WHERE language IS NOT NULL AND stale = 0 AND topic_id IN ({marks}) ORDER BY topic_id, id", tuple(topic_ids))
+        by_topic: dict[int, list[dict]] = {}
+        for row in rows:
+            by_topic.setdefault(row["topic_id"], []).append(row)
+        preferred = [self._session_language(), self._xconfig.get("app.default_language", "en")]
+        resolved = []
+        for versions in by_topic.values():
+            by_language = {version["language"]: version for version in versions}
+            resolved.append(next((by_language[lang] for lang in preferred if lang in by_language), versions[0]))
+        return resolved
+
+    def _present_long(self, row: dict, forgets: dict, corrections: dict) -> dict:
+        presented = dict(row)
+        presented["forget_requested_on"] = forgets.get(row["topic_id"])
+        # A pending short term entry linked to the topic is newer than it, and has the corrected content.
+        presented["pending_correction"] = f"{self.PREFIX_SHORT}:{corrections[row['topic_id']]}" if row["topic_id"] in corrections else None
+        return self.present_entry(presented, self.PREFIX_LONG)
+
+    def _pending_corrections_by_topic(self) -> dict[int, int]:
+        """ The topics with a correction waiting for the consolidation, with the id of the last one. """
+        rows = self._fetch_entries(
+            f"SELECT topic_id, MAX(id) AS entry_id FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE status = 'pending' AND topic_id IS NOT NULL GROUP BY topic_id")
+        return {row["topic_id"]: row["entry_id"] for row in rows}
+
+    def _forget_requests_by_topic(self) -> dict[int, str]:
+        """ The topics that someone asked to forget, with the date of the last request. """
+        rows = self._fetch_entries(
+            f"SELECT topic_id, MAX(created_at) AS requested FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE topic_id IS NOT NULL AND summary LIKE ? GROUP BY topic_id", (self.FORGET_REQUEST_PREFIX + "%",))
+        return {row["topic_id"]: row["requested"].split("T")[0] for row in rows}
+
+    def _is_forget_request(self, short_entry: dict) -> bool:
+        return str(short_entry.get("summary", "")).startswith(self.FORGET_REQUEST_PREFIX)
+
+    def update_memory_by_ref(self, ref, summary: str, content: str) -> dict:
+        """
+        Edits an entry by its prefixed id. Returns {"result": ..., "entry": ...} where result is:
+        `updated` (short term), `correction_saved` (long term: a short term entry with the correction was created),
+        `not_found`, `invalid` or `protected` (a forget request, that can only be removed by hand).
+        """
+        parsed = self.parse_ref(ref)
+        if parsed is None:
+            return {"result": "invalid", "entry": None}
+        prefix, entry_id = parsed
+        if prefix == self.PREFIX_SHORT:
+            entry = self.get_short_memory_by_id(entry_id)
+            if entry is None:
+                return {"result": "not_found", "entry": None}
+            if self._is_forget_request(entry):
+                return {"result": "protected", "entry": None}
+            updated = self.update_short_memory_entry_by_id(entry_id, summary=summary, content=content)
+            return {"result": "updated", "entry": self.present_entry(updated, prefix)}
+        topic = self._long_entry_for_correction(entry_id)
+        if topic is None:
+            return {"result": "not_found", "entry": None}
+        created = self.create_short_memory_entry(
+            summary=summary[:self.SUMMARY_MAX_LENGTH],
+            content=f"{content}\n\n(Correction to the long term memory topic: \"{topic['summary']}\")")
+        # Linked to its topic: search flags the topic, and the consolidation knows what it corrects.
+        self._execute(f"UPDATE {self.TABLE_SHORT_TIME_MEMORY} SET topic_id = ? WHERE id = ?", (topic["topic_id"], created["id"]))
+        return {"result": "correction_saved", "entry": self.present_entry(created, self.PREFIX_SHORT)}
+
+    def forget_memory_by_ref(self, ref) -> dict:
+        """
+        The user asks to forget an entry. A short term entry that is not in the long term memory is deleted.
+        Anything in the long term memory is NOT: a forget request is registered (short term, pending nothing) and the
+        information stays. Returns {"result": ..., "entry": ...}: `deleted`, `forget_registered`, `not_found`,
+        `invalid` or `protected`.
+        """
+        parsed = self.parse_ref(ref)
+        if parsed is None:
+            return {"result": "invalid", "entry": None}
+        prefix, entry_id = parsed
+        if prefix == self.PREFIX_SHORT:
+            entry = self._fetch_entries(
+                f"SELECT {self.ENTRY_COLUMNS}, topic_id FROM {self.TABLE_SHORT_TIME_MEMORY} WHERE id = ?", (entry_id,))
+            if not entry:
+                return {"result": "not_found", "entry": None}
+            entry = entry[0]
+            if self._is_forget_request(entry):
+                return {"result": "protected", "entry": None}
+            if entry["topic_id"] is None:
+                self._execute(f"DELETE FROM {self.TABLE_SHORT_TIME_MEMORY} WHERE id = ?", (entry_id,))
+                return {"result": "deleted", "entry": self.present_entry(entry, prefix)}
+            # It is already part of a topic of the long term memory: that is what cannot be forgotten.
+            topic = self._topic_version(entry["topic_id"])
+        else:
+            topic = self._long_entry_for_correction(entry_id)
+        if topic is None:
+            return {"result": "not_found", "entry": None}
+        return {"result": "forget_registered", "entry": self._register_forget_request(topic)}
+
+    def _long_entry_for_correction(self, long_id: int) -> dict | None:
+        rows = self._fetch_entries(
+            f"SELECT id, summary, topic_id FROM {self.TABLE_LONG_TIME_MEMORY} WHERE id = ?", (long_id,))
+        return rows[0] if rows else None
+
+    def _topic_version(self, topic_id: int) -> dict | None:
+        rows = self._resolve_long_topics([topic_id])
+        return rows[0] if rows else None
+
+    def _register_forget_request(self, topic: dict) -> dict:
+        """ Creates (once per topic) the short term entry that says the user asked to forget it. It is never consolidated. """
+        existing = self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS} FROM {self.TABLE_SHORT_TIME_MEMORY} WHERE topic_id = ? AND summary LIKE ? LIMIT 1",
+            (topic["topic_id"], self.FORGET_REQUEST_PREFIX + "%"))
+        if existing:
+            return self.present_entry(existing[0], self.PREFIX_SHORT)
+        entry = self.create_short_memory_entry(
+            summary=(self.FORGET_REQUEST_PREFIX + topic["summary"])[:self.SUMMARY_MAX_LENGTH],
+            content=(f"The user asked to forget the long term memory entry \"{topic['summary']}\", but it is not allowed to "
+                     "delete it. The information is still stored."))
+        # Already resolved: the consolidation skips it, and pruning does not delete it.
+        self._execute(
+            f"UPDATE {self.TABLE_SHORT_TIME_MEMORY} SET status = 'ignored', consolidated_at = ?, topic_id = ? WHERE id = ?",
+            (Xtime.now().isoformat(), topic["topic_id"], entry["id"]))
+        return self.present_entry(entry, self.PREFIX_SHORT)
 
     # ----- Real Memory API, requires to specify the table -----
 

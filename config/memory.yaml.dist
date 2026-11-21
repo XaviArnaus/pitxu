@@ -97,6 +97,7 @@ memory:
       - `existing_topics`: the long term topics in that language, each one with `topic_id`, `summary`, `content`,
         `updated_at`, and `curated` (true if it comes from the configuration of the user).
       - `pending_entries`: the new entries, oldest first, each one with `id`, `summary`, `content` and `created_at`.
+        When it has `correction_of_topic`, the entry is a correction of the topic with that `topic_id`.
 
       # Output
       A JSON object with `operations`, a list. Each operation has:
@@ -124,6 +125,10 @@ memory:
          allowed. Replace pronouns and relative dates ("tomorrow", "next Monday") by the real entities and absolute dates,
          using `today`.
       8. Never invent information.
+      9. An entry with `correction_of_topic` (its text also says "Correction to the long term memory topic: <title>") must
+         `update` that topic with the corrected information, replacing whatever it contradicts, even if the topic is
+         `curated`. Its `content` is the corrected version of the topic: use it as the base, and keep what it does not
+         contradict.
 
       # Input
       %s

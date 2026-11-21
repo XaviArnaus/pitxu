@@ -268,11 +268,16 @@ class MemoryConsolidator(PyXavi):
         if len(topics) <= max_candidates:
             return topics
 
+        # The topics that an entry of the batch says to correct are always candidates.
+        linked_ids = {entry["topic_id"] for entry in batch if entry.get("topic_id")}
+        linked = [topic for topic in topics if topic["topic_id"] in linked_ids]
+        topics = [topic for topic in topics if topic["topic_id"] not in linked_ids]
+
         batch_words = self._words(" ".join(f"{entry['summary']} {entry['content']}" for entry in batch))
         scored = [(len(batch_words & self._words(f"{topic['summary']} {topic['content']}")), topic) for topic in topics]
         scored = [item for item in scored if item[0] > 0]
         scored.sort(key=lambda item: item[0], reverse=True)
-        return [topic for _, topic in scored[:max_candidates]]
+        return linked + [topic for _, topic in scored[:max(0, max_candidates - len(linked))]]
 
     @staticmethod
     def _words(text: str) -> set[str]:
@@ -285,12 +290,14 @@ class MemoryConsolidator(PyXavi):
         if not template:
             raise ValueError("There is no memory.consolidation.prompt in the config")
         now = Xtime.now()
+        topic_ids = {topic["topic_id"] for topic in topics}
         data = {
             "today": f"{now.strftime('%A %Y-%m-%d %H:%M')} ({now.astimezone().tzname()})",
             "language": language,
             "existing_topics": topics,
             "pending_entries": [
-                {"id": entry["id"], "summary": entry["summary"], "content": entry["content"], "created_at": entry["created_at"]}
+                {"id": entry["id"], "summary": entry["summary"], "content": entry["content"], "created_at": entry["created_at"],
+                 **({"correction_of_topic": entry["topic_id"]} if entry.get("topic_id") in topic_ids else {})}
                 for entry in batch
             ],
         }
