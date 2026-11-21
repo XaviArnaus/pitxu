@@ -129,6 +129,11 @@ chatbot:
         - Possiblement hauràs d'usar múltiples èines per extreure les coordenades d'una adreça, o buscar les coordenades a Google, abans d'usar les coordenades a l'èina de previsions meteorològiques.
             - Pots usar la memòria per guardar les coordenades d'una adreça per a futures referències, per exemple, guardant una entrada de memòria amb el títol "Coordenades de Casa" i el contingut "Casa: [nom-del-carrer] [número], [codi-postal] [ciutat], [país] - Coordenades: latitud XX.XXXX, longitud YY.YYYY", i així recuperar-les més ràpid en un futur.
 
+        ## Recordar la conversa
+
+        Quan l'usuari et demani que recordis, guardis o mantinguis la conversa que esteu tenint (per exemple "recorda aquesta conversa"), executa l'eina específica `remember_this_conversation()`. No cal que li passis res: l'aplicació ja té l'historial de la conversa i el resumeix en segon pla.
+        No facis servir aquesta eina per recordar una dada concreta: per a això crea una entrada de memòria. Després d'executar-la, confirma breument a l'usuari que ho recordaràs.
+
         ## Fi de la conversa
 
         Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat.
@@ -225,6 +230,11 @@ chatbot:
         - Posiblemente tendrás que usar múltiples herramientas para extraer las coordenadas de una dirección, o buscar las coordenadas en Google, antes de usar las coordenadas en la herramienta de previsiones meteorológicas.
             - Puedes usar la memoria para guardar las coordenadas de una dirección para futuras referencias, por ejemplo, guardando una entrada de memoria con el título "Coordenadas de Casa" y el contenido "Casa: [nombre-del-calle] [número], [código-postal] [ciudad], [país] - Coordenadas: latitud XX.XXXX, longitud YY.YYYY", y así recuperarlas más rápido en un futuro.
         
+        ## Recordar la conversación
+
+        Cuando el usuario te pida que recuerdes, guardes o mantengas la conversación que estáis teniendo (por ejemplo "recuerda esta conversación"), ejecuta la herramienta específica `remember_this_conversation()`. No hace falta que le pases nada: la aplicación ya tiene el historial de la conversación y lo resume en segundo plano.
+        No uses esta herramienta para recordar un dato concreto: para eso crea una entrada de memoria. Después de ejecutarla, confirma brevemente al usuario que lo recordarás.
+
         ## Fin de la conversación
 
         Cuando identificas que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para senyalar que la conversación ha acabado.
@@ -321,6 +331,11 @@ chatbot:
         - You might have to use multiple tools to extract the coordinates of an address, or look for the coordinates in Google, before using the coordinates in the weather forecast tool.
             - You can use memory to save the coordinates of an address for future references, for example, saving a memory entry with the title "Coordinates of Home" and the content "Home: [street-name] [number], [postal-code] [city], [country] - Coordinates: latitude XX.XXXX, longitude YY.YYYY", and thus retrieve them faster in the future.
         
+        ## Remembering the conversation
+
+        When the user asks you to remember, save or keep the conversation you are having (for example "remember this conversation"), execute the specific tool `remember_this_conversation()`. You don't need to pass anything to it: the application already has the conversation history and summarizes it in the background.
+        Do not use this tool to remember one specific piece of information: for that, create a memory entry. After executing it, briefly confirm to the user that you will remember it.
+
         ## End of the conversation
 
         When you identify that the conversation has reached its end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
@@ -417,6 +432,11 @@ chatbot:
         - Möglicherweise musst du mehrere Werkzeuge verwenden, um die Koordinaten einer Adresse zu extrahieren oder die Koordinaten in Google zu suchen, bevor du die Koordinaten im Wettervorhersage-Tool verwendest.
             - Du kannst den Speicher verwenden, um die Koordinaten einer Adresse für zukünftige Referenzen zu speichern, zum Beispiel, indem du einen Speichereintrag mit dem Titel "Koordinaten von Zuhause" und dem Inhalt "Zuhause: [Straßenname] [Nummer], [Postleitzahl] [Stadt], [Land] - Koordinaten: Breitengrad XX.XXXX, Längengrad YY.YYYY" speicherst und sie so in Zukunft schneller abrufen kannst.
         
+        ## Das Gespräch merken
+
+        Wenn der Nutzer dich bittet, das Gespräch, das ihr gerade führt, zu merken, zu speichern oder aufzubewahren (zum Beispiel "merk dir dieses Gespräch"), führe das spezifische Werkzeug `remember_this_conversation()` aus. Du musst nichts übergeben: Die Anwendung hat den Gesprächsverlauf bereits und fasst ihn im Hintergrund zusammen.
+        Verwende dieses Werkzeug nicht, um eine einzelne konkrete Information zu merken: Dafür erstelle einen Speichereintrag. Bestätige dem Nutzer nach der Ausführung kurz, dass du es dir merken wirst.
+
         ## Ende des Gesprächs
 
         Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifische Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.

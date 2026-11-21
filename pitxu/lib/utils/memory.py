@@ -4,10 +4,13 @@ from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.database.db_sqlite import DbSqlite
 
 from google import genai
-from google.genai.errors import ServerError
+from google.genai import types
+from google.genai.errors import ClientError, ServerError
 
 import json
 import logging
+import re
+import time
 
 class Memory(PyXavi):
 
@@ -17,7 +20,13 @@ class Memory(PyXavi):
     TABLE_LONG_TIME_MEMORY = "long_time_memory"
     TABLE_KNOWLEDGE_BASE = "knowledge_base"
 
-    RETRIES_ON_SUMMARIZATION_FAILURE = 3
+    # Defaults of the summarization, overridable in `memory.summarization.*` of the config.
+    SUMMARIZATION_RETRIES = 3
+    SUMMARIZATION_BACKOFF_SECONDS = 2
+    SUMMARIZATION_REQUEST_TIMEOUT_SECONDS = 20
+    SUMMARIZATION_MAX_TOTAL_SECONDS = 40
+    # The column is VARCHAR(255), that SQLite does not enforce.
+    SUMMARY_MAX_LENGTH = 255
 
     GENAI_LIB_LOG_LEVEL: int = logging.INFO
     HTTPCORE_LIB_LOG_LEVEL: int = logging.INFO
@@ -223,62 +232,163 @@ class Memory(PyXavi):
 
     def summarize_chatbot_history_as_memory_entry(self, chatbot_history: list[dict]) -> dict | None:
         '''
-        Summarizes the given chatbot history and returns a memory entry with the summary as the content.
+        Summarizes the given chatbot history into a memory entry, using an external LLM.
 
         Args:
-            chatbot_history (list[dict]): The history of the chatbot conversation, where each entry is a dictionary with "role" and "content".
+            chatbot_history (list[dict]): The history of the chatbot conversation, as a list of dictionaries.
 
         Returns:
-            dict | None: The summarized memory entry or None if summarization fails.
+            dict | None:
+                - `{"significant": True, "summary": str, "content": str}` when there is something worth remembering.
+                - `{"significant": False}` when the conversation has nothing worth storing. It is not an error.
+                - `None` when the summarization failed (no key, LLM error, unusable answer).
         '''
-        original_retries = retries = self.RETRIES_ON_SUMMARIZATION_FAILURE
         try:
-            chatbot_history_str = json.dumps(chatbot_history)
-            prompt = self._xconfig.get("memory.summary_prompt." + self._xparams.get("language")) % chatbot_history_str
-
-            retries = 1
-            while retries <= original_retries:
-                self._xlog.debug(f"Summarizing. Try #{retries} / {original_retries}")
-                retries += 1
-
-                try:
-                    client = genai.Client(api_key=self._xparams.get("api_key"))
-                    model = self._xconfig.get("memory.summarization_model", "gemini-2.5-flash")
-                    response = client.models.generate_content(
-                        model=model,
-                        contents=prompt,
-                        # config=types.GenerateContentConfig(
-                        #     system_instruction=instructions[self._xparams.get('language')],
-                        #     tools=tools
-                        # )
-                    )
-                except ServerError as e:
-                    self._xlog.error(f"🛑 Gemini Server error using [{model}] during summarization: [{e.code}] {e.message}")
-                    response = None
-
-                if response is not None:
-                    self._log_debug("Summarization successful.")
-                    break
-
-            response_as_dict = None
-            if response is not None:
-                response_as_str = response.text.replace("```json", "").replace("```", "")
-                self._xlog.debug(f"Summarization response: \n{response_as_str}")
-            else:
-                self._xlog.error("🛑 Summarization failed after " + str(original_retries) + " retries.")
+            api_key = self._xparams.get("api_key")
+            if not api_key:
+                self._xlog.error("🛑 Cannot summarize the chatbot history: there is no API key.")
                 return None
 
-            try:
-                response_as_dict = json.loads(response_as_str)
-            except json.JSONDecodeError:
-                pass
+            prompt = self._build_summarization_prompt(chatbot_history)
 
-            return response_as_dict
+            response_text = self._request_summarization(prompt=prompt, api_key=api_key)
+            if response_text is None:
+                return None
+            self._xlog.debug(f"Summarization response: \n{response_text}")
+
+            return self._parse_summarization_response(response_text)
 
         except Exception as e:
             self._xlog.error(f"🛑 Error summarizing chatbot history as a memory entry: {e}")
             self._xlog.debug(full_stack())
             return None
+
+    def _build_summarization_prompt(self, chatbot_history: list[dict]) -> str:
+        """
+        The prompt of the configured language, with the history in it and (if configured) the current date,
+        needed to turn "tomorrow" or "next Monday" into absolute dates.
+        """
+        language = self._xparams.get("language")
+        template = self._xconfig.get("memory.summary_prompt." + str(language))
+        if not template:
+            raise ValueError(f"There is no summary prompt for the language [{language}] in memory.summary_prompt")
+
+        # ensure_ascii=False: keep the accents as they are. default=str: whatever is not serializable (function args).
+        chatbot_history_str = json.dumps(chatbot_history, ensure_ascii=False, default=str)
+        # A plain replace instead of `%`: a % in the template or in the history can't break it.
+        prompt = template.replace("%s", chatbot_history_str, 1)
+
+        if self._xconfig.get("memory.summarization.include_current_date", True):
+            now = Xtime.now()
+            prompt = f"Current date and time: {now.strftime('%A %Y-%m-%d %H:%M')} ({now.astimezone().tzname()})\n\n" + prompt
+
+        return prompt
+
+    def _request_summarization(self, prompt: str, api_key: str) -> str | None:
+        """
+        Asks the LLM for the summary, as JSON. Retries (with exponential backoff, within an overall time budget)
+        when the problem may be temporary: server errors, quota (429) and network errors.
+        Returns the text of the answer, or None if it failed.
+        """
+        retries = int(self._xconfig.get("memory.summarization.retries", self.SUMMARIZATION_RETRIES))
+        backoff_seconds = float(self._xconfig.get("memory.summarization.backoff_seconds", self.SUMMARIZATION_BACKOFF_SECONDS))
+        request_timeout = float(self._xconfig.get("memory.summarization.request_timeout_seconds", self.SUMMARIZATION_REQUEST_TIMEOUT_SECONDS))
+        max_total_seconds = float(self._xconfig.get("memory.summarization.max_total_seconds", self.SUMMARIZATION_MAX_TOTAL_SECONDS))
+        model = self._xconfig.get("memory.summarization_model", "gemini-2.5-flash")
+
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(request_timeout * 1000)))
+        generation_config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=self._summarization_response_schema())
+
+        started_at = time.monotonic()
+        for attempt in range(1, retries + 1):
+            self._xlog.debug(f"Summarizing. Try #{attempt} / {retries}")
+
+            # Only the request is inside the try: a bug in our own code must not look like a network problem to retry.
+            try:
+                response = client.models.generate_content(model=model, contents=prompt, config=generation_config)
+            except ServerError as e:
+                problem = f"Server error [{e.code}] {e.message}"
+            except ClientError as e:
+                if e.code != 429:
+                    # Bad key, bad request...: it will not get better by trying again.
+                    self._xlog.error(f"🛑 Client error using [{model}] during summarization, not retrying: [{e.code}] {e.message}")
+                    return None
+                problem = f"Quota exceeded [{e.code}] {e.message}"
+            except Exception as e:
+                # Network errors and timeouts.
+                problem = f"{type(e).__name__}: {e}"
+            else:
+                if response.text:
+                    self._log_debug("Summarization successful.")
+                    return response.text
+                # Nothing to read: blocked or empty. Asking again would give the same.
+                finish_reason = response.candidates[0].finish_reason if response.candidates else "no candidates"
+                self._xlog.error(f"🛑 The summarization of [{model}] has no text. Finish reason: {finish_reason}")
+                return None
+
+            self._xlog.warning(f"🟠 Summarization try #{attempt} / {retries} failed using [{model}]: {problem}")
+
+            if attempt >= retries:
+                break
+            wait_seconds = backoff_seconds * (2 ** (attempt - 1))
+            if time.monotonic() - started_at + wait_seconds >= max_total_seconds:
+                self._xlog.warning(f"🟠 Not retrying the summarization: the {max_total_seconds}s budget would be exceeded.")
+                break
+            time.sleep(wait_seconds)
+
+        self._xlog.error(f"🛑 Summarization failed after {attempt} tries.")
+        return None
+
+    @staticmethod
+    def _summarization_response_schema() -> types.Schema:
+        """ `significant` is optional on purpose: a missing one counts as significant. """
+        return types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "significant": types.Schema(type=types.Type.BOOLEAN),
+                "summary": types.Schema(type=types.Type.STRING),
+                "content": types.Schema(type=types.Type.STRING),
+            })
+
+    def _parse_summarization_response(self, response_text: str) -> dict | None:
+        """
+        Turns the answer of the LLM into the result described in summarize_chatbot_history_as_memory_entry().
+        It is tolerant: the JSON mode should give plain JSON, but if there are fences or text around it, it is extracted.
+        """
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", response_text.strip())
+
+        data = None
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            found = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if found:
+                try:
+                    data = json.loads(found.group(0))
+                except json.JSONDecodeError:
+                    pass
+
+        if not isinstance(data, dict):
+            self._xlog.error(f"🛑 The summarization response is not a valid JSON object: {response_text[:500]!r}")
+            return None
+
+        summary = data.get("summary")
+        content = data.get("content")
+        summary = summary.strip() if isinstance(summary, str) else ""
+        content = content.strip() if isinstance(content, str) else ""
+
+        # Explicitly not significant, or nothing produced at all: there is nothing to store, and that's fine.
+        if str(data.get("significant", True)).lower() == "false" or (summary == "" and content == ""):
+            self._xlog.info("🧠 The conversation has nothing significant to store in the memory.")
+            return {"significant": False}
+
+        if summary == "" or content == "":
+            self._xlog.error(f"🛑 The summarization response misses the summary or the content: {response_text[:500]!r}")
+            return None
+
+        return {"significant": True, "summary": summary[:self.SUMMARY_MAX_LENGTH], "content": content}
 
     def preload_memory(self):
         """
@@ -304,51 +414,3 @@ class Memory(PyXavi):
         if self.db is not None:
             self.db.close()
         self._xlog.info("Memory closed")
-
-# 2026-07-13 17:32:01,888 [Support     MainThread            ] DEBUG    pitxu        Summarizing. Try #1 / 3
-# 2026-07-13 17:32:01,888 [Support     MainThread            ] ERROR    pitxu        🛑 Error summarizing chatbot history as a memory entry: Missing key inputs argument! To use the Google AI API, provide (`api_key`) arguments. To use the Google Cloud API, provide (`vertexai`, `project` & `location`) arguments.
-# 2026-07-13 17:32:01,896 [Support     MainThread            ] DEBUG    pitxu        Traceback (most recent call last):
-#   File "<string>", line 1, in <module>
-#     from multiprocessing.forkserver import main; main(12, 13, ['__main__'], **{'sys_path': ['/home/xavier/pitxu', '/usr/lib/python313.zip', '/usr/lib/python3.13', '/usr/lib/python3.13/lib-dynload', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages', '/home/xavier/pitxu', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/local/lib/python3.13/dist-packages', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3/dist-packages', '/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/dist-packages']})
-#   File "/usr/lib/python3.13/multiprocessing/forkserver.py", line 279, in main
-#     code = _serve_one(child_r, fds,
-#   File "/usr/lib/python3.13/multiprocessing/forkserver.py", line 319, in _serve_one
-#     code = spawn._main(child_r, parent_sentinel)
-#   File "/usr/lib/python3.13/multiprocessing/spawn.py", line 135, in _main
-#     return self._bootstrap(parent_sentinel)
-#   File "/usr/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
-#     self.run()
-#   File "/home/xavier/pitxu/pitxu/lib/abstract/xprocess.py", line 95, in run
-#     self.run_with_context(self._xconfig, self._xlog, action, param)
-#   File "/home/xavier/pitxu/pitxu/lib/support_process/support_process.py", line 77, in run_with_context
-#     self.summarize_and_store_in_memory(param)
-#   File "/home/xavier/pitxu/pitxu/lib/support_process/support_process.py", line 97, in summarize_and_store_in_memory
-#     self.summarizer.summarize_and_store_in_memory(chatbot_history)
-#   File "/home/xavier/pitxu/pitxu/lib/support_process/summarizer.py", line 30, in summarize_and_store_in_memory
-#     memory_entry = self.memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
-#   File "/home/xavier/pitxu/pitxu/lib/utils/memory.py", line 243, in summarize_chatbot_history_as_memory_entry
-#     client = genai.Client(api_key=self._xparams.get("api_key"))
-#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/client.py", line 426, in __init__
-#     self._api_client = self._get_api_client(
-#                        ~~~~~~~~~~~~~~~~~~~~^
-#         vertexai=vertexai,
-#         ^^^^^^^^^^^^^^^^^^
-#     ...<5 lines>...
-#         http_options=http_options,
-#         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-#     )
-#     ^
-#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/client.py", line 474, in _get_api_client
-#     return BaseApiClient(
-#         vertexai=vertexai,
-#     ...<4 lines>...
-#         http_options=http_options,
-#     )
-#   File "/home/xavier/.cache/pypoetry/virtualenvs/pitxu-NgTWjTn--py3.13/lib/python3.13/site-packages/google/genai/_api_client.py", line 690, in __init__
-#     raise ValueError(
-#     ...<3 lines>...
-#     )
-# ValueError: Missing key inputs argument! To use the Google AI API, provide (`api_key`) arguments. To use the Google Cloud API, provide (`vertexai`, `project` & `location`) arguments.
-
-# 2026-07-13 17:32:01,897 [Support     MainThread            ] WARNING  pitxu        Chatbot history could not be summarized into a valid memory entry at exit.
-# 2026-07-13 17:32:01,897 [Support     MainThread            ] DEBUG    pitxu        ... all those moments will be lost in time, like tears in rain.

@@ -285,6 +285,15 @@ class Main(PyXavi):
         self._log_debug("Chatbot session reset after end of conversation request.")
         asyncio.run_coroutine_threadsafe(self._warmup_chatbot(), asyncio.get_event_loop())
 
+    def on_remember_conversation_requested(self):
+        """
+        The user asked (through the chatbot tool) to remember the conversation, and the conversation goes on.
+        What was said so far is summarized into the memory. The session is not reset: whatever is said from now on
+          is summarized later (when the conversation ends or the application closes).
+        """
+        self._xlog.info("🧠 User asks to remember the current conversation, via chatbot tool callback.")
+        self._summarize_current_conversation(reason="requested by the user")
+
     def _summarize_current_conversation(self, reason: str, wait: bool = False) -> bool:
         """
         Sends the conversation of the current chatbot session to be summarized and stored in the memory.
@@ -1847,6 +1856,7 @@ class Main(PyXavi):
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
             "end_of_conversation_callback": self.on_end_of_conversation_requested,
+            "remember_conversation_callback": self.on_remember_conversation_requested,
             "input_stream": input_stream,
             "language": self._xparams.get("language"),
             "state": self._state,

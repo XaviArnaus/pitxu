@@ -19,6 +19,16 @@ memory:
     # [Integer] Seconds to wait for the summary to be done when the application closes, before giving up.
     #   Keep it below the systemd TimeoutStopSec (90 by default), as the closing has more steps.
     close_timeout_seconds: 45
+    # [Integer] Attempts to get the summary from the LLM. It retries on server errors, quota (429) and network errors.
+    retries: 3
+    # [Float] Seconds to wait before the second attempt. It doubles on every following one.
+    backoff_seconds: 2
+    # [Float] Seconds to wait for one answer of the LLM.
+    request_timeout_seconds: 20
+    # [Float] Overall budget in seconds for all the attempts and waits. No new attempt starts if it would exceed it.
+    max_total_seconds: 40
+    # [Boolean] Tell the LLM the current date and time, needed to turn "tomorrow" or "next Monday" into absolute dates.
+    include_current_date: True
   # [String] Model to use for summarizing the chatbot history into a memory entry.
   summarization_model: gemini-3.1-flash-lite
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
@@ -44,9 +54,14 @@ memory:
       # Format de sortida
       La sortida es un objecte JSON amb el següent format:
       {
+        "significant": true,
         "summary": "Un títol d'una sola línia sobre el resum de la conversa del chatbot",
         "content": "Un resum concís de la conversa del chatbot que capturi els punts principals i el context"
       }
+
+      # Rellevància
+      - El camp `significant` és un booleà. Posa'l a `true` quan la conversa conté alguna cosa que valgui la pena recordar més endavant: dades, decisions, preferències, plans, respostes, recursos o ubicacions.
+      - Posa'l a `false` i deixa `summary` i `content` com a cadenes buides quan la conversa només tingui salutacions, xerrameca, proves o qualsevol cosa sense valor per recordar més endavant.
 
       # Pautes
       Segueix aquestes pautes quan resumeixis l'historial de converses del chatbot:
@@ -96,10 +111,15 @@ memory:
       # Formato de salida
       La salida es un objeto JSON con el siguiente formato:
       {
+        "significant": true,
         "summary": "Un título de una sola línea sobre el resumen de la conversación del chatbot",
         "content": "Un resumen conciso de la conversación del chatbot que capture los puntos principales y el contexto"
       }
       
+      # Relevancia
+      - El campo `significant` es un booleano. Ponlo a `true` cuando la conversación contiene algo que valga la pena recordar más adelante: datos, decisiones, preferencias, planes, respuestas, recursos o ubicaciones.
+      - Ponlo a `false` y deja `summary` y `content` como cadenas vacías cuando la conversación solo tenga saludos, charla trivial, pruebas o cualquier cosa sin valor para recordar más adelante.
+
       # Pautas
       Sigue estas pautas cuando resumas el historial de conversaciones del chatbot:
 
@@ -148,10 +168,15 @@ memory:
       # Output Format
       The output is a JSON object with the following format:
       {
+        "significant": true,
         "summary": "A one line headline of the chatbot conversation summary",
         "content": "A concise summary of the chatbot conversation that captures the main points and context"
       }
       
+      # Significance
+      - The field `significant` is a boolean. Set it to `true` when the conversation contains something worth remembering later: facts, decisions, preferences, plans, answers, resources or locations.
+      - Set it to `false` and leave `summary` and `content` as empty strings when the conversation only has greetings, small talk, tests or anything without value to remember later.
+
       # Guidelines
       Follow these guidelines when summarizing the chatbot conversation history:
 
@@ -200,9 +225,14 @@ memory:
       # Ausgabeformat
       Die Ausgabe ist ein JSON-Objekt mit folgendem Format:
       {
+        "significant": true,
         "summary": "Eine einzeilige Überschrift der Chatbot-Gesprächszusammenfassung",
         "content": "Eine prägnante Zusammenfassung des Chatbot-Gesprächs, die die wichtigsten Punkte und den Kontext erfasst"
       }
+
+      # Relevanz
+      - Das Feld `significant` ist ein Boolean. Setze es auf `true`, wenn das Gespräch etwas enthält, das es wert ist, später erinnert zu werden: Fakten, Entscheidungen, Vorlieben, Pläne, Antworten, Ressourcen oder Orte.
+      - Setze es auf `false` und lasse `summary` und `content` als leere Zeichenketten, wenn das Gespräch nur Begrüßungen, Smalltalk, Tests oder etwas ohne Wert für spätere Erinnerung enthält.
 
       # Richtlinien
       Befolgen Sie diese Richtlinien, wenn Sie den Chatbot-Gesprächsverlauf zusammenfassen:

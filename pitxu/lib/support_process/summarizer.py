@@ -25,15 +25,19 @@ class Summarizer(PyXavi):
     
     def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
 
-        self._log_debug(f"Chatbot history at exit has: {len(chatbot_history)} entries. Summarizing it using LLM...")
+        self._log_debug(f"Chatbot history has: {len(chatbot_history)} entries. Summarizing it using LLM...")
         # Summarize the chatbot history into a memory entry, and write it into the memory if the summarization was successful.
         memory_entry = self.memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
         self._log_debug(f"Memory entry generated from chatbot history summary: {memory_entry}")
-        if memory_entry is not None and "summary" in memory_entry and "content" in memory_entry:
+
+        if memory_entry is not None and memory_entry.get("significant") is False:
+            # Not a failure: the conversation had nothing worth remembering.
+            self._xlog.info("Chatbot history has nothing significant to remember, nothing written into memory.")
+        elif memory_entry is not None and memory_entry.get("summary") and memory_entry.get("content"):
             self.memory.create_short_memory_entry(summary=memory_entry["summary"], content=memory_entry["content"])
-            self._xlog.info("Chatbot history summarized and written into memory at exit.")
+            self._xlog.info("Chatbot history summarized and written into memory.")
         else:
-            self._xlog.warning("Chatbot history could not be summarized into a valid memory entry at exit.")
+            self._xlog.warning("Chatbot history could not be summarized into a valid memory entry.")
             # do you get the reference to the movie "Blade Runner"?
             # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
             self._xlog.debug("... all those moments will be lost in time, like tears in rain.")

@@ -205,71 +205,25 @@ class StatefulMemory(PyXavi, Command):
             self._xlog.debug(full_stack())
             return None
     
-    def summarize_chatbot_history_into_new_memory_entry(self, chatbot_history: list[dict]) -> dict | str:
+    def remember_this_conversation(self) -> bool:
         '''
-        Summarizes the chatbot history and creates a memory entry with the summary as the content.
+        Requests to remember the current conversation: it gets summarized and stored in the memory.
+        Use it when the user asks to remember, save or keep what has been talked about in this conversation as a whole.
+        Do not use it to remember one specific fact or piece of information: for that, create a memory entry.
 
-        Args:
-            chatbot_history (list[dict]): The history of the chatbot conversation, where each entry is a dictionary with "role" and "content".
+        The application takes the conversation history by itself, there is nothing to pass.
+        The summary is done in the background, so there is nothing to wait for nor to tell about its content.
 
         Returns:
-            dict | str: The created memory entry or an error message.
+            bool: True when the request was registered.
         '''
-        # Apparently the prompt always comes in English, so no need to translate it.
-        # Still, looking at the logs, it's not always the case.
-        self._xlog.debug(f"Ⓜ️ Summarizing the current Chatbot history into a memory entry using language [{self._xparams.get('language')}]")
+        self._xlog.info("Ⓜ️ Request for remembering the current conversation")
         if self.status_shortcuts:
-            self.status_shortcuts.add_new_status_line(f"🔧 Memory: Summarizing chatbot history into a new memory entry")
+            self.status_shortcuts.add_new_status_line("🔧 Memory: Remember this conversation")
+        # The real work is done by the application when it reacts on this tool call (see Reactions),
+        #   as it is the one that has the chatbot history.
+        return True
 
-        try:
-            response_as_dict = self._memory.summarize_chatbot_history_as_memory_entry(chatbot_history=chatbot_history)
-
-            if response_as_dict is not None:
-                summary = response_as_dict.get("summary", None)
-                content = response_as_dict.get("content", None)
-
-                if summary is not None and content is not None:
-                    created_entry = self._memory.create_short_memory_entry(summary, content)
-                    return created_entry
-                else:
-                    self._xlog.error(f"🛑 Error summarizing chatbot history into memory entry: The response JSON does not contain 'summary' or 'content' fields.")
-                    return self._xconfig.get("language.memory.summarization_error_no_summary_fields." + self._xparams.get("language"))
-            else:
-                return self._xconfig.get("language.memory.summarization_error_invalid_json." + self._xparams.get("language"))
-        except Exception as e:
-            self._xlog.error(f"🛑 Error summarizing chatbot history into memory entry: {e}")
-            self._xlog.debug(full_stack())
-            return self._xconfig.get("language.memory.summarization_error." + self._xparams.get("language"))
-    
-    def callback_summarize_chatbot_history_into_new_memory_entry(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
-        """
-        Callback for `summarize_chatbot_history_into_new_memory_entry` that gets called AFTER chatbot from `main`.
-
-        Args:
-            main_instance: The `main` application instance.
-            value: The value returned from the Chatbot AFTER it ran `summarize_chatbot_history_into_new_memory_entry`.
-
-        """
-        try:
-            summary = "unknown"
-            error = None
-            if isinstance(value, dict):
-                summary = value.get("summary", "unknown")
-            elif isinstance(value, str):
-                error = value
-
-            if error is None:
-                interaction.show_arbitrary_text_on_foreground_while_speaking(
-                            icon="Ⓜ️ ",
-                            text=summary,
-                            font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-            else:
-                log.error(f"🛑 Summarization result does not contain a summary to show on the Foreground.")
-                interaction.show_error(text=error)
-        except Exception as e:
-            log.error(f"🛑 Error showing the Chatbot summarization result: {e}")
-            log.error(full_stack())
-    
     def callback_show_entry_on_foreground(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
         """
         Callback for functions that return entries, such as `get_memory_entry_by_summary` or `get_memory_entry_by_date`, that gets called AFTER chatbot from `main`.
@@ -325,7 +279,7 @@ class StatefulMemory(PyXavi, Command):
                 self.get_last_five_memory_entries,
                 self.update_last_memory_entry,
                 self.update_memory_entry_by_id,
-                self.summarize_chatbot_history_into_new_memory_entry]
+                self.remember_this_conversation]
 
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
@@ -336,8 +290,6 @@ class StatefulMemory(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name == "summarize_chatbot_history_into_new_memory_entry":
-            return self.callback_summarize_chatbot_history_into_new_memory_entry
-        elif function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
+        if function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback
