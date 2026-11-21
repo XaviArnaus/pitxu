@@ -37,9 +37,20 @@ class DeviceWrapper(PyXavi, Device):
             if os.path.exists(self.path_for_mocked_images) == False:
                 os.makedirs(self.path_for_mocked_images)
 
-    def display(self, image: Image.Image, partial: bool = True):
+    def display(self, image: Image.Image, partial: bool = True, region: tuple[int, int, int, int] | None = None):
+        """
+        Shows the image, which is always the whole frame.
+
+        The mocked display ALWAYS stores the whole frame, whatever happens with the real device: the mocked pictures
+        are what allows to test the app without the hardware (reading them), so they can never be partial.
+        Any optimization that writes only a part of the frame is only for the real device, in its own class.
+
+        Args:
+            region: (left, top, right, bottom). Only for the real device: the rest of the image is what it already shows, so
+                it writes only that rectangle. The mocked display ignores it and stores the whole image.
+        """
         if (self.is_dsi_allowed()):
-            self.device.display(image)
+            self.device.display(image, region=region)
         else:
             if (self._xconfig.get("displays.discard_mocked_images", False)):
                 self._log_debug("Won't store mocked image due to [displays.discard_mocked_images].")

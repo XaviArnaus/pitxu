@@ -5,6 +5,7 @@ from pitxu.lib.speech_to_text.preprocess.preprocessor import Preprocessor
 from pitxu.lib.speech_to_text.speech_to_text import SpeechToTextException
 from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.utils.string_similarity import StringSimilarity
 
 from pitxu.lib.abstract.xprocess import Xprocess
 from pitxu.lib.objects import XprocAction
@@ -14,6 +15,7 @@ from faster_whisper import WhisperModel
 from faster_whisper.transcribe import Segment
 import os
 import numpy as np
+import time
 import logging
 import re
 
@@ -97,6 +99,17 @@ class FasterWhisperStreamProcess(Xprocess):
     _samplerate: int = 16000
     # What is the stability threshold for the merging process, in seconds.
     _stability_threshold: float = 2.0
+
+    # Boundary reconciliation between the last kept word and the first fresh word (see _merge_and_correct_transcription).
+    # Max seconds that the fresh word may start AFTER the end of the old one to still be considered the same word.
+    _BOUNDARY_MAX_GAP_S: float = 0.3
+    # Min share of the shorter word that has to overlap in time to consider both words the same acoustic region.
+    _BOUNDARY_MIN_OVERLAP_RATIO: float = 0.5
+    # Min text similarity (0..1) to consider a mistranscribed truncated word the same word as the fresh one.
+    _BOUNDARY_MIN_TEXT_SIMILARITY: float = 0.6
+    # Min length of the old word (without punctuation) to trust the gap tolerance and the similarity.
+    #   Protects very short genuine words ("I it", "no no").
+    _BOUNDARY_MIN_WORD_LEN: int = 3
 
     # List of human expressions that do not add any value, just noise.
     # Take these as default. The list gets overwritten by the config if there is a specific one for the language.
@@ -391,6 +404,7 @@ class FasterWhisperStreamProcess(Xprocess):
                 self._log_debug(f"FasterWhisper Stream: Silent window (RMS {new_audio_rms:.4f} < {self._silent_window_rms}), skipping decode.")
                 segments = []
             else:
+                decode_started = time.monotonic()
                 segments, _ = self._model.transcribe(
                     audio_to_process,
                     beam_size=self._beam_size,
@@ -411,6 +425,13 @@ class FasterWhisperStreamProcess(Xprocess):
 
                 # The transcription is returned as a generator. Get the segments themselves.
                 segments = list(segments)
+
+                # How long this window took against the audio it holds. Over 1.0 the process falls behind the speech, the
+                #   windows pile up, and what is left when the user stops is what makes them wait.
+                decode_seconds = time.monotonic() - decode_started
+                self._xlog.debug(
+                    f"⏱️ Decoded a window of {audio_s:.2f}s of audio ({len(chunk_list)} chunks) in {decode_seconds:.2f}s "
+                    f"(real time factor {decode_seconds / audio_s if audio_s > 0 else 0:.2f}).")
 
             # Trying to identify hallucinations by looking at the confidence of the segments,
             # and if we have "n" consecutive low confidence segments, we consider that the model is hallucinating 
@@ -481,12 +502,23 @@ class FasterWhisperStreamProcess(Xprocess):
                 self.log_summary(f"Low confidence words ({self._word_low_confidence_threshold})", low_probability_words, attend_verbose_debug_flag=True)
 
             # 6. Update state
+            buffer_before_merge = self._ongoing_transcription
+            merge_decisions = []
             self._ongoing_transcription = self._merge_and_correct_transcription(
                 self._ongoing_transcription,
                 new_transcribed_words,
                 window_start,
                 overlap_len / self._samplerate,
+                merge_decisions,
             )
+            # Log the boundary: what the old decode had at its tail, what the new one brought at its head
+            #   and what the merge decided. It is the data needed to iterate the merge heuristics.
+            if buffer_before_merge and new_transcribed_words:
+                fmt = lambda words: ", ".join(f"{w['word']}[{w['start']:.2f}-{w['end']:.2f}]" for w in words)
+                self._log_debug(
+                    f"🔀 Merge boundary at window_start={window_start:.2f}s. "
+                    f"Old tail: {fmt(buffer_before_merge[-3:])} | New head: {fmt(new_transcribed_words[:3])} | "
+                    f"Decisions: {'; '.join(merge_decisions) if merge_decisions else 'none'}")
 
             ongoing_transcription_text = " ".join([w['word'] for w in self._ongoing_transcription])
             self._xlog.debug(f"✏️ Current ongoing transcription: \n\n{TerminalColor.ORANGE}{ongoing_transcription_text}{TerminalColor.END}\n")
@@ -524,12 +556,25 @@ class FasterWhisperStreamProcess(Xprocess):
         return word.lower().strip(" .,!?;:…\"'")
 
     @staticmethod
+    def _time_overlap_ratio(a: dict, b: dict) -> float:
+        """ Share of the shorter word that overlaps in time with the other one. 0 = no overlap. """
+        intersection = min(a["end"], b["end"]) - max(a["start"], b["start"])
+        if intersection <= 0:
+            return 0.0
+        shortest = min(a["end"] - a["start"], b["end"] - b["start"])
+        return 1.0 if shortest <= 0 else min(1.0, intersection / shortest)
+
+    @staticmethod
     def _merge_and_correct_transcription(buffer: list, new_words: list,
-                                        window_start: float, overlap_s: float) -> list:
+                                        window_start: float, overlap_s: float,
+                                        decisions: list = None) -> list:
         """
         Both decodes cover the overlap region. Old words before its midpoint are kept, new words after it
         replace the rest. Each decode's edge artefacts (truncated last word / cut first word) sit at
         least overlap/2 from the cut. Words are assigned by their midpoint time.
+
+        If `decisions` is given, a human readable line is appended for every boundary decision that is not
+        the plain case, so the caller can log it and we can iterate the heuristics with real data.
         """
         if not new_words:
             return buffer
@@ -549,15 +594,47 @@ class FasterWhisperStreamProcess(Xprocess):
         #     truncated at its window edge, so replace it with the full word.
         # Only applied if the times overlap too, so a genuine "no no" or "I it" survives.
         if keep:
+            cls = FasterWhisperStreamProcess
             last, first = keep[-1], fresh[0]
-            n_last = FasterWhisperStreamProcess._norm(last["word"])
-            n_first = FasterWhisperStreamProcess._norm(first["word"])
+            n_last = cls._norm(last["word"])
+            n_first = cls._norm(first["word"])
             # Same acoustic region: the new word starts before the old one ends.
-            if n_last and first["start"] < last["end"]:
+            overlaps = first["start"] < last["end"]
+
+            # BEHAVIOUR CHANGE (bugfix/fix-partial-merge-with-not-matching-words):
+            # The old checks (identical text, or old word being a prefix of the new one) only worked when the
+            #   timestamps of the old word were right. But the model cuts the last word of a window, and the
+            #   timestamp of that truncated word (often decoded with a punctuation) tends to be placed too early.
+            #   Then the old word survived the cut, was not "overlapping" the new one, and both showed up in
+            #   the transcription: the wrong truncated one and the right full one.
+            # So now, for an old word that is not trivially short:
+            #   - A small gap between the old word end and the new word start is tolerated (timestamps drift).
+            #   - A new word that shares most of the audio of the old one replaces it, whatever the text.
+            #   - A new word with a similar text replaces it too (mistranscribed truncation).
+            # Genuine repetitions ("no no") are still protected: identical text is only a duplicate
+            #   when the times overlap, and very short words do not get the tolerances.
+            # If this still lets wrong words through, the decisions are logged by the caller (see `decisions`).
+            trusted_len = len(n_last) >= cls._BOUNDARY_MIN_WORD_LEN
+            near = trusted_len and first["start"] < last["end"] + cls._BOUNDARY_MAX_GAP_S
+
+            if n_last and n_first:
                 if n_last == n_first:
-                    fresh = fresh[1:]            # plain duplicate, keep the old one
-                elif n_first.startswith(n_last):
-                    keep = keep[:-1]             # old word was cut at the window edge, use the full one
+                    if overlaps:
+                        fresh = fresh[1:]            # plain duplicate, keep the old one
+                        if decisions is not None:
+                            decisions.append(f"duplicate '{last['word']}' dropped the fresh one")
+                elif (overlaps or near) and n_first.startswith(n_last):
+                    keep = keep[:-1]                 # old word was cut at the window edge, use the full one
+                    if decisions is not None:
+                        decisions.append(f"truncated '{last['word']}' replaced by '{first['word']}'" + ("" if overlaps else " (timestamps apart)"))
+                elif cls._time_overlap_ratio(last, first) >= cls._BOUNDARY_MIN_OVERLAP_RATIO:
+                    keep = keep[:-1]                 # same audio, different word: the new decode saw more context
+                    if decisions is not None:
+                        decisions.append(f"same audio, '{last['word']}' replaced by '{first['word']}'")
+                elif near and StringSimilarity.compareTwoStringsBySequence(n_last, n_first) >= cls._BOUNDARY_MIN_TEXT_SIMILARITY:
+                    keep = keep[:-1]                 # mistranscribed truncated word, similar to the full one
+                    if decisions is not None:
+                        decisions.append(f"similar '{last['word']}' replaced by '{first['word']}'")
 
         return keep + fresh
     
@@ -680,10 +757,31 @@ class FasterWhisperStreamProcess(Xprocess):
         """
         Warms up the model by running a dummy inference with a silent audio chunk. This can help to reduce the latency of the first real inference.
         """
-        self._log_debug("Warming up the Faster Whisper model with a silent audio chunk...")
-        silent_chunk = self._generate_silent_audio_chunk(duration_seconds=2.0, sample_rate=self._xparams.get("audio_parameters.stt_samplerate", self._samplerate))
-        self._model.transcribe(silent_chunk, beam_size=self._beam_size, temperature=0.0, language=self.language)
-        self._log_debug("Faster Whisper model warmed up successfully.")
+        sample_rate = self._xparams.get("audio_parameters.stt_samplerate", self._samplerate)
+        self._xlog.info("Warming up the Faster Whisper model...")
+        started = time.monotonic()
+        try:
+            # Low level noise, not pure silence: silence makes the decoder give up early, and the point is to run
+            #   everything that a real window runs (encoder, decoder, and the alignment of the word timestamps).
+            rng = np.random.default_rng(0)
+            audio = (rng.standard_normal(int(2.0 * sample_rate)) * 0.02).astype(np.float32)
+            # ⚠️ transcribe() returns a generator: nothing is computed until it is consumed. Without the list() this
+            #   "warm up" only extracted the features, and the first real utterance paid for the whole first inference.
+            # The same options of the real path, so the same code and the same buffers are the ones warmed up.
+            segments, _ = self._model.transcribe(
+                audio,
+                beam_size=self._beam_size,
+                temperature=self._temperature,
+                language=self.language,
+                word_timestamps=True,
+                condition_on_previous_text=False,
+                repetition_penalty=self._repetition_penalty,
+                max_new_tokens=40)
+            produced = len(list(segments))
+            self._xlog.info(f"Faster Whisper model warmed up in {time.monotonic() - started:.2f}s ({produced} segments).")
+        except Exception as e:
+            # A failing warm-up must never prevent the process from working.
+            self._xlog.warning(f"🟠 The Faster Whisper warm-up failed after {time.monotonic() - started:.2f}s, the first utterance will be slower: {e}")
 
     def _generate_silent_audio_chunk(self, duration_seconds: float = 1.0,
                                  sample_rate: int = 16000,

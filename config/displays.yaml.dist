@@ -2,6 +2,8 @@
 displays:
   # [List] List of displays available to be used.
   # The root keys of this file are the available displays, but needs to be said explicitly here.
+  # ⚠️ eink, matrix_led and lcd are legacy and DEPRECATED: they are behind the current implementation.
+  #   Before using them, they need to be updated according to it (see pitxu/lib/legacy/README.md).
   available_displays:
     - eink
     - matrix_led
@@ -13,6 +15,9 @@ displays:
   # [String] The display to use for background notifications. Must be one of the available displays.
   # Background notifications are those that react on the state of the system, like "listening", "thinking", "speaking", etc.
   background_display: dsi_lcd
+  # [String] The display to use for the animations (the emojis, like "thinking"). Must be one of the available displays.
+  # If it is not set, the background display is used.
+  animations_display: dsi_lcd
   # [String] Status display to show the status lines, log style. Must be one of the available displays.
   status_display: dsi_lcd
   # [Bool] Avoid storing mocked images (avoids generating tons of PNGs while testing).
@@ -181,6 +186,35 @@ dsi_lcd:
     speaking: 0.05
     # [Float] Delay for the "idle" animation frames. Defaults to default_delay_between_frames
     idle: 0.02
+  # Configuration of the Painter loop.
+  painter:
+    # [Bool] Logs (INFO) where the time of the painting loop goes: iterations per second, the CPU share of the Painter thread,
+    #   and the average and maximum milliseconds per stage (clear, draw, merge, flush, wait...). It is reported every
+    #   `timing_log_interval` seconds of activity and whenever the loop pauses. Meant for measuring, keep it off otherwise.
+    timing_log: False
+    # [Float] Seconds of activity between two timing reports. Defaults to 10.0
+    timing_log_interval: 10.0
+    # [Bool] Compose (and send to the display) only the rectangle of the screen that changed, instead of the whole screen
+    #   on every frame. Defaults to True. False goes back to the whole screen every time. The mocked display always stores whole frames.
+    partial_composition: True
+    # [Bool] Debug: on every partial composition, also composes the whole screen apart and compares them. If they differ
+    #   it logs a warning, and fixes the screen. Costs as much as a whole composition: keep it off unless you are checking.
+    verify_partial: False
+  # Configuration of the layout of the screen.
+  layout:
+    # The left column of the top row is shared by two areas: top_left (above) and center_left (below).
+    center_left:
+      # [Float] Share of the height of the column (minus the gap) taken by center_left, from 0.1 to 0.9. top_left gets the rest.
+      height_share: 0.3
+      # [Integer] Pixels between the outlines of top_left and center_left.
+      gap: 6
+      # How the effects in center_left (the mouth, the countdown and the scanner) look. Their sizes are proportional to the area.
+      # [Integer] Columns of the KITT mouth: 3 or 5. With 5, the ones on the outside have even less rows.
+      mouth_columns: 3
+      # [Float] Gap between the columns of the mouth, in times the outer margin (12% of the height of the area).
+      mouth_column_gap: 2.0
+      # [Integer] Rounded corners of the rectangles, in pixels. 0 for square corners.
+      corner_radius: 1
   # What this display shows for each state. Animations always go in the top left.
   # Displays with less resources keep their own fixed effects and do not read this.
   effects:

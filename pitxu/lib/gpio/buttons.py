@@ -1,4 +1,8 @@
 from __future__ import annotations
+import os
+import sys
+import threading
+import time
 from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 
@@ -8,8 +12,24 @@ class Buttons(PyXavi):
     buttons: dict[str, MockedButton] = {}
     button_pins_per_name: dict[str, int] = {}
 
+    # Real buttons: how long the poll waits for the gpiozero event of a press it noticed, before covering it.
+    POLL_GRACE_SECONDS: float = 0.15
+    # Real buttons: an event of gpiozero that arrives this soon after the poll covered it is the same press.
+    POLL_DEDUPE_SECONDS: float = 0.5
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Buttons, self).init_pyxavi(config=config, params=params)
+        # The callbacks of the real buttons: {button name: {"PRESSED"/"RELEASED": (callback, kargs)}}
+        self._callbacks: dict[str, dict[str, tuple]] = {}
+        # When (monotonic) gpiozero delivered an event, and the poll covered one, per (button name, event).
+        self._last_event_at: dict[tuple[str, str], float] = {}
+        self._last_fallback_at: dict[tuple[str, str], float] = {}
+        self._fallback_warned: bool = False
+        # How many presses/releases the poll had to cover in this run, and who to tell about each (see set_fallback_notifier).
+        self._fallback_count: int = 0
+        self._fallback_notifier: callable | None = None
+        self._pollers: dict[str, threading.Thread] = {}
+        self._poll_stop = threading.Event()
 
     def initialize_buttons(self):
         # Initialise GPIO buttons
@@ -26,6 +46,8 @@ class Buttons(PyXavi):
             for button in button_definitions:
                 self.buttons[button["name"]] = self._new_button(button["name"], button["pin"], button["mocked_as"])
                 self.button_pins_per_name[button["name"]] = button["pin"]
+                if not self.is_mocked():
+                    self._ensure_poller(button["name"])
         except (Exception, RuntimeError, SystemExit) as e:
             self._xlog.error(f"Error initializing GPIO buttons: {e}")
             self._xlog.debug(full_stack())
@@ -84,7 +106,7 @@ class Buttons(PyXavi):
             # TODO: The conclusions of the test are in `self.is_pressed` method.
             # self.buttons[button_name].hold_time = 1
             # self.buttons[button_name].hold_repeat = False
-            self.buttons[button_name].when_pressed = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_pressed = self._logged_callback(button_name, "PRESSED", callback, kargs)
             # self.buttons[button_name].when_pressed = None
             # self.buttons[button_name].when_held = lambda: callback(self.buttons[button_name], **kargs)
     
@@ -115,7 +137,36 @@ class Buttons(PyXavi):
                 raise KeyError(f"Button [{button_name}] not defined")
 
             # We have a real button
-            self.buttons[button_name].when_released = lambda: callback(self.buttons[button_name], **kargs)
+            self.buttons[button_name].when_released = self._logged_callback(button_name, "RELEASED", callback, kargs)
+
+    def _logged_callback(self, button_name: str, event: str, callback: callable, kargs: dict) -> callable:
+        """
+        Wraps the callback of a real button so that the app log shows that the event arrived, and what went wrong if
+        the callback failed. gpiozero runs the callbacks in its own thread, where an exception is not logged
+        by us, just printed to stderr: without this, a failing callback looks like a button that does nothing.
+        """
+        key = (button_name, event)
+        # The poll fallback calls the same callback when this event does not arrive.
+        self._callbacks.setdefault(button_name, {})[event] = (callback, kargs)
+
+        def on_event():
+            now = time.monotonic()
+            self._last_event_at[key] = now
+            if now - self._last_fallback_at.get(key, -1e9) < self.POLL_DEDUPE_SECONDS:
+                self._xlog.debug(f"🕹️ Button [{button_name}] {event} (gpiozero event) arrived late: the poll fallback already handled it.")
+                return
+            self._dispatch(button_name, event, "gpiozero event")
+        return on_event
+
+    def _dispatch(self, button_name: str, event: str, source: str):
+        """ Calls the callback of a real button, logging what went wrong: its thread does not log exceptions. """
+        callback, kargs = self._callbacks[button_name][event]
+        self._xlog.debug(f"🕹️ Button [{button_name}] {event} ({source}), calling its callback.")
+        try:
+            callback(self.buttons[button_name], **kargs)
+        except Exception as e:
+            self._xlog.error(f"🛑 The callback of the button [{button_name}] {event} failed: {type(e).__name__}: {e}")
+            self._xlog.debug(full_stack())
 
     def is_pressed(self, button_name: str) -> bool:
         
@@ -144,12 +195,101 @@ class Buttons(PyXavi):
             self.mocked_buttons_manager.add_button(name=name, pin=pin, mocked_as=mocked_as)
         else:
             self._xlog.debug(f"Creating real button [{name}] for pin [{pin}]")
-            from gpiozero import Button
+            from gpiozero import Button, Device
 
             # return Button(pin, pull_up=False)
-            return Button(pin, pull_up=True)
-    
+            button = Button(pin, pull_up=True)
+            # Which pin factory gpiozero ended up with decides if the events ever arrive (on a Pi 5 only the lgpio ones can read the pins).
+            self._xlog.debug(
+                f"Button [{name}] on pin [{pin}] created with the pin factory "
+                f"[{type(Device.pin_factory).__name__}], pressed right now: {button.is_pressed}")
+            # The same app behaves differently as a service and in the foreground (a different environment): this is
+            # what to compare between both logs.
+            try:
+                self._xlog.debug(
+                    f"Button process context: pid={os.getpid()} uid={os.getuid()} groups={os.getgroups()} cwd={os.getcwd()} "
+                    f"tty={sys.stdin.isatty() if sys.stdin else None} "
+                    f"LG_WD={os.environ.get('LG_WD')} GPIOZERO_PIN_FACTORY={os.environ.get('GPIOZERO_PIN_FACTORY')}")
+            except Exception as e:
+                self._xlog.debug(f"Could not describe the button process context: {e}")
+            return button
+
+    def _ensure_poller(self, name: str):
+        """
+        Starts the thread that reads the pin of a real button itself (once per button), for:
+            - The fallback (gpio.buttons.poll_fallback): on some starts the gpiozero events never arrive, while
+              the pin reads fine. A press that the poll notices and that gets no event is handled by the poll.
+            - The diagnosis (gpio.buttons.debug_state_log): logs every change of the pin state.
+        """
+        fallback = bool(self._xconfig.get("gpio.buttons.poll_fallback.enabled", True))
+        debug = bool(self._xconfig.get("gpio.buttons.debug_state_log", False))
+        if not (fallback or debug) or name in self._pollers:
+            return
+        interval = max(0.01, float(self._xconfig.get("gpio.buttons.poll_fallback.interval_seconds", 0.05)))
+        self._xlog.debug(f"Button [{name}] poll thread: fallback {fallback}, state log {debug}, every {interval}s")
+        thread = threading.Thread(
+            name=f"ButtonPoller-{name}", target=self._poll_button, args=(name, fallback, debug, interval), daemon=True)
+        self._pollers[name] = thread
+        thread.start()
+
+    def _poll_button(self, name: str, fallback: bool, debug: bool, interval: float):
+        button = self.buttons[name]
+        try:
+            last = button.is_pressed
+        except Exception as e:
+            self._xlog.error(f"🕹️ Could not read the button [{name}] to poll it: {e}")
+            return
+        while not self._poll_stop.wait(interval):
+            try:
+                current = button.is_pressed
+            except Exception as e:
+                if not self._poll_stop.is_set():
+                    self._xlog.error(f"🕹️ Could not read the button [{name}] to poll it: {e}")
+                return
+            if current == last:
+                continue
+            last = current
+            event = "PRESSED" if current else "RELEASED"
+            if debug:
+                self._xlog.info(f"🕹️ [BUTTON DEBUG] Button [{name}] state read as {event}")
+            if fallback and event in self._callbacks.get(name, {}):
+                self._cover_if_missing(name, event, interval)
+
+    def _cover_if_missing(self, name: str, event: str, interval: float):
+        """
+        The poll saw the pin change: if gpiozero does not deliver its event for it, the poll calls the callback.
+        """
+        noticed_at = time.monotonic()
+        # The event normally arrives within milliseconds, sometimes just before the poll noticed.
+        if self._poll_stop.wait(self.POLL_GRACE_SECONDS):
+            return
+        key = (name, event)
+        if self._last_event_at.get(key, 0.0) >= noticed_at - interval - 0.05:
+            return
+        self._last_fallback_at[key] = time.monotonic()
+        self._fallback_count += 1
+        if not self._fallback_warned:
+            self._fallback_warned = True
+            self._xlog.warning(
+                f"🕹️ The gpiozero events of the button [{name}] are not arriving: the poll fallback is covering them "
+                f"(gpio.buttons.poll_fallback).")
+        self._xlog.info(f"🕹️ Button [{name}] {event} covered by the poll fallback (#{self._fallback_count} in this run).")
+        if self._fallback_notifier is not None and self._xconfig.get("gpio.buttons.poll_fallback.show_status_line", True):
+            try:
+                self._fallback_notifier(self._fallback_count, name, event)
+            except Exception as e:
+                self._xlog.error(f"🛑 Could not notify that the poll fallback covered the button [{name}] {event}: {e}")
+        self._dispatch(name, event, "poll fallback")
+
+    def set_fallback_notifier(self, notifier: callable):
+        """
+        Registers who is told each time the poll fallback has to cover an event that gpiozero did not deliver:
+        notifier(count_in_this_run, button_name, event). It runs in the poll thread.
+        """
+        self._fallback_notifier = notifier
+
     def close(self):
+        self._poll_stop.set()
         if self.mocked_buttons_manager is not None:
             self.mocked_buttons_manager.stop_listening()
     

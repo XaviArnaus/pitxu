@@ -1,4 +1,4 @@
-from pyxavi import Config, Dictionary, TerminalColor, full_stack
+from pyxavi import Config, Dictionary, Stopwatch, TerminalColor, full_stack
 
 import signal
 
@@ -6,13 +6,14 @@ from definitions import SHARED_WAKE_UP_BUTTON_PRESSED, SHARED_FIRST_AUDIO_TIMEST
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.gpio.buttons import Buttons
 from pitxu.lib.utils.text import Text
-from pitxu.lib.utils.stopwatch import Stopwatch
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
+from pitxu.lib.utils.emoji_stats import EmojiStats
 from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
 from pitxu.lib.core.xprocess_pool import XprocessPool
+from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.utils.reminders import Reminders
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
@@ -31,7 +32,7 @@ from pitxu.lib.speech_to_text.input_stream import InputStream, MockedInputStream
 from pitxu.lib.utils.device_monitor import DeviceMonitor
 from pitxu.lib.utils.app_state import AppState
 
-from difflib import SequenceMatcher
+from pitxu.lib.utils.string_similarity import StringSimilarity
 import sys
 import time
 import logging
@@ -85,6 +86,11 @@ class Main(PyXavi):
     _scheduler: BackgroundScheduler = None
 
     _stopwatch: Stopwatch = None
+    # True while the thinking effect was started when the speech ended, before the transcription is known.
+    #   Whoever decides that the chatbot is not going to answer must cancel it. See _show_thinking_at_speech_end().
+    _early_thinking: bool = False
+    # The watchdog of the early thinking (see _show_thinking_at_speech_end()).
+    _early_thinking_watchdog: asyncio.TimerHandle = None
     _supported_languages: list[str] = []
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
@@ -202,8 +208,7 @@ class Main(PyXavi):
             # Before we start with the loop, let's set the last interaction time to now
             # It just started, there was a greeting after all.
             # Maybe the user wants to talk straight away without the trigger words.
-            self.reset_last_interaction_event_mark()
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            self._start_listening_phase("startup")
 
             # At this point, all initialisations are done.
             # Because we work this callbacks, this is the last point before the signal.pause() stops and waits
@@ -338,10 +343,112 @@ class Main(PyXavi):
             if self._xconfig.get("speech-to-text.engine") not in ["faster_whisper_streaming"]:
                 self._log_debug("Redirecting from VAD detected speech finished callback to Transcription finished callback, for non-streaming engines...")
                 await self.main_execution_on_transcription_finished()
+            else:
+                await self._show_thinking_at_speech_end()
         except Exception as e:
             self._xlog.error("🛑 Error in main_execution_on_vad_detected_finished(): " + str(e))
             self._xlog.error(full_stack())
     
+    def _transcription_has_text(self) -> bool:
+        """ True if the STT has already decoded some text of the current utterance (the partial transcription). """
+        text = getattr(self._dictate, "get_ongoing_transcription", lambda: "")()
+        return bool(text and text.strip())
+
+    async def _show_thinking_at_speech_end(self):
+        """
+        Starts the thinking effect as soon as the user stops speaking, without waiting for the final transcription,
+        which comes a bit later. It only gives the feedback earlier: nothing else is decided here.
+
+        Only when there is something to process: the STT must already have decoded some text of this utterance.
+        If there is none, it may be only noise (a keyboard, a chair...) and showing that Pitxu is thinking would
+          be a lie, so it waits for the first text up to `app.thinking_at_speech_end_wait` seconds, and gives up if the
+          STT ends the utterance with nothing meanwhile.
+
+        It is done only inside an ongoing interaction (the hold time is running), where the speech is almost
+          certainly for Pitxu. Outside of it the speech needs a trigger word, which is only known with the
+          transcription, and the effect would flash on every background conversation.
+        If afterwards the transcription turns out to be empty or not for the chatbot, _cancel_early_thinking() takes it back.
+        """
+        if not self._xconfig.get("app.thinking_at_speech_end", True):
+            return
+        if self._early_thinking or not self._is_pitxu_active:
+            return
+        # The transcription may already be there (then this callback is late, and the answer path starts its own thinking).
+        if not self._interaction.is_transcriber_busy():
+            return
+        if not self._text_continues_ongoing_interaction(""):
+            return
+
+        # Is there anything to process? Wait a bit for the first decoded text, unless the STT already finished with nothing.
+        deadline = time.monotonic() + float(self._xconfig.get("app.thinking_at_speech_end_wait", 1.5))
+        while not self._transcription_has_text():
+            if time.monotonic() >= deadline or not self._interaction.is_transcriber_busy() or not self._is_pitxu_active:
+                self._log_debug("🤔 Speech ended but there is no transcribed text (yet): not showing the thinking effect early.")
+                return
+            await asyncio.sleep(0.05)
+        # The utterance may have ended (and the normal flow taken over) while we waited.
+        if self._early_thinking or not self._interaction.is_transcriber_busy():
+            return
+
+        self._log_debug("🤔 Speech ended inside an ongoing interaction: showing the thinking effect now, before the transcription.")
+        self._early_thinking = True
+        self._interaction.show_thinking()
+        self._interaction.set_chatbot_busy()
+
+        # Safety net: whatever goes wrong with the transcription (no answer from STT, a lost callback...), the effect
+        #   must not stay on forever.
+        timeout = float(self._xconfig.get("app.thinking_at_speech_end_timeout", 15))
+        try:
+            self._early_thinking_watchdog = asyncio.get_running_loop().call_later(timeout, self._early_thinking_timed_out)
+        except RuntimeError:
+            self._early_thinking_watchdog = None
+
+    def _release_early_thinking(self) -> bool:
+        """
+        The early thinking is not pending any more (it was cancelled, or the chatbot path took it over).
+        Returns True if it was pending.
+        """
+        if self._early_thinking_watchdog is not None:
+            self._early_thinking_watchdog.cancel()
+            self._early_thinking_watchdog = None
+        was_pending = self._early_thinking
+        self._early_thinking = False
+        return was_pending
+
+    def _cancel_early_thinking(self) -> bool:
+        """
+        Takes the thinking effect back when it was started at the end of the speech but the chatbot is not going to
+        answer (nothing recognised, ignored text, or a local answer). Does nothing if it was not started.
+        Returns True if it was started, so there was something to take back.
+        """
+        if not self._release_early_thinking():
+            return False
+        self._log_debug("🤔 Cancelling the thinking effect started at the end of the speech.")
+        self._interaction.unset_chatbot_busy()
+        return True
+
+    def _early_thinking_timed_out(self):
+        """ Nobody took over the early thinking in time: take it back and give the turn back to the user. """
+        self._early_thinking_watchdog = None
+        if not self._early_thinking or not self._is_pitxu_active:
+            return
+        self._xlog.warning("🟠 The thinking effect started at the end of the speech was not taken over in time, cancelling it.")
+        self._cancel_early_thinking()
+        self._start_listening_phase("early thinking timed out", reset_mark=False)
+
+    async def main_execution_on_transcription_empty(self):
+        """
+        Called when the STT ends a context with nothing to process (noise, a keyboard, silence). The normal flow is not
+        triggered then, so if the thinking effect was started at the end of the speech, nobody else would take it back.
+        The turn goes back to the user, like when the transcription arrives empty.
+        """
+        try:
+            if self._cancel_early_thinking():
+                self._start_listening_phase("nothing recognised", reset_mark=False)
+        except Exception as e:
+            self._xlog.error("🛑 Error in main_execution_on_transcription_empty(): " + str(e))
+            self._xlog.error(full_stack())
+
     async def main_execution_on_transcription_finished(self, final_transcription: str = None):
         """
         This method is called when the Transcription is finished (receiving a None in the transcription).
@@ -356,8 +463,8 @@ class Main(PyXavi):
         #   This will be set to True when an exception is caught.
         we_are_in_error_state = False
 
-        # Mute microphone to avoid self-looping
-        self._interaction.mute_microphone(input_stream=self._input_stream)
+        # The turn is not the user's anymore: mute microphone to avoid self-looping
+        self._end_listening_phase("user finished speaking")
 
         try:
         
@@ -390,8 +497,10 @@ class Main(PyXavi):
             if (question == None or question.strip() == ""):
                 # Nothing recognized, nothing to process.
 
-                # We unmute the microphone to let the user try again.
-                self._interaction.unmute_microphone(input_stream=self._input_stream)
+                self._cancel_early_thinking()
+
+                # Back to listening to let the user try again. The hold time keeps counting, it is not a new interaction.
+                self._start_listening_phase("nothing recognised", reset_mark=False)
 
                 self._xlog.debug("💤 VAD detected speech but nothing was recognized, ignoring it.")
                 # COMMENTED: We don't need to unset the busy flag, it is all done by the transcriber
@@ -422,6 +531,7 @@ class Main(PyXavi):
             if text_has_exit_intention and text_continues_ongoing_interaction:
 
                 self._log_debug("Detection: We're inside hold interaction time and the user wants to exit.")
+                self._cancel_early_thinking()
 
                 # An interaction comes, stop the idle mode.
                 self._interaction.set_idle_mode_off()
@@ -439,6 +549,7 @@ class Main(PyXavi):
             elif text_is_only_trigger_words:
 
                 self._log_debug("Detection: Text only has trigger words.")
+                self._cancel_early_thinking()
                                 
                 # An interaction comes, stop the idle mode.
                 self._interaction.set_idle_mode_off()
@@ -466,6 +577,7 @@ class Main(PyXavi):
 
             # Anything else is ignored.
             else:
+                self._cancel_early_thinking()
                 self._xlog.info("Transcript ignored: " + question)
                 self._xlog.debug("💤 Ignoring dictate as no interaction was intended.")
                 # Removing the question, as it could be an unwanted trigger for exit.
@@ -475,15 +587,24 @@ class Main(PyXavi):
             # ----------------------------------------------------
 
             # We have an answer, whatever it is. Interact back to the user.
-            please_continue_interaction = self.deliver_outcome(question=question, answer=answer)
+            # The exit decision was already taken above: it is passed on instead of analysing the text again.
+            # An ignored transcript (empty question now) never exits.
+            please_continue_interaction = self.deliver_outcome(
+                question=question,
+                answer=answer,
+                exit_requested=text_has_exit_intention and question != "")
 
             if not please_continue_interaction:
                 self._xlog.info("The interaction requested to end the conversation, so finishing the app.")
                 self.close_nicely()
                 return
 
-            # Unmute microphone to continue listening
-            self._interaction.unmute_microphone(input_stream=self._input_stream)
+            # The turn is the user's again: back to listening.
+            # The hold time restarts only if there was an answer. An ignored transcript is not an interaction,
+            #   so the previous hold time just keeps counting.
+            answer_was_delivered = answer is not None and answer.strip() != ""
+            self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
+                                        reset_mark=answer_was_delivered)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -518,6 +639,12 @@ class Main(PyXavi):
             self._xlog.error("🛑 Error in Main run callback: " + str(e))
             self._xlog.error(full_stack())
             we_are_in_error_state = True
+
+        # Whatever happened, the thinking started at the end of the speech must not stay on.
+        try:
+            self._cancel_early_thinking()
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not cancel the early thinking effect: {e}")
 
         # At this point, the whole interaction is done.
         # But we may have arrived here from within an exception, that leaves the app unusable.
@@ -565,10 +692,14 @@ class Main(PyXavi):
         # An interaction comes, stop the idle mode.
         self._interaction.set_idle_mode_off()
 
+        # The thinking effect may be already running since the end of the speech. From here this path owns it.
+        thinking_already_shown = self._release_early_thinking()
+
         # We set it as busy in shared memory, so the Background Display can show the thinking effect
         # Apparently, in the Raspberry Pi, the TTS starts too fast and the display does not get time
         #   to react on the busy flag changes and be displayed on time.
-        self._interaction.show_thinking()
+        if not thinking_already_shown:
+            self._interaction.show_thinking()
         # I am going to try to show the question while thinking.
         # It may give some time to the LCD to show the previous called thinking effect.
         self._interaction.show_arbitrary_text_on_foreground_while_thinking(
@@ -595,7 +726,11 @@ class Main(PyXavi):
             #       There may not be a second function call response.
             #   - by taking get_last(), we may be showing a previous response that does not fit to the question.
             #       So the second time we may not be able to show the time on the screen, for example.
-            self._xlog.info(f"Reacting to a Chatbot answer: \n\t- Text: {chat_response.text}\n\t- Function Calls: {chat_response.function_call_history.get_names()}\n\t- Code blocks: {len(chat_response.code) if chat_response.code else 0}")
+            self._xlog.info(f"Reacting to a Chatbot answer: \n\t" +
+                f"- Text: {chat_response.text}\n\t" +
+                f"- Function Calls: {chat_response.function_call_history.get_names()}\n\t" +
+                f"- Code blocks: {len(chat_response.code) if chat_response.code else 0}\n\t" +
+                f"- Emotion: {chat_response.emotion!r}")
             self._reactions.react_on_answer(chat_response=chat_response)
         except Exception as e:
             self._xlog.error("🛑 Error reacting to function call: " + str(e))
@@ -642,7 +777,7 @@ class Main(PyXavi):
 
     # ------------- Abstraction for the Outcome interaction -------------
 
-    def deliver_outcome(self, question:str, answer: str) -> bool:
+    def deliver_outcome(self, question:str, answer: str, exit_requested: bool = None) -> bool:
         """
         This method abstracts the Pipeline for the interaction for an outcome.
         It was directly in the main_execution_on_vad_detected_finished() method, contained as an Output step
@@ -650,7 +785,9 @@ class Main(PyXavi):
         Args:
             question (str): The question that was recognized from the user, that may be used for the interaction.
             answer (str): The answer that was generated for the user, that may be used for the interaction.
-        
+            exit_requested (bool): If the user asked to exit. The caller already analysed the text, so it tells.
+                None analyses the question here.
+
         Returns:
             bool: True if the interaction intends to end the interaction normaly, False otherwise (for example, a close_nicely() request).
 
@@ -663,7 +800,8 @@ class Main(PyXavi):
         
             # Clean the answer first, just in case
             answer = Text.remove_emojis(answer)
-            answer = Text.remove_markdown(answer)
+            # For the voice: no syntax, no line breaks, and the tables spoken as the config says
+            answer = Text.markdown_for_speech(answer, tables=self._xconfig.get("text-to-speech.tables", "rows"))
             answer = Text.replace_known_text(answer, known_text_replacements)
 
             # Answer
@@ -683,7 +821,7 @@ class Main(PyXavi):
             if self._interaction.is_chatbot_error():
                 self._interaction.unset_chatbot_error()
             
-            if self._text_has_exit_intention(question):
+            if exit_requested if exit_requested is not None else self._text_has_exit_intention(question):
                 self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
                 # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
@@ -695,8 +833,9 @@ class Main(PyXavi):
                 # self.close_nicely()
                 return False
             
-            # Last thing to do is to remember this as the last interaction.
-            self.reset_last_interaction_event_mark()
+            # COMMENTED: Remembering this as the last interaction, and the rest of the hand-over to the user,
+            #   is now done by the caller via _start_listening_phase().
+            # self.reset_last_interaction_event_mark()
 
         return True
 
@@ -722,6 +861,109 @@ class Main(PyXavi):
     def reset_last_interaction_event_mark(self):
         self._last_interaction_datetime = datetime.now()
         self._last_interaction_paused_seconds = 0
+
+    def _holding_percentage_for(self, seconds_since_last_interaction: float) -> int:
+        """ Percentage (100 -> 0) of the time left to hold the interaction. """
+        return int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+
+    def _wake_up(self, reason: str, reset_mark: bool = True):
+        """
+        Wakes the system up for an interaction that is certain: the screen leaves the idle mode and the
+          interaction is marked, so the hold time starts counting and the idle mode does not come back before it is done.
+        It does not touch the microphone: this is the part that a trigger can ask on its own (like the wake up button),
+          because the flow that follows takes care of muting and unmuting the microphone.
+        It is also the first part of _start_listening_phase().
+        Idempotent. Not for the wake up by voice before the transcription is known, as the VAD can be triggered by plain noise.
+
+        Args:
+            reason (str): Who asks, for the logs.
+            reset_mark (bool): False to keep the hold time counting, for example when nothing was recognised.
+        """
+        self._log_debug(f"☀️ Waking up [{reason}] (reset mark: {reset_mark}).")
+        self._interaction.set_idle_mode_off()
+        if reset_mark:
+            self.reset_last_interaction_event_mark()
+
+    def _start_listening_phase(self, reason: str, reset_mark: bool = True):
+        """
+        The single control point to hand the turn over to the user: leaves the system ready to listen.
+        Its counterpart is _end_listening_phase().
+
+        TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
+        These steps used to be scattered (and the countdown bar was only drawn by the one-second tick), which meant
+          a delay of up to a second after the pipeline finished talking, and, if the user started to speak before
+          that first tick, the bar was never drawn: the top left area stayed blank during the whole turn.
+        Now everything that has to happen when the turn goes to the user happens here, in this order:
+          1. The system is awake (see _wake_up()): idle mode off and the hold time starts counting now
+             (reset_mark=False to keep counting, for example when nothing was recognised and the user is retrying
+             within the same hold time). Listening is never idle.
+          2. The microphone is unmuted.
+          3. The countdown bar is shown right away. The tick only keeps the countdown going afterwards.
+        All steps are idempotent, calling it twice does no harm. New features that need to prepare something for
+          the user's turn should hook here.
+
+        Not meant for the idle recovery of the every-minute task: that one unmutes the microphone but must NOT wake the screen up.
+        """
+        self._log_debug(f"👂 Starting listening phase [{reason}] (reset mark: {reset_mark}).")
+
+        # 1. Awake.
+        self._wake_up(reason, reset_mark=reset_mark)
+
+        # 2. Ready to hear.
+        self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+        # 3. Show it.
+        self._show_holding_bar_now(reason)
+
+    def _end_listening_phase(self, reason: str, mute: bool = True, clear_bar: bool = False):
+        """
+        The single control point to take the turn away from the user. Counterpart of _start_listening_phase().
+
+        It is used when the user finished speaking (so the system does not listen to itself while it
+          processes and answers), when the system is about to speak by its own, and when the hold time is over.
+
+        Args:
+            reason (str): Who asks, for the logs.
+            mute (bool): Mute the microphone, stopping the input stream. The hold time over case decides it by the wake up mode.
+            clear_bar (bool): Take the countdown bar away and reset its counters. Only when the hold time is over,
+                otherwise the bar stays on screen until the thinking starts (the Visualizer takes it away then) or the
+                speaking effect takes its place, or until the next listening phase draws it again.
+        """
+        self._log_debug(f"🛑 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
+
+        if clear_bar:
+            self._last_processed_interaction_percentage = -1
+            self._last_interaction_paused_seconds = 0
+            self._interaction.end_interaction_holding_percentage()
+
+        if mute:
+            self._interaction.mute_microphone(input_stream=self._input_stream)
+
+    def _show_holding_bar_now(self, reason: str):
+        """
+        Draws the countdown bar right now, without waiting for the next one-second tick.
+        Part of _start_listening_phase(). The Painter queues the paint, so it is safe to call it while the
+          previous background effect (speaking) is still finishing.
+
+        It draws nothing if the bar does not apply: no interaction yet, microphone muted, hold time over,
+          or the transcriber is already busy (the bar was drawn before and it stays on screen, frozen).
+        """
+        if self._last_interaction_datetime is None or self._interaction.is_microphone_muted():
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, no interaction yet or the microphone is muted.")
+            return
+
+        if self._interaction.is_transcriber_busy():
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, the transcriber is busy.")
+            return
+
+        seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+        if seconds_since_last_interaction > self._seconds_to_hold_interaction_answer:
+            self._log_debug(f"⏳ Listening phase [{reason}]: bar not shown, the hold time is over.")
+            return
+
+        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
+        self._log_debug(f"⏳ Listening phase [{reason}]: showing the holding bar at {self._last_processed_interaction_percentage}% right away.")
+        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
 
     def _text_has_exit_intention(self, text: str) -> bool:
         cleaned_text = text.replace(".", "").lower().strip()
@@ -756,7 +998,7 @@ class Main(PyXavi):
         words = Text.remove_punctuation(Text.remove_accents(text.lower())).split()
         return " ".join(
             name if i < 3 and len(w) >= 4 and w not in names
-            and any(SequenceMatcher(None, w, n).ratio() >= threshold for n in names) else w
+            and any(StringSimilarity.compareTwoStringsBySequence(w, n) >= threshold for n in names) else w
             for i, w in enumerate(words))
     
     def _text_is_only_trigger_words(self, question: str) -> bool:
@@ -862,6 +1104,9 @@ class Main(PyXavi):
             # Persist state
             self._safe_step("state persistence", self.persist_state)
 
+            # Save the emoji stats that are still in memory
+            self._safe_step("emoji stats", EmojiStats.flush)
+
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
@@ -912,6 +1157,9 @@ class Main(PyXavi):
 
             # Finish interactions and related processes
             self._safe_step("interaction", self._interaction.close)
+
+            # The waits of Main listen to the doorbell until here. From now on they poll, and the socket file goes away.
+            self._safe_step("doorbell waiter", DoorbellWaiter.close)
 
         # ------ Final logs ------
 
@@ -1112,6 +1360,7 @@ class Main(PyXavi):
                     "support": self._support,
                     "stt_state_machine": self._stt_state_machine,
                     "on_transcription_finished_callback": self.main_execution_on_transcription_finished,
+                    "on_transcription_empty_callback": self.main_execution_on_transcription_empty,
                     "main_event_loop": asyncio.get_event_loop(),
                     "language": self._xparams.get("language"),
                     "audio_parameters": self._audio_parameters,
@@ -1317,6 +1566,9 @@ class Main(PyXavi):
 
             # EVERY NIGHT AT 3 AM
             self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+
+            # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
+            self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
             self._scheduler.start()
         
         else:
@@ -1361,20 +1613,20 @@ class Main(PyXavi):
         self._shared_memory_monitor = SharedMemoryMonitor(config=self._xconfig, params=Dictionary({
             "shared_memory": shared_memory_manager,
             "shared_memory_list_to_control": [
-                # Callback for when the transcription starts
-                ("transcriber busy ON", SHARED_TRANSCRIBER_BUSY, True, lambda: self._interaction.add_new_status_line("🎤 Transcribing"), False),
-                # Callback for when the transcription ends
-                ("transcriber busy OFF", SHARED_TRANSCRIBER_BUSY, False, lambda: self._interaction.add_new_status_line("🎤 Transcription done"), False),
-                # Callback for when the chatbot starts thinking
-                ("chatbot busy ON", SHARED_CHATBOT_BUSY, True, lambda: self._interaction.add_new_status_line("🧠 Chatbot thinking"), False),
-                # Callback for when the chatbot finishes thinking
-                ("chatbot busy OFF", SHARED_CHATBOT_BUSY, False, lambda: self._interaction.add_new_status_line("🧠 Chatbot done"), False),
+                # Transcriber and chatbot busy states are not listed here: the status buttons show them.
+                # ⚠️ The order matters: when several flags change within the same monitor iteration, the callbacks run in this order.
+                # Callback for when the wake up button is pressed (released, actually).
+                # It goes first because it is the cause of the idle OFF, so it has to be shown before.
+                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False),
                 # Callback for when the app goes idle
-                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True, lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
+                ("idle mode ON", SHARED_DSI_LCD_IDLE_MODE, True , lambda: self._interaction.add_new_status_line("💤 Idle mode"), False),
                 # Callback for when the app goes out of idle
-                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), False),
-                # Callback for when the wake up button is pressed (released, actually)
-                ("wake up button pressed", SHARED_WAKE_UP_BUTTON_PRESSED, True, self._on_wake_up_button_pressed_flag, False)
+                # Dependant: the monitor considers that a flag already at the activation value "just changed" the first
+                #   time it sees it, so without this the app would announce "out of idle" at boot, without ever being in idle.
+                ("idle mode OFF", SHARED_DSI_LCD_IDLE_MODE, False, lambda: self._interaction.add_new_status_line("💤 Out of idle mode"), True),
+                # The first time the user speaks, the startup screen ("Ready") leaves the status area.
+                # It does nothing if a status line already replaced it, or after the first time.
+                ("vad detected ON", SHARED_VAD_DETECTED, True, lambda: self._interaction.clear_status_startup_screen(), False)
             ]
         }))
 
@@ -1408,6 +1660,11 @@ class Main(PyXavi):
             self._buttons = Buttons(config=self._xconfig, params=self._xparams)
             self._buttons.initialize_buttons()
 
+            # A press that gpiozero did not report and the poll fallback had to cover: show it, to notice how often it happens.
+            self._buttons.set_fallback_notifier(
+                lambda count, button_name, event: self._interaction.add_new_status_line(
+                    f"🕹️ Button event missed (#{count}), poll covered it", color="red"))
+
             # If the Wake Up button is defined (by name), set the callback to wake up the app from idle mode.
             wake_up_button_name = self.WAKE_UP_BUTTON_NAME
             if wake_up_button_name in self._buttons.get_buttons().keys():
@@ -1431,7 +1688,15 @@ class Main(PyXavi):
                         return
 
                     cls._xlog.info("Wake up button pressed. Triggering wake up interaction.")
-                    
+
+                    # TRANSITION FIX (bugfix/transition-fails-when-user-interacts-too-quickly):
+                    # The button is only a trigger: it routes to the common point, it does not prepare anything by itself.
+                    # Pressing it is a certain interaction, so the system wakes up right now. Before, the idle mode
+                    #   was only turned off once the transcription finished, and in between the screen kept following
+                    #   the idle rules (the idle panel expired and left it blank).
+                    # The microphone is the flow's business: it ends and starts the listening phase by itself below.
+                    cls._wake_up("wake up button pressed")
+
                     # Set the shared memory flag for the wake up button pressed, so the main process can react to it.
                     cls._interaction.set_wake_up_button_pressed()
 
@@ -1532,6 +1797,8 @@ class Main(PyXavi):
         else:
             greeting = self._greeting_sentence + " " + self._xconfig.get("language.greeting_night." + self._xparams.get("language"))
 
+        # The greeting does not come from the chatbot, so there is no emotion: the default animation goes with it.
+        self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
         self._interaction.say(greeting)
 
     # ------- Stuff to do every minute -------
@@ -1562,34 +1829,35 @@ class Main(PyXavi):
                     icon="📝",
                     text=reminder.get("text", ""),
                     font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._interaction.mute_microphone(input_stream=input_stream)
+                self._end_listening_phase("reminder announcement")
                 self._interaction.say(reminder_text_for_speaking)
                 # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                self._interaction.unmute_microphone(input_stream=input_stream)
                 # Remove the reminder now that it's been announced
                 self._reminders.delete_reminder(date_str, time_str)
-                # Reset the last interaction time, as we just spoke
-                self._last_interaction_datetime = datetime.now()
+                # We just spoke: the turn goes back to the user. This unmutes the microphone and
+                #   resets the last interaction time.
+                self._start_listening_phase("reminder announced")
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
             self._maintenance.log_metrics()
 
-            # If we've been inactive for more than 2 minutes, start the idle mode.
+            # Have we been inactive for more than the idle minutes? Also, if we never interacted, asume we are.
+            inactive_long_enough = self._last_interaction_datetime == None or \
+                Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000
+
+            # If so, start the idle mode (if the countdown ending didn't do it already, which is the usual way).
             if self._last_interaction_datetime == None or \
-                (
-                    Xtime.now_minus_seconds_as_milliseconds(seconds=self._idle_minutes_to_show_status * 60) > self._last_interaction_datetime.timestamp() * 1000 \
-                    and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()
-                ):
+                (inactive_long_enough and not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy()):
 
                 if not self._interaction.is_idle_mode_on():
                     self._log_debug(f"User has been inactive for more than {self._idle_minutes_to_show_status} minutes (or was never active), starting idle mode.")
                     self._interaction.set_idle_mode_on()
 
-            # If we've been inactive for more than 2 minutes, show some basic status information in the screen.
-            # Also, if we never interacted, asume we're idle.
-            if self._interaction.is_idle_mode_on():
-                
+            # In idle mode the display is blank. After the idle minutes, show some basic status information in the screen, every minute.
+            # ⚠️ The idle mode starts when the countdown ends, so being idle is not enough: it also needs to be inactive long enough.
+            if self._interaction.is_idle_mode_on() and inactive_long_enough:
+
                 self._log_debug(f"User is in idle mode, showing status information.")
 
                 try:
@@ -1682,7 +1950,7 @@ class Main(PyXavi):
                     else:
                         # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
                         # Calculate it.
-                        self._last_processed_interaction_percentage = int(100 - (seconds_since_last_interaction / self._seconds_to_hold_interaction_answer * 100))
+                        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
                     
                     if not self._interaction.is_transcriber_busy():
                         # Display it.
@@ -1706,6 +1974,17 @@ class Main(PyXavi):
                         #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
                         # )
 
+                elif self._last_processed_interaction_percentage >= 0 and \
+                        (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
+                    # (Only while the countdown is still alive: once it was cleaned (-1) the app is idle, and speech heard
+                    #   in idle mode must not bring an expired countdown back.)
+                    # The hold time ran out, but the user started to speak after the last tick (the countdown was in its
+                    #   last second). Ending now would mute the microphone in the middle of the sentence: the speech would
+                    #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
+                    # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
+                    self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                    self._last_interaction_paused_seconds += 1
+
                 elif self._last_processed_interaction_percentage > 0:
                     # The hold time is over but the bar still shows its last LED(s).
                     # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
@@ -1718,16 +1997,21 @@ class Main(PyXavi):
                     # We are meant to clean the display.
 
                     # The time to hold the interaction is over.
-                    # We clear the background display and reset the percentage.
-                    self._last_processed_interaction_percentage = -1
-                    self._last_interaction_paused_seconds = 0
-                    # And then we clean the display completely, as we go to idle soon.
-                    self._interaction.end_interaction_holding_percentage()
-                    # If the Wake up button is wanted exclusivelly, we mute the microphone, 
+                    # The display goes blank now: this is where the idle mode starts.
+                    # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
+                    #   app is idle from the moment that nothing is being shown.
+                    # ⚠️ It goes BEFORE ending the listening phase, which is what asks to end the countdown: in idle mode
+                    #   the painter blanks the screen when the countdown paint is removed, instead of drawing the layout again.
+                    if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
+                        self._interaction.set_idle_mode_on()
+
+                    # The listening phase ends: we clear the background display and reset the counters.
+                    # If the Wake up button is wanted exclusively, we also mute the microphone,
                     #   as the user is not speaking and we don't want to react to anything else.
-                    if self._interaction.is_wake_up_button_wanted_exclusively():
-                        self._xlog.debug("Wake up button is wanted exclusively, muting the microphone to avoid reacting to anything else.")
-                        self._interaction.mute_microphone(input_stream=self._input_stream)
+                    self._end_listening_phase(
+                        "hold time over",
+                        mute=self._interaction.is_wake_up_button_wanted_exclusively(),
+                        clear_bar=True)
     
     # ------------- Stuff to do daily -------------
 
@@ -1735,7 +2019,10 @@ class Main(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
-    
+
+        # The use of the emojis of the day goes to the stats file.
+        EmojiStats.flush()
+
 
     # ------------- Others -------------
 

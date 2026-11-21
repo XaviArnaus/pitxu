@@ -4,28 +4,42 @@ from definitions import SHARED_DSI_LCD_IDLE_MODE
 from pitxu.lib.abstract.pyxavi import PyXavi
 
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
+from pitxu.lib.core.doorbell import Doorbell, DoorbellListener
 
 import threading
 import time
 
 class SharedMemoryMonitor(PyXavi):
     """
-    This class monitors ALL shared memory flags and calls the corresponding callbacks when the flags change to the expected values, if there's anything registered over them.
+    This class monitors ALL shared memory flags and values and calls the corresponding callbacks when
+    the flags change to the expected values, or the values change, if there's anything registered over them.
 
-    It started as a copy of the PainterSharedMemory class, and it's intended to end up being the main shared memory monitoring, eventually to replace the one in Painter.
+    It is the only implementation of this monitoring. The Painter one (PainterSharedMemory) is a subclass
+    that only adds the resuming of the painter loop through the _after_callbacks_triggered() hook.
+
+    The flags are registered as (name, flag, activation value, callback, is dependant) tuples.
     """
 
     _worker_thread: threading.Thread = None
 
     _shared_memory: SharedMemoryManager = None
-    _shared_memory_flag_to_callback: list[tuple[int, bool, callable]] = None
+    _shared_memory_flag_to_callback: list[tuple[str, int, bool, callable, bool]] = None
     _shared_memory_flag_previous_value: dict[int, bool] = None
-
-    # We need to be able to resume the painter, whenever we trigger a callback from the shared memory control worker, 
-    #   to ensure that the interaction is painted as soon as possible.
-    _painter_resume_callback: callable = None
+    _shared_memory_value_to_callback: list[tuple[str, int, callable]] = None
+    _shared_memory_value_previous: dict[int, float] = None
 
     THREAD_NAME: str = "SharedMemoryMonitor"
+
+    # The doorbell that the writers ring when something changes in the shared memory (see Doorbell).
+    # The worker sleeps until it is rung, instead of waking up every few milliseconds to check.
+    # None means no doorbell: the worker polls like it always did.
+    BELL_NAME: str | None = Doorbell.BELL_MAIN_MONITOR
+    # Even if it is not rung, the worker checks the shared memory at least this often.
+    # It is a safety net for a ring that never arrives, so the changes are not left unattended for long.
+    SAFETY_TIMEOUT_SECONDS: float = 1.0
+    # When it polls (no doorbell), how often. Slower in idle mode, as nothing is going to be painted.
+    POLLING_SECONDS: float = 0.2
+    POLLING_IDLE_SECONDS: float = 1.0
 
     is_active: bool = True
 
@@ -34,20 +48,31 @@ class SharedMemoryMonitor(PyXavi):
     def __init__(self, config: Config, params: Dictionary):
         super(SharedMemoryMonitor, self).init_pyxavi(config, params)
 
-        self._xlog.info("Initialising Shared Memory Monitor")
+        self._xlog.info(f"Initialising {self.__class__.__name__}")
 
         if params.key_exists("shared_memory"):
-            self._xlog.debug("Using provided shared memory manager for SharedMemoryMonitor.")
+            self._xlog.debug(f"Using provided shared memory manager for {self.__class__.__name__}.")
             self.shared_memory = params.get("shared_memory")
         else:
-            self._xlog.debug("Using existing initialized shared memory manager for SharedMemoryMonitor.")
+            self._xlog.debug(f"Using existing initialized shared memory manager for {self.__class__.__name__}.")
             self.shared_memory = SharedMemoryManager(config=config)
             self.shared_memory.initialize_existing_shared_memory_flags()
-        
+
+        # The flags and values to monitor, and the last value seen for each.
+        self._shared_memory_flag_to_callback = []
+        self._shared_memory_flag_previous_value = {}
+        self._shared_memory_value_to_callback = []
+        self._shared_memory_value_previous = {}
+
         # Initialize the list of shared memory flags to control, empty otherwise.
         shared_memory_list_to_control = params.get("shared_memory_list_to_control", [])
         self.load_list_control(shared_memory_list_to_control)
-        
+
+        # The doorbell is bound BEFORE the worker reads anything, so a change that happens in between is not missed.
+        self._doorbell = self._create_doorbell_listener()
+        # Numbers for the closing log: how much the worker woke up, and why.
+        self._stats = {"passes": 0, "rung": 0, "timeouts": 0, "polls": 0}
+
         # We control the transitions of the shared_memory flags and values in a separate thread.
         self._worker_thread = threading.Thread(
             name=self.THREAD_NAME,
@@ -66,10 +91,28 @@ class SharedMemoryMonitor(PyXavi):
         self.is_active = True
         self._worker_thread.start()
     
+    def _create_doorbell_listener(self) -> DoorbellListener | None:
+        """
+        Binds the doorbell of this monitor. If it can not be done, the worker polls, like it always did.
+        """
+        if self.BELL_NAME is None or not Doorbell.is_enabled("monitors"):
+            self._xlog.info(f"🔔 Doorbell OFF for {self.__class__.__name__}: it polls the shared memory (config doorbell.enabled / doorbell.monitors).")
+            return None
+        try:
+            listener = DoorbellListener(self.BELL_NAME)
+            self._xlog.info(f"🔔 Doorbell ON for {self.__class__.__name__}: listening at {Doorbell.path_for(self.BELL_NAME)}")
+            return listener
+        except OSError as e:
+            self._xlog.warning(f"Could not bind the doorbell [{self.BELL_NAME}], {self.__class__.__name__} will poll the shared memory: {e}")
+            return None
+
     def shutdown(self):
-        self._xlog.debug("Shutting down SharedMemoryMonitor.")
+        self._xlog.debug(f"Shutting down {self.__class__.__name__}.")
         self.is_active = False
-    
+        # The worker may be sleeping until the next ring: ring it ourselves, so it sees that it has to leave.
+        if self._doorbell is not None:
+            self._doorbell.wake()
+
     def close(self):
         self.shutdown()
 
@@ -82,6 +125,17 @@ class SharedMemoryMonitor(PyXavi):
                 self._xlog.debug("Shared memory control worker thread finished successfully.")
         else:
             self._xlog.debug("Shared memory control worker thread is not alive or was never started.")
+
+        # The worker is not using it any more.
+        if self._doorbell is not None:
+            self._doorbell.close()
+            self._doorbell = None
+
+    def get_stats(self) -> dict[str, int]:
+        """
+        How many times the worker checked the shared memory, and what woke it up: a ring, the safety timeout or the polling.
+        """
+        return dict(self._stats)
     
     def set_callback_for_shared_memory_flag(self, name: str, shared_memory_flag: int, activation_value: bool, callback: callable, is_dependant: bool = False):
         if shared_memory_flag not in self.shared_memory._map_index_to_flag:
@@ -150,13 +204,17 @@ class SharedMemoryMonitor(PyXavi):
                 self.get_shared_memory_flag_name_for(flag), 
                 activation_value, 
                 self.shared_memory.read_shared_memory_flag(flag),
-                callback.__name__ if callable(callback) else str(callback),
+                getattr(callback, "__name__", repr(callback)),
                 is_dependant
             ))
         return result
     
-    def did_shared_memory_flag_change_to_activation_value(self, shared_memory_flag: int, activation_value: bool, is_dependant: bool) -> bool:
-        current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
+    def did_shared_memory_flag_change_to_activation_value(
+        self, shared_memory_flag: int, activation_value: bool, is_dependant: bool, current_value: bool | None = None
+    ) -> bool:
+        # The worker passes the value it sampled at the start of the pass, so every decision of the pass is based on the same one.
+        if current_value is None:
+            current_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
         previous_value = self._shared_memory_flag_previous_value.get(shared_memory_flag, None)
         # return previous_value is not None and current_value != previous_value and current_value == activation_value
         if previous_value is None and current_value == activation_value and not is_dependant:
@@ -220,6 +278,61 @@ class SharedMemoryMonitor(PyXavi):
     def get_shared_memory_flag_name_for(self, shared_memory_flag: int) -> str:
         return self.shared_memory._map_index_to_flag.get(shared_memory_flag, f"UnknownFlag_{shared_memory_flag}").upper()
     
+    def set_callback_for_shared_memory_value(self, name: str, shared_memory_value: int, callback: callable):
+        """
+        Registers a callback that runs whenever the given shared memory value changes.
+        The first time the value is seen counts as a change, so the callback also runs once to sync the initial state.
+        Values are compared exactly, so publish integers if you don't want noise.
+        """
+        if shared_memory_value not in self.shared_memory._map_index_to_value:
+            raise ValueError(f"Invalid received shared memory value index: {shared_memory_value}.")
+        if not callable(callback):
+            raise ValueError(f"Callback must be callable. Got {type(callback)}.")
+
+        # The display process attaches to the values only when it needs them.
+        self.shared_memory.attach_shared_memory_values_if_needed()
+
+        self._shared_memory_value_to_callback.append((name, shared_memory_value, callback))
+
+    def _check_shared_memory_values(self):
+        """
+        Runs the callbacks of the monitored values that changed since the previous pass.
+        """
+        if not self._shared_memory_value_to_callback:
+            return
+
+        current_by_index: dict[int, float] = {}
+        callbacks_to_trigger = []
+        for name, value_index, callback in list(self._shared_memory_value_to_callback):
+            if value_index not in current_by_index:
+                current_by_index[value_index] = self.shared_memory.read_shared_memory_value(value_index)
+            current = current_by_index[value_index]
+            if current is None:
+                continue
+            if value_index not in self._shared_memory_value_previous or self._shared_memory_value_previous[value_index] != current:
+                callbacks_to_trigger.append((name, value_index, callback))
+
+        for name, value_index, callback in callbacks_to_trigger:
+            self._log_debug(f"🚩  Shared memory value [{value_index}] changed to [{current_by_index[value_index]}]. Calling [{name}].")
+            try:
+                callback()
+            except Exception as e:
+                self._xlog.error(f"Callback [{name}] for a shared memory value failed: {e}")
+
+        for value_index, current in current_by_index.items():
+            if current is not None:
+                self._shared_memory_value_previous[value_index] = current
+
+        if callbacks_to_trigger:
+            self._after_callbacks_triggered()
+
+    def _after_callbacks_triggered(self):
+        """
+        Hook for subclasses: it runs after any pass of the worker that triggered at least one callback.
+        The Painter one uses it to resume the painter loop, so what the callbacks changed is painted as soon as possible.
+        """
+        pass
+
     def _shared_memory_control_worker(self):
         """
         Entry point of the worker thread: runs the control loop.
@@ -230,6 +343,12 @@ class SharedMemoryMonitor(PyXavi):
             # The shared memory was closed under our feet: only expected while the monitor is being closed.
             if self.is_active:
                 raise
+        finally:
+            # What it cost, for knowing if the doorbell is worth it: the CPU time of this thread over the passes.
+            self._xlog.info(
+                f"{self.__class__.__name__} finished: {self._stats['passes']} passes "
+                f"({self._stats['rung']} rung, {self._stats['timeouts']} timeouts, {self._stats['polls']} polls), "
+                f"{time.thread_time():.2f}s of CPU in the worker thread.")
 
     def _shared_memory_control_loop(self):
         """
@@ -246,13 +365,21 @@ class SharedMemoryMonitor(PyXavi):
                 # If we don't do it this way, the first callback already updates the value and 
                 #   other possible callbacks for the same flag and value won't be triggered.
                 callbacks_to_trigger = []
-                for name, shared_memory_flag, activation_value, callback, is_dependant in self._shared_memory_flag_to_callback:
+                # Every flag is read ONCE per pass. What the pass decides, and what it records as "previous" afterwards,
+                #   is what it SAW. Re-reading after the callbacks would swallow a flag that flipped back meanwhile.
+                registered = list(self._shared_memory_flag_to_callback)
+                snapshot = {flag: self.shared_memory.read_shared_memory_flag(flag) for _, flag, _, _, _ in registered}
+                # The flags with a dependant callback that has to wait: their transition must stay pending.
+                waiting_flags = set()
+                for name, shared_memory_flag, activation_value, callback, is_dependant in registered:
 
                     # Did the flag change to anything we're monitoring?
-                    if self.did_shared_memory_flag_change_to_activation_value(shared_memory_flag, activation_value, is_dependant):
+                    if self.did_shared_memory_flag_change_to_activation_value(
+                            shared_memory_flag, activation_value, is_dependant, snapshot[shared_memory_flag]):
 
                         # Are we checking a dependant callback? If so, did the previous one already ran?
                         if is_dependant and not self.did_previous_callback_to_dependant_ran_already(name, shared_memory_flag, activation_value):
+                            waiting_flags.add(shared_memory_flag)
                             self._log_debug(f"🚩  Dependant callback for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} and value {activation_value} is waiting for the previous callback to run.")
                         else:
 
@@ -265,23 +392,62 @@ class SharedMemoryMonitor(PyXavi):
                     self._log_debug(f"🚩  Triggering callback [{name}] for the flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} at value {activation_value}.")
                     self.trigger_callback_for_shared_memory_flag(name, shared_memory_flag, activation_value)
                 
-                # Finally, we update the previous value of the flags that changed, to be able to detect future changes.
-                for _, shared_memory_flag, _, _ in callbacks_to_trigger:
-                    self._log_debug(f"🚩  Updating previous value for shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} after triggering callbacks.")
-                    self.update_shared_memory_flag_monitored_previous_value(shared_memory_flag)
+                # Finally, we record what we saw for ALL the monitored flags (not only the ones that triggered, otherwise
+                #   a flag with a single activation value never learns that it went back, and its next change is missed),
+                #   except the ones with a dependant callback still waiting.
+                for shared_memory_flag, seen_value in snapshot.items():
+                    if shared_memory_flag in waiting_flags:
+                        continue
+                    self._shared_memory_flag_previous_value[shared_memory_flag] = seen_value
+                    if not callbacks_to_trigger:
+                        continue
+                    live_value = self.shared_memory.read_shared_memory_flag(shared_memory_flag)
+                    if live_value != seen_value:
+                        # It flipped while the callbacks ran. It is not lost: the next pass sees it as a change.
+                        self._xlog.warning(
+                            f"🚩  Shared memory flag {self.get_shared_memory_flag_name_for(shared_memory_flag)} changed "
+                            f"from {seen_value} to {live_value} while the callbacks were running. It will be handled in the next pass.")
                 
-                # If we had any callback to trigger, we need to ensure that we resume the painter loop.
-                # 2. Resume the painter loop in case it was paused, to ensure that the interaction is painted as soon as possible.
-                # if callbacks_to_trigger:
-                #     self._log_debug(f"🚩  Resuming painter loop after triggering callbacks for shared memory flags.")
-                #     self._painter_resume_callback()
+                # If we had any callback to trigger, let the subclasses react (the Painter one resumes its loop).
+                if callbacks_to_trigger:
+                    self._after_callbacks_triggered()
 
-            # If we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage, 
-            # because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.
-            if self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE):
-                time.sleep(1)
-            else:
-                time.sleep(0.2)
+            # The values are monitored in the same pass as the flags.
+            self._check_shared_memory_values()
+            self._stats["passes"] += 1
+
+            self._wait_for_next_pass()
+
+    def _wait_for_next_pass(self):
+        """
+        Waits until it is time to check the shared memory again.
+
+        With a doorbell, it sleeps until a writer rings it, which happens when a flag or a value changes,
+        so nothing wakes up while nothing happens, and a change is attended at once.
+        The safety timeout covers a ring that never arrives.
+
+        Without it, it polls: if we're in idle mode, we can afford to check the shared memory less often, to reduce CPU usage,
+        because we know that there won't be any interaction to paint, so we don't need to trigger the callbacks as soon as possible.
+        """
+        if self._doorbell is not None:
+            try:
+                if self._doorbell.wait(self.SAFETY_TIMEOUT_SECONDS):
+                    self._stats["rung"] += 1
+                else:
+                    self._stats["timeouts"] += 1
+                return
+            except Exception as e:
+                if not self.is_active:
+                    return
+                # Whatever it is, the monitoring has to go on: drop the doorbell and poll, like it always did.
+                self._xlog.warning(f"🔔 The doorbell of {self.__class__.__name__} failed, it will poll the shared memory from now on: {type(e).__name__}: {e}")
+                self._doorbell = None
+
+        self._stats["polls"] += 1
+        if self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE):
+            time.sleep(self.POLLING_IDLE_SECONDS)
+        else:
+            time.sleep(self.POLLING_SECONDS)
 
     def is_idle_mode_on(self) -> bool:
         return self.shared_memory.read_shared_memory_flag(SHARED_DSI_LCD_IDLE_MODE)

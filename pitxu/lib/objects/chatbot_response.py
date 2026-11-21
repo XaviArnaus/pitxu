@@ -5,7 +5,7 @@ from google.genai.chats import GenerateContentResponse
 from google.genai.types import FinishReason, GenerateContentResponseUsageMetadata
 
 from pitxu.lib.objects.communication import ChatbotAnswer
-from pitxu.lib.utils.text import Code
+from pitxu.lib.utils.text import Code, Text
 
 
 class ChatbotResponse:
@@ -15,16 +15,20 @@ class ChatbotResponse:
     error: FinishReason = None
     metadata: GenerateContentResponseUsageMetadata = None
     code: list[str] = None
+    # How the answer feels (a label from `animations.emotions`), as told by the chatbot in its answer. None if it did not say.
+    emotion: str = None
 
-    def __init__(self, 
-                 text: str = "", 
-                 function_call_history: FunctionCallHistory = None, 
-                 error: FinishReason = None, 
-                 metadata: GenerateContentResponseUsageMetadata = None):
+    def __init__(self,
+                 text: str = "",
+                 function_call_history: FunctionCallHistory = None,
+                 error: FinishReason = None,
+                 metadata: GenerateContentResponseUsageMetadata = None,
+                 emotion: str = None):
         self.text = text
         self.function_call_history = function_call_history if function_call_history is not None else FunctionCallHistory()
         self.error = error
         self.metadata = metadata
+        self.emotion = emotion
 
         self.post_process_text()
 
@@ -66,7 +70,8 @@ class ChatbotResponse:
         return ChatbotResponse(
             text=text,
             function_call_history=function_call_history,
-            error=error
+            error=error,
+            emotion=data.get("emotion", None)
         )
 
     @staticmethod
@@ -133,6 +138,11 @@ class ChatbotResponse:
         """
         Post-processes the text of the response to prepare it for use.
         """
+
+        # The emotion tag is taken out first, so neither the screen nor the speech ever get it.
+        self.text, tag_emotion = Text.extract_emotion_tag(self.text)
+        if tag_emotion is not None:
+            self.emotion = tag_emotion
 
         if Code.text_includes_code(self.text):
             # Initialize the code list

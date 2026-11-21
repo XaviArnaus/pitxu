@@ -5,12 +5,13 @@ from pyxavi import Config
 from pitxu.lib.abstract.xprocess_display_common import XprocessDisplayCommon
 from pitxu.lib.abstract.xprocess_display_foreground import XprocessDisplayForeground
 from pitxu.lib.abstract.xprocess_display_background import XprocessDisplayBackground
+from pitxu.lib.abstract.xprocess_display_animations import XprocessDisplayAnimations
 from pitxu.lib.abstract.xprocess_display_status import XprocessDisplayStatus
 from pitxu.lib.objects import XprocAction
 
-class XprocessDisplayCombined(XprocessDisplayCommon, XprocessDisplayForeground, XprocessDisplayBackground, XprocessDisplayStatus):
+class XprocessDisplayCombined(XprocessDisplayCommon, XprocessDisplayForeground, XprocessDisplayBackground, XprocessDisplayAnimations, XprocessDisplayStatus):
     '''
-    Class to define the protocol for Display foreground processes.
+    Class to define the protocol for Display processes.
     '''
 
     VERBOSE_DEBUG: bool = False
@@ -31,6 +32,10 @@ class XprocessDisplayCombined(XprocessDisplayCommon, XprocessDisplayForeground, 
         # ---------- background interaction actions ----------
 
         super(XprocessDisplayCombined, self)._run_background_interaction(config, logger, action, param)
+
+        # ---------- animations interaction actions ----------
+
+        super(XprocessDisplayCombined, self)._run_animations_interaction(config, logger, action, param)
 
         # ---------- status interaction actions ----------
 

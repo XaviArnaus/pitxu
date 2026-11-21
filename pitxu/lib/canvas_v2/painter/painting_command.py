@@ -112,25 +112,44 @@ class ButtonsCommand(PaintingCommand):
 class BackgroundCommand(PaintingCommand):
     """
     Commands related to background painting.
-    They are meant to be used in the (currently) "top-left" area of the screen, but they can be used in other areas as well.
+    They are meant to be used in the (currently) "center-left" area of the screen, but they can be used in other areas as well.
     """
 
-    THINKING: str = "THINKING"
     NETWORKING: str = "NETWORKING"
     SPEAKING: str = "SPEAKING"
 
     HOLDER_PERCENTAGE: str = "HOLDER_PERCENTAGE"
     ERROR: str = "ERROR"
-    IDLE: str = "IDLE"
 
     def __init__(self, command: str):
         available_commands = [
-            self.THINKING,
             self.NETWORKING,
             self.SPEAKING,
             self.HOLDER_PERCENTAGE,
             self.ERROR,
             self.CLEAR,
-            self.IDLE,
         ]
         super(BackgroundCommand, self).__init__(command, available_commands)
+
+class AnimationsCommand(PaintingCommand):
+    """
+    Commands related to animations painting (the emojis).
+    They are meant to be used in the (currently) "top-left" area of the screen.
+    """
+
+    THINKING: str = "THINKING"
+    IDLE: str = "IDLE"
+    # Any animation shown while something else happens (like the one that goes with the answer while it is spoken).
+    EMOTION: str = "EMOTION"
+    # The animation shown while the user can speak (the countdown phase).
+    LISTENING: str = "LISTENING"
+
+    def __init__(self, command: str):
+        available_commands = [
+            self.THINKING,
+            self.IDLE,
+            self.EMOTION,
+            self.LISTENING,
+            self.CLEAR,
+        ]
+        super(AnimationsCommand, self).__init__(command, available_commands)

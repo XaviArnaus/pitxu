@@ -6,7 +6,8 @@ from pitxu.lib.microservice.client import Client
 
 from pyxavi import Config, Dictionary, full_stack
 
-from pitxu.lib.utils.animation_cache import get_cache_root, compute_fingerprint, build_cache_dir_name
+from pitxu.lib.utils.animation_cache import get_cache_root, compute_fingerprint, compute_composite_fingerprint, build_cache_dir_name
+from pitxu.lib.objects.composite_animation import normalize_composite_spec
 
 import os
 import glob
@@ -317,6 +318,16 @@ class Maintenance(PyXavi):
                 animation_full_path = os.path.join(base_path, animation_file)
                 if os.path.exists(animation_full_path):
                     expected_folders.add(build_cache_dir_name(animation_name, compute_fingerprint(animation_full_path)))
+
+            # The composite animations (two animations merged) have their own folders, named after the composite.
+            for composite_name, composite_spec in (self._xconfig.get("animations.composites", {}) or {}).items():
+                try:
+                    spec = normalize_composite_spec(composite_spec)
+                    files = [os.path.join(base_path, (self._xconfig.get("animations.map", {}) or {}).get(part, "") or "") for part in (spec["base"], spec["badge"])]
+                    if all(os.path.isfile(file) for file in files):
+                        expected_folders.add(build_cache_dir_name(composite_name, compute_composite_fingerprint(files, spec)))
+                except ValueError:
+                    continue
 
             removed = 0
             for entry in os.listdir(cache_root):

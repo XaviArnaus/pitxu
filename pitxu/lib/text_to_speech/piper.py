@@ -1,4 +1,4 @@
-import logging, time
+import logging, queue, threading, time
 import numpy as np
 import sounddevice
 from piper.voice import PiperVoice
@@ -18,6 +18,13 @@ class Piper(Xprocess):
     _voice: PiperVoice = None
     _output_stream: sounddevice.OutputStream = None
     _level_meter: SpeakerLevelMeter = None
+    _synthesis_thread: threading.Thread = None
+    _stop_synthesis: threading.Event = None
+
+    # Marks the end of the audio in the queue between the synthesis and the playback.
+    _END_OF_SPEECH = object()
+    # How often the playback thread looks at the interruption while it waits for a sentence to be synthesized.
+    INTERRUPT_POLL_SECONDS: float = 0.05
 
     PIPER_LIB_LOG_LEVEL: int = logging.INFO
 
@@ -74,6 +81,10 @@ class Piper(Xprocess):
         ])
 
     def finish(self):
+        if self._stop_synthesis is not None:
+            self._stop_synthesis.set()
+        if self._synthesis_thread is not None and self._synthesis_thread.is_alive():
+            self._synthesis_thread.join(timeout=2)
         if self._level_meter is not None:
             self._level_meter.close()
         self._xlog.debug("Closing output stream")
@@ -128,36 +139,72 @@ class Piper(Xprocess):
 
             # According to the docs, PiperVoice.synthesize returns an iterator of AudioChunks
             # which represent sentences.
-            for int_data in self.generate_audio_chunks(text):
-                # The synthesis of this sentence may have taken a while.
-                if self._is_speech_interrupt_requested():
-                    interrupted = True
-                    break
+            # The synthesis of a sentence can take seconds on the Pi, and nothing can be checked while it runs.
+            # So it runs in its own thread, a couple of sentences ahead of the playback: the next sentence is
+            # ready when the current one ends (no gap), and this thread, that plays, stays free to look at the
+            # interruption all the time, even while it waits for a sentence that is still being synthesized.
+            self._wait_for_previous_synthesis()
+            chunks: queue.Queue = queue.Queue(maxsize=max(1, int(self._xconfig.get("text-to-speech.prefetch_chunks", 2))))
+            stop_synthesis = threading.Event()
+            self._stop_synthesis = stop_synthesis
+            self._synthesis_thread = threading.Thread(
+                name="PiperSynthesis",
+                target=self._synthesize_into,
+                args=(text, chunks, stop_synthesis),
+                daemon=True)
+            self._synthesis_thread.start()
 
-                # Schedule the level of this chunk for the speaking animation (non blocking)
-                if self._level_meter is not None:
-                    self._level_meter.feed(int_data, sample_rate)
-
-                # The very first write of this speech is when the user starts to hear it (give or take the stream latency).
-                # Published for the latency log in Main. It must never get in the way of the speech.
-                if first_chunk:
-                    first_chunk = False
+            try:
+                while True:
                     try:
-                        self._shared_memory.write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, time.time())
-                    except Exception as e:
-                        self._log_debug(f"Could not publish the first audio timestamp: {e}")
+                        int_data = chunks.get(timeout=self.INTERRUPT_POLL_SECONDS)
+                    except queue.Empty:
+                        # Still synthesizing: this is the moment where an interruption used to wait.
+                        if self._is_speech_interrupt_requested():
+                            interrupted = True
+                            break
+                        continue
 
-                # Make it to speak. The same samples, in order, in slices: the blocking write keeps pacing
-                # the playback like before, but we get the chance to look at the interruption between slices.
-                self._log_debug("Writing audio bytes to output stream")
-                step = slice_size if slice_size > 0 else len(int_data)
-                for start in range(0, len(int_data), step):
+                    if int_data is self._END_OF_SPEECH:
+                        break
+                    if isinstance(int_data, BaseException):
+                        # The synthesis failed: it is raised here, like when it was done in this thread.
+                        raise int_data
+
+                    # The audio may have been waiting in the queue for a while.
                     if self._is_speech_interrupt_requested():
                         interrupted = True
                         break
-                    self._output_stream.write(int_data[start:start + step])
-                if interrupted:
-                    break
+
+                    # Schedule the level of this chunk for the speaking animation (non blocking)
+                    # ⚠️ It stays here, right before the write of the chunk, never in the synthesis thread:
+                    #   the levels are scheduled on the wall clock as if the audio started playing now.
+                    if self._level_meter is not None:
+                        self._level_meter.feed(int_data, sample_rate)
+
+                    # The very first write of this speech is when the user starts to hear it (give or take the stream latency).
+                    # Published for the latency log in Main. It must never get in the way of the speech.
+                    if first_chunk:
+                        first_chunk = False
+                        try:
+                            self._shared_memory.write_shared_memory_value(SHARED_FIRST_AUDIO_TIMESTAMP, time.time())
+                        except Exception as e:
+                            self._log_debug(f"Could not publish the first audio timestamp: {e}")
+
+                    # Make it to speak. The same samples, in order, in slices: the blocking write keeps pacing
+                    # the playback like before, but we get the chance to look at the interruption between slices.
+                    self._log_debug("Writing audio bytes to output stream")
+                    step = slice_size if slice_size > 0 else len(int_data)
+                    for start in range(0, len(int_data), step):
+                        if self._is_speech_interrupt_requested():
+                            interrupted = True
+                            break
+                        self._output_stream.write(int_data[start:start + step])
+                    if interrupted:
+                        break
+            finally:
+                # Whatever happened, the synthesis stops after the sentence that it is working on.
+                stop_synthesis.set()
 
             if interrupted:
                 self._xlog.info("🤐 Speech interrupted by the user.")
@@ -178,6 +225,43 @@ class Piper(Xprocess):
         # Done, interrupted or not: the request is consumed.
         self.write_shared_memory_flag(SHARED_SPEECH_INTERRUPT_REQUESTED, False)
         self._log_debug("Finished saying communication")
+
+    def _synthesize_into(self, text: str, chunks: queue.Queue, stop: threading.Event):
+        """
+        The synthesis thread: puts the audio of every sentence in the queue, followed by the end marker.
+        It stops when asked, after the sentence that it is working on (a sentence can not be cancelled in the middle).
+        A failure travels through the queue, to be raised by the thread that plays.
+        """
+        def put(item) -> bool:
+            # The queue is small on purpose: do not synthesize far ahead of what is played.
+            while not stop.is_set():
+                try:
+                    chunks.put(item, timeout=self.INTERRUPT_POLL_SECONDS)
+                    return True
+                except queue.Full:
+                    continue
+            return False
+
+        generator = self.generate_audio_chunks(text)
+        try:
+            for int_data in generator:
+                if stop.is_set() or not put(int_data):
+                    break
+        except BaseException as e:
+            put(e)
+        finally:
+            generator.close()
+            put(self._END_OF_SPEECH)
+
+    def _wait_for_previous_synthesis(self):
+        """
+        The voice (and the phonemizer under it) is not for two threads at the same time. After an interruption the
+        synthesis thread may still be finishing its sentence: the next speech waits for it, it is a matter of moments.
+        """
+        thread = self._synthesis_thread
+        if thread is not None and thread.is_alive():
+            self._xlog.debug("Waiting for the synthesis of the previous speech to finish its sentence.")
+            thread.join()
 
     def _is_speech_interrupt_requested(self) -> bool:
         try:
