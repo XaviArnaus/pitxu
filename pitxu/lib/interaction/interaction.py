@@ -1,5 +1,6 @@
 import importlib
 import threading
+import time
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -750,12 +751,13 @@ class Interaction(PyXavi):
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
-    def wait_for_support_process_to_finish(self, timeout: float = None) -> bool:
+    def wait_for_support_process_to_finish(self, timeout: float = None, should_stop: callable = None) -> bool:
         """
         Waits until the Support process has done everything that was sent to it.
 
         Args:
             timeout (float): Seconds to give up. None waits forever (the previous behaviour).
+            should_stop (callable): Asked every half second while waiting with a timeout. If it returns True, it gives up.
 
         Returns:
             bool: True if the Support process finished, False if the timeout was reached.
@@ -781,11 +783,17 @@ class Interaction(PyXavi):
 
         waiter = threading.Thread(target=_join, name="support-join", daemon=True)
         waiter.start()
-        waiter.join(timeout)
-        finished = not waiter.is_alive()
-        if not finished:
-            self._xlog.error(f"🛑 Timeout of {timeout}s reached while waiting for the Support process to finish.")
-        return finished
+        deadline = time.monotonic() + timeout
+        while waiter.is_alive():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._xlog.error(f"🛑 Timeout of {timeout}s reached while waiting for the Support process to finish.")
+                return False
+            waiter.join(min(0.5, remaining))
+            if waiter.is_alive() and should_stop is not None and should_stop():
+                self._xlog.warning("🟠 Not waiting any longer for the Support process to finish: asked to stop.")
+                return False
+        return True
 
     def is_support_process_alive(self) -> bool:
         """ True if the Support process is running. A Control + C in a terminal kills it with the rest of the group. """

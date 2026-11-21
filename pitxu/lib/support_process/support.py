@@ -98,8 +98,9 @@ class Support(PyXavi):
         self._log_debug(f"Requesting the memory consolidation in Support process [{reason}]")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.CONSOLIDATE_MEMORY, reason)
 
-    def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
+    def summarize_and_store_in_memory(self, chatbot_history: list[dict], pending_id: int = None) -> None:
+        """ `pending_id`: the in-flight pending conversation that has a copy of this history (see Summarizer). """
         self._log_debug("Summarizing and storing chatbot history in memory in Support process")
         self.process_pool.send(QUEUE_SUPPORT, 
                                XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY, 
-                               chatbot_history)
+                               chatbot_history if pending_id is None else {"history": chatbot_history, "pending_id": pending_id})

@@ -81,8 +81,11 @@ class SupportProcess(Xprocess):
                 self.dump_accumulated_audio(preprocessed=True)
                 self.plot_accumulated_audio()
         
-        if action == XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY and isinstance(param, list):
-            self.summarize_and_store_in_memory(param)
+        if action == XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY:
+            if isinstance(param, list):
+                self.summarize_and_store_in_memory(param)
+            elif isinstance(param, dict) and isinstance(param.get("history"), list):
+                self.summarize_and_store_in_memory(param["history"], param.get("pending_id"))
 
         if action == XprocAction.CONSOLIDATE_MEMORY:
             self.consolidate_memory(param if isinstance(param, str) else "requested")
@@ -103,9 +106,9 @@ class SupportProcess(Xprocess):
         self._log_debug(f"Plotting accumulated audio data in Support Worker")
         self.dumper.plot_accumulated_audio()
     
-    def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
+    def summarize_and_store_in_memory(self, chatbot_history: list[dict], pending_id: int = None) -> None:
         self._log_debug("Summarizing chatbot history and storing it in memory in Support Worker")
-        self.summarizer.summarize_and_store_in_memory(chatbot_history)
+        self.summarizer.summarize_and_store_in_memory(chatbot_history, pending_id)
 
     def consolidate_memory(self, reason: str) -> None:
         self._xlog.info(f"Consolidating the memory in Support Worker [{reason}]")

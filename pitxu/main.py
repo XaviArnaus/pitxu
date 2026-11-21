@@ -102,6 +102,13 @@ class Main(PyXavi):
     #   the session, and whatever was already summarized. Only the items after it are summarized.
     _history_summarized_upto: int = 0
 
+    # Closing because of a signal: the handler only asks (`_exit_requested`) and the run loop closes, outside the handler.
+    #   Before the loop is running (start up) the handler closes by itself. A second signal while closing sets
+    #   `_skip_summary_wait`: do not wait for the summary any more (its copy is kept for the nightly consolidation).
+    _exit_requested: bool = False
+    _run_loop_active: bool = False
+    _skip_summary_wait: bool = False
+
     _dictate_count: int = 0
     _answer_count: int = 0
 
@@ -143,6 +150,7 @@ class Main(PyXavi):
             # The database must be at its last version before anything opens it, and the preload needs it.
             self._maintenance.execute_db_migrations()
             self._maintenance.execute_memory_preload()
+            self._maintenance.release_in_flight_conversations()
 
             # Register that we just did a new start
             self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
@@ -231,8 +239,12 @@ class Main(PyXavi):
             # I've tried to catch all possible signals and no avail. I surrended to end up using a while-loop, but I really don't like it.
             if self._xparams.get("execution_mode") not in ["test"]:
                 try:
-                    while True:
-                        await asyncio.sleep(1)
+                    self._run_loop_active = True
+                    while not self._exit_requested:
+                        await asyncio.sleep(0.5)
+                    # A signal asked to close: it is done here and not inside the signal handler.
+                    self._xlog.info("🏁 Closing was requested by a signal.")
+                    self.close_nicely()
                 except (KeyboardInterrupt, SystemExit) as e:
                     self._xlog.info("Pressed Control + C from Main.run() or received termination signal, exiting MainClientPTT run loop.")
             
@@ -337,18 +349,53 @@ class Main(PyXavi):
         # Marked before sending: a second call must never send the same turns again.
         self._history_summarized_upto = len(history)
 
+        # Closing: the raw conversation is written first (write-ahead). If the summary does not finish
+        #   (the Support worker is busy, the LLM is slow, a second signal, a kill), nothing is lost: the
+        #   nightly consolidation summarizes it.
+        pending_id = self._keep_conversation_before_closing(pending) if wait else None
+
         if self._interaction.is_support_process_alive():
-            self._support.summarize_and_store_in_memory(pending)
+            self._support.summarize_and_store_in_memory(pending, pending_id=pending_id)
             if wait:
                 timeout = float(self._xconfig.get("memory.summarization.close_timeout_seconds", 45))
-                self._interaction.wait_for_support_process_to_finish(timeout=timeout)
+                finished = self._interaction.wait_for_support_process_to_finish(
+                    timeout=timeout, should_stop=lambda: self._skip_summary_wait)
+                if not finished:
+                    self._xlog.warning("🟠 The conversation summary did not finish before closing. " + (
+                        f"The raw conversation is kept as pending conversation #{pending_id}, for the nightly consolidation."
+                        if pending_id is not None else "It could not be kept either."))
         else:
             self._xlog.warning("🟠 The Support process is not alive. Summarizing in the main process.")
-            self._summarize_in_process(pending)
+            self._summarize_in_process(pending, pending_id)
 
         return True
 
-    def _summarize_in_process(self, chatbot_history: list[dict]):
+    def _keep_conversation_before_closing(self, history: list[dict]) -> int | None:
+        """
+        Writes the raw conversation as an in-flight pending conversation. Returns its id, or None if it was not
+        possible or not configured (`memory.summarization.fallback_save_raw`).
+        """
+        if not self._xconfig.get("memory.summarization.fallback_save_raw", True):
+            return None
+        from pitxu.lib.utils.memory import Memory
+
+        try:
+            memory = Memory(config=self._xconfig, params=Dictionary({
+                "api_key": self._xparams.get("api_key"),
+                "base_path": self._xparams.get("base_path"),
+                "language": self._xparams.get("language"),
+            }))
+            try:
+                pending_id = memory.create_pending_conversation(history, language=self._xparams.get("language"), in_flight=True)
+            finally:
+                memory.close()
+            self._log_debug(f"Conversation kept as in-flight pending conversation #{pending_id} before closing.")
+            return pending_id
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not keep the conversation before closing: {e}")
+            return None
+
+    def _summarize_in_process(self, chatbot_history: list[dict], pending_id: int = None):
         """ Fallback of _summarize_current_conversation() when the Support worker is not available. """
         from pitxu.lib.support_process.summarizer import Summarizer
 
@@ -358,7 +405,7 @@ class Main(PyXavi):
             "base_path": self._xparams.get("base_path"),
         }))
         try:
-            summarizer.summarize_and_store_in_memory(chatbot_history)
+            summarizer.summarize_and_store_in_memory(chatbot_history, pending_id=pending_id)
         finally:
             summarizer.close()
 
@@ -1176,6 +1223,10 @@ class Main(PyXavi):
         #   must never prevent the next ones, and especially not the release of the shared memory at the end.
         # ⚠️ Any new feature that needs to release something, needs to do it here, through `_safe_step`.
 
+        # First of all no scheduled job (nightly consolidation, deferred retries, reminders...) may start from now on.
+        if self._scheduler is not None:
+            self._safe_step("scheduler", self._scheduler.shutdown)
+
         # Whatever the reason of closing is (exit words, signal, shutdown, reboot, restart, language change...),
         #   the conversation is summarized into the memory here, once, before anything it needs is closed.
         # It waits for the Support worker, bounded by `memory.summarization.close_timeout_seconds`.
@@ -1193,10 +1244,6 @@ class Main(PyXavi):
         self._safe_step("VAD detected flag", self._interaction.unset_vad_detected)
 
         try:
-            # The scheduler contains a thread, so close it properly.
-            if self._scheduler is not None:
-                self._safe_step("scheduler", self._scheduler.shutdown)
-
             # Release the pin that the device monitor may have claimed.
             if self._device_monitor is not None:
                 self._safe_step("device monitor", self._device_monitor.close)
@@ -1348,6 +1395,18 @@ class Main(PyXavi):
         """
 
         signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
+
+        if not self._is_pitxu_active:
+            # Already closing: a new signal means "stop waiting for the summary". Its raw copy is kept.
+            self._skip_summary_wait = True
+            self._xlog.warning(f"🔪 Signal [{signal_name}] received while closing: not waiting for the conversation summary any more.")
+            return
+
+        if self._run_loop_active:
+            # The run loop closes, so the closing does not run inside the signal handler.
+            self._exit_requested = True
+            self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, the run loop closes nicely now...")
+            return
 
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
         try:

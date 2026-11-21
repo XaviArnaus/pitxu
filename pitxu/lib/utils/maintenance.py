@@ -401,6 +401,24 @@ class Maintenance(PyXavi):
         except Exception as e:
             self._xlog.error(f"⚙️  Error migrating the database: {e}")
 
+    def release_in_flight_conversations(self):
+        '''
+        The closing of the application keeps a copy of the conversation while it is being summarized. If the application
+        was killed before it finished, the copy is still there: at startup nothing is summarizing it anymore,
+        so it becomes a normal pending conversation for the nightly consolidation.
+        '''
+        try:
+            from pitxu.lib.utils.memory import Memory
+            memory = Memory(config=self._xconfig, params=self._xparams)
+            try:
+                released = memory.release_in_flight_conversations()
+            finally:
+                memory.close()
+            if released:
+                self._xlog.info(f"⚙️  {released} conversation(s) of the previous closing will be summarized by the nightly consolidation.")
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error releasing the in-flight conversations: {e}")
+
     def execute_memory_preload(self):
         '''
         Executes a preload of the Memory to have it ready and avoid potential delays when it's used for the first time.

@@ -9,6 +9,7 @@ from google.genai.errors import ClientError, ServerError
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -151,17 +152,36 @@ class Memory(PyXavi):
 
     # ----- Pending conversations: raw histories that could not be summarized yet -----
 
-    def create_pending_conversation(self, history: list[dict], language: str = None) -> int:
-        """ Keeps the raw chat history, to be summarized later. Returns its id. """
+    # `attempts` of a conversation that is being summarized right now by the closing of the application (see
+    #   create_pending_conversation(in_flight=True)). The consolidation does not touch these.
+    IN_FLIGHT = -1
+
+    def create_pending_conversation(self, history: list[dict], language: str = None, in_flight: bool = False) -> int:
+        """
+        Keeps the raw chat history, to be summarized later. Returns its id.
+
+        With `in_flight` the conversation is a write-ahead copy: someone is summarizing it right now and deletes it when done.
+        If that someone never finishes (the application is killed), it stays as it is until the next start
+        releases it (release_in_flight_conversations()), and then it is a normal pending conversation.
+        """
         cursor = self._execute(
-            f"INSERT INTO {self.TABLE_PENDING_CONVERSATIONS} (language, history_json, created_at) VALUES (?, ?, ?)",
-            (language or self._session_language(), json.dumps(history, ensure_ascii=False, default=str), Xtime.now().isoformat()))
+            f"INSERT INTO {self.TABLE_PENDING_CONVERSATIONS} (language, history_json, attempts, created_at) VALUES (?, ?, ?, ?)",
+            (language or self._session_language(), json.dumps(history, ensure_ascii=False, default=str),
+             self.IN_FLIGHT if in_flight else 0, Xtime.now().isoformat()))
         return int(cursor.lastrowid)
 
+    def release_pending_conversation(self, pending_id: int):
+        """ The one summarizing an in-flight conversation could not do it: it becomes a normal pending one. """
+        self._execute(f"UPDATE {self.TABLE_PENDING_CONVERSATIONS} SET attempts = 0 WHERE id = ? AND attempts < 0", (pending_id,))
+
+    def release_in_flight_conversations(self) -> int:
+        """ At startup nobody can be summarizing anything: the in-flight conversations left behind become pending ones. """
+        return self._execute(f"UPDATE {self.TABLE_PENDING_CONVERSATIONS} SET attempts = 0 WHERE attempts < 0").rowcount
+
     def get_pending_conversations(self) -> list[dict]:
-        """ The pending conversations, oldest first, each one with its `history` already decoded. """
+        """ The pending conversations, oldest first, each one with its `history` already decoded. Not the in-flight ones. """
         pending = []
-        for row in self._fetch_entries(f"SELECT id, language, history_json, attempts, created_at FROM {self.TABLE_PENDING_CONVERSATIONS} ORDER BY id"):
+        for row in self._fetch_entries(f"SELECT id, language, history_json, attempts, created_at FROM {self.TABLE_PENDING_CONVERSATIONS} WHERE attempts >= 0 ORDER BY id"):
             row["history"] = json.loads(row.pop("history_json"))
             pending.append(row)
         return pending
@@ -190,7 +210,8 @@ class Memory(PyXavi):
     def acquire_consolidation_lock(self, ttl_seconds: float) -> bool:
         """
         Only one consolidation at a time (the night one and a manual one could meet).
-        The lock expires after ttl_seconds, so a crash can't block it for ever.
+        The lock expires after ttl_seconds, so a crash can't block it for ever. It also does not hold
+        when the process that took it is gone (killed while consolidating): the next one takes it over.
         """
         with self._lock:
             # IMMEDIATE: nobody else can take the lock between the check and the write.
@@ -200,23 +221,38 @@ class Memory(PyXavi):
                     f"SELECT value FROM {self.TABLE_MEMORY_META} WHERE key = ?", (self.META_CONSOLIDATION_LOCK,)).fetchone()
                 now = Xtime.now()
                 if row is not None:
+                    taken_text, _, pid_text = str(row["value"]).partition("|")
                     try:
-                        taken_at = datetime.fromisoformat(row["value"])
+                        taken_at = datetime.fromisoformat(taken_text)
                     except Exception:
                         taken_at = None
-                    if taken_at is not None and (now - taken_at).total_seconds() < ttl_seconds:
+                    holder_gone = pid_text.isdigit() and not self._process_is_alive(int(pid_text))
+                    if taken_at is not None and (now - taken_at).total_seconds() < ttl_seconds and not holder_gone:
                         self.db.connection.rollback()
                         return False
+                    if holder_gone:
+                        self._xlog.warning(f"🟠 The memory consolidation lock was held by a process [{pid_text}] that is gone. Taking it over.")
                 self.db.connection.execute(
                     f"INSERT INTO {self.TABLE_MEMORY_META} (key, value, updated_at) VALUES (?, ?, ?) "
                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-                    (self.META_CONSOLIDATION_LOCK, now.isoformat(), now.isoformat()))
+                    (self.META_CONSOLIDATION_LOCK, f"{now.isoformat()}|{os.getpid()}", now.isoformat()))
                 self.db.connection.commit()
                 return True
             except Exception:
                 if self.db.connection.in_transaction:
                     self.db.connection.rollback()
                 raise
+
+    @staticmethod
+    def _process_is_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except Exception:
+            # No permission to signal it, or anything else: it exists, so assume it is alive.
+            return True
+        return True
 
     def release_consolidation_lock(self):
         self.delete_meta(self.META_CONSOLIDATION_LOCK)
