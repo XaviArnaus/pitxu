@@ -38,6 +38,109 @@ memory:
     fallback_save_raw: True
   # [String] Model to use for summarizing the chatbot history into a memory entry.
   summarization_model: gemini-3.1-flash-lite
+  # [String] Model to use for the nightly consolidation of the memory and for the translations of the memory entries.
+  consolidation_model: gemini-3.1-flash-lite
+  short_term:
+    # [Integer] Days that the short term entries stay after being consolidated, and then they are deleted.
+    #   Meanwhile they are the most recent information, and the chatbot reads them before the long term memory.
+    retention_days: 14
+  # The nightly consolidation: the short term entries are summarized into the long term memory,
+  #   and every topic gets a version in every supported language.
+  consolidation:
+    # [Boolean] Run it every night, and the catch-up after the start. False: never automatically
+    #   (`poetry run util -u consolidate_memory` still does it).
+    enabled: True
+    # [Integer] Time of the night to run it.
+    hour: 3
+    minute: 0
+    # [Float] It only starts when nobody is talking to Pitxu. If somebody is, it tries again after these minutes...
+    defer_minutes: 10
+    # [Float] ...until this many hours passed. Then it gives up until the next night.
+    max_defer_hours: 3
+    # [Boolean] If the Raspberry was off at night, check some seconds after the start whether the last consolidation
+    #   is overdue (or never happened), and run it.
+    startup_catchup: True
+    startup_delay_seconds: 300
+    # [Float] Hours after which the last consolidation is overdue.
+    overdue_hours: 26
+    # [Integer] Short term entries sent to the LLM at once.
+    batch_size: 10
+    # [Integer] The existing topics sent with a batch. If there are more, only the ones that share words with it.
+    max_candidates: 60
+    # [Integer] Attempts before giving up on an entry (or a pending conversation). A given up entry is marked
+    #   as `failed`: it is not tried again, and it stays searchable in the short term memory.
+    max_attempts: 5
+    # [Boolean] Backup of the database before changing it (only if there is something to consolidate).
+    backup_before: True
+    # [Integer] Backups of this kind to keep, apart from the ones of the migrations.
+    backups_keep: 3
+    # [Float] Seconds after which the lock of a consolidation that crashed expires.
+    lock_ttl_seconds: 7200
+    # [Boolean] Only log what it would do. Nothing is written, and it does not count as a consolidation.
+    dry_run: False
+    # Timeouts of the LLM requests. What is not here is taken from `summarization` above. They are bigger:
+    #   the consolidation sends many entries.
+    retries: 3
+    backoff_seconds: 5
+    request_timeout_seconds: 60
+    max_total_seconds: 180
+    # The prompts. `%s` is replaced by the JSON with the data.
+    prompt: |
+      # Goal
+      You maintain the long term memory of a voice assistant. New short term memory entries are waiting to be consolidated
+      into it. The long term memory is a list of topics: each one has a short searchable title (`summary`) and its `content`.
+
+      # Input
+      A JSON object with:
+      - `today`: the current date and time.
+      - `language`: the language of the pending entries and of the existing topics.
+      - `existing_topics`: the long term topics in that language, each one with `topic_id`, `summary`, `content`,
+        `updated_at`, and `curated` (true if it comes from the configuration of the user).
+      - `pending_entries`: the new entries, oldest first, each one with `id`, `summary`, `content` and `created_at`.
+
+      # Output
+      A JSON object with `operations`, a list. Each operation has:
+      - `action`: `create`, `update` or `ignore`.
+      - `source_ids`: the ids of the pending entries that it covers.
+      - `topic_id`: only for `update`, the topic to update.
+      - `language`: the language in which `summary` and `content` are written.
+      - `summary` and `content`: for `create` and `update`.
+
+      # Rules
+      1. Every pending entry id must be in exactly one operation.
+      2. Entries about the same subject are merged into one operation.
+      3. `update` when the entries add to or change an existing topic. Its `content` must be the COMPLETE new content of
+         the topic: keep what is still true, and apply the changes. `create` when no existing topic covers the subject.
+         `ignore` when an entry only repeats what a topic already says, or is a test, small talk, or has nothing worth
+         remembering later.
+      4. When information conflicts, the most recent wins. Compare the `created_at` of the entry with the `updated_at` of
+         the topic: an entry OLDER than the topic must NOT override it. It may only add facts that do not contradict the
+         topic. Otherwise ignore it.
+      5. A `curated` topic comes from the configuration of the user: change it only if a newer entry clearly changes or
+         extends it.
+      6. Write `summary` and `content` in the `language` of the input, even if an entry is written in another language
+         (then translate it). Do not translate names, addresses, coordinates, codes or URLs.
+      7. `summary`: a one line title, informative and searchable. `content`: concise and self-contained, Markdown is
+         allowed. Replace pronouns and relative dates ("tomorrow", "next Monday") by the real entities and absolute dates,
+         using `today`.
+      8. Never invent information.
+
+      # Input
+      %s
+    translation_prompt: |
+      Translate a memory entry from the language `source_language` into each language of `target_languages`.
+
+      Rules:
+      - `summary` is a one line title. Keep it informative and searchable in the target language.
+      - Keep the structure and the Markdown format of `content`.
+      - Do NOT translate proper names, addresses, coordinates, codes, URLs or file names. Keep numbers and dates.
+      - Do not add nor remove information.
+
+      Output a JSON object with `translations`: a list with one item per target language, each one with `language`,
+      `summary` and `content`.
+
+      # Input
+      %s
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
   #   The prompt will receive the chatbot history as a list of dictionaries with "role" and "content" as keys.
   #   The prompt should return a concise summary of the chatbot history that captures the main points and context. 

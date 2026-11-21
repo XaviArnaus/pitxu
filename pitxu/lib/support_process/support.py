@@ -93,6 +93,11 @@ class Support(PyXavi):
         self._log_debug("Dumping and plotting all accumulated audio data in Support process")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.DUMP_ALL)
     
+    def consolidate_memory(self, reason: str = "requested"):
+        """ Asks the Support process to run the memory consolidation (long, it runs in the background). """
+        self._log_debug(f"Requesting the memory consolidation in Support process [{reason}]")
+        self.process_pool.send(QUEUE_SUPPORT, XprocAction.CONSOLIDATE_MEMORY, reason)
+
     def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
         self._log_debug("Summarizing and storing chatbot history in memory in Support process")
         self.process_pool.send(QUEUE_SUPPORT, 

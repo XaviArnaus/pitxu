@@ -117,13 +117,18 @@ class DbSqlite(PyXavi):
         self.connection.set_authorizer(authorizer)
         self._log_debug(f"🗄️ Writes are not allowed from this connection in: {', '.join(sorted(protected))}")
 
-    def backup_db(self, label: str) -> str | None:
+    def backup_db(self, label: str, group: str = "backup", keep: int = None) -> str | None:
         """
         Copies the database into the backups folder, using the SQLite backup API: the copy is consistent
-        even if the database is in use. Keeps only the newest `database.sqlite.backups_keep` copies.
+        even if the database is in use.
+
+        The backups are kept by group: only the newest ones of the SAME group are kept, so the frequent ones
+        (like the nightly consolidation) don't push out the rare and valuable ones (like a migration).
 
         Args:
             label (str): What the backup is for, part of the filename. For example "v1-to-v2".
+            group (str): The group it belongs to, part of the filename. For example "migration".
+            keep (int): How many of the group to keep. Default: `database.sqlite.backups_keep`.
 
         Returns:
             str | None: The path of the backup, or None if it could not be done.
@@ -135,7 +140,8 @@ class DbSqlite(PyXavi):
             os.makedirs(backups_dir, exist_ok=True)
 
             stem, extension = os.path.splitext(os.path.basename(self._db_filepath))
-            backup_path = os.path.join(backups_dir, f"{stem}-{label}-{datetime.now().strftime('%Y%m%d-%H%M%S')}{extension}")
+            group_prefix = f"{stem}-{group}-"
+            backup_path = os.path.join(backups_dir, f"{group_prefix}{label}-{datetime.now().strftime('%Y%m%d-%H%M%S')}{extension}")
 
             destination = sqlite3.connect(backup_path)
             try:
@@ -145,10 +151,11 @@ class DbSqlite(PyXavi):
             self._xlog.info(f"🗄️ Database backup created at {backup_path}")
 
             # Don't fill the disk: keep the newest ones.
-            keep = int(self._xconfig.get("database.sqlite.backups_keep", self.DEFAULT_DB_BACKUPS_KEEP))
+            if keep is None:
+                keep = int(self._xconfig.get("database.sqlite.backups_keep", self.DEFAULT_DB_BACKUPS_KEEP))
             backups = sorted(
                 (os.path.join(backups_dir, name) for name in os.listdir(backups_dir)
-                    if name.startswith(stem + "-") and name.endswith(extension)),
+                    if name.startswith(group_prefix) and name.endswith(extension)),
                 key=os.path.getmtime,
                 reverse=True)
             for old_backup in backups[keep:]:
@@ -194,7 +201,7 @@ class DbSqlite(PyXavi):
 
         # An empty database has nothing to lose.
         if current_version > 0:
-            self.backup_db(f"v{current_version}-to-v{pending[-1][0]}")
+            self.backup_db(f"v{current_version}-to-v{pending[-1][0]}", group="migration")
 
         for version, path in pending:
             self._xlog.info(f"🗄️ Applying migration {version}: {os.path.basename(path)}")

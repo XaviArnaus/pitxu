@@ -7,6 +7,7 @@ from pitxu.lib.objects import XprocAction
 
 from pitxu.lib.support_process.dumper import Dumper
 from pitxu.lib.support_process.summarizer import Summarizer
+from pitxu.lib.utils.memory_consolidator import MemoryConsolidator
 
 import numpy as np
 
@@ -19,6 +20,7 @@ class SupportProcess(Xprocess):
 
     dumper: Dumper = None
     summarizer: Summarizer = None
+    consolidator: MemoryConsolidator = None
 
     def get_process_name(self) -> str:
         return "Support"
@@ -35,8 +37,14 @@ class SupportProcess(Xprocess):
         self.dumper = Dumper(config=self._xconfig, params=self._xparams)
 
         self.summarizer = Summarizer(config=self._xconfig, params=self._xparams)
-        
+
+        self.consolidator = MemoryConsolidator(
+            config=self._xconfig, params=self._xparams, should_abort=self._something_is_waiting)
+
     def finish(self):
+        self._xlog.debug("Closing Memory Consolidator in Support Worker")
+        if self.consolidator is not None:
+            self.consolidator.close()
         self._xlog.debug("Closing Summarizer in Support Worker")
         if self.summarizer is not None:
             self.summarizer.close()
@@ -75,6 +83,9 @@ class SupportProcess(Xprocess):
         
         if action == XprocAction.SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY and isinstance(param, list):
             self.summarize_and_store_in_memory(param)
+
+        if action == XprocAction.CONSOLIDATE_MEMORY:
+            self.consolidate_memory(param if isinstance(param, str) else "requested")
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
         self._log_debug(f"Accummulating {'preprocessed' if preprocessed else 'raw'} audio data in Support Worker")
@@ -95,5 +106,19 @@ class SupportProcess(Xprocess):
     def summarize_and_store_in_memory(self, chatbot_history: list[dict]) -> None:
         self._log_debug("Summarizing chatbot history and storing it in memory in Support Worker")
         self.summarizer.summarize_and_store_in_memory(chatbot_history)
+
+    def consolidate_memory(self, reason: str) -> None:
+        self._xlog.info(f"Consolidating the memory in Support Worker [{reason}]")
+        self.consolidator.run(reason=reason)
+
+    def _something_is_waiting(self) -> bool:
+        """
+        Is there anything in the queue of this worker? The consolidation is long: when something arrives
+        (the summary at closing, the FINISH) it gives way instead of making it wait.
+        """
+        try:
+            return self._queue.qsize() > 0
+        except (NotImplementedError, Exception):
+            return False
 
     

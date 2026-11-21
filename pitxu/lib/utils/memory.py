@@ -13,6 +13,7 @@ import re
 import sqlite3
 import threading
 import time
+from datetime import datetime, timedelta
 
 class Memory(PyXavi):
 
@@ -23,6 +24,10 @@ class Memory(PyXavi):
     TABLE_LONG_TIME_MEMORY = "long_time_memory"
     TABLE_KNOWLEDGE_BASE = "knowledge_base"
     TABLE_PENDING_CONVERSATIONS = "pending_conversations"
+    TABLE_MEMORY_META = "memory_meta"
+
+    META_CONSOLIDATION_LOCK = "consolidation_lock"
+    META_LAST_CONSOLIDATION_AT = "last_consolidation_at"
 
     # What of an entry is returned to whoever asks for it.
     ENTRY_COLUMNS = "id, summary, content, created_at, language"
@@ -167,6 +172,213 @@ class Memory(PyXavi):
     def delete_pending_conversation(self, pending_id: int):
         self._execute(f"DELETE FROM {self.TABLE_PENDING_CONVERSATIONS} WHERE id = ?", (pending_id,))
 
+    # ----- Consolidation: what the nightly job needs from the database -----
+
+    def get_meta(self, key: str, default: str = None) -> str | None:
+        rows = self._fetch_entries(f"SELECT value FROM {self.TABLE_MEMORY_META} WHERE key = ?", (key,))
+        return rows[0]["value"] if rows else default
+
+    def set_meta(self, key: str, value: str):
+        self._execute(
+            f"INSERT INTO {self.TABLE_MEMORY_META} (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            (key, str(value), Xtime.now().isoformat()))
+
+    def delete_meta(self, key: str):
+        self._execute(f"DELETE FROM {self.TABLE_MEMORY_META} WHERE key = ?", (key,))
+
+    def acquire_consolidation_lock(self, ttl_seconds: float) -> bool:
+        """
+        Only one consolidation at a time (the night one and a manual one could meet).
+        The lock expires after ttl_seconds, so a crash can't block it for ever.
+        """
+        with self._lock:
+            # IMMEDIATE: nobody else can take the lock between the check and the write.
+            self.db.connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self.db.connection.execute(
+                    f"SELECT value FROM {self.TABLE_MEMORY_META} WHERE key = ?", (self.META_CONSOLIDATION_LOCK,)).fetchone()
+                now = Xtime.now()
+                if row is not None:
+                    try:
+                        taken_at = datetime.fromisoformat(row["value"])
+                    except Exception:
+                        taken_at = None
+                    if taken_at is not None and (now - taken_at).total_seconds() < ttl_seconds:
+                        self.db.connection.rollback()
+                        return False
+                self.db.connection.execute(
+                    f"INSERT INTO {self.TABLE_MEMORY_META} (key, value, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                    (self.META_CONSOLIDATION_LOCK, now.isoformat(), now.isoformat()))
+                self.db.connection.commit()
+                return True
+            except Exception:
+                if self.db.connection.in_transaction:
+                    self.db.connection.rollback()
+                raise
+
+    def release_consolidation_lock(self):
+        self.delete_meta(self.META_CONSOLIDATION_LOCK)
+
+    def get_pending_short_entries(self, limit: int = None) -> list[dict]:
+        """ The short term entries that wait for the consolidation, oldest first. """
+        return self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, attempts, topic_id FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE status = 'pending' ORDER BY id" + (f" LIMIT {int(limit)}" if limit else ""))
+
+    def count_pending_short_entries(self) -> int:
+        return self._fetch_entries(
+            f"SELECT COUNT(*) AS total FROM {self.TABLE_SHORT_TIME_MEMORY} WHERE status = 'pending'")[0]["total"]
+
+    def increment_short_attempts(self, short_ids: list[int], max_attempts: int) -> int:
+        """
+        A consolidation attempt of these entries failed. After max_attempts they are marked `failed` and are not
+        tried again (they stay searchable). Returns how many were marked as failed.
+        """
+        if not short_ids:
+            return 0
+        marks = ",".join("?" for _ in short_ids)
+        self._execute(f"UPDATE {self.TABLE_SHORT_TIME_MEMORY} SET attempts = attempts + 1 WHERE id IN ({marks})", tuple(short_ids))
+        return self._execute(
+            f"UPDATE {self.TABLE_SHORT_TIME_MEMORY} SET status = 'failed' WHERE id IN ({marks}) AND attempts >= ?",
+            tuple(short_ids) + (max_attempts,)).rowcount
+
+    def get_long_memory_rows(self, language: str = None) -> list[dict]:
+        """ The long term rows with what the consolidation needs, of one language or of all of them. """
+        return self._fetch_entries(
+            f"SELECT {self.ENTRY_COLUMNS}, topic_id, updated_at, stale, preload_key FROM {self.TABLE_LONG_TIME_MEMORY} "
+            "WHERE language IS NOT NULL" + (" AND language = ?" if language else "") + " ORDER BY topic_id, id",
+            (language,) if language else ())
+
+    def apply_consolidation(self, action: str, short_ids: list[int], language: str,
+                            summary: str = None, content: str = None, topic_id: int = None) -> int | None:
+        """
+        Applies the result of the consolidation of some short term entries, ALL OR NOTHING: if anything fails,
+        nothing is changed and the entries stay pending.
+
+        Args:
+            action (str): "create" a new topic, "update" the version in this language of an existing topic,
+                or "ignore" (nothing worth keeping: the entries are just marked).
+            short_ids (list[int]): The short term entries this comes from. They get marked, and tagged with the topic.
+            language (str): The language of summary and content.
+            topic_id (int): The topic to update.
+
+        An update leaves the versions in the other languages of the topic `stale`: they are regenerated from this one.
+
+        Returns:
+            int | None: The topic, or None for "ignore".
+        """
+        if action not in ("create", "update", "ignore"):
+            raise ValueError(f"Unknown consolidation action [{action}]")
+        if action != "ignore" and (not summary or not content):
+            raise ValueError("A create or an update needs summary and content")
+        if action == "update" and topic_id is None:
+            raise ValueError("An update needs the topic_id")
+
+        now = Xtime.now().isoformat()
+        marks = ",".join("?" for _ in short_ids)
+        with self._lock:
+            connection = self.db.connection
+            try:
+                result_topic = None
+                if action == "create":
+                    entry_id = int(connection.execute(
+                        f"INSERT INTO {self.TABLE_LONG_TIME_MEMORY} "
+                        "(summary, content, created_at, updated_at, language, source_short_ids, stale) VALUES (?, ?, ?, ?, ?, ?, 0)",
+                        (summary, content, now, now, language, json.dumps(sorted(short_ids)))).lastrowid)
+                    connection.execute(f"UPDATE {self.TABLE_LONG_TIME_MEMORY} SET topic_id = ? WHERE id = ?", (entry_id, entry_id))
+                    result_topic = entry_id
+
+                elif action == "update":
+                    result_topic = topic_id
+                    row = connection.execute(
+                        f"SELECT id, source_short_ids FROM {self.TABLE_LONG_TIME_MEMORY} WHERE topic_id = ? AND language = ?",
+                        (topic_id, language)).fetchone()
+                    if row is not None:
+                        previous = json.loads(row["source_short_ids"]) if row["source_short_ids"] else []
+                        connection.execute(
+                            f"UPDATE {self.TABLE_LONG_TIME_MEMORY} SET summary = ?, content = ?, updated_at = ?, "
+                            "source_short_ids = ?, stale = 0 WHERE id = ?",
+                            (summary, content, now, json.dumps(sorted(set(previous) | set(short_ids))), row["id"]))
+                    else:
+                        # The topic exists, but not in this language yet.
+                        sibling = connection.execute(
+                            f"SELECT 1 FROM {self.TABLE_LONG_TIME_MEMORY} WHERE topic_id = ?", (topic_id,)).fetchone()
+                        if sibling is None:
+                            raise ValueError(f"The topic [{topic_id}] does not exist")
+                        connection.execute(
+                            f"INSERT INTO {self.TABLE_LONG_TIME_MEMORY} "
+                            "(summary, content, created_at, updated_at, language, topic_id, source_short_ids, preload_key, stale) "
+                            f"VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT preload_key FROM {self.TABLE_LONG_TIME_MEMORY} "
+                            "WHERE topic_id = ? AND preload_key IS NOT NULL LIMIT 1), 0)",
+                            (summary, content, now, now, language, topic_id, json.dumps(sorted(short_ids)), topic_id))
+                    # The versions in the other languages say the old thing: they follow this one.
+                    connection.execute(
+                        f"UPDATE {self.TABLE_LONG_TIME_MEMORY} SET stale = 1 WHERE topic_id = ? AND language <> ?",
+                        (topic_id, language))
+
+                if short_ids:
+                    connection.execute(
+                        f"UPDATE {self.TABLE_SHORT_TIME_MEMORY} SET status = ?, consolidated_at = ?, topic_id = ? "
+                        f"WHERE id IN ({marks})",
+                        ("ignored" if action == "ignore" else "consolidated", now, result_topic) + tuple(short_ids))
+
+                connection.commit()
+                return result_topic
+            except Exception:
+                if connection.in_transaction:
+                    connection.rollback()
+                raise
+
+    def upsert_long_memory_translation(self, topic_id: int, language: str, summary: str, content: str):
+        """
+        The version of a topic in a language that was missing or stale, regenerated from another one.
+        It is not an edit of the topic: the sources, the creation time and the preload key of the topic are kept.
+        """
+        if not summary or not content:
+            raise ValueError("A translation needs summary and content")
+
+        now = Xtime.now().isoformat()
+        with self._lock:
+            connection = self.db.connection
+            try:
+                row = connection.execute(
+                    f"SELECT id FROM {self.TABLE_LONG_TIME_MEMORY} WHERE topic_id = ? AND language = ?", (topic_id, language)).fetchone()
+                if row is not None:
+                    connection.execute(
+                        f"UPDATE {self.TABLE_LONG_TIME_MEMORY} SET summary = ?, content = ?, updated_at = ?, stale = 0 WHERE id = ?",
+                        (summary, content, now, row["id"]))
+                else:
+                    sibling = connection.execute(
+                        f"SELECT created_at, source_short_ids, preload_key FROM {self.TABLE_LONG_TIME_MEMORY} "
+                        "WHERE topic_id = ? ORDER BY id LIMIT 1", (topic_id,)).fetchone()
+                    if sibling is None:
+                        raise ValueError(f"The topic [{topic_id}] does not exist")
+                    connection.execute(
+                        f"INSERT INTO {self.TABLE_LONG_TIME_MEMORY} "
+                        "(summary, content, created_at, updated_at, language, topic_id, source_short_ids, preload_key, stale) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                        (summary, content, sibling["created_at"], now, language, topic_id,
+                         sibling["source_short_ids"], sibling["preload_key"]))
+                connection.commit()
+            except Exception:
+                if connection.in_transaction:
+                    connection.rollback()
+                raise
+
+    def prune_short_memory(self, retention_days: float) -> int:
+        """
+        Deletes the short term entries that were consolidated (or ignored) more than retention_days ago.
+        Until then they stay: they are the most recent information and the chatbot reads them first.
+        Whatever is pending or failed is never deleted. Returns how many were deleted.
+        """
+        cutoff = (Xtime.now() - timedelta(days=retention_days)).isoformat()
+        return self._execute(
+            f"DELETE FROM {self.TABLE_SHORT_TIME_MEMORY} "
+            "WHERE status IN ('consolidated', 'ignored') AND consolidated_at IS NOT NULL AND consolidated_at < ?",
+            (cutoff,)).rowcount
+
     # ----- Real Memory API, requires to specify the table -----
 
     def create_memory_entry(self, table_name: str, summary: str, content: str, created_at: str = None, language: str = None, preload_key: str = None) -> dict:
@@ -227,6 +439,13 @@ class Memory(PyXavi):
         self._execute(f"UPDATE {table_name} SET summary = ?, content = ? WHERE id = ?",
             (entry["summary"], entry["content"], entry_id))
 
+        if table_name == self.TABLE_SHORT_TIME_MEMORY:
+            # An entry that was already consolidated (or that gave up) and gets edited has new information:
+            #   it goes back to the queue, so the nightly consolidation takes the edit to the long term memory too.
+            self._execute(
+                f"UPDATE {table_name} SET status = 'pending', attempts = 0, consolidated_at = NULL "
+                "WHERE id = ? AND status IN ('consolidated', 'ignored', 'failed')", (entry_id,))
+
         return self.get_by_id(table_name, entry_id)
 
     def update_last_entry(self, table_name: str, summary: str = None, content: str = None) -> dict | None:
@@ -260,12 +479,14 @@ class Memory(PyXavi):
             self.db.connection.commit()
         return cursor
 
-    def summarize_chatbot_history_as_memory_entry(self, chatbot_history: list[dict]) -> dict | None:
+    def summarize_chatbot_history_as_memory_entry(self, chatbot_history: list[dict], language: str = None) -> dict | None:
         '''
         Summarizes the given chatbot history into a memory entry, using an external LLM.
 
         Args:
             chatbot_history (list[dict]): The history of the chatbot conversation, as a list of dictionaries.
+            language (str): The language of the conversation, which is the one of the prompt and the summary.
+                Default: the one of the session.
 
         Returns:
             dict | None:
@@ -279,9 +500,9 @@ class Memory(PyXavi):
                 self._xlog.error("🛑 Cannot summarize the chatbot history: there is no API key.")
                 return None
 
-            prompt = self._build_summarization_prompt(chatbot_history)
+            prompt = self._build_summarization_prompt(chatbot_history, language=language)
 
-            response_text = self._request_summarization(prompt=prompt, api_key=api_key)
+            response_text = self.request_llm_json(prompt=prompt, schema=self._summarization_response_schema())
             if response_text is None:
                 return None
             self._xlog.debug(f"Summarization response: \n{response_text}")
@@ -293,12 +514,12 @@ class Memory(PyXavi):
             self._xlog.debug(full_stack())
             return None
 
-    def _build_summarization_prompt(self, chatbot_history: list[dict]) -> str:
+    def _build_summarization_prompt(self, chatbot_history: list[dict], language: str = None) -> str:
         """
         The prompt of the configured language, with the history in it and (if configured) the current date,
         needed to turn "tomorrow" or "next Monday" into absolute dates.
         """
-        language = self._xparams.get("language")
+        language = language or self._xparams.get("language")
         template = self._xconfig.get("memory.summary_prompt." + str(language))
         if not template:
             raise ValueError(f"There is no summary prompt for the language [{language}] in memory.summary_prompt")
@@ -314,26 +535,48 @@ class Memory(PyXavi):
 
         return prompt
 
-    def _request_summarization(self, prompt: str, api_key: str) -> str | None:
+    def request_llm_json(self, prompt: str, schema: types.Schema, model: str = None,
+                         settings: str = "summarization", purpose: str = "summarization") -> str | None:
         """
-        Asks the LLM for the summary, as JSON. Retries (with exponential backoff, within an overall time budget)
-        when the problem may be temporary: server errors, quota (429) and network errors.
-        Returns the text of the answer, or None if it failed.
+        Asks the LLM for a JSON answer that follows the schema. Retries (with exponential backoff, within an overall
+        time budget) when the problem may be temporary: server errors, quota (429) and network errors.
+
+        The same code serves the summaries, the consolidation and the translations.
+
+        Args:
+            prompt (str): What to ask.
+            schema (types.Schema): The shape of the answer.
+            model (str): The model. Default: `memory.summarization_model`.
+            settings (str): The config block with the retries, backoff, timeouts and budget: `memory.<settings>.*`.
+                What it does not define is taken from `memory.summarization.*`, and then from the defaults.
+            purpose (str): What it is for, to tell it in the logs.
+
+        Returns:
+            str | None: The text of the answer, or None if it failed.
         """
-        retries = int(self._xconfig.get("memory.summarization.retries", self.SUMMARIZATION_RETRIES))
-        backoff_seconds = float(self._xconfig.get("memory.summarization.backoff_seconds", self.SUMMARIZATION_BACKOFF_SECONDS))
-        request_timeout = float(self._xconfig.get("memory.summarization.request_timeout_seconds", self.SUMMARIZATION_REQUEST_TIMEOUT_SECONDS))
-        max_total_seconds = float(self._xconfig.get("memory.summarization.max_total_seconds", self.SUMMARIZATION_MAX_TOTAL_SECONDS))
-        model = self._xconfig.get("memory.summarization_model", "gemini-2.5-flash")
+        api_key = self._xparams.get("api_key")
+        if not api_key:
+            self._xlog.error(f"🛑 Cannot ask the LLM for the {purpose}: there is no API key.")
+            return None
+
+        def setting(name: str, default):
+            value = self._xconfig.get(f"memory.{settings}.{name}")
+            return value if value is not None else self._xconfig.get(f"memory.summarization.{name}", default)
+
+        retries = int(setting("retries", self.SUMMARIZATION_RETRIES))
+        backoff_seconds = float(setting("backoff_seconds", self.SUMMARIZATION_BACKOFF_SECONDS))
+        request_timeout = float(setting("request_timeout_seconds", self.SUMMARIZATION_REQUEST_TIMEOUT_SECONDS))
+        max_total_seconds = float(setting("max_total_seconds", self.SUMMARIZATION_MAX_TOTAL_SECONDS))
+        model = model or self._xconfig.get("memory.summarization_model", "gemini-2.5-flash")
 
         client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(request_timeout * 1000)))
         generation_config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=self._summarization_response_schema())
+            response_schema=schema)
 
         started_at = time.monotonic()
         for attempt in range(1, retries + 1):
-            self._xlog.debug(f"Summarizing. Try #{attempt} / {retries}")
+            self._xlog.debug(f"Asking for the {purpose}. Try #{attempt} / {retries}")
 
             # Only the request is inside the try: a bug in our own code must not look like a network problem to retry.
             try:
@@ -343,7 +586,7 @@ class Memory(PyXavi):
             except ClientError as e:
                 if e.code != 429:
                     # Bad key, bad request...: it will not get better by trying again.
-                    self._xlog.error(f"🛑 Client error using [{model}] during summarization, not retrying: [{e.code}] {e.message}")
+                    self._xlog.error(f"🛑 Client error using [{model}] for the {purpose}, not retrying: [{e.code}] {e.message}")
                     return None
                 problem = f"Quota exceeded [{e.code}] {e.message}"
             except Exception as e:
@@ -351,24 +594,24 @@ class Memory(PyXavi):
                 problem = f"{type(e).__name__}: {e}"
             else:
                 if response.text:
-                    self._log_debug("Summarization successful.")
+                    self._log_debug(f"The {purpose} request was successful.")
                     return response.text
                 # Nothing to read: blocked or empty. Asking again would give the same.
                 finish_reason = response.candidates[0].finish_reason if response.candidates else "no candidates"
-                self._xlog.error(f"🛑 The summarization of [{model}] has no text. Finish reason: {finish_reason}")
+                self._xlog.error(f"🛑 The {purpose} of [{model}] has no text. Finish reason: {finish_reason}")
                 return None
 
-            self._xlog.warning(f"🟠 Summarization try #{attempt} / {retries} failed using [{model}]: {problem}")
+            self._xlog.warning(f"🟠 Try #{attempt} / {retries} of the {purpose} failed using [{model}]: {problem}")
 
             if attempt >= retries:
                 break
             wait_seconds = backoff_seconds * (2 ** (attempt - 1))
             if time.monotonic() - started_at + wait_seconds >= max_total_seconds:
-                self._xlog.warning(f"🟠 Not retrying the summarization: the {max_total_seconds}s budget would be exceeded.")
+                self._xlog.warning(f"🟠 Not retrying the {purpose}: the {max_total_seconds}s budget would be exceeded.")
                 break
             time.sleep(wait_seconds)
 
-        self._xlog.error(f"🛑 Summarization failed after {attempt} tries.")
+        self._xlog.error(f"🛑 The {purpose} failed after {attempt} tries.")
         return None
 
     @staticmethod
@@ -382,10 +625,11 @@ class Memory(PyXavi):
                 "content": types.Schema(type=types.Type.STRING),
             })
 
-    def _parse_summarization_response(self, response_text: str) -> dict | None:
+    @staticmethod
+    def parse_llm_json(response_text: str) -> dict | None:
         """
-        Turns the answer of the LLM into the result described in summarize_chatbot_history_as_memory_entry().
-        It is tolerant: the JSON mode should give plain JSON, but if there are fences or text around it, it is extracted.
+        The JSON object of the answer of the LLM. The JSON mode should give plain JSON, but it is tolerant:
+        if there are fences or text around it, the object is extracted. None if there is no valid object.
         """
         cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", response_text.strip())
 
@@ -400,7 +644,15 @@ class Memory(PyXavi):
                 except json.JSONDecodeError:
                     pass
 
-        if not isinstance(data, dict):
+        return data if isinstance(data, dict) else None
+
+    def _parse_summarization_response(self, response_text: str) -> dict | None:
+        """
+        Turns the answer of the LLM into the result described in summarize_chatbot_history_as_memory_entry().
+        It is tolerant: the JSON mode should give plain JSON, but if there are fences or text around it, it is extracted.
+        """
+        data = self.parse_llm_json(response_text)
+        if data is None:
             self._xlog.error(f"🛑 The summarization response is not a valid JSON object: {response_text[:500]!r}")
             return None
 

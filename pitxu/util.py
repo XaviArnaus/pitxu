@@ -103,6 +103,20 @@ class Util(PyXavi):
         finally:
             database.close()
     
+    def util_consolidate_memory(self):
+        """
+        Runs the memory consolidation now, in this process, instead of waiting for the night.
+        With `memory.consolidation.dry_run: True` in the config it only logs what it would do.
+        Do not run it while the application does its own: a lock in the database avoids the two at once.
+        """
+        from pitxu.lib.utils.memory_consolidator import MemoryConsolidator
+        consolidator = MemoryConsolidator(config=self._xconfig, params=self._xparams)
+        try:
+            stats = consolidator.run(reason="manual util")
+            print(stats if stats is not None else "The consolidation did not run. Check the log.")
+        finally:
+            consolidator.close()
+
     def util_import_old_memory(self):
         """
         This is a one-time utility to import the old memory from the file-based storage to the new SQLite-based storage.

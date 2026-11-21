@@ -37,7 +37,7 @@ import sys
 import time
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
@@ -1679,6 +1679,22 @@ class Main(PyXavi):
             # EVERY NIGHT AT 3 AM
             self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
 
+            # EVERY NIGHT: the memory consolidation, at the time that the config says.
+            if self._xconfig.get("memory.consolidation.enabled", True):
+                self._scheduler.add_job(
+                    self.request_memory_consolidation, 'cron',
+                    hour=int(self._xconfig.get("memory.consolidation.hour", 3)),
+                    minute=int(self._xconfig.get("memory.consolidation.minute", 0)),
+                    kwargs={"reason": "night"})
+
+                # The Raspberry may be off at that time: some minutes after the start, check if it is overdue.
+                if self._xconfig.get("memory.consolidation.startup_catchup", True):
+                    self._scheduler.add_job(
+                        self.request_memory_consolidation_if_overdue, 'date',
+                        run_date=datetime.now() + timedelta(seconds=float(self._xconfig.get("memory.consolidation.startup_delay_seconds", 300))))
+            else:
+                self._xlog.info("The nightly memory consolidation is disabled by config.")
+
             # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
             self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
             self._scheduler.start()
@@ -2126,6 +2142,71 @@ class Main(PyXavi):
                         mute=self._interaction.is_wake_up_button_wanted_exclusively(),
                         clear_bar=True)
     
+    # ------------- Memory consolidation -------------
+
+    def _is_idle_for_memory_consolidation(self) -> bool:
+        """ Nobody is talking to Pitxu nor about to: nothing is running, and the hold time of the last interaction is over. """
+        if self._interaction.is_chatbot_busy() or self._interaction.is_speaker_busy() \
+                or self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+            return False
+        if self._last_interaction_datetime is not None and \
+                self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
+            return False
+        return True
+
+    def request_memory_consolidation(self, reason: str = "night", attempt: int = 0):
+        """
+        Asks the Support worker to consolidate the memory (the work is long and happens there).
+        Only when idle. If not, it tries again later: every `memory.consolidation.defer_minutes`, until
+        `memory.consolidation.max_defer_hours` passed. Then it gives up until the next time.
+        """
+        if not self._is_pitxu_active:
+            return
+
+        if not self._is_idle_for_memory_consolidation():
+            defer_minutes = float(self._xconfig.get("memory.consolidation.defer_minutes", 10))
+            max_defer_minutes = float(self._xconfig.get("memory.consolidation.max_defer_hours", 3)) * 60
+            if (attempt + 1) * defer_minutes > max_defer_minutes:
+                self._xlog.warning(f"🟠 The memory consolidation [{reason}] could not start: Pitxu was never idle in the last {max_defer_minutes / 60} hours.")
+                return
+            self._xlog.info(f"🌙 Pitxu is not idle, the memory consolidation [{reason}] waits {defer_minutes} minutes (attempt {attempt + 1}).")
+            self._scheduler.add_job(
+                self.request_memory_consolidation, 'date',
+                run_date=datetime.now() + timedelta(minutes=defer_minutes),
+                kwargs={"reason": reason, "attempt": attempt + 1})
+            return
+
+        self._support.consolidate_memory(reason)
+
+    def request_memory_consolidation_if_overdue(self):
+        """
+        The consolidation of every night did not happen if the Raspberry was off at that time.
+        If the last one is older than `memory.consolidation.overdue_hours` (or there never was one), it is done now.
+        When there is nothing to consolidate the run is cheap: no LLM calls and no backup.
+        """
+        from pitxu.lib.utils.memory import Memory
+
+        memory = Memory(config=self._xconfig, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "base_path": self._xparams.get("base_path"),
+        }))
+        try:
+            last_run = memory.get_meta(Memory.META_LAST_CONSOLIDATION_AT)
+        finally:
+            memory.close()
+
+        overdue_hours = float(self._xconfig.get("memory.consolidation.overdue_hours", 26))
+        if last_run is not None:
+            hours_since = (datetime.now() - datetime.fromisoformat(last_run)).total_seconds() / 3600
+            if hours_since <= overdue_hours:
+                self._log_debug(f"The last memory consolidation was {hours_since:.1f} hours ago, not overdue.")
+                return
+            self._xlog.info(f"🌙 The last memory consolidation was {hours_since:.1f} hours ago: overdue.")
+        else:
+            self._xlog.info("🌙 The memory was never consolidated: doing it now.")
+
+        self.request_memory_consolidation(reason="overdue")
+
     # ------------- Stuff to do daily -------------
 
     def do_at_night_tasks(self):
