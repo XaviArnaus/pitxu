@@ -6,10 +6,21 @@ memory:
   #   The higher, the more similar the memory should be to be accepted.
   #   Not used by now.
   summary_similarity_threshold: 0.4
-  # [Boolean] Whether to summarize the conversation at the end of the conversation.
-  summarize_at_end_conversation: False
+  # [Boolean] Whether to summarize the conversation when the chatbot decides it is over (the application keeps running).
+  #   The chatbot session is reset afterwards in any case.
+  summarize_at_end_conversation: True
+  # [Boolean] Whether to summarize the pending conversation when the application closes, whatever the reason is:
+  #   exit words, SIGTERM / Control + C, shutdown, reboot, restart or language change.
+  summarize_on_close: True
+  # [Integer] Minimum number of things the user said (since the warm up, or since the last summary) to consider the
+  #   conversation worth summarizing. Below it nothing is stored.
+  min_user_turns: 1
+  summarization:
+    # [Integer] Seconds to wait for the summary to be done when the application closes, before giving up.
+    #   Keep it below the systemd TimeoutStopSec (90 by default), as the closing has more steps.
+    close_timeout_seconds: 45
   # [String] Model to use for summarizing the chatbot history into a memory entry.
-  summarization_model: gemini-2.5-flash
+  summarization_model: gemini-3.1-flash-lite
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
   #   The prompt will receive the chatbot history as a list of dictionaries with "role" and "content" as keys.
   #   The prompt should return a concise summary of the chatbot history that captures the main points and context. 
