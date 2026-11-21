@@ -307,7 +307,11 @@ class CaptureHandler(PyXavi):
             self._xlog.debug("🗣️ VAD detected speech start, but CaptureHandler is not active, ignoring.")
             return
         
-        if not self.stt_state_machine.is_expected_current_state(TrascriptionState.IDLE):
+        if self.stt_state_machine.get_transcription_state() == TrascriptionState.REQUESTED_TRANSCRIPTION:
+            # The previous speech (maybe only a noise) is waiting for its final transcription. The user is speaking now:
+            #   the speech is sent as usual and the STT keeps it until the previous one is over, instead of losing it.
+            self._xlog.info("🗣️ VAD detected speech start while the previous speech is still being transcribed: it will be processed right after.")
+        elif not self.stt_state_machine.is_expected_current_state(TrascriptionState.IDLE):
             self._xlog.warning(f"🟠 VAD detected speech start but the current state is not IDLE: {self.stt_state_machine.get_transcription_state()}")
             return
 
