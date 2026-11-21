@@ -997,7 +997,7 @@ class Main(PyXavi):
                 otherwise the bar stays on screen until the thinking starts (the Visualizer takes it away then) or the
                 speaking effect takes its place, or until the next listening phase draws it again.
         """
-        self._log_debug(f"🛑 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
+        self._log_debug(f"🚥 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
 
         if clear_bar:
             self._last_processed_interaction_percentage = -1
