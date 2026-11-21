@@ -38,6 +38,14 @@ class Summarizer(PyXavi):
             self._xlog.info("Chatbot history summarized and written into memory.")
         else:
             self._xlog.warning("Chatbot history could not be summarized into a valid memory entry.")
+            if self._xconfig.get("memory.summarization.fallback_save_raw", True):
+                # Don't lose it: the raw conversation is kept to be summarized later.
+                try:
+                    pending_id = self.memory.create_pending_conversation(history=chatbot_history, language=self._xparams.get("language"))
+                    self._xlog.info(f"The raw chatbot history was kept as pending conversation #{pending_id} to be summarized later.")
+                    return
+                except Exception as e:
+                    self._xlog.error(f"🛑 Could not keep the raw chatbot history: {e}")
             # do you get the reference to the movie "Blade Runner"?
             # https://en.wikipedia.org/wiki/Tears_in_rain_monologue
             self._xlog.debug("... all those moments will be lost in time, like tears in rain.")

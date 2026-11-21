@@ -95,10 +95,13 @@ class Util(PyXavi):
             print(full_stack())
     
     def util_migrate_db(self):
-        from pitxu.lib.utils.memory import Memory
-        memory = Memory(config=self._xconfig, params=self._xparams)
-        memory.db.migrate_db()
-        memory.close()
+        # Not through Memory: it refuses to write in the long term memory, and the migrations do.
+        from pitxu.lib.database.db_sqlite import DbSqlite
+        database = DbSqlite(config=self._xconfig, params=self._xparams)
+        try:
+            database.migrate_db()
+        finally:
+            database.close()
     
     def util_import_old_memory(self):
         """

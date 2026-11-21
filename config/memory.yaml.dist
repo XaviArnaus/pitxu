@@ -6,6 +6,10 @@ memory:
   #   The higher, the more similar the memory should be to be accepted.
   #   Not used by now.
   summary_similarity_threshold: 0.4
+  # [String] Language of the memory entries from before the languages existed (they have none).
+  #   One of app.supported_languages. It is set once at startup. If an entry is actually in another language,
+  #   the nightly consolidation notices it.
+  legacy_entries_language: "en"
   # [Boolean] Whether to summarize the conversation when the chatbot decides it is over (the application keeps running).
   #   The chatbot session is reset afterwards in any case.
   summarize_at_end_conversation: True
@@ -29,6 +33,9 @@ memory:
     max_total_seconds: 40
     # [Boolean] Tell the LLM the current date and time, needed to turn "tomorrow" or "next Monday" into absolute dates.
     include_current_date: True
+    # [Boolean] If the summary fails (LLM down, no network...), keep the raw conversation to summarize it later
+    #   instead of losing it.
+    fallback_save_raw: True
   # [String] Model to use for summarizing the chatbot history into a memory entry.
   summarization_model: gemini-3.1-flash-lite
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.

@@ -364,13 +364,50 @@ class Maintenance(PyXavi):
             self._xlog.error(f"⚙️  Error loading current start timestamp from file: {e}")
             return None
 
+    def _long_term_writer_params(self) -> Dictionary:
+        """ Params for a Memory that is allowed to write in the long term memory. Only maintenance tasks use it. """
+        return Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "base_path": self._xparams.get("base_path"),
+            "long_term_writer": True,
+        })
+
+    def execute_db_migrations(self):
+        '''
+        Brings the database to the last version (with a backup first, if there is anything to migrate),
+        and sets the language of the memory entries that come from before the languages existed.
+
+        It must run once, in the Main process, before anything else opens the database.
+        '''
+        if not self._xconfig.get("database.sqlite.auto_migrate", True):
+            self._xlog.info("⚙️  Automatic database migration is disabled. Skipping.")
+            return
+
+        try:
+            from pitxu.lib.database.db_sqlite import DbSqlite
+            database = DbSqlite(config=self._xconfig, params=self._xparams)
+            try:
+                applied = database.migrate_db()
+                self._xlog.info(f"⚙️  Database migrations done: {applied} applied.")
+            finally:
+                database.close()
+
+            from pitxu.lib.utils.memory import Memory
+            memory = Memory(config=self._xconfig, params=self._long_term_writer_params())
+            try:
+                memory.backfill_legacy_language()
+            finally:
+                memory.close()
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error migrating the database: {e}")
+
     def execute_memory_preload(self):
         '''
         Executes a preload of the Memory to have it ready and avoid potential delays when it's used for the first time.
         '''
         try:
             from pitxu.lib.utils.memory import Memory
-            memory = Memory(config=self._xconfig, params=self._xparams)
+            memory = Memory(config=self._xconfig, params=self._long_term_writer_params())
             memory.preload_memory()
             self._xlog.info("⚙️  Memory preloaded successfully.")
             memory.close()
