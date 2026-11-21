@@ -21,7 +21,7 @@ class StorageTests(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         dbpath = tmp + "/db/pitxu.db"
         os.makedirs(tmp + "/db")
-        con=sqlite3.connect(dbpath); con.executescript(open(os.path.join(REPO, "migrations/pitxu/0001_init.sql")).read())
+        con=sqlite3.connect(dbpath); con.executescript(read_file(os.path.join(REPO, "migrations/pitxu/0001_init.sql")))
         for i in range(3): con.execute("INSERT INTO short_time_memory(summary,content,created_at) VALUES(?,?,?)",(f"old {i}",f"content {i}","2026-05-0%dT10:00:00"%(i+1)))
         con.execute("INSERT INTO long_time_memory(summary,content) VALUES('legacy long','x')"); con.commit(); con.close()
         C=cfg(tmp); P=params(language="es")
@@ -83,8 +83,8 @@ class StorageTests(unittest.TestCase):
         """a failing migration is rolled back completely"""
         tmp3=tempfile.mkdtemp(); mig=tmp3+"/mig/"; os.makedirs(mig)
         for f in MIGRATIONS: shutil.copy(os.path.join(REPO, "migrations/pitxu/", f), mig + f)
-        open(mig+"%04d_bad.sql" % (LATEST + 1),"w").write("BEGIN;\nALTER TABLE short_time_memory ADD COLUMN zz TEXT;\nINSERT INTO nonexistent VALUES(1);\nPRAGMA user_version = %d;\nCOMMIT;\n" % (LATEST + 1))
-        open(mig+".keep","w").write("")   # not a migration: must be ignored
+        write_file(mig+"%04d_bad.sql" % (LATEST + 1),"BEGIN;\nALTER TABLE short_time_memory ADD COLUMN zz TEXT;\nINSERT INTO nonexistent VALUES(1);\nPRAGMA user_version = %d;\nCOMMIT;\n" % (LATEST + 1))
+        write_file(mig+".keep","")   # not a migration: must be ignored
         C3=cfg(tmp3,**{"database.sqlite.migrations_path":mig}); d3=DbSqlite(config=C3,params=P)
         try: d3.migrate_db(); raised=False
         except Exception: raised=True

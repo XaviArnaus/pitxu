@@ -71,7 +71,7 @@ class ShutdownTests(unittest.TestCase):
         check("expired ttl is still taken over",W.acquire_consolidation_lock(7200) is True)
     def test_04_main_closing_summary_and_signal_handler(self):
         """Main: closing summary with write-ahead, and the signal handler (methods extracted from main.py)"""
-        tree=ast.parse(open(os.path.join(REPO, "pitxu/main.py")).read())
+        tree=ast.parse(read_file(os.path.join(REPO, "pitxu/main.py")))
         wanted={"_summarize_current_conversation","_keep_conversation_before_closing","_summarize_in_process","_handle_signal"}
         fns=[n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name in wanted]
         check("all four methods found",len(fns)==4)
@@ -130,7 +130,7 @@ class ShutdownTests(unittest.TestCase):
         h._handle_signal(signal.SIGINT,None); check("second signal while closing: skip the summary wait, no second close",h._skip_summary_wait is True and closed==[])
     def test_05_interruptible_wait(self):
         """the interruptible wait (method extracted from interaction.py)"""
-        tree=ast.parse(open(os.path.join(REPO, "pitxu/lib/interaction/interaction.py")).read())
+        tree=ast.parse(read_file(os.path.join(REPO, "pitxu/lib/interaction/interaction.py")))
         fn=[n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=="wait_for_support_process_to_finish"][0]
         mod=ast.Module(body=[ast.ClassDef(name="I",bases=[],keywords=[],body=[fn],decorator_list=[],type_params=[])],type_ignores=[]); ast.fix_missing_locations(mod)
         G2={"threading":threading,"time":time,"QUEUE_SUPPORT":"support","SHARED_SUPPORT_BUSY":1}; exec(compile(mod,"inter","exec"),G2); I=G2["I"]
@@ -149,4 +149,4 @@ class ShutdownTests(unittest.TestCase):
     def test_06_service_file(self):
         """the service file"""
         C = cfg(tempfile.mkdtemp())
-        svc=open(os.path.join(REPO, "config/system/pitxu.service")).read(); check("TimeoutStopSec=120 above the close timeout",any(l.strip()=="TimeoutStopSec=120" for l in svc.splitlines()) and float(C.get("memory.summarization.close_timeout_seconds"))<120)
+        svc=read_file(os.path.join(REPO, "config/system/pitxu.service")); check("TimeoutStopSec=120 above the close timeout",any(l.strip()=="TimeoutStopSec=120" for l in svc.splitlines()) and float(C.get("memory.summarization.close_timeout_seconds"))<120)

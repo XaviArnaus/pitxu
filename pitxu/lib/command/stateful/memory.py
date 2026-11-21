@@ -7,6 +7,7 @@ from pitxu.lib.utils.memory import Memory
 from pitxu.lib.interaction.shortcuts.status import Status
 
 import logging
+from functools import partial
 
 
 class StatefulMemory(PyXavi, Command):
@@ -192,7 +193,8 @@ class StatefulMemory(PyXavi, Command):
 
     def forget_memory_entry(self, entry_id: str) -> dict | str:
         '''
-        Forget a memory entry because the user asks to. Ask the user for confirmation first.
+        Forget a memory entry because the user asks to. The request of the user is the confirmation: ask only
+        if it is unclear which entry they mean.
         An "S:" entry (short term) that is not part of the long term memory is deleted.
         The long term memory ("L:" entries) can NOT be deleted: the request is registered, but the information stays.
         Tell the user when this is the case.
@@ -315,6 +317,45 @@ class StatefulMemory(PyXavi, Command):
             log.error(f"🛑 Error showing the retrieved memory entry: {e}")
             log.error(full_stack())
 
+    def callback_notify_memory_write(self, log: logging, interaction: Interaction, value: any, args: dict = None,
+                                     function_name: str = None) -> None:
+        """
+        Callback of the tools that write: tells in the top-right area, for a few seconds, what happened to which entry
+        (its summary line), without the Overall screen and without depending on the chatbot speaking.
+        """
+        try:
+            if isinstance(value, str):
+                log.error(f"🟠 Memory write result is a string: {value}")
+                interaction.show_error(text=value)
+                return
+            if not isinstance(value, dict) or "summary" not in value:
+                log.warning(f"🟠 Memory write result has nothing to notify: {value}")
+                return
+
+            summary = str(value["summary"])
+            if summary.startswith(Memory.FORGET_REQUEST_PREFIX):
+                summary = summary[len(Memory.FORGET_REQUEST_PREFIX):]
+            canvas = interaction.get_canvas_from_foreground_display()
+            interaction.show_arbitrary_text_on_foreground(
+                icon="🧠",
+                header=self._message("notification." + self._notification_label(function_name, value)),
+                text=summary,
+                font_size=canvas.FONT_SIZE_MEDIUM,
+                font_header_size=canvas.FONT_SIZE_BIG)
+        except Exception as e:
+            log.error(f"🛑 Error notifying the memory write: {e}")
+            log.error(full_stack())
+
+    @staticmethod
+    def _notification_label(function_name: str, value: dict) -> str:
+        """ The key of the label (language.memory.notification.*) that tells what happened. """
+        if function_name == "create_memory_entry":
+            return "saved"
+        if function_name == "forget_memory_entry":
+            return "forget_registered" if str(value.get("summary", "")).startswith(Memory.FORGET_REQUEST_PREFIX) else "forgotten"
+        # An update of a long term entry saves a correction, and tells it with a note.
+        return "correction_pending" if "note" in value else "updated"
+
     def get_tool_definition(self) -> list[callable]:
         """
         Returns the methods of the class that will be used as tools by the chatbot.
@@ -340,6 +381,8 @@ class StatefulMemory(PyXavi, Command):
         Args:
             function_name: The name of the function to get the callback for.
         """
-        if function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "forget_memory_entry", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
+        if function_name in ["create_memory_entry", "update_last_memory_entry", "update_memory_entry_by_id", "forget_memory_entry"]:
+            return partial(self.callback_notify_memory_write, function_name=function_name)
+        if function_name in ["get_memory_entries_by_summary", "get_memory_entries_by_date", "get_memory_entry_by_id", "get_last_five_memory_entries"]:
             return self.callback_show_entry_on_foreground
         return self.default_empty_callback

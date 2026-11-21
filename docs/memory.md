@@ -25,6 +25,12 @@ An entry that fails to consolidate is retried up to `memory.consolidation.max_at
 - **Editing an `L:` entry** does not touch it: the edit is saved as a new short term entry (a correction, with the complete corrected content, linked to the topic). It is visible immediately, the long term entry is flagged `pending_correction`, and the consolidation applies it overnight.
 - **Forgetting** an `S:` entry that is not in the long term memory deletes it. Forgetting an `L:` entry (or an entry that is already part of a topic) is only **registered** as a short term entry `FORGET REQUEST (not applied): ...`: the long term memory, and the preload in it, is never deleted by the chatbot. The long term entry is flagged `forget_requested_on` and the chatbot tells the user that it was asked to forget it but is not allowed to. Forget requests are never consolidated nor pruned: removing one is a manual action.
 
+## Autonomy and what the screen shows
+
+The memory is Pitxu's own: with `chatbot.memory_autonomy: True` the system instruction gets `chatbot.memory_autonomy_instruction`, which makes the chatbot save what is worth keeping without asking and without announcing it (never secrets), update an existing entry instead of duplicating it, search silently before answering what may depend on the past, and forget without asking again when the user asks for it. With `False` the instruction is not added.
+
+Whatever the chatbot writes (new, updated, correction pending, forget request registered, forgotten) is notified for a few seconds in the top-right area, with the summary line of the entry. Reading still shows the entries in the full-screen text block.
+
 ## Preload
 
 `config/memory_preload.yaml` lists entries (each one with a `key` and a version per language) that are written to the long term memory at startup. An entry that is already there (by key and language) is not written again. A language that is missing is completed by the consolidation.

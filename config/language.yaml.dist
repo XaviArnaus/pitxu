@@ -391,6 +391,32 @@ language:
       es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
       en: "I'm sorry, there was an error retrieving the memory entries."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."
+    notification:
+      saved:
+        ca: "Desat a la memòria"
+        es: "Guardado en la memoria"
+        en: "Saved to memory"
+        de: "Im Gedächtnis gespeichert"
+      updated:
+        ca: "Memòria actualitzada"
+        es: "Memoria actualizada"
+        en: "Memory updated"
+        de: "Gedächtnis aktualisiert"
+      correction_pending:
+        ca: "Correcció pendent"
+        es: "Corrección pendiente"
+        en: "Correction pending"
+        de: "Korrektur ausstehend"
+      forget_registered:
+        ca: "Petició d'oblidar registrada"
+        es: "Petición de olvidar registrada"
+        en: "Forget request registered"
+        de: "Bitte zu vergessen registriert"
+      forgotten:
+        ca: "Oblidat"
+        es: "Olvidado"
+        en: "Forgotten"
+        de: "Vergessen"
     long_term_correction_saved:
       ca: "Desat com a correcció pendent de la memòria a llarg termini. Ja és visible i s'aplicarà durant la nit."
       es: "Guardado como corrección pendiente de la memoria a largo plazo. Ya es visible y se aplicará durante la noche."

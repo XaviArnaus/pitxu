@@ -63,6 +63,7 @@ class MemoryConfigValidator:
             ("memory.consolidation.backoff_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
             ("memory.consolidation.request_timeout_seconds", 60, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("memory.consolidation.max_total_seconds", 180, "a number of seconds above 0", lambda v: number(v) and v > 0),
+            ("chatbot.memory_autonomy", True, "True or False", boolean),
             ("database.sqlite.auto_migrate", True, "True or False", boolean),
             ("database.sqlite.backups_keep", 5, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
             ("database.sqlite.wal", True, "True or False", boolean),

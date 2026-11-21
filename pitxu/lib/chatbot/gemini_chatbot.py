@@ -217,15 +217,27 @@ class GeminiChatbot(PyXavi):
         labels.append("- none: a neutral or just informative answer")
         return str(template) % "\n".join(labels)
 
+    def _memory_autonomy_instruction(self) -> str:
+        """
+        The part of the system instruction that makes the chatbot read and write the memory by its own initiative
+        (`chatbot.memory_autonomy_instruction`), if `chatbot.memory_autonomy` is True. Empty otherwise.
+        """
+        if not self._xconfig.get("chatbot.memory_autonomy", True):
+            return ""
+        instruction = self._xconfig.get("chatbot.memory_autonomy_instruction", None)
+        return str(instruction) if instruction else ""
+
     def _initialize_chat(self, tools: list):
         emotion_instruction = self._emotion_instruction()
+        memory_autonomy_instruction = self._memory_autonomy_instruction()
+        self._xlog.info("🧠 Memory autonomy instruction: " + ("added to the system instruction" if memory_autonomy_instruction else "NOT added"))
         self._xlog.info("🎭 Emotion tag instruction: " + (f"added to the system instruction ({len(emotion_instruction)} characters)" if emotion_instruction else "NOT added (needs animations.emotions and chatbot.emotion_instruction in the config)"))
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=(
                     self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME)
-                ) + emotion_instruction,
+                ) + emotion_instruction + memory_autonomy_instruction,
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client

@@ -18,7 +18,6 @@ import sqlite3
 import sys
 import tempfile
 import types
-import warnings
 from datetime import datetime, timedelta
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,11 +27,23 @@ if REPO not in sys.path:
 
 import yaml  # noqa: E402  (a dependency of pyxavi)
 
-# Many one-line `open(...).read()` in the tests: do not fill the output with warnings about files left to the garbage collector.
-warnings.filterwarnings("ignore", category=ResourceWarning)
 
 
 # ------------------------------------------------------------------ stand-ins, only when the real thing is missing
+
+def read_file(path: str) -> str:
+    with open(path, encoding="utf-8") as handle:
+        return handle.read()
+
+
+def write_file(path: str, content: str):
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(content)
+
+
+def read_yaml(path: str) -> dict:
+    return yaml.safe_load(read_file(path))
+
 
 def _install_pyxavi_stand_in():
     class Dictionary(dict):
@@ -153,9 +164,9 @@ def cfg(tmp: str, **overrides) -> Config:
     `cfg(tmp, **{"memory.consolidation.batch_size": 3})`.
     """
     merged = {}
-    for path in ["config/memory.yaml.dist", "config/database.yaml.dist", "config/language.yaml.dist"]:
-        merged.update(yaml.safe_load(open(os.path.join(REPO, path))))
-    merged.update(yaml.safe_load(open(os.path.join(FIXTURES, "memory_preload.yaml"))))
+    for path in ["config/memory.yaml.dist", "config/database.yaml.dist", "config/language.yaml.dist", "config/chatbot.yaml.dist"]:
+        merged.update(read_yaml(os.path.join(REPO, path)))
+    merged.update(read_yaml(os.path.join(FIXTURES, "memory_preload.yaml")))
     merged["app"] = {"supported_languages": ["en", "ca", "de", "es"], "default_language": "ca"}
     merged["storage"] = {"path": tmp + "/"}
     file_path = os.path.join(tmp, "test_config.yaml")
