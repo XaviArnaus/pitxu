@@ -2,9 +2,28 @@
 
 ## v0.4.2b - ??
 
+### Added
+
+- Memory in two levels. Everything new lands in the **short term memory**; every night it is consolidated by an LLM into the **long term memory** (read-only for the chatbot, one entry per language: en, es, ca, de). The chatbot searches both, short term first, with `S:` / `L:` ids. See [docs/memory.md](docs/memory.md).
+- The chatbot can correct a long term entry (saved as a correction that is applied overnight) and ask to forget one (registered, never applied: the long term memory is only changed by the consolidation).
+- Summary of the conversation also when the application closes (exit words, SIGTERM, shutdown, reboot...), with a write-ahead copy so it is not lost if the summary does not finish. "No significant conversation" is a valid outcome.
+- Tool `remember_this_conversation` to ask for the conversation to be remembered.
+- Versioned database migrations, applied at startup with a backup first; backups of the database before every consolidation.
+- Write protection of the long term memory in the database itself for everything that is not the consolidation.
+- Validation of the memory settings at startup (a wrong value is reported and replaced by its default), and `util -u check_config` to compare the live config files with the `.dist`.
+- Test suite in `test/` (`make unittests`). The scripts for the sound hardware moved to `test/hardware/`.
+
+### Changed
+
+- The memory preload entries have a `key` and a version per language.
+- The closing waits for the conversation summary (bounded by `memory.summarization.close_timeout_seconds`), and the systemd service has `TimeoutStopSec=120`.
+- Signals (SIGTERM, SIGINT) only ask the run loop to close; a second one stops waiting for the summary.
+- Removed the unused settings `memory.filename` and `memory.summary_similarity_threshold`.
+
 ### Fixed
 - Fix partial merging when transcription end is cut and next does not correct it [#52](https://github.com/XaviArnaus/pitxu/pull/52)
 - Fix UX not being prepared when user answers back too quickly [#54](https://github.com/XaviArnaus/pitxu/pull/54)
+- Summary of the conversation at its end unreliable, and the summarizer failing on edge cases (invalid JSON, quota, network).
 
 ## v0.4.2b - 2026-11-16
 

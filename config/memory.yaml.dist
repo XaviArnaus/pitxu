@@ -1,11 +1,8 @@
-# Settings about long term memory
+# Settings of the memory: the short term and the long term memories (both in the SQLite database, see database.yaml),
+#   the summaries of the conversations, and the nightly consolidation of the short term into the long term.
+#   A value that is not valid is reported in the log at startup and replaced by its default.
+#   More in docs/memory.md
 memory:
-  # [String] Filename for the storage. It will start from /storage or whatever is defined in main.yaml
-  filename: memory.yaml
-  # [Float] Summary similarity threshold to accept the memory match.
-  #   The higher, the more similar the memory should be to be accepted.
-  #   Not used by now.
-  summary_similarity_threshold: 0.4
   # [String] Language of the memory entries from before the languages existed (they have none).
   #   One of app.supported_languages. It is set once at startup. If an entry is actually in another language,
   #   the nightly consolidation notices it.
@@ -21,7 +18,9 @@ memory:
   min_user_turns: 1
   summarization:
     # [Integer] Seconds to wait for the summary to be done when the application closes, before giving up.
-    #   Keep it below the systemd TimeoutStopSec (90 by default), as the closing has more steps.
+    #   Keep it well below the TimeoutStopSec of the systemd service (120, see config/system/pitxu.service),
+    #   as the closing has more steps. If it does not finish in time, the conversation is not lost:
+    #   the nightly consolidation summarizes it.
     close_timeout_seconds: 45
     # [Integer] Attempts to get the summary from the LLM. It retries on server errors, quota (429) and network errors.
     retries: 3

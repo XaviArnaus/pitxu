@@ -147,6 +147,8 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
             self._maintenance.clean_stale_animation_cache()
+            # Settings that are not valid are reported and replaced by their defaults before anything reads them.
+            self._maintenance.validate_memory_config()
             # The database must be at its last version before anything opens it, and the preload needs it.
             self._maintenance.execute_db_migrations()
             self._maintenance.execute_memory_preload()

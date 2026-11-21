@@ -2,6 +2,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.database.db_sqlite import DbSqlite
+from pitxu.lib.utils.memory_config_validator import MemoryConfigValidator
 
 from google import genai
 from google.genai import types
@@ -20,6 +21,8 @@ class Memory(PyXavi):
 
     db: DbSqlite = None
     _long_term_writer: bool = False
+    # The configs that were already validated in this process (every process has its own copy of the config).
+    _validated_configs: set = set()
 
     TABLE_SHORT_TIME_MEMORY = "short_time_memory"
     TABLE_LONG_TIME_MEMORY = "long_time_memory"
@@ -49,6 +52,10 @@ class Memory(PyXavi):
 
     def __init__(self, config: Config, params: Dictionary):
         super().init_pyxavi(config=config, params=params)
+
+        if id(self._xconfig) not in Memory._validated_configs:
+            Memory._validated_configs.add(id(self._xconfig))
+            MemoryConfigValidator.validate(self._xconfig, self._xlog)
 
         if not params.key_exists("api_key"):
             raise ValueError("No API KEY received from params")

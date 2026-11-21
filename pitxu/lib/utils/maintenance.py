@@ -401,6 +401,16 @@ class Maintenance(PyXavi):
         except Exception as e:
             self._xlog.error(f"⚙️  Error migrating the database: {e}")
 
+    def validate_memory_config(self):
+        '''
+        Reports in the log the settings of the memory and the database that are not valid, and replaces them by their defaults.
+        '''
+        try:
+            from pitxu.lib.utils.memory_config_validator import MemoryConfigValidator
+            MemoryConfigValidator.validate(self._xconfig, self._xlog)
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error validating the memory config: {e}")
+
     def release_in_flight_conversations(self):
         '''
         The closing of the application keeps a copy of the conversation while it is being summarized. If the application

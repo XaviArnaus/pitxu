@@ -117,6 +117,32 @@ class Util(PyXavi):
         finally:
             consolidator.close()
 
+    def util_check_config(self):
+        """
+        Compares every live config file with its `.dist` and tells what each one lacks or has extra.
+        Read-only. Useful before copying config files to the Raspberry Pi.
+        """
+        from pitxu.lib.utils.config_checker import ConfigChecker
+        from definitions import CONFIG_DIR
+
+        report = ConfigChecker.compare(CONFIG_DIR)
+        differences = 0
+        for name, result in report.items():
+            if result["live_file_missing"]:
+                print(TerminalColor.RED_BRIGHT + f"{name}.yaml: there is no live file, only the .dist" + TerminalColor.END)
+                differences += 1
+                continue
+            if not result["missing_in_live"] and not result["only_in_live"]:
+                continue
+            differences += 1
+            print(f"\n{name}.yaml")
+            for path in result["missing_in_live"]:
+                print(TerminalColor.RED_BRIGHT + f"  missing in the live file (the code default is used): {path}" + TerminalColor.END)
+            for path in result["only_in_live"]:
+                print(f"  only in the live file (not in the .dist): {path}")
+        print()
+        print("Every live config file matches its .dist." if differences == 0 else f"{differences} config file(s) differ from their .dist.")
+
     def util_import_old_memory(self):
         """
         This is a one-time utility to import the old memory from the file-based storage to the new SQLite-based storage.
