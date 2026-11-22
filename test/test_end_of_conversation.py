@@ -126,6 +126,56 @@ class GoIdleTests(unittest.TestCase):
         self.assertEqual(calls, ["idle", ("end", "conversation ended", True, True)])
 
 
+class StatusLinesTests(unittest.TestCase):
+
+    def _run(self, summarize=True):
+        Holder = methods_of("pitxu/main.py", ["on_end_of_conversation_requested"],
+                            {"asyncio": Obj(run_coroutine_threadsafe=lambda *a, **k: None, get_event_loop=lambda: None)})
+        lines, order = [], []
+        class Interaction:
+            def add_new_status_line(self, text):
+                lines.append(text); order.append("line")
+        class Chatbot:
+            def reset_session(self): order.append("reset")
+        app = Holder()
+        app._xlog = Log()
+        app._xconfig = Obj(get=lambda key, default=None: summarize if key == "memory.summarize_at_end_conversation" else default)
+        app._interaction = Interaction()
+        app._chatbot = Chatbot()
+        app._log_debug = lambda *a, **k: None
+        app._summarize_current_conversation = lambda reason: order.append("summary")
+        app._warmup_chatbot = lambda: None
+        app.on_end_of_conversation_requested()
+        return app, lines, order
+
+    def test_01_both_lines_come_before_the_summary(self):
+        app, lines, order = self._run()
+        self.assertEqual(lines, ["🏁 Conversation ended", "🧠 Summarizing conversation"])
+        self.assertEqual(order, ["line", "line", "summary", "reset"])
+        self.assertTrue(app._end_of_conversation_requested)
+
+    def test_02_without_summary_only_the_first_line(self):
+        _, lines, order = self._run(summarize=False)
+        self.assertEqual(lines, ["🏁 Conversation ended"])
+        self.assertNotIn("summary", order)
+
+    def test_03_a_broken_display_never_raises_from_the_shortcut(self):
+        Holder = methods_of("pitxu/lib/interaction/shortcuts/status.py", ["add_new_status_line"], {"XprocAction": Obj(STATUS_LINE=1)})
+        class Pool:
+            def send(self, *args, **kwargs): raise RuntimeError("queue down")
+        shortcut = Holder()
+        shortcut._xlog = Log()
+        shortcut.status_lines = []
+        shortcut.how_many_status_lines_to_keep = 2
+        shortcut.startup_screen_pending = True
+        shortcut.process_pool = Pool()
+        shortcut.get_queue = lambda: "q"
+        shortcut.add_new_status_line("🏁 one", "red")  # does not raise
+        self.assertEqual(shortcut.status_lines, [("🏁 one", "red")])
+        self.assertFalse(shortcut.startup_screen_pending)
+        self.assertTrue(any("Could not add the status line" in line for line in shortcut._xlog.lines))
+
+
 class FlowWiringTests(unittest.TestCase):
     """ The pieces of main.py in place (the whole class needs the stack to import). """
 

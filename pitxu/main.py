@@ -297,7 +297,10 @@ class Main(PyXavi):
         # The answer that is on its way is replaced by an ending sentence, and the app goes idle after it (no countdown).
         self._end_of_conversation_requested = True
 
+        self._interaction.add_new_status_line("🏁 Conversation ended")
+
         if self._xconfig.get("memory.summarize_at_end_conversation", True):
+            self._interaction.add_new_status_line("🧠 Summarizing conversation")
             self._summarize_current_conversation(reason="end of conversation")
         else:
             self._log_debug("Summarization at the end of the conversation is disabled by config.")
