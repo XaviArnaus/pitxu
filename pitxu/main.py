@@ -37,7 +37,7 @@ import sys
 import time
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
@@ -98,6 +98,16 @@ class Main(PyXavi):
     _exit_words: list[str] = []
     _trigger_words: list[str] = []
     _tokens_counter: int = 0
+    # How many items of the (curated) chatbot history are not for the memory summary: the warm up at the start of
+    #   the session, and whatever was already summarized. Only the items after it are summarized.
+    _history_summarized_upto: int = 0
+
+    # Closing because of a signal: the handler only asks (`_exit_requested`) and the run loop closes, outside the handler.
+    #   Before the loop is running (start up) the handler closes by itself. A second signal while closing sets
+    #   `_skip_summary_wait`: do not wait for the summary any more (its copy is kept for the nightly consolidation).
+    _exit_requested: bool = False
+    _run_loop_active: bool = False
+    _skip_summary_wait: bool = False
 
     _dictate_count: int = 0
     _answer_count: int = 0
@@ -137,7 +147,12 @@ class Main(PyXavi):
             self._maintenance.clean_previous_generated_audio_spectrogram_plots()
             self._maintenance.clean_previous_generated_audio_fourier_transform_plots()
             self._maintenance.clean_stale_animation_cache()
+            # Settings that are not valid are reported and replaced by their defaults before anything reads them.
+            self._maintenance.validate_memory_config()
+            # The database must be at its last version before anything opens it, and the preload needs it.
+            self._maintenance.execute_db_migrations()
             self._maintenance.execute_memory_preload()
+            self._maintenance.release_in_flight_conversations()
 
             # Register that we just did a new start
             self._current_start_timestamp = self._maintenance.write_new_start_timestamp_to_file()
@@ -226,8 +241,12 @@ class Main(PyXavi):
             # I've tried to catch all possible signals and no avail. I surrended to end up using a while-loop, but I really don't like it.
             if self._xparams.get("execution_mode") not in ["test"]:
                 try:
-                    while True:
-                        await asyncio.sleep(1)
+                    self._run_loop_active = True
+                    while not self._exit_requested:
+                        await asyncio.sleep(0.5)
+                    # A signal asked to close: it is done here and not inside the signal handler.
+                    self._xlog.info("🏁 Closing was requested by a signal.")
+                    self.close_nicely()
                 except (KeyboardInterrupt, SystemExit) as e:
                     self._xlog.info("Pressed Control + C from Main.run() or received termination signal, exiting MainClientPTT run loop.")
             
@@ -261,33 +280,137 @@ class Main(PyXavi):
         else:
             self._xlog.info("Running in TEST mode, skipping close_nicely() in Main.run() to allow the test to execute.")
 
-    def on_end_of_conversation_requested(self, is_end_of_application: bool = False):
+    def on_end_of_conversation_requested(self):
+        """
+        The chatbot decided (via its tool) that the conversation is over, but the application keeps running.
+        The conversation is summarized into the memory (if configured) and a new chatbot session starts.
 
-        if self._xconfig.get("memory.summarize_at_end_conversation", True) is False:
-            return
+        The end of the application is not handled here, but by close_nicely(), that summarizes what is pending.
+        """
 
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
-        
-        # Get the chatbot history as a list of dictionaries with "role" and "content" as keys.
-        chatbot_history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
 
-        # If nothing to summarize, just skip it.
-        if not chatbot_history:
-            self._xlog.debug("No chatbot history to summarize for memory entry, skipping summarization and storage.")
+        if self._xconfig.get("memory.summarize_at_end_conversation", True):
+            self._summarize_current_conversation(reason="end of conversation")
         else:
-            # Do the summarization and storage in memory in the Support Worker, 
-            #   that has the summarization tools and the access to memory, 
-            #   to avoid blocking the main thread with the LLM call and the file writing.
-            self._support.summarize_and_store_in_memory(chatbot_history)
+            self._log_debug("Summarization at the end of the conversation is disabled by config.")
 
-        if not is_end_of_application:
-            self._chatbot.reset_session()
-            self._log_debug("Chatbot session reset after end of conversation request.")
-            asyncio.run_coroutine_threadsafe(self._warmup_chatbot(), asyncio.get_event_loop())
+        # The new session is independent of the summarization.
+        self._chatbot.reset_session()
+        self._history_summarized_upto = 0
+        self._log_debug("Chatbot session reset after end of conversation request.")
+        asyncio.run_coroutine_threadsafe(self._warmup_chatbot(), asyncio.get_event_loop())
+
+    def on_remember_conversation_requested(self):
+        """
+        The user asked (through the chatbot tool) to remember the conversation, and the conversation goes on.
+        What was said so far is summarized into the memory. The session is not reset: whatever is said from now on
+          is summarized later (when the conversation ends or the application closes).
+        """
+        self._xlog.info("🧠 User asks to remember the current conversation, via chatbot tool callback.")
+        self._summarize_current_conversation(reason="requested by the user")
+
+    def _summarize_current_conversation(self, reason: str, wait: bool = False) -> bool:
+        """
+        Sends the conversation of the current chatbot session to be summarized and stored in the memory.
+
+        Only what was not summarized yet and is not the warm up is considered, and only if the user said enough
+          (`memory.min_user_turns`), so an unused session leaves nothing in the memory.
+        The summarization and the storage run in the Support worker, to avoid blocking this thread with the LLM call.
+          If the Support worker is gone (a Control + C kills it with the rest of the group), it is done here.
+
+        Args:
+            reason (str): Who asks, for the logs.
+            wait (bool): Wait until it is done, bounded by `memory.summarization.close_timeout_seconds`.
+                Needed when the application is closing.
+
+        Returns:
+            bool: True if there was something to summarize and it was sent.
+        """
+
+        if self._chatbot is None:
+            return False
+
+        try:
+            history = self._chatbot.get_chat_history_as_list_of_dicts(curated=True)
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not read the chatbot history to summarize it [{reason}]: {e}")
+            return False
+
+        pending = history[self._history_summarized_upto:]
+
+        # The function responses also come with the role "user", but without text: they are not the user speaking.
+        user_turns = sum(1 for item in pending if item.get("role") == "user" and (item.get("text") or "").strip() != "")
+        min_user_turns = int(self._xconfig.get("memory.min_user_turns", 1))
+        if user_turns < min_user_turns:
+            self._xlog.debug(f"No significant conversation to summarize [{reason}]: {user_turns} user turns, "
+                             f"{min_user_turns} needed. Skipping.")
+            return False
+
+        self._xlog.info(f"🧠 Summarizing the conversation [{reason}]: {len(pending)} history items, {user_turns} user turns.")
+        # Marked before sending: a second call must never send the same turns again.
+        self._history_summarized_upto = len(history)
+
+        # Closing: the raw conversation is written first (write-ahead). If the summary does not finish
+        #   (the Support worker is busy, the LLM is slow, a second signal, a kill), nothing is lost: the
+        #   nightly consolidation summarizes it.
+        pending_id = self._keep_conversation_before_closing(pending) if wait else None
+
+        if self._interaction.is_support_process_alive():
+            self._support.summarize_and_store_in_memory(pending, pending_id=pending_id)
+            if wait:
+                timeout = float(self._xconfig.get("memory.summarization.close_timeout_seconds", 45))
+                finished = self._interaction.wait_for_support_process_to_finish(
+                    timeout=timeout, should_stop=lambda: self._skip_summary_wait)
+                if not finished:
+                    self._xlog.warning("🟠 The conversation summary did not finish before closing. " + (
+                        f"The raw conversation is kept as pending conversation #{pending_id}, for the nightly consolidation."
+                        if pending_id is not None else "It could not be kept either."))
         else:
-            self._log_debug("End of application requested, not resetting chatbot session, but waiting for the support process to summarize")
-            self._interaction.wait_for_support_process_to_finish()
-    
+            self._xlog.warning("🟠 The Support process is not alive. Summarizing in the main process.")
+            self._summarize_in_process(pending, pending_id)
+
+        return True
+
+    def _keep_conversation_before_closing(self, history: list[dict]) -> int | None:
+        """
+        Writes the raw conversation as an in-flight pending conversation. Returns its id, or None if it was not
+        possible or not configured (`memory.summarization.fallback_save_raw`).
+        """
+        if not self._xconfig.get("memory.summarization.fallback_save_raw", True):
+            return None
+        from pitxu.lib.utils.memory import Memory
+
+        try:
+            memory = Memory(config=self._xconfig, params=Dictionary({
+                "api_key": self._xparams.get("api_key"),
+                "base_path": self._xparams.get("base_path"),
+                "language": self._xparams.get("language"),
+            }))
+            try:
+                pending_id = memory.create_pending_conversation(history, language=self._xparams.get("language"), in_flight=True)
+            finally:
+                memory.close()
+            self._log_debug(f"Conversation kept as in-flight pending conversation #{pending_id} before closing.")
+            return pending_id
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not keep the conversation before closing: {e}")
+            return None
+
+    def _summarize_in_process(self, chatbot_history: list[dict], pending_id: int = None):
+        """ Fallback of _summarize_current_conversation() when the Support worker is not available. """
+        from pitxu.lib.support_process.summarizer import Summarizer
+
+        summarizer = Summarizer(config=self._xconfig, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "language": self._xparams.get("language"),
+            "base_path": self._xparams.get("base_path"),
+        }))
+        try:
+            summarizer.summarize_and_store_in_memory(chatbot_history, pending_id=pending_id)
+        finally:
+            summarizer.close()
+
     async def main_execution_on_vad_detected_started(self):
         """
         This method is called when the user starts speaking, detected by the VAD in CaptureHandler.
@@ -820,22 +943,18 @@ class Main(PyXavi):
             # If we were communicating an error, it's over and start new
             if self._interaction.is_chatbot_error():
                 self._interaction.unset_chatbot_error()
-            
-            if exit_requested if exit_requested is not None else self._text_has_exit_intention(question):
-                self._xlog.info("Exit intention detected in the recognized text, and an answer was given, so now just finishing the app.")
 
-                # Before closing, log down the chatbot history summary into the memory, so we don't lose it.
-                if self._xparams.get("execution_mode") not in ["test"]:
-                    self.on_end_of_conversation_requested(is_end_of_application=True)
-
-                # Now close the app nicely.
-                # COMMENTED: this is now handled by the caller.
-                # self.close_nicely()
-                return False
-            
             # COMMENTED: Remembering this as the last interaction, and the rest of the hand-over to the user,
             #   is now done by the caller via _start_listening_phase().
             # self.reset_last_interaction_event_mark()
+
+        # The exit does not depend on having an answer to say.
+        if exit_requested if exit_requested is not None else self._text_has_exit_intention(question):
+            self._xlog.info("Exit intention detected in the recognized text, so now just finishing the app.")
+
+            # The conversation is summarized into the memory by close_nicely(), that the caller invokes.
+            # So whatever the way of closing is (this one, a signal, a shutdown...), it happens in one place.
+            return False
 
         return True
 
@@ -929,7 +1048,7 @@ class Main(PyXavi):
                 otherwise the bar stays on screen until the thinking starts (the Visualizer takes it away then) or the
                 speaking effect takes its place, or until the next listening phase draws it again.
         """
-        self._log_debug(f"🛑 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
+        self._log_debug(f"🚥 Ending listening phase [{reason}] (mute: {mute}, clear bar: {clear_bar}).")
 
         if clear_bar:
             self._last_processed_interaction_percentage = -1
@@ -965,10 +1084,38 @@ class Main(PyXavi):
         self._log_debug(f"⏳ Listening phase [{reason}]: showing the holding bar at {self._last_processed_interaction_percentage}% right away.")
         self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
 
+    @staticmethod
+    def _normalize_for_matching(text: str) -> str:
+        """ Lowercase, without accents nor punctuation, and with single spaces. For comparing what the STT heard. """
+        return " ".join(Text.remove_punctuation(Text.remove_accents(text.lower())).split())
+
     def _text_has_exit_intention(self, text: str) -> bool:
-        cleaned_text = text.replace(".", "").lower().strip()
-        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{cleaned_text}': {cleaned_text in self._exit_words}")
-        return cleaned_text in self._exit_words
+        """
+        Does the text mean to exit? The text and the exit words are compared normalized (see _normalize_for_matching()),
+          so "Adéu!" matches "adeu".
+
+        `app.exit_words_match`:
+          - "exact" (default): the whole text is an exit word.
+          - "edge": a short text (up to `app.exit_max_words` words) that starts or ends with an exit word, like "ok bye".
+        """
+        cleaned_text = self._normalize_for_matching(text)
+        if cleaned_text == "":
+            return False
+
+        if self._xconfig.get("app.exit_words_match", "exact") == "edge":
+            words = cleaned_text.split()
+            has_exit_intention = False
+            if len(words) <= int(self._xconfig.get("app.exit_max_words", 3)):
+                for exit_word in self._exit_words:
+                    exit_word_parts = exit_word.split()
+                    if words[:len(exit_word_parts)] == exit_word_parts or words[-len(exit_word_parts):] == exit_word_parts:
+                        has_exit_intention = True
+                        break
+        else:
+            has_exit_intention = cleaned_text in self._exit_words
+
+        self._log_debug(f"Checking if text has exit intention: '{text}' -> '{cleaned_text}': {has_exit_intention}")
+        return has_exit_intention
     
     def _text_continues_ongoing_interaction(self, question: str) -> bool:
         # We may be in an ongoing interaction, so let's check the last interaction time
@@ -1033,12 +1180,12 @@ class Main(PyXavi):
     
     def _safe_step(self, name: str, step: callable):
         """
-        Runs one step of the closing, logging (not raising) any error, so the next steps still run.
+        Runs one step of a sequence (the closing, the night tasks), logging (not raising) any error, so the next steps still run.
         """
         try:
             return step()
         except (Exception, RuntimeError) as e:
-            self._xlog.error(f"🛑 Error closing [{name}]: {type(e).__name__}: {e}")
+            self._xlog.error(f"🛑 Error in [{name}]: {type(e).__name__}: {e}")
             self._log_debug(full_stack())
             return None
 
@@ -1078,6 +1225,16 @@ class Main(PyXavi):
         #   must never prevent the next ones, and especially not the release of the shared memory at the end.
         # ⚠️ Any new feature that needs to release something, needs to do it here, through `_safe_step`.
 
+        # First of all no scheduled job (nightly consolidation, deferred retries, reminders...) may start from now on.
+        if self._scheduler is not None:
+            self._safe_step("scheduler", self._scheduler.shutdown)
+
+        # Whatever the reason of closing is (exit words, signal, shutdown, reboot, restart, language change...),
+        #   the conversation is summarized into the memory here, once, before anything it needs is closed.
+        # It waits for the Support worker, bounded by `memory.summarization.close_timeout_seconds`.
+        if self._xparams.get("execution_mode") not in ["test"] and self._xconfig.get("memory.summarize_on_close", True):
+            self._safe_step("conversation summary", lambda: self._summarize_current_conversation(reason="closing", wait=True))
+
         # The chatbot may be in "Thinking" mode, unset it anyways.
         self._safe_step("chatbot busy flag", self._interaction.unset_chatbot_busy)
 
@@ -1089,10 +1246,6 @@ class Main(PyXavi):
         self._safe_step("VAD detected flag", self._interaction.unset_vad_detected)
 
         try:
-            # The scheduler contains a thread, so close it properly.
-            if self._scheduler is not None:
-                self._safe_step("scheduler", self._scheduler.shutdown)
-
             # Release the pin that the device monitor may have claimed.
             if self._device_monitor is not None:
                 self._safe_step("device monitor", self._device_monitor.close)
@@ -1244,6 +1397,18 @@ class Main(PyXavi):
         """
 
         signal_name = signal.Signals(sig).name if sig in signal.Signals.__members__.values() else str(sig)
+
+        if not self._is_pitxu_active:
+            # Already closing: a new signal means "stop waiting for the summary". Its raw copy is kept.
+            self._skip_summary_wait = True
+            self._xlog.warning(f"🔪 Signal [{signal_name}] received while closing: not waiting for the conversation summary any more.")
+            return
+
+        if self._run_loop_active:
+            # The run loop closes, so the closing does not run inside the signal handler.
+            self._exit_requested = True
+            self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, the run loop closes nicely now...")
+            return
 
         self._xlog.warning(f"🔪 Signal [{signal_name}] received in Main, closing nicely now...")
         try:
@@ -1456,8 +1621,10 @@ class Main(PyXavi):
         all_possible_exit_words = []
         for language, exit_words in dict(self._xconfig.get("language.exit_words")).items():
             for word in exit_words:
-                if word not in all_possible_exit_words:
-                    all_possible_exit_words.append(word)
+                # Normalized once here, because the text is normalized the same way when compared.
+                normalized_word = self._normalize_for_matching(word)
+                if normalized_word != "" and normalized_word not in all_possible_exit_words:
+                    all_possible_exit_words.append(normalized_word)
         self._xlog.debug("Load ALL possible exit words " + ", ".join(all_possible_exit_words))
         self._exit_words = all_possible_exit_words
 
@@ -1508,7 +1675,13 @@ class Main(PyXavi):
             
         except Exception as e:
             self._xlog.error("🛑 Error during Chatbot warmup: " + str(e))
-    
+
+        # Whatever happened, what is in the history now is not a conversation with the user: it must not be summarized.
+        try:
+            self._history_summarized_upto = len(self._chatbot.get_chat_history_as_list_of_dicts(curated=True))
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not set the history position after the warmup: {e}")
+
     async def _initialize_chatbot_session_manager(self):
         """
         Initialization of the Chatbot Session Manager, that manages the session with the Chatbot and its history.
@@ -1564,8 +1737,20 @@ class Main(PyXavi):
             # EVERY SECOND
             self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
 
-            # EVERY NIGHT AT 3 AM
-            self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+            # EVERY NIGHT, at the time of `night_tasks` in the config (3:00 by default). All the night tasks are in one job.
+            self._scheduler.add_job(
+                self.do_at_night_tasks, 'cron',
+                hour=int(self._xconfig.get("night_tasks.hour", 3)),
+                minute=int(self._xconfig.get("night_tasks.minute", 0)))
+
+            # The Raspberry may be off at night: some minutes after the start, check if the consolidation is overdue.
+            if self._xconfig.get("memory.consolidation.enabled", True):
+                if self._xconfig.get("memory.consolidation.startup_catchup", True):
+                    self._scheduler.add_job(
+                        self.request_memory_consolidation_if_overdue, 'date',
+                        run_date=datetime.now() + timedelta(seconds=float(self._xconfig.get("memory.consolidation.startup_delay_seconds", 300))))
+            else:
+                self._xlog.info("The memory consolidation is disabled by config.")
 
             # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
             self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
@@ -1746,6 +1931,7 @@ class Main(PyXavi):
             "client_callbacks": self._chatbot_client_callbacks,
             "close_nicely_callback": self.close_nicely,
             "end_of_conversation_callback": self.on_end_of_conversation_requested,
+            "remember_conversation_callback": self.on_remember_conversation_requested,
             "input_stream": input_stream,
             "language": self._xparams.get("language"),
             "state": self._state,
@@ -2013,15 +2199,89 @@ class Main(PyXavi):
                         mute=self._interaction.is_wake_up_button_wanted_exclusively(),
                         clear_bar=True)
     
+    # ------------- Memory consolidation -------------
+
+    def _is_idle_for_memory_consolidation(self) -> bool:
+        """ Nobody is talking to Pitxu nor about to: nothing is running, and the hold time of the last interaction is over. """
+        if self._interaction.is_chatbot_busy() or self._interaction.is_speaker_busy() \
+                or self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+            return False
+        if self._last_interaction_datetime is not None and \
+                self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
+            return False
+        return True
+
+    def request_memory_consolidation(self, reason: str = "night", attempt: int = 0):
+        """
+        Asks the Support worker to consolidate the memory (the work is long and happens there).
+        Only when idle. If not, it tries again later: every `memory.consolidation.defer_minutes`, until
+        `memory.consolidation.max_defer_hours` passed. Then it gives up until the next time.
+        """
+        if not self._is_pitxu_active:
+            return
+
+        if not self._is_idle_for_memory_consolidation():
+            defer_minutes = float(self._xconfig.get("memory.consolidation.defer_minutes", 10))
+            max_defer_minutes = float(self._xconfig.get("memory.consolidation.max_defer_hours", 3)) * 60
+            if (attempt + 1) * defer_minutes > max_defer_minutes:
+                self._xlog.warning(f"🟠 The memory consolidation [{reason}] could not start: Pitxu was never idle in the last {max_defer_minutes / 60} hours.")
+                return
+            self._xlog.info(f"🌙 Pitxu is not idle, the memory consolidation [{reason}] waits {defer_minutes} minutes (attempt {attempt + 1}).")
+            self._scheduler.add_job(
+                self.request_memory_consolidation, 'date',
+                run_date=datetime.now() + timedelta(minutes=defer_minutes),
+                kwargs={"reason": reason, "attempt": attempt + 1})
+            return
+
+        self._support.consolidate_memory(reason)
+        self._interaction.add_new_status_line("🌙 Memory Consolidation (nightly) requested", color="blue")
+
+    def request_memory_consolidation_if_overdue(self):
+        """
+        The consolidation of every night did not happen if the Raspberry was off at that time.
+        If the last one is older than `memory.consolidation.overdue_hours` (or there never was one), it is done now.
+        When there is nothing to consolidate the run is cheap: no LLM calls and no backup.
+        """
+        from pitxu.lib.utils.memory import Memory
+
+        memory = Memory(config=self._xconfig, params=Dictionary({
+            "api_key": self._xparams.get("api_key"),
+            "base_path": self._xparams.get("base_path"),
+        }))
+        try:
+            last_run = memory.get_meta(Memory.META_LAST_CONSOLIDATION_AT)
+        finally:
+            memory.close()
+
+        overdue_hours = float(self._xconfig.get("memory.consolidation.overdue_hours", 26))
+        if last_run is not None:
+            hours_since = (datetime.now() - datetime.fromisoformat(last_run)).total_seconds() / 3600
+            if hours_since <= overdue_hours:
+                self._log_debug(f"The last memory consolidation was {hours_since:.1f} hours ago, not overdue.")
+                return
+            self._xlog.info(f"🌙 The last memory consolidation was {hours_since:.1f} hours ago: overdue.")
+        else:
+            self._xlog.info("🌙 The memory was never consolidated: doing it now.")
+
+        self.request_memory_consolidation(reason="overdue")
+        self._interaction.add_new_status_line("🌙 Memory Consolidation (overdue) requested", color="blue")
+
     # ------------- Stuff to do daily -------------
 
     def do_at_night_tasks(self):
+        """
+        Everything that is done once a night. Every task is isolated: one failing must not skip the others.
+        """
 
         # At night, we want to clear the logs that are older than the retention period.
-        self._maintenance.rotate_metrics_logs()
+        self._safe_step("rotate metrics logs", self._maintenance.rotate_metrics_logs)
 
         # The use of the emojis of the day goes to the stats file.
-        EmojiStats.flush()
+        self._safe_step("emoji stats", EmojiStats.flush)
+
+        # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
+        if self._xconfig.get("memory.consolidation.enabled", True):
+            self._safe_step("memory consolidation", lambda: self.request_memory_consolidation(reason="night"))
 
 
     # ------------- Others -------------

@@ -1,4 +1,6 @@
 import importlib
+import threading
+import time
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -749,9 +751,54 @@ class Interaction(PyXavi):
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
-    def wait_for_support_process_to_finish(self):
-        self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
-        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
+    def wait_for_support_process_to_finish(self, timeout: float = None, should_stop: callable = None) -> bool:
+        """
+        Waits until the Support process has done everything that was sent to it.
+
+        Args:
+            timeout (float): Seconds to give up. None waits forever (the previous behaviour).
+            should_stop (callable): Asked every half second while waiting with a timeout. If it returns True, it gives up.
+
+        Returns:
+            bool: True if the Support process finished, False if the timeout was reached.
+        """
+        if timeout is None:
+            self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
+            self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
+            return True
+
+        # With a timeout we can't rely on "queue empty + busy flag idle": the item leaves the queue slightly before
+        #   the process marks itself as busy, so that check may return while the work is still ahead.
+        # JoinableQueue.join() returns when every item was processed (task_done), but it has no timeout,
+        #   so it runs in a thread that we wait for with a limit.
+        support_queue = self.process_pool.get_queue(QUEUE_SUPPORT)
+        if support_queue is None:
+            return True
+
+        def _join():
+            try:
+                support_queue.join()
+            except Exception as e:
+                self._xlog.warning(f"Could not join the Support queue: {e}")
+
+        waiter = threading.Thread(target=_join, name="support-join", daemon=True)
+        waiter.start()
+        deadline = time.monotonic() + timeout
+        while waiter.is_alive():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._xlog.error(f"🛑 Timeout of {timeout}s reached while waiting for the Support process to finish.")
+                return False
+            waiter.join(min(0.5, remaining))
+            if waiter.is_alive() and should_stop is not None and should_stop():
+                self._xlog.warning("🟠 Not waiting any longer for the Support process to finish: asked to stop.")
+                return False
+        return True
+
+    def is_support_process_alive(self) -> bool:
+        """ True if the Support process is running. A Control + C in a terminal kills it with the rest of the group. """
+        process = self.process_pool.get_process(QUEUE_SUPPORT)
+        return process is not None and process.is_alive()
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self.foreground.get_queue())

@@ -1,0 +1,37 @@
+# Fixed preload used by the tests. Three topics, each one in the four languages.
+memory_preload:
+  enabled: True
+  entries:
+    - key: pitxu_project
+      title:
+        en: "Pitxu project information"
+        es: "Información del proyecto Pitxu"
+        ca: "Informació del projecte Pitxu"
+        de: "Informationen zum Pitxu-Projekt"
+      content:
+        en: "Pitxu is a voice chatbot that runs on a Raspberry Pi."
+        es: "Pitxu es un chatbot de voz que funciona en una Raspberry Pi."
+        ca: "Pitxu és un chatbot de veu que funciona en una Raspberry Pi."
+        de: "Pitxu ist ein Sprach-Chatbot, der auf einem Raspberry Pi läuft."
+    - key: vehicles
+      title:
+        en: "Vehicles - car, moto, van"
+        es: "Vehículos - coche, moto, furgoneta"
+        ca: "Vehicles - cotxe, moto, furgoneta"
+        de: "Fahrzeuge - Auto, Motorrad, Transporter"
+      content:
+        en: "- Car: a blue hatchback.\n- Moto: a Montesa trial bike.\n- Van: a white camper."
+        es: "- Coche: un utilitario azul.\n- Moto: una Montesa de trial.\n- Furgoneta: una camper blanca."
+        ca: "- Cotxe: un utilitari blau.\n- Moto: una Montesa de trial.\n- Furgoneta: una camper blanca."
+        de: "- Auto: ein blauer Kleinwagen.\n- Motorrad: eine Montesa Trial.\n- Transporter: ein weißer Camper."
+    - key: common_locations
+      title:
+        en: "Common locations - home and work"
+        es: "Ubicaciones habituales - casa y trabajo"
+        ca: "Ubicacions habituals - casa i feina"
+        de: "Häufige Orte - Zuhause und Arbeit"
+      content:
+        en: "- Home: 1 Example Street, Barcelona.\n- Work: the office in Berlin."
+        es: "- Casa: calle Ejemplo 1, Barcelona.\n- Trabajo: la oficina de Berlín."
+        ca: "- Casa: carrer Exemple 1, Barcelona.\n- Feina: l'oficina de Berlín."
+        de: "- Zuhause: Beispielstraße 1, Barcelona.\n- Arbeit: das Büro in Berlin."

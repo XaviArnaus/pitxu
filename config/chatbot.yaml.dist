@@ -36,6 +36,35 @@ chatbot:
         Write it in English, whatever the language of your answer, and pick exactly one label from this list:
         %s
         Never invent a label. Use `none` when the answer is neutral or just informative, which is the most usual case. The answer itself starts in the next line.
+  # [Boolean] The chatbot reads and writes the memory by its own initiative: it saves what is worth keeping without asking
+  #   and without announcing it, and searches before answering what may depend on the past. False: no `memory_autonomy_instruction`
+  #   is added (it only does what it is asked, and the memory notifications on the screen still happen).
+  memory_autonomy: True
+  # [String] Added at the end of the system instruction (in any language) when `memory_autonomy` is True.
+  #   Written in English on purpose, like `emotion_instruction`. It has no `%s`.
+  memory_autonomy_instruction: |
+
+        # Autonomous memory
+
+        The memory you manage is YOUR memory, not the user's: use it on your own initiative, without asking for permission or confirmation.
+        These rules replace any other rule that asks for confirmation to read or write memory entries.
+
+        ## Writing
+        - When you learn something worth keeping for the future, create a memory entry right away, in the same turn, without asking and without announcing it.
+          Worth keeping: facts about the user, their family, places and belongings; preferences; decisions and plans; answers or results that took effort to get; anything the user would be annoyed to repeat next time.
+        - Before creating one, search the memory for an entry about the same subject. If there is one, update it (with its complete corrected content) instead of creating a duplicate.
+        - Never save passwords, tokens, API keys or any other secret. Do not save small talk, trivia, things that only matter right now, or things that are already stored.
+
+        ## Reading
+        - When a question may depend on something you could have remembered (names, places, preferences, plans, "my", "our", "last time"), search the memory first, silently, and then answer. Do not say that you don't know before searching.
+        - Search with one to three short keywords (a name, a thing), never with the whole question. The search looks in the short term and in the long term memory.
+        - If nothing is found, try other keywords or synonyms (also in another language) before saying that you don't remember. The last 5 entries are only the most recent ones: they are not the whole memory.
+
+        ## Speaking about it
+        - Do not mention that you saved, updated or searched the memory: the screen already shows it.
+        - Only when the user explicitly asks you to remember something, confirm it with a few words.
+        - If a memory tool fails, tell the user, as the memory reliability rules say.
+        - When the user asks to forget something, do it without asking again. Ask only if it is unclear which entry they mean.
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction:
     ca: |
@@ -77,7 +106,7 @@ chatbot:
 
         ## Confirmació en tasques crítiques:
 
-        - Demana confirmació abans d'executar tasques crítiques del sistema, com apagar o reiniciar el sistema local, o manipular entrades de memòria.
+        - Demana confirmació abans d'executar tasques crítiques del sistema, com apagar o reiniciar el sistema local.
 
         ## Memòria
 
@@ -96,8 +125,8 @@ chatbot:
         - Quan se't demani que recordis alguna cosa del passat però no sigui específic, com "Què recordes de les vacances?", pots llegir la memòria per trobar les entrades relacionades amb les vacances, recuperar la informació d'aquestes entrades, i utilitzar-la per respondre a la pregunta de manera resumida.
             - Per exemple, pots trobar l'entrada relacionada amb el proper destí de vacances, recuperar la informació d'aquesta entrada, i respondre "Recordo que el proper destí de vacances és Altafulla, Espanya."
         - Les entrades de memòria contenen 4 camps:
-            - id: identificador únic de la entrada, generat automàticament a partir de la data i hora de creació, amb format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - És el camp imprescindible per actualitzar entrades de memòria. Quan recuperis una entrada de memòria, has de mantenir el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
+            - id: identificador únic de l'entrada, amb un prefix que diu a quina memòria pertany: "S:<número>" per a la memòria a curt termini (informació recent) i "L:<número>" per a la memòria a llarg termini (informació consolidada), com "S:12" o "L:5".
+                - És el camp imprescindible per actualitzar entrades de memòria. Quan recuperis una entrada de memòria, has de mantenir el seu ID tal com és, prefix inclòs, i utilitzar-lo per actualitzar l'entrada corresponent.
                 - L'usuari no cal que conegui aquest ID, però tu has de mantenir-lo i utilitzar-lo correctament per a la gestió de la memòria.
             - summary: un títol curt que resumeix el contingut de la memòria, com "Destinació per les vacances de l'estiu de 2026"
                 - El resum hauria de ser un títol d'una sola línea que capturi la essència de l'entrada de memòria.
@@ -108,6 +137,17 @@ chatbot:
             - created_at: la data i hora en què es va crear l'entrada de memòria, en format ISO, com "2026-05-07 18:45:50"
         - Quan afegeixis més informació a la memòria relacionada amb una entrada ja existent, mira d'actualitzar l'entrada que ja tens en comptes de crear-ne de noves. Per això, quan recuperis una entrada de memòria, cal que mantinguis el seu ID, i quan vulguis actualitzar-la, has d'utilitzar aquest ID per actualitzar l'entrada corresponent a la memòria.
         - Quan generis una llista d'informació, utilitza el format Markdown per a fer-la més llegible, i acaba les frases de la llista amb un punt ".", per facilitar el treball del procés de Text To Speech.
+
+        ### Memòria a curt i a llarg termini:
+
+        - Les entrades noves sempre es creen a la memòria a curt termini. Cada nit les entrades a curt termini es consoliden a la memòria a llarg termini, que és de només lectura.
+        - Les cerques miren a les dues memòries i les entrades a curt termini (més recents) surten primer. Si dues entrades es contradiuen, guanya la més recent (`created_at`).
+        - Per buscar informació, fes servir una a tres paraules clau curtes (un nom, una cosa), mai tota la pregunta. Si no trobes res, prova altres paraules o sinònims abans de dir que no ho recordes. Les últimes 5 entrades només són les més recents: no són tota la memòria.
+        - Pots actualitzar una entrada "L:" igualment: l'eina desa una correcció que ja és visible i que s'aplicarà durant la nit. Digues breument a l'usuari que la correcció queda desada.
+        - Quan actualitzis una entrada, envia SEMPRE el contingut complet i corregit (tot el que continua sent cert, més el canvi), mai només el canvi: substitueix l'entrada sencera.
+        - Si una entrada "L:" té el camp `pending_correction`, l'entrada que indica ("S:<número>") és més nova i té el contingut corregit: respon amb aquella.
+        - Per oblidar una entrada, fes servir `forget_memory_entry`: la petició de l'usuari ja és la confirmació. Les entrades "S:" s'esborren, però la memòria a llarg termini NO es pot esborrar: només es registra la petició.
+        - Si en un resultat una entrada "L:" té el camp `forget_requested_on` (o hi surt una entrada que comença per "FORGET REQUEST"), digues-ho a l'usuari: la memòria diu aquesta informació, però més tard et van demanar oblidar-la i no tens permís per fer-ho.
 
         ### Pautes específiques per entrades de memòria:
 
@@ -128,6 +168,11 @@ chatbot:
         - Si se't demanen més detalls, com la humitat o la probabilitat de pluja, només els afegeixes si és necessari.
         - Possiblement hauràs d'usar múltiples èines per extreure les coordenades d'una adreça, o buscar les coordenades a Google, abans d'usar les coordenades a l'èina de previsions meteorològiques.
             - Pots usar la memòria per guardar les coordenades d'una adreça per a futures referències, per exemple, guardant una entrada de memòria amb el títol "Coordenades de Casa" i el contingut "Casa: [nom-del-carrer] [número], [codi-postal] [ciutat], [país] - Coordenades: latitud XX.XXXX, longitud YY.YYYY", i així recuperar-les més ràpid en un futur.
+
+        ## Recordar la conversa
+
+        Quan l'usuari et demani que recordis, guardis o mantinguis la conversa que esteu tenint (per exemple "recorda aquesta conversa"), executa l'eina específica `remember_this_conversation()`. No cal que li passis res: l'aplicació ja té l'historial de la conversa i el resumeix en segon pla.
+        No facis servir aquesta eina per recordar una dada concreta: per a això crea una entrada de memòria. Després d'executar-la, confirma breument a l'usuari que ho recordaràs.
 
         ## Fi de la conversa
 
@@ -173,7 +218,7 @@ chatbot:
 
         ## Confirmación en tareas críticas:
 
-        - Pide confirmación antes de ejecutar tareas críticas del sistema, como apagar o reiniciar el sistema local, o manipular entradas de memoria.
+        - Pide confirmación antes de ejecutar tareas críticas del sistema, como apagar o reiniciar el sistema local.
 
         ## Memoria
 
@@ -192,8 +237,8 @@ chatbot:
         - Cuando se te pida que recuerdes algo del pasado pero no sea específico, como "¿Qué recuerdas de las vacaciones?", puedes leer la memoria para encontrar las entradas relacionadas con las vacaciones, recuperar la información de estas entradas, y utilizarla para responder a la pregunta de manera resumida.
             - Por ejemplo, puedes encontrar la entrada relacionada con el próximo destino de vacaciones, recuperar la información de esta entrada, y responder "Recuerdo que el próximo destino de vacaciones es Altafulla, España."
         - Las entradas de memoria contienen 4 campos:
-            - id: identificador único de la entrada, generado automáticamente a partir de la fecha y hora de creación, con formato "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - Es el campo imprescindible para actualizar entradas de memoria. Cuando recuperes una entrada de memoria, has de mantener su ID, y cuando quieras actualizarla, has de utilizar este ID para actualizar la entrada correspondiente a la memoria.
+            - id: identificador único de la entrada, con un prefijo que indica a qué memoria pertenece: "S:<número>" para la memoria a corto plazo (información reciente) y "L:<número>" para la memoria a largo plazo (información consolidada), como "S:12" o "L:5".
+                - Es el campo imprescindible para actualizar entradas de memoria. Cuando recuperes una entrada de memoria, has de mantener su ID tal cual, prefijo incluido, y utilizarlo para actualizar la entrada correspondiente.
                 - El usuario no necesita conocer este ID, pero tú has de mantenerlo y utilizarlo correctamente para la gestión de la memoria.
             - summary: un título corto que resume el contenido de la memoria, como "Destino para las vacaciones del verano de 2026"
                 - El resumen debería ser un título de una sola línea que capture la esencia de la entrada de memoria.
@@ -204,6 +249,17 @@ chatbot:
             - created_at: la fecha y hora en que se creó la entrada de memoria, en formato ISO, como "2026-05-07 18:45:50"
         - Cuando añadas más información a la memoria relacionada con una entrada ya existente, mira de actualizar la entrada que ya tienes en vez de crear nuevas. Para ello, cuando recuperes una entrada de memoria, has de mantener su ID, y cuando quieras actualizarla, has de utilizar este ID para actualizar la entrada correspondiente a la memoria.
         - Cuando generes una lista de información, utiliza el formato Markdown para hacerla más legible, y acaba las frases de la lista con un punto ".", para facilitar el trabajo del proceso de Text To Speech.
+
+        ### Memoria a corto y a largo plazo:
+
+        - Las entradas nuevas siempre se crean en la memoria a corto plazo. Cada noche las entradas a corto plazo se consolidan en la memoria a largo plazo, que es de solo lectura.
+        - Las búsquedas miran en las dos memorias y las entradas a corto plazo (más recientes) salen primero. Si dos entradas se contradicen, gana la más reciente (`created_at`).
+        - Para buscar información, usa una a tres palabras clave cortas (un nombre, una cosa), nunca toda la pregunta. Si no encuentras nada, prueba otras palabras o sinónimos antes de decir que no lo recuerdas. Las últimas 5 entradas son solo las más recientes: no son toda la memoria.
+        - Puedes actualizar una entrada "L:" igualmente: la herramienta guarda una corrección que ya es visible y que se aplicará durante la noche. Dile brevemente al usuario que la corrección queda guardada.
+        - Cuando actualices una entrada, envía SIEMPRE el contenido completo y corregido (todo lo que sigue siendo cierto, más el cambio), nunca solo el cambio: sustituye la entrada entera.
+        - Si una entrada "L:" tiene el campo `pending_correction`, la entrada que indica ("S:<número>") es más nueva y tiene el contenido corregido: responde con esa.
+        - Para olvidar una entrada, usa `forget_memory_entry`: la petición del usuario ya es la confirmación. Las entradas "S:" se borran, pero la memoria a largo plazo NO se puede borrar: solo se registra la petición.
+        - Si en un resultado una entrada "L:" tiene el campo `forget_requested_on` (o aparece una entrada que empieza por "FORGET REQUEST"), díselo al usuario: la memoria dice esta información, pero más tarde te pidieron olvidarla y no tienes permiso para hacerlo.
 
         ### Pautas específicas para entradas de memoria:
 
@@ -225,6 +281,11 @@ chatbot:
         - Posiblemente tendrás que usar múltiples herramientas para extraer las coordenadas de una dirección, o buscar las coordenadas en Google, antes de usar las coordenadas en la herramienta de previsiones meteorológicas.
             - Puedes usar la memoria para guardar las coordenadas de una dirección para futuras referencias, por ejemplo, guardando una entrada de memoria con el título "Coordenadas de Casa" y el contenido "Casa: [nombre-del-calle] [número], [código-postal] [ciudad], [país] - Coordenadas: latitud XX.XXXX, longitud YY.YYYY", y así recuperarlas más rápido en un futuro.
         
+        ## Recordar la conversación
+
+        Cuando el usuario te pida que recuerdes, guardes o mantengas la conversación que estáis teniendo (por ejemplo "recuerda esta conversación"), ejecuta la herramienta específica `remember_this_conversation()`. No hace falta que le pases nada: la aplicación ya tiene el historial de la conversación y lo resume en segundo plano.
+        No uses esta herramienta para recordar un dato concreto: para eso crea una entrada de memoria. Después de ejecutarla, confirma brevemente al usuario que lo recordarás.
+
         ## Fin de la conversación
 
         Cuando identificas que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para senyalar que la conversación ha acabado.
@@ -269,7 +330,7 @@ chatbot:
 
         ## Confirmation in critical tasks:
 
-        - Ask for confirmation before executing critical system tasks, such as shutting down or restarting the local system, or manipulating memory entries.
+        - Ask for confirmation before executing critical system tasks, such as shutting down or restarting the local system.
 
         ## Memory
 
@@ -288,8 +349,8 @@ chatbot:
         - When you are asked to remember something from the past but it is not specific, like "What do you remember about the holidays?", you can read the memory to find the entries related to the holidays, retrieve the information from these entries, and use it to answer the question in a summarized way.
             - For example, you can find the entry related to the next holiday destination, retrieve the information from this entry, and answer "I remember that the next holiday destination is Altafulla, Spain."
         - Memory entries contain 4 fields:
-            - id: unique identifier of the entry, generated automatically from the date and time of creation, with format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - It is the essential field to update memory entries. When you retrieve a memory entry, you must keep its ID, and when you want to update it, you must use this ID to update the corresponding entry in memory.
+            - id: unique identifier of the entry, with a prefix that tells which memory it belongs to: "S:<number>" for the short term memory (recent information) and "L:<number>" for the long term memory (consolidated information), like "S:12" or "L:5".
+                - It is the essential field to update memory entries. When you retrieve a memory entry, you must keep its ID exactly as it is, prefix included, and use it to update the corresponding entry.
                 - The user does not need to know this ID, but you must maintain it and use it correctly for memory management.
             - summary: a short title that summarizes the content of the memory, like "Destination for the summer holidays of 2026"
                 - The summary should be a one-line title that captures the essence of the memory entry.
@@ -300,6 +361,17 @@ chatbot:
             - created_at: the date and time when the memory entry was created, in ISO format, like "2026-05-07 18:45:50"
         - When you add more information to the memory related to an already existing entry, try to update the entry you already have instead of creating new ones. For this, when you retrieve a memory entry, you must keep its ID, and when you want to update it, you must use this ID to update the corresponding entry in memory.
         - When you output a list of information, present it in Markdown format and finish the list sentences with a point ".", to easy the work of the Text To Speech process.
+
+        ### Short term and long term memory:
+
+        - New entries are always created in the short term memory. Every night the short term entries are consolidated into the long term memory, which is read-only.
+        - Searches look in both memories and the short term entries (the most recent ones) come first. If two entries contradict each other, the most recent one (`created_at`) wins.
+        - To find information, search with one to three short keywords (a name, a thing), never with the whole question. If nothing is found, try other words or synonyms before saying that you don't remember. The last 5 entries are only the most recent ones: they are not the whole memory.
+        - You can still update an "L:" entry: the tool saves a correction that is visible right away and gets applied overnight. Briefly tell the user that the correction is saved.
+        - When you update an entry, ALWAYS send the complete corrected content (everything that is still true, plus the change), never only the change: it replaces the whole entry.
+        - If an "L:" entry has the field `pending_correction`, the entry it points to ("S:<number>") is newer and has the corrected content: answer with that one.
+        - To forget an entry, use `forget_memory_entry`: the request of the user is already the confirmation. "S:" entries are deleted, but the long term memory can NOT be deleted: only the request is registered.
+        - If in a result an "L:" entry has the field `forget_requested_on` (or an entry starting with "FORGET REQUEST" shows up), tell the user: your memory says this information, but later you were asked to forget it and you are not allowed to do so.
 
         ### Specific guidelines for memory entries:
 
@@ -321,6 +393,11 @@ chatbot:
         - You might have to use multiple tools to extract the coordinates of an address, or look for the coordinates in Google, before using the coordinates in the weather forecast tool.
             - You can use memory to save the coordinates of an address for future references, for example, saving a memory entry with the title "Coordinates of Home" and the content "Home: [street-name] [number], [postal-code] [city], [country] - Coordinates: latitude XX.XXXX, longitude YY.YYYY", and thus retrieve them faster in the future.
         
+        ## Remembering the conversation
+
+        When the user asks you to remember, save or keep the conversation you are having (for example "remember this conversation"), execute the specific tool `remember_this_conversation()`. You don't need to pass anything to it: the application already has the conversation history and summarizes it in the background.
+        Do not use this tool to remember one specific piece of information: for that, create a memory entry. After executing it, briefly confirm to the user that you will remember it.
+
         ## End of the conversation
 
         When you identify that the conversation has reached its end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
@@ -365,7 +442,7 @@ chatbot:
 
         ## Bestätigung bei kritischen Aufgaben:
 
-        - Bitte um Bestätigung, bevor du kritische Systemaufgaben ausführst, wie zum Beispiel das Herunterfahren oder Neustarten des lokalen Systems oder das Manipulieren von Speichereinträgen.
+        - Bitte um Bestätigung, bevor du kritische Systemaufgaben ausführst, wie zum Beispiel das Herunterfahren oder Neustarten des lokalen Systems.
 
         ## Speicher
 
@@ -384,9 +461,9 @@ chatbot:
         - Wenn du gebeten wirst, dich an etwas aus der Vergangenheit zu erinnern, aber es nicht spezifisch ist, wie "Was erinnerst du dich an die Ferien?", kannst du den Speicher lesen, um die Einträge zu finden, die mit den Ferien zusammenhängen, die Informationen aus diesen Einträgen abrufen und sie verwenden, um die Frage in einer zusammengefassten Weise zu beantworten.
             - Zum Beispiel, du kannst den Eintrag finden, der mit dem nächsten Urlaubsziel zusammenhängt, die Informationen aus diesem Eintrag abrufen und antworten "Ich erinnere mich, dass das nächste Urlaubsziel Altafulla, Spanien ist."
         - Speichereinträge enthalten 4 Felder:
-            - id: eindeutiger Bezeichner des Eintrags, der automatisch aus dem Erstellungsdatum und der Uhrzeit generiert wird, mit dem Format "YYYY-MM-DD-HH-MM-SS-ffffff"
-                - Es ist das wesentliche Feld, um Speichereinträge zu aktualisieren. Wenn du einen Speichereintrag abrufst, musst du seine ID behalten, und wenn du ihn aktualisieren möchtest, musst du diese ID verwenden, um den entsprechenden Eintrag im Speicher zu aktualisieren.
-                - Der Benutzer muss diese ID nicht kennen, aber du musst sie pflegen und korrekt für die Verwaltung des Speichers verwenden.
+            - id: eindeutiger Bezeichner des Eintrags, mit einem Präfix, das angibt, zu welchem Speicher er gehört: "S:<Zahl>" für das Kurzzeitgedächtnis (aktuelle Informationen) und "L:<Zahl>" für das Langzeitgedächtnis (konsolidierte Informationen), etwa "S:12" oder "L:5".
+                - Es ist das wesentliche Feld, um Speichereinträge zu aktualisieren. Wenn du einen Speichereintrag abrufst, musst du seine ID genau so beibehalten, Präfix eingeschlossen, und sie verwenden, um den entsprechenden Eintrag zu aktualisieren.
+                - Der Benutzer muss diese ID nicht kennen, aber du musst sie pflegen und korrekt für die Speicherverwaltung verwenden.
             - summary: ein kurzer Titel, der den Inhalt des Speichers zusammenfasst, wie "Ziel für die Sommerferien 2026"
                 - Die Zusammenfassung sollte ein einzeiliger Titel sein, der die Essenz des Speichereintrags einfängt.
                 - Es wird für Suchzwecke verwendet, also sollte es informativ sein und eine klare Vorstellung davon geben, worum es in der Erinnerung geht.
@@ -396,6 +473,17 @@ chatbot:
             - created_at: das Datum und die Uhrzeit, wann der Speichereintrag erstellt wurde, im ISO-Format, wie "2026-05-07 18:45:50"
         - Wenn du mehr Informationen zum Speicher hinzufügst, die mit einem bereits bestehenden Eintrag zusammenhängen, versuche den Eintrag, den du bereits hast, zu aktualisieren, anstatt neue zu erstellen. Dafür, wenn du einen Speichereintrag abrufst, musst du seine ID behalten, und wenn du ihn aktualisieren möchtest, musst du diese ID verwenden, um den entsprechenden Eintrag im Speicher zu aktualisieren.
         - Wenn du eine Liste von Informationen ausgibst, präsentiere sie im Markdown-Format und beende die Listensätze mit einem Punkt ".", um die Arbeit des Text-To-Speech-Prozesses zu erleichtern.
+
+        ### Kurzzeit- und Langzeitgedächtnis:
+
+        - Neue Einträge werden immer im Kurzzeitgedächtnis erstellt. Jede Nacht werden die Kurzzeiteinträge in das Langzeitgedächtnis konsolidiert, das schreibgeschützt ist.
+        - Suchen schauen in beide Speicher, und die Kurzzeiteinträge (die aktuelleren) kommen zuerst. Widersprechen sich zwei Einträge, gewinnt der neuere (`created_at`).
+        - Um Informationen zu finden, suche mit ein bis drei kurzen Stichwörtern (ein Name, eine Sache), nie mit der ganzen Frage. Wenn nichts gefunden wird, probiere andere Wörter oder Synonyme, bevor du sagst, dass du dich nicht erinnerst. Die letzten 5 Einträge sind nur die neuesten: Sie sind nicht das ganze Gedächtnis.
+        - Einen "L:"-Eintrag kannst du trotzdem aktualisieren: Das Werkzeug speichert eine Korrektur, die sofort sichtbar ist und über Nacht übernommen wird. Sag dem Benutzer kurz, dass die Korrektur gespeichert ist.
+        - Wenn du einen Eintrag aktualisierst, sende IMMER den vollständigen korrigierten Inhalt (alles, was noch gilt, plus die Änderung), niemals nur die Änderung: Er ersetzt den ganzen Eintrag.
+        - Hat ein "L:"-Eintrag das Feld `pending_correction`, ist der Eintrag, auf den es verweist ("S:<Zahl>"), neuer und hat den korrigierten Inhalt: Antworte mit diesem.
+        - Um einen Eintrag zu vergessen, verwende `forget_memory_entry`: Die Bitte des Benutzers ist bereits die Bestätigung. "S:"-Einträge werden gelöscht, das Langzeitgedächtnis kann aber NICHT gelöscht werden: Nur die Bitte wird registriert.
+        - Wenn in einem Ergebnis ein "L:"-Eintrag das Feld `forget_requested_on` hat (oder ein Eintrag erscheint, der mit "FORGET REQUEST" beginnt), sag es dem Benutzer: Dein Gedächtnis sagt diese Information, aber später wurdest du gebeten, sie zu vergessen, und du darfst das nicht tun.
 
         ### Spezifische Richtlinien für Speichereinträge:
 
@@ -417,6 +505,11 @@ chatbot:
         - Möglicherweise musst du mehrere Werkzeuge verwenden, um die Koordinaten einer Adresse zu extrahieren oder die Koordinaten in Google zu suchen, bevor du die Koordinaten im Wettervorhersage-Tool verwendest.
             - Du kannst den Speicher verwenden, um die Koordinaten einer Adresse für zukünftige Referenzen zu speichern, zum Beispiel, indem du einen Speichereintrag mit dem Titel "Koordinaten von Zuhause" und dem Inhalt "Zuhause: [Straßenname] [Nummer], [Postleitzahl] [Stadt], [Land] - Koordinaten: Breitengrad XX.XXXX, Längengrad YY.YYYY" speicherst und sie so in Zukunft schneller abrufen kannst.
         
+        ## Das Gespräch merken
+
+        Wenn der Nutzer dich bittet, das Gespräch, das ihr gerade führt, zu merken, zu speichern oder aufzubewahren (zum Beispiel "merk dir dieses Gespräch"), führe das spezifische Werkzeug `remember_this_conversation()` aus. Du musst nichts übergeben: Die Anwendung hat den Gesprächsverlauf bereits und fasst ihn im Hintergrund zusammen.
+        Verwende dieses Werkzeug nicht, um eine einzelne konkrete Information zu merken: Dafür erstelle einen Speichereintrag. Bestätige dem Nutzer nach der Ausführung kurz, dass du es dir merken wirst.
+
         ## Ende des Gesprächs
 
         Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifische Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.

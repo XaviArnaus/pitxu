@@ -37,6 +37,20 @@ app:
   thinking_at_speech_end_wait: 1.5
   # [Float] Safety net: seconds after which the effect is taken back if nobody took it over (the chatbot) or cancelled it.
   thinking_at_speech_end_timeout: 15
+  # [String] How the text is matched against the exit words (language.exit_words), both without accents nor punctuation:
+  #   "exact": the whole text is an exit word. "Adéu!" matches "adeu".
+  #   "edge": a short text that starts or ends with an exit word also matches, like "ok bye".
+  exit_words_match: "exact"
+  # [Integer] Only for "edge": longest text (in words) that can be an exit. Avoids exiting on "tell me about the goodbye song".
+  exit_max_words: 3
+
+# The tasks of every night, in one job: rotate the old logs, flush the stats, and ask for the memory consolidation
+#   (see `memory.consolidation`, that can be turned off there). Restart to apply.
+night_tasks:
+  # [Integer] Hour of the night to run them (0 - 23).
+  hour: 3
+  # [Integer] Minute (0 - 59).
+  minute: 0
 
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.

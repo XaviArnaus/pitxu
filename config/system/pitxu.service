@@ -27,6 +27,10 @@ WorkingDirectory=/home/xavier/pitxu
 # Moved from pure Poetry call to use the bin, so I can figure out the Soundcard issues
 ExecStart=/home/xavier/pitxu/bin/pitxu
 
+# The closing waits for the conversation summary (memory.summarization.close_timeout_seconds) before the rest of the steps.
+#   Keep this above it, with margin. Without it systemd gives 90 seconds and then kills everything.
+TimeoutStopSec=120
+
 # We want it to restart everythim it leaves
 Restart=always
 # It may crash during debug, so include exit codes here to assume OK and restart again.

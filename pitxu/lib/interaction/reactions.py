@@ -28,6 +28,9 @@ class Reactions(PyXavi):
     # Support to trigger a particular callback when the user intends to end the conversation.
     end_of_conversation_callback: callable = None
 
+    # Support to trigger a particular callback when the user asks to remember the current conversation.
+    remember_conversation_callback: callable = None
+
     # Support to behave with the microphone.
     input_stream: InputStream = None
 
@@ -51,6 +54,9 @@ class Reactions(PyXavi):
 
         if params.key_exists("end_of_conversation_callback") and callable(params.get("end_of_conversation_callback")):
             self.end_of_conversation_callback = params.get("end_of_conversation_callback")
+
+        if params.key_exists("remember_conversation_callback") and callable(params.get("remember_conversation_callback")):
+            self.remember_conversation_callback = params.get("remember_conversation_callback")
 
         if params.key_exists("input_stream") and isinstance(params.get("input_stream"), InputStream):
             self.input_stream = params.get("input_stream")
@@ -273,7 +279,12 @@ class Reactions(PyXavi):
 
                 # We got an end of conversation request.
                 self.handle_end_of_conversation_request(function_call_pair)
-            
+
+            elif function_call_pair.function_name == "remember_this_conversation":
+
+                # We got a request to remember the current conversation.
+                self.handle_remember_conversation_request(function_call_pair)
+
             elif function_call_pair.function_name in self.client_callbacks.keys():
 
                 # We got a client tool callback, treat it generically.
@@ -440,6 +451,21 @@ class Reactions(PyXavi):
         # If we reached this point, means that the language change failed for any reason.
         self._unmute_microphone_if_needed()
     
+    def handle_remember_conversation_request(self, function_call_pair: FunctionCallPair):
+        self._xlog.debug("🧠 Handling remember conversation request...")
+
+        result = function_call_pair.function_response.response.get("result", False)
+
+        if isinstance(result, bool) and result is True:
+            # The tool only registers the request: the app has the chatbot history, so it does the work.
+            if self.remember_conversation_callback is not None:
+                try:
+                    self.remember_conversation_callback()
+                except Exception as e:
+                    self._xlog.error(f"🛑 Failed to handle the remember conversation request: {e}")
+            else:
+                self._xlog.warning("🟠 No remember conversation callback defined, the conversation will not be remembered now.")
+
     def handle_answer_with_code_block(self, chat_response: ChatbotResponse) -> ChatbotResponse:
         self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response for language [{self._xparams.get('language')}]")
 

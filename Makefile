@@ -69,6 +69,15 @@ battery_status:
 migrate:
 	@$(POETRY) run util -u migrate_db
 
+.PHONY: check-config
+check-config:
+	@$(POETRY) run util -u check_config
+
+.PHONY: unittests
+unittests:
+# The tests of the application (no hardware, no network). The ones that need the hardware are in test/hardware/.
+	@$(POETRY) run python -m unittest discover -s test -v
+
 .PHONY: where-is-python
 where-is-python:
 	$(POETRY) run whereis $(PYTHON)

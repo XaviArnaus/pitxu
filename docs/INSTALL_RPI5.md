@@ -518,7 +518,7 @@ At this point, Pitxu should be prepared to run. The configuration changes that w
 sudo reboot
 ```
 
-After that, we should be up and running with the ALSA configuration. I recommend to run the following test: [bin/test_record_and_play_alsa.sh](./bin/test_record_and_play_alsa.sh)
+After that, we should be up and running with the ALSA configuration. I recommend to run the following test: [test/hardware/test_record_and_play_alsa.sh](../test/hardware/test_record_and_play_alsa.sh)
 
 Now, we can test Pitxu as is in the current SSH terminal. The RPi should become Pitxu 100% working. Just run Pitxu's binary without parameters:
 ```

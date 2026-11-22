@@ -1,15 +1,150 @@
-# Settings about long term memory
+# Settings of the memory: the short term and the long term memories (both in the SQLite database, see database.yaml),
+#   the summaries of the conversations, and the nightly consolidation of the short term into the long term.
+#   A value that is not valid is reported in the log at startup and replaced by its default.
+#   More in docs/memory.md
 memory:
-  # [String] Filename for the storage. It will start from /storage or whatever is defined in main.yaml
-  filename: memory.yaml
-  # [Float] Summary similarity threshold to accept the memory match.
-  #   The higher, the more similar the memory should be to be accepted.
-  #   Not used by now.
-  summary_similarity_threshold: 0.4
-  # [Boolean] Whether to summarize the conversation at the end of the conversation.
-  summarize_at_end_conversation: False
+  # [String] Language of the memory entries from before the languages existed (they have none).
+  #   One of app.supported_languages. It is set once at startup. If an entry is actually in another language,
+  #   the nightly consolidation notices it.
+  legacy_entries_language: "en"
+  # [Boolean] Whether to summarize the conversation when the chatbot decides it is over (the application keeps running).
+  #   The chatbot session is reset afterwards in any case.
+  summarize_at_end_conversation: True
+  # [Boolean] Whether to summarize the pending conversation when the application closes, whatever the reason is:
+  #   exit words, SIGTERM / Control + C, shutdown, reboot, restart or language change.
+  summarize_on_close: True
+  # [Integer] Minimum number of things the user said (since the warm up, or since the last summary) to consider the
+  #   conversation worth summarizing. Below it nothing is stored.
+  min_user_turns: 1
+  summarization:
+    # [Integer] Seconds to wait for the summary to be done when the application closes, before giving up.
+    #   Keep it well below the TimeoutStopSec of the systemd service (120, see config/system/pitxu.service),
+    #   as the closing has more steps. If it does not finish in time, the conversation is not lost:
+    #   the nightly consolidation summarizes it.
+    close_timeout_seconds: 45
+    # [Integer] Attempts to get the summary from the LLM. It retries on server errors, quota (429) and network errors.
+    retries: 3
+    # [Float] Seconds to wait before the second attempt. It doubles on every following one.
+    backoff_seconds: 2
+    # [Float] Seconds to wait for one answer of the LLM.
+    request_timeout_seconds: 20
+    # [Float] Overall budget in seconds for all the attempts and waits. No new attempt starts if it would exceed it.
+    max_total_seconds: 40
+    # [Boolean] Tell the LLM the current date and time, needed to turn "tomorrow" or "next Monday" into absolute dates.
+    include_current_date: True
+    # [Boolean] If the summary fails (LLM down, no network...), keep the raw conversation to summarize it later
+    #   instead of losing it.
+    fallback_save_raw: True
   # [String] Model to use for summarizing the chatbot history into a memory entry.
-  summarization_model: gemini-2.5-flash
+  summarization_model: gemini-3.1-flash-lite
+  # [String] Model to use for the nightly consolidation of the memory and for the translations of the memory entries.
+  consolidation_model: gemini-3.1-flash-lite
+  search:
+    # [Integer] Entries that a search by the chatbot returns at most (the best matches).
+    max_results: 8
+  short_term:
+    # [Integer] Days that the short term entries stay after being consolidated, and then they are deleted.
+    #   Meanwhile they are the most recent information, and the chatbot reads them before the long term memory.
+    retention_days: 14
+  # The nightly consolidation: the short term entries are summarized into the long term memory,
+  #   and every topic gets a version in every supported language.
+  consolidation:
+    # [Boolean] Run it with the night tasks (the time is `night_tasks` in main.yaml), and the catch-up after the start.
+    #   False: never automatically (`poetry run util -u consolidate_memory` still does it).
+    enabled: True
+    # [Float] It only starts when nobody is talking to Pitxu. If somebody is, it tries again after these minutes...
+    defer_minutes: 10
+    # [Float] ...until this many hours passed. Then it gives up until the next night.
+    max_defer_hours: 3
+    # [Boolean] If the Raspberry was off at night, check some seconds after the start whether the last consolidation
+    #   is overdue (or never happened), and run it.
+    startup_catchup: True
+    startup_delay_seconds: 300
+    # [Float] Hours after which the last consolidation is overdue.
+    overdue_hours: 26
+    # [Integer] Short term entries sent to the LLM at once.
+    batch_size: 10
+    # [Integer] The existing topics sent with a batch. If there are more, only the ones that share words with it.
+    max_candidates: 60
+    # [Integer] Attempts before giving up on an entry (or a pending conversation). A given up entry is marked
+    #   as `failed`: it is not tried again, and it stays searchable in the short term memory.
+    max_attempts: 5
+    # [Boolean] Backup of the database before changing it (only if there is something to consolidate).
+    backup_before: True
+    # [Integer] Backups of this kind to keep, apart from the ones of the migrations.
+    backups_keep: 3
+    # [Float] Seconds after which the lock of a consolidation that crashed expires.
+    lock_ttl_seconds: 7200
+    # [Boolean] Only log what it would do. Nothing is written, and it does not count as a consolidation.
+    dry_run: False
+    # Timeouts of the LLM requests. What is not here is taken from `summarization` above. They are bigger:
+    #   the consolidation sends many entries.
+    retries: 3
+    backoff_seconds: 5
+    request_timeout_seconds: 60
+    max_total_seconds: 180
+    # The prompts. `%s` is replaced by the JSON with the data.
+    prompt: |
+      # Goal
+      You maintain the long term memory of a voice assistant. New short term memory entries are waiting to be consolidated
+      into it. The long term memory is a list of topics: each one has a short searchable title (`summary`) and its `content`.
+
+      # Input
+      A JSON object with:
+      - `today`: the current date and time.
+      - `language`: the language of the pending entries and of the existing topics.
+      - `existing_topics`: the long term topics in that language, each one with `topic_id`, `summary`, `content`,
+        `updated_at`, and `curated` (true if it comes from the configuration of the user).
+      - `pending_entries`: the new entries, oldest first, each one with `id`, `summary`, `content` and `created_at`.
+        When it has `correction_of_topic`, the entry is a correction of the topic with that `topic_id`.
+
+      # Output
+      A JSON object with `operations`, a list. Each operation has:
+      - `action`: `create`, `update` or `ignore`.
+      - `source_ids`: the ids of the pending entries that it covers.
+      - `topic_id`: only for `update`, the topic to update.
+      - `language`: the language in which `summary` and `content` are written.
+      - `summary` and `content`: for `create` and `update`.
+
+      # Rules
+      1. Every pending entry id must be in exactly one operation.
+      2. Entries about the same subject are merged into one operation.
+      3. `update` when the entries add to or change an existing topic. Its `content` must be the COMPLETE new content of
+         the topic: keep what is still true, and apply the changes. `create` when no existing topic covers the subject.
+         `ignore` when an entry only repeats what a topic already says, or is a test, small talk, or has nothing worth
+         remembering later.
+      4. When information conflicts, the most recent wins. Compare the `created_at` of the entry with the `updated_at` of
+         the topic: an entry OLDER than the topic must NOT override it. It may only add facts that do not contradict the
+         topic. Otherwise ignore it.
+      5. A `curated` topic comes from the configuration of the user: change it only if a newer entry clearly changes or
+         extends it.
+      6. Write `summary` and `content` in the `language` of the input, even if an entry is written in another language
+         (then translate it). Do not translate names, addresses, coordinates, codes or URLs.
+      7. `summary`: a one line title, informative and searchable. `content`: concise and self-contained, Markdown is
+         allowed. Replace pronouns and relative dates ("tomorrow", "next Monday") by the real entities and absolute dates,
+         using `today`.
+      8. Never invent information.
+      9. An entry with `correction_of_topic` (its text also says "Correction to the long term memory topic: <title>") must
+         `update` that topic with the corrected information, replacing whatever it contradicts, even if the topic is
+         `curated`. Its `content` is the corrected version of the topic: use it as the base, and keep what it does not
+         contradict.
+
+      # Input
+      %s
+    translation_prompt: |
+      Translate a memory entry from the language `source_language` into each language of `target_languages`.
+
+      Rules:
+      - `summary` is a one line title. Keep it informative and searchable in the target language.
+      - Keep the structure and the Markdown format of `content`.
+      - Do NOT translate proper names, addresses, coordinates, codes, URLs or file names. Keep numbers and dates.
+      - Do not add nor remove information.
+
+      Output a JSON object with `translations`: a list with one item per target language, each one with `language`,
+      `summary` and `content`.
+
+      # Input
+      %s
   # These are the prompts used to summarize the chatbot history into a memory entry. They are defined per language.
   #   The prompt will receive the chatbot history as a list of dictionaries with "role" and "content" as keys.
   #   The prompt should return a concise summary of the chatbot history that captures the main points and context. 
@@ -33,9 +168,14 @@ memory:
       # Format de sortida
       La sortida es un objecte JSON amb el següent format:
       {
+        "significant": true,
         "summary": "Un títol d'una sola línia sobre el resum de la conversa del chatbot",
         "content": "Un resum concís de la conversa del chatbot que capturi els punts principals i el context"
       }
+
+      # Rellevància
+      - El camp `significant` és un booleà. Posa'l a `true` quan la conversa conté alguna cosa que valgui la pena recordar més endavant: dades, decisions, preferències, plans, respostes, recursos o ubicacions.
+      - Posa'l a `false` i deixa `summary` i `content` com a cadenes buides quan la conversa només tingui salutacions, xerrameca, proves o qualsevol cosa sense valor per recordar més endavant.
 
       # Pautes
       Segueix aquestes pautes quan resumeixis l'historial de converses del chatbot:
@@ -85,10 +225,15 @@ memory:
       # Formato de salida
       La salida es un objeto JSON con el siguiente formato:
       {
+        "significant": true,
         "summary": "Un título de una sola línea sobre el resumen de la conversación del chatbot",
         "content": "Un resumen conciso de la conversación del chatbot que capture los puntos principales y el contexto"
       }
       
+      # Relevancia
+      - El campo `significant` es un booleano. Ponlo a `true` cuando la conversación contiene algo que valga la pena recordar más adelante: datos, decisiones, preferencias, planes, respuestas, recursos o ubicaciones.
+      - Ponlo a `false` y deja `summary` y `content` como cadenas vacías cuando la conversación solo tenga saludos, charla trivial, pruebas o cualquier cosa sin valor para recordar más adelante.
+
       # Pautas
       Sigue estas pautas cuando resumas el historial de conversaciones del chatbot:
 
@@ -137,10 +282,15 @@ memory:
       # Output Format
       The output is a JSON object with the following format:
       {
+        "significant": true,
         "summary": "A one line headline of the chatbot conversation summary",
         "content": "A concise summary of the chatbot conversation that captures the main points and context"
       }
       
+      # Significance
+      - The field `significant` is a boolean. Set it to `true` when the conversation contains something worth remembering later: facts, decisions, preferences, plans, answers, resources or locations.
+      - Set it to `false` and leave `summary` and `content` as empty strings when the conversation only has greetings, small talk, tests or anything without value to remember later.
+
       # Guidelines
       Follow these guidelines when summarizing the chatbot conversation history:
 
@@ -189,9 +339,14 @@ memory:
       # Ausgabeformat
       Die Ausgabe ist ein JSON-Objekt mit folgendem Format:
       {
+        "significant": true,
         "summary": "Eine einzeilige Überschrift der Chatbot-Gesprächszusammenfassung",
         "content": "Eine prägnante Zusammenfassung des Chatbot-Gesprächs, die die wichtigsten Punkte und den Kontext erfasst"
       }
+
+      # Relevanz
+      - Das Feld `significant` ist ein Boolean. Setze es auf `true`, wenn das Gespräch etwas enthält, das es wert ist, später erinnert zu werden: Fakten, Entscheidungen, Vorlieben, Pläne, Antworten, Ressourcen oder Orte.
+      - Setze es auf `false` und lasse `summary` und `content` als leere Zeichenketten, wenn das Gespräch nur Begrüßungen, Smalltalk, Tests oder etwas ohne Wert für spätere Erinnerung enthält.
 
       # Richtlinien
       Befolgen Sie diese Richtlinien, wenn Sie den Chatbot-Gesprächsverlauf zusammenfassen:

@@ -20,10 +20,10 @@ language:
     de: ["tschüss", "beenden", "ende"]
   # [String] Warm up question. Should be simple and without using external tools
   warmup_question: 
-    ca: "Reconeix que estàs llest, i recupera les últimes 5 entrades de memòria per agafar context."
-    es: "Reconoce que estás listo, y recupera las últimas 5 entradas de memoria para obtener contexto."
-    en: "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context."
-    de: "Bestätige, dass du bereit bist, und rufe die letzten 5 Speicher-Einträge ab, um Kontext zu erhalten."
+    ca: "Reconeix que estàs llest, i recupera les últimes 5 entrades de memòria per agafar context (només són les més recents; la resta de la informació es troba cercant)."
+    es: "Reconoce que estás listo, y recupera las últimas 5 entradas de memoria para obtener contexto (solo son las más recientes; el resto de la información se encuentra buscando)."
+    en: "Acknowledge that you are ready, and retrieve the last 5 memory entries to gain context (they are only the most recent ones; the rest of the information is found by searching)."
+    de: "Bestätige, dass du bereit bist, und rufe die letzten 5 Speicher-Einträge ab, um Kontext zu erhalten (sie sind nur die neuesten; die übrigen Informationen findest du durch Suchen)."
   # This is the welcome / greeting message
   greeting:
     ca: "Hola"
@@ -391,6 +391,57 @@ language:
       es: "Lo siento, ha habido un error al recuperar las entradas de memoria."
       en: "I'm sorry, there was an error retrieving the memory entries."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Gedächtniseinträge."
+    notification:
+      saved:
+        ca: "Desat a la memòria"
+        es: "Guardado en la memoria"
+        en: "Saved to memory"
+        de: "Im Gedächtnis gespeichert"
+      updated:
+        ca: "Memòria actualitzada"
+        es: "Memoria actualizada"
+        en: "Memory updated"
+        de: "Gedächtnis aktualisiert"
+      correction_pending:
+        ca: "Correcció pendent"
+        es: "Corrección pendiente"
+        en: "Correction pending"
+        de: "Korrektur ausstehend"
+      forget_registered:
+        ca: "Petició d'oblidar registrada"
+        es: "Petición de olvidar registrada"
+        en: "Forget request registered"
+        de: "Bitte zu vergessen registriert"
+      forgotten:
+        ca: "Oblidat"
+        es: "Olvidado"
+        en: "Forgotten"
+        de: "Vergessen"
+    long_term_correction_saved:
+      ca: "Desat com a correcció pendent de la memòria a llarg termini. Ja és visible i s'aplicarà durant la nit."
+      es: "Guardado como corrección pendiente de la memoria a largo plazo. Ya es visible y se aplicará durante la noche."
+      en: "Saved as a pending correction of the long term memory. It is visible right away and will be applied overnight."
+      de: "Als ausstehende Korrektur des Langzeitgedächtnisses gespeichert. Sie ist sofort sichtbar und wird über Nacht übernommen."
+    long_term_forget_registered:
+      ca: "La memòria a llarg termini no es pot esborrar. S'ha registrat la petició d'oblidar-ho, però la informació es manté."
+      es: "La memoria a largo plazo no se puede borrar. Se ha registrado la petición de olvidarlo, pero la información se mantiene."
+      en: "The long term memory cannot be deleted. The request to forget it was registered, but the information is kept."
+      de: "Das Langzeitgedächtnis kann nicht gelöscht werden. Die Bitte, es zu vergessen, wurde registriert, die Information bleibt aber erhalten."
+    short_entry_deleted:
+      ca: "Entrada esborrada."
+      es: "Entrada borrada."
+      en: "Entry deleted."
+      de: "Eintrag gelöscht."
+    entry_protected:
+      ca: "Aquesta entrada no es pot modificar."
+      es: "Esta entrada no se puede modificar."
+      en: "This entry cannot be modified."
+      de: "Dieser Eintrag kann nicht geändert werden."
+    invalid_entry_id:
+      ca: "L'identificador %s no és vàlid. Fes servir l'identificador tal com el vas rebre, com S:12 o L:5."
+      es: "El identificador %s no es válido. Usa el identificador tal como lo recibiste, como S:12 o L:5."
+      en: "The id %s is not valid. Use the id exactly as it was returned, like S:12 or L:5."
+      de: "Die ID %s ist nicht gültig. Verwende die ID genau so, wie du sie erhalten hast, etwa S:12 oder L:5."
     summarization_error:
       ca: "Ho sento, hi ha hagut un error en resumir l'historial de xat en una entrada de memòria."
       es: "Lo siento, ha habido un error al resumir el historial de chat en una entrada de memoria."

@@ -8,3 +8,13 @@ database:
     filename: "pitxu.db"
     # [String] The path to the directory containing database migration scripts. Starts from the root path. If the directory does not exist, it will be created.
     migrations_path: "migrations/pitxu/"
+    # [Boolean] Apply the pending migrations automatically at startup. A backup is made first (if there is anything to migrate).
+    auto_migrate: true
+    # [String] Where the backups go. Relative to the database path above.
+    backups_path: "backups/"
+    # [Integer] How many backups to keep. The oldest ones are deleted.
+    backups_keep: 5
+    # [Boolean] Write-ahead logging: one process can read while another writes. Several processes use the database.
+    wal: true
+    # [Integer] Seconds that a process waits for the database to be free before failing.
+    busy_timeout_seconds: 30
