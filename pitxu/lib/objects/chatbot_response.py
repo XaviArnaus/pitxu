@@ -48,11 +48,21 @@ class ChatbotResponse:
         self.function_call_history.add_pair(pair)
     
     @staticmethod
-    def from_response(response: GenerateContentResponse) -> ChatbotResponse: 
+    def from_response(response: GenerateContentResponse, empty_text_ok_for: dict = None) -> ChatbotResponse: 
+        """
+        Creates a ChatbotResponse object from the response of the model.
+
+        Args:
+            response (GenerateContentResponse): The response of the model.
+            empty_text_ok_for (dict, optional): {tool name: expected result}. An empty text is not an error
+                if the last tool used is one of these and it answered that result (see parse_error).
+        """
+        function_call_history = FunctionCallHistory.from_response(response)
         return ChatbotResponse(
-            text=response.text,
-            function_call_history=FunctionCallHistory.from_response(response),
-            error=ChatbotResponse.parse_error(response),
+            # No text is a valid answer after some tools, and it must not break the post-processing.
+            text=response.text if response.text is not None else "",
+            function_call_history=function_call_history,
+            error=ChatbotResponse.parse_error(response, function_call_history, empty_text_ok_for),
             metadata=ChatbotResponse.parse_metadata(response)
         )
     
@@ -75,13 +85,18 @@ class ChatbotResponse:
         )
 
     @staticmethod
-    def parse_error(response: GenerateContentResponse) -> FinishReason:
+    def parse_error(response: GenerateContentResponse,
+                    function_call_history: FunctionCallHistory = None,
+                    empty_text_ok_for: dict = None) -> FinishReason:
         """
         Parses the given response to determine if there was an error.
         It all starts by checking if there is a text in the answer.
 
         Args:
             response (GenerateContentResponse): The response to parse.
+            function_call_history (FunctionCallHistory, optional): The tools used to build this response.
+            empty_text_ok_for (dict, optional): {tool name: expected result}. If there is no text but the last
+                tool used is one of these and it answered that result, it is not an error: the tool was the answer.
         Returns:
             FinishReason: The finish reason indicating an error, or None if no error.
         
@@ -106,6 +121,14 @@ class ChatbotResponse:
             # First, check if there is any text at all
             if response.text and len(response.text.strip()) > 0:
                 return None
+
+            # No text. It is fine if the last tool is one that is allowed to leave the answer empty.
+            if function_call_history is not None and empty_text_ok_for:
+                last_pair = function_call_history.get_last()
+                if last_pair is not None and any(
+                    last_pair.matches(name, result) for name, result in empty_text_ok_for.items()
+                ):
+                    return None
 
             # Assume the first candidate is representative
             # Then, take the finish_reason. If not None then it's an error.

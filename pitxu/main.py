@@ -95,6 +95,10 @@ class Main(PyXavi):
     _greeting_sentence: str = None
     _goodbye_sentence: str = None
     _trigger_answers: list[str] = []
+    # What Pitxu says (randomly one of them) when the chatbot understood that the user ends the conversation.
+    _end_of_conversation_answers: list[str] = []
+    # The chatbot called its end of conversation tool in the answer that is being processed (see on_end_of_conversation_requested()).
+    _end_of_conversation_requested: bool = False
     _exit_words: list[str] = []
     _trigger_words: list[str] = []
     _tokens_counter: int = 0
@@ -289,6 +293,9 @@ class Main(PyXavi):
         """
 
         self._xlog.info("🏁 User intends to end the conversation, via chatbot tool callback.")
+
+        # The answer that is on its way is replaced by an ending sentence, and the app goes idle after it (no countdown).
+        self._end_of_conversation_requested = True
 
         if self._xconfig.get("memory.summarize_at_end_conversation", True):
             self._summarize_current_conversation(reason="end of conversation")
@@ -726,8 +733,13 @@ class Main(PyXavi):
             # The hold time restarts only if there was an answer. An ignored transcript is not an interaction,
             #   so the previous hold time just keeps counting.
             answer_was_delivered = answer is not None and answer.strip() != ""
-            self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
-                                        reset_mark=answer_was_delivered)
+            if self._end_of_conversation_requested:
+                # Unless the conversation just ended: nobody is expected to speak, so no hold time, straight to idle.
+                self._end_of_conversation_requested = False
+                self._go_idle_after_conversation()
+            else:
+                self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
+                                            reset_mark=answer_was_delivered)
 
             # Just to be sure, if reaching this point naturally, we are not in an error state, so we can reset the flag.
             we_are_in_error_state = False
@@ -832,6 +844,8 @@ class Main(PyXavi):
         )
         self._interaction.wait_for_background_display_queue_to_empty()
         self._interaction.set_chatbot_busy()
+        # Only this answer can end the conversation: whatever was left from before does not count.
+        self._end_of_conversation_requested = False
         LatencyTimeline.mark("llm_sent")
         chat_response: ChatbotResponse = await self._chatbot.ask_async(question)
         LatencyTimeline.mark("llm_answer")
@@ -860,6 +874,17 @@ class Main(PyXavi):
         
         # Finally, this is the answer string that moves on.
         answer = chat_response.text
+
+        # The chatbot ended the conversation: it only needed to call the tool (whatever it said besides is dropped).
+        #   Pitxu says an ending sentence by itself, like it does with the greeting.
+        if self._end_of_conversation_requested:
+            import random
+            answer = random.choice(self._end_of_conversation_answers)
+            self._log_debug(f"🏁 The conversation ended: the answer is replaced by [{answer}].")
+            self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                icon="🧠",
+                text=answer
+            )
 
         # This waiting happens BEFORE we reached the answering phase with the interaction.say().
         # If the react_on_last_function_call() involved a show_arbitrary_text_on_foreground_while_speaking(),
@@ -1057,6 +1082,30 @@ class Main(PyXavi):
 
         if mute:
             self._interaction.mute_microphone(input_stream=self._input_stream)
+
+    def _go_idle_after_conversation(self):
+        """
+        The conversation is over (the chatbot understood it and the ending sentence was said): instead of
+          handing the turn to the user with the hold time countdown, the app goes idle right away.
+
+        The hold time is expired, so what comes next needs the trigger words (or the wake up button), as if the
+          countdown had ended by itself. Its counterpart, _start_listening_phase(), is what the next interaction uses.
+        """
+        self._log_debug("💤 Conversation ended: going idle without waiting for the hold time.")
+
+        # Expired hold time: the next text is not a continuation of this conversation (see _text_continues_ongoing_interaction()).
+        #   That check discounts the transcription time of the NEXT text, so the margin on top of the hold time is generous.
+        self._last_interaction_datetime = datetime.now() - timedelta(seconds=self._seconds_to_hold_interaction_answer + 30)
+        self._last_interaction_paused_seconds = 0
+
+        # Keeps listening for the trigger words, unless only the wake up button is wanted.
+        wake_up_button_only = self._interaction.is_wake_up_button_wanted_exclusively()
+        if not wake_up_button_only:
+            self._interaction.unmute_microphone(input_stream=self._input_stream)
+
+        # Same order as when the countdown ends: idle first, then the listening phase ends and the bar is cleared.
+        self._interaction.set_idle_mode_on()
+        self._end_listening_phase("conversation ended", mute=wake_up_button_only, clear_bar=True)
 
     def _show_holding_bar_now(self, reason: str):
         """
@@ -1597,6 +1646,12 @@ class Main(PyXavi):
         # Load the goodbye sentence
         self._xlog.debug("Load Goodbye with language [" + self._xparams.get("language") + "]")
         self._goodbye_sentence = self._xconfig.get("language.goodbye." + self._xparams.get("language"))
+
+        # Load the sentences to say when the conversation ends. The goodbye is the fallback.
+        self._end_of_conversation_answers = self._xconfig.get("language.end_of_conversation_answers." + self._xparams.get("language"), [])
+        if not self._end_of_conversation_answers:
+            self._xlog.warning("🟠 No language.end_of_conversation_answers for [" + self._xparams.get("language") + "] in the config, using the goodbye sentence.")
+            self._end_of_conversation_answers = [self._goodbye_sentence]
 
         # Load trigger words
         self._xlog.debug("Load Trigger words with language [" + self._xparams.get("language") + "] with chatbot name [" + self._xconfig.get("chatbot.name") + "]")

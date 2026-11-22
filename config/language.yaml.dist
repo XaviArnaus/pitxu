@@ -12,6 +12,12 @@ language:
     es: ["Dime", "¿Qué pasa?", "¿Qué tal?"]
     en: ["Tell me", "What's up?", "How's it going?"]
     de: ["Sag es mir", "Was gibt's?", "Wie läuft's?"]
+  # What Pitxu says when the chatbot understood that the user ends the conversation (then it goes idle). Will choose one random.
+  end_of_conversation_answers:
+    ca: ["Fins ara!", "Ens veiem!", "Aquí estaré quan em necessitis."]
+    es: ["¡Hasta luego!", "¡Nos vemos!", "Aquí estaré cuando me necesites."]
+    en: ["See you later!", "Talk to you soon!", "I'll be here when you need me."]
+    de: ["Bis später!", "Bis bald!", "Ich bin hier, wenn du mich brauchst."]
   # Exit words are used to identify the program termination (lowercase, no accents)
   exit_words:
     ca: ["sortir", "adeu"]
