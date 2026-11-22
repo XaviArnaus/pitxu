@@ -49,12 +49,9 @@ memory:
   # The nightly consolidation: the short term entries are summarized into the long term memory,
   #   and every topic gets a version in every supported language.
   consolidation:
-    # [Boolean] Run it every night, and the catch-up after the start. False: never automatically
-    #   (`poetry run util -u consolidate_memory` still does it).
+    # [Boolean] Run it with the night tasks (the time is `night_tasks` in main.yaml), and the catch-up after the start.
+    #   False: never automatically (`poetry run util -u consolidate_memory` still does it).
     enabled: True
-    # [Integer] Time of the night to run it.
-    hour: 3
-    minute: 0
     # [Float] It only starts when nobody is talking to Pitxu. If somebody is, it tries again after these minutes...
     defer_minutes: 10
     # [Float] ...until this many hours passed. Then it gives up until the next night.

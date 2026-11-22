@@ -45,9 +45,9 @@ class MemoryConfigValidator:
             ("memory.consolidation_model", "gemini-3.1-flash-lite", "a model name", text),
             ("memory.search.max_results", 8, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
             ("memory.short_term.retention_days", 14, "a number of days, 0 or more", lambda v: number(v) and v >= 0),
+            ("night_tasks.hour", 3, "an integer between 0 and 23", lambda v: integer(v) and 0 <= v <= 23),
+            ("night_tasks.minute", 0, "an integer between 0 and 59", lambda v: integer(v) and 0 <= v <= 59),
             ("memory.consolidation.enabled", True, "True or False", boolean),
-            ("memory.consolidation.hour", 3, "an integer between 0 and 23", lambda v: integer(v) and 0 <= v <= 23),
-            ("memory.consolidation.minute", 0, "an integer between 0 and 59", lambda v: integer(v) and 0 <= v <= 59),
             ("memory.consolidation.defer_minutes", 10, "a number of minutes above 0", lambda v: number(v) and v > 0),
             ("memory.consolidation.max_defer_hours", 3, "a number of hours, 0 or more", lambda v: number(v) and v >= 0),
             ("memory.consolidation.startup_catchup", True, "True or False", boolean),
@@ -99,6 +99,13 @@ class MemoryConfigValidator:
         if legacy is not None and supported and legacy not in supported:
             report(f"[memory.legacy_entries_language] is {legacy!r}, it must be one of {supported}. Using {fallback_language!r}.")
             config.set("memory.legacy_entries_language", fallback_language)
+
+        # Settings that moved: the old ones are not read any more.
+        for old_key, new_key in (("memory.consolidation.hour", "night_tasks.hour"),
+                                 ("memory.consolidation.minute", "night_tasks.minute")):
+            if config.get(old_key) is not None:
+                report(f"[{old_key}] is not used any more: the consolidation runs with the night tasks, at [{new_key}] "
+                       "(main.yaml). Remove it.")
 
         # Without a default that can replace them: only reported.
         for key in ("memory.consolidation.prompt", "memory.consolidation.translation_prompt"):

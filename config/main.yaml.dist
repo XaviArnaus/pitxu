@@ -44,6 +44,14 @@ app:
   # [Integer] Only for "edge": longest text (in words) that can be an exit. Avoids exiting on "tell me about the goodbye song".
   exit_max_words: 3
 
+# The tasks of every night, in one job: rotate the old logs, flush the stats, and ask for the memory consolidation
+#   (see `memory.consolidation`, that can be turned off there). Restart to apply.
+night_tasks:
+  # [Integer] Hour of the night to run them (0 - 23).
+  hour: 3
+  # [Integer] Minute (0 - 59).
+  minute: 0
+
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
 # Switches to tell if a problem comes from it. What is not here is on. Restart to apply.

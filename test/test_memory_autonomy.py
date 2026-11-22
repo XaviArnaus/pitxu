@@ -1,5 +1,4 @@
 """The chatbot using the memory on its own: the notification of what it wrote, and the autonomy instruction."""
-import ast
 import os
 import sys
 import unittest
@@ -93,23 +92,10 @@ class NotificationTests(unittest.TestCase):
             self.assertTrue(callable(self.tools.get_callback_by_given_function_name(tool.__name__)), tool.__name__)
 
 
-def _load_method(relative_path: str, name: str):
-    """ A method of a class of the application, without importing the module (it needs the whole stack). """
-    with open(os.path.join(REPO, relative_path)) as handle:
-        tree = ast.parse(handle.read())
-    function = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == name)
-    module = ast.Module(body=[ast.ClassDef(name="Holder", bases=[], keywords=[], body=[function], decorator_list=[], type_params=[])],
-                        type_ignores=[])
-    ast.fix_missing_locations(module)
-    namespace = {}
-    exec(compile(module, relative_path, "exec"), namespace)
-    return namespace["Holder"]
-
-
 class AutonomyInstructionTests(unittest.TestCase):
 
     def _instruction(self, **overrides):
-        holder = _load_method("pitxu/lib/chatbot/gemini_chatbot.py", "_memory_autonomy_instruction")()
+        holder = methods_of("pitxu/lib/chatbot/gemini_chatbot.py", ["_memory_autonomy_instruction"])()
         holder._xconfig = cfg(tempfile.mkdtemp(), **overrides)
         return holder._memory_autonomy_instruction()
 

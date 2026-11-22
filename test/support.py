@@ -164,7 +164,7 @@ def cfg(tmp: str, **overrides) -> Config:
     `cfg(tmp, **{"memory.consolidation.batch_size": 3})`.
     """
     merged = {}
-    for path in ["config/memory.yaml.dist", "config/database.yaml.dist", "config/language.yaml.dist", "config/chatbot.yaml.dist"]:
+    for path in ["config/main.yaml.dist", "config/memory.yaml.dist", "config/database.yaml.dist", "config/language.yaml.dist", "config/chatbot.yaml.dist"]:
         merged.update(read_yaml(os.path.join(REPO, path)))
     merged.update(read_yaml(os.path.join(FIXTURES, "memory_preload.yaml")))
     merged["app"] = {"supported_languages": ["en", "ca", "de", "es"], "default_language": "ca"}
@@ -176,6 +176,25 @@ def cfg(tmp: str, **overrides) -> Config:
     for key, value in overrides.items():
         config.set(key, value)
     return config
+
+
+def methods_of(relative_path: str, names: list[str], namespace: dict = None):
+    """
+    A class with only the given methods of a file of the application, taken from its source without importing it
+    (some modules need the whole stack). `namespace` holds the globals that the methods use.
+    """
+    import ast
+    tree = ast.parse(read_file(os.path.join(REPO, relative_path)))
+    functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name in names]
+    missing = set(names) - {function.name for function in functions}
+    if missing:
+        raise AssertionError(f"{relative_path} has no method {sorted(missing)}")
+    module = ast.Module(body=[ast.ClassDef(name="Holder", bases=[], keywords=[], body=functions, decorator_list=[], type_params=[])],
+                        type_ignores=[])
+    ast.fix_missing_locations(module)
+    scope = dict(namespace or {})
+    exec(compile(module, relative_path, "exec"), scope)
+    return scope["Holder"]
 
 
 def params(**extra) -> Dictionary:

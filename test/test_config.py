@@ -23,8 +23,8 @@ class ValidationTests(unittest.TestCase):
 
     def test_invalid_values_are_replaced_by_the_default_and_reported(self):
         config = cfg(tempfile.mkdtemp(), **{
-            "memory.consolidation.hour": 25,
-            "memory.consolidation.minute": "zero",
+            "night_tasks.hour": 25,
+            "night_tasks.minute": "zero",
             "memory.consolidation.batch_size": 0,
             "memory.consolidation.dry_run": "no",
             "memory.summarization.close_timeout_seconds": -5,
@@ -34,19 +34,32 @@ class ValidationTests(unittest.TestCase):
         })
         messages = MemoryConfigValidator.validate(config)
         self.assertEqual(len(messages), 7)
-        self.assertEqual(config.get("memory.consolidation.hour"), 3)
-        self.assertEqual(config.get("memory.consolidation.minute"), 0)
+        self.assertEqual(config.get("night_tasks.hour"), 3)
+        self.assertEqual(config.get("memory.consolidation.batch_size"), 10)
         self.assertEqual(config.get("memory.consolidation.batch_size"), 10)
         self.assertIs(config.get("memory.consolidation.dry_run"), False)
         self.assertEqual(config.get("memory.summarization.close_timeout_seconds"), 45)
         self.assertEqual(config.get("memory.consolidation_model"), "gemini-3.1-flash-lite")
         self.assertEqual(config.get("database.sqlite.backups_keep"), 5)
-        self.assertTrue(any("memory.consolidation.hour" in m and "25" in m for m in messages))
+        self.assertTrue(any("night_tasks.hour" in m and "25" in m for m in messages))
         # And once fixed there is nothing else to say.
         self.assertEqual(MemoryConfigValidator.validate(config), [])
 
+    def test_the_night_time_moved_from_the_memory_to_the_night_tasks(self):
+        config = cfg(tempfile.mkdtemp(), **{"memory.consolidation.hour": 4, "memory.consolidation.minute": 30})
+        messages = MemoryConfigValidator.validate(config)
+        self.assertEqual(len(messages), 2)
+        self.assertTrue(all("night_tasks" in m and "not used any more" in m for m in messages))
+        self.assertEqual(config.get("night_tasks.hour"), 3, "the old value is not taken")
+
+    def test_the_dist_has_the_night_tasks_and_no_old_time_in_the_memory(self):
+        config = cfg(tempfile.mkdtemp())
+        self.assertEqual((config.get("night_tasks.hour"), config.get("night_tasks.minute")), (3, 0))
+        self.assertIsNone(config.get("memory.consolidation.hour"))
+        self.assertIsNone(config.get("memory.consolidation.minute"))
+
     def test_a_boolean_is_not_a_number(self):
-        config = cfg(tempfile.mkdtemp(), **{"memory.consolidation.hour": True, "memory.consolidation.batch_size": True})
+        config = cfg(tempfile.mkdtemp(), **{"night_tasks.hour": True, "memory.consolidation.batch_size": True})
         self.assertEqual(len(MemoryConfigValidator.validate(config)), 2)
 
     def test_the_legacy_language_must_be_a_supported_one(self):
@@ -68,18 +81,18 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("systemd" in m for m in messages))
 
     def test_messages_go_to_the_log(self):
-        config = cfg(tempfile.mkdtemp(), **{"memory.consolidation.hour": 99})
+        config = cfg(tempfile.mkdtemp(), **{"night_tasks.hour": 99})
         with self.assertLogs("pitxu_test", level="WARNING") as captured:
             MemoryConfigValidator.validate(config, logging.getLogger("pitxu_test"))
-        self.assertTrue(any("memory.consolidation.hour" in line for line in captured.output))
+        self.assertTrue(any("night_tasks.hour" in line for line in captured.output))
 
     def test_memory_validates_its_config_once(self):
-        config = cfg(tempfile.mkdtemp(), **{"memory.consolidation.hour": 99})
+        config = cfg(tempfile.mkdtemp(), **{"night_tasks.hour": 99})
         with self.assertLogs("pitxu_test", level="WARNING") as captured:
             first = Memory(config=config, params=params())
             second = Memory(config=config, params=params())
-        self.assertEqual(config.get("memory.consolidation.hour"), 3)
-        self.assertEqual(sum("memory.consolidation.hour" in line for line in captured.output), 1)
+        self.assertEqual(config.get("night_tasks.hour"), 3)
+        self.assertEqual(sum("night_tasks.hour" in line for line in captured.output), 1)
         first.close()
         second.close()
 

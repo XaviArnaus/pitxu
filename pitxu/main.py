@@ -1180,12 +1180,12 @@ class Main(PyXavi):
     
     def _safe_step(self, name: str, step: callable):
         """
-        Runs one step of the closing, logging (not raising) any error, so the next steps still run.
+        Runs one step of a sequence (the closing, the night tasks), logging (not raising) any error, so the next steps still run.
         """
         try:
             return step()
         except (Exception, RuntimeError) as e:
-            self._xlog.error(f"🛑 Error closing [{name}]: {type(e).__name__}: {e}")
+            self._xlog.error(f"🛑 Error in [{name}]: {type(e).__name__}: {e}")
             self._log_debug(full_stack())
             return None
 
@@ -1737,24 +1737,20 @@ class Main(PyXavi):
             # EVERY SECOND
             self._scheduler.add_job(self.do_every_second_tasks, 'interval', seconds=1)
 
-            # EVERY NIGHT AT 3 AM
-            self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+            # EVERY NIGHT, at the time of `night_tasks` in the config (3:00 by default). All the night tasks are in one job.
+            self._scheduler.add_job(
+                self.do_at_night_tasks, 'cron',
+                hour=int(self._xconfig.get("night_tasks.hour", 3)),
+                minute=int(self._xconfig.get("night_tasks.minute", 0)))
 
-            # EVERY NIGHT: the memory consolidation, at the time that the config says.
+            # The Raspberry may be off at night: some minutes after the start, check if the consolidation is overdue.
             if self._xconfig.get("memory.consolidation.enabled", True):
-                self._scheduler.add_job(
-                    self.request_memory_consolidation, 'cron',
-                    hour=int(self._xconfig.get("memory.consolidation.hour", 3)),
-                    minute=int(self._xconfig.get("memory.consolidation.minute", 0)),
-                    kwargs={"reason": "night"})
-
-                # The Raspberry may be off at that time: some minutes after the start, check if it is overdue.
                 if self._xconfig.get("memory.consolidation.startup_catchup", True):
                     self._scheduler.add_job(
                         self.request_memory_consolidation_if_overdue, 'date',
                         run_date=datetime.now() + timedelta(seconds=float(self._xconfig.get("memory.consolidation.startup_delay_seconds", 300))))
             else:
-                self._xlog.info("The nightly memory consolidation is disabled by config.")
+                self._xlog.info("The memory consolidation is disabled by config.")
 
             # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
             self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
@@ -2238,6 +2234,7 @@ class Main(PyXavi):
             return
 
         self._support.consolidate_memory(reason)
+        self._interaction.add_new_status_line("🌙 Memory Consolidation (nightly) requested", color="blue")
 
     def request_memory_consolidation_if_overdue(self):
         """
@@ -2267,16 +2264,24 @@ class Main(PyXavi):
             self._xlog.info("🌙 The memory was never consolidated: doing it now.")
 
         self.request_memory_consolidation(reason="overdue")
+        self._interaction.add_new_status_line("🌙 Memory Consolidation (overdue) requested", color="blue")
 
     # ------------- Stuff to do daily -------------
 
     def do_at_night_tasks(self):
+        """
+        Everything that is done once a night. Every task is isolated: one failing must not skip the others.
+        """
 
         # At night, we want to clear the logs that are older than the retention period.
-        self._maintenance.rotate_metrics_logs()
+        self._safe_step("rotate metrics logs", self._maintenance.rotate_metrics_logs)
 
         # The use of the emojis of the day goes to the stats file.
-        EmojiStats.flush()
+        self._safe_step("emoji stats", EmojiStats.flush)
+
+        # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
+        if self._xconfig.get("memory.consolidation.enabled", True):
+            self._safe_step("memory consolidation", lambda: self.request_memory_consolidation(reason="night"))
 
 
     # ------------- Others -------------
