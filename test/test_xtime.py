@@ -92,5 +92,18 @@ class SystemDateTests(unittest.TestCase):
             self.assertEqual(source.count("(Monday)"), 4, path)
 
 
+class TranscriberProcessParamsTests(unittest.TestCase):
+
+    def test_01_the_audio_parameters_are_sent_to_the_transcriber_process(self):
+        """ The Preprocessor inside the process reads the filters and samplerates from them: they logged None. """
+        source = read_file(os.path.join(REPO, "pitxu/lib/speech_to_text/faster_whisper_stream.py"))
+        start = source.index("new_and_start(QUEUE_TRANSCRIBER, FasterWhisperStreamProcess")
+        block = source[start:source.index("}))", start)]
+        self.assertIn('"audio_parameters": self._xparams.get("audio_parameters")', block)
+        # ...and the process hands them to the Preprocessor under the same key.
+        process = read_file(os.path.join(REPO, "pitxu/lib/speech_to_text/faster_whisper_stream_process.py"))
+        self.assertIn('"audio_parameters": self._xparams.get("audio_parameters")', process)
+
+
 if __name__ == "__main__":
     unittest.main()

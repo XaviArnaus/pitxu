@@ -181,7 +181,9 @@ class FasterWhisperStream(PyXavi):
             "use_output_queue": True,
             "language": self.language,
             "support_class_queue": self._support.input_queue,
-            "silence_input_queue": self.silence_input_queue
+            "silence_input_queue": self.silence_input_queue,
+            # The Preprocessor of the process reads the filters and samplerates from here: without it, it got None.
+            "audio_parameters": self._xparams.get("audio_parameters")
         }))
         if not initialized:
             raise RuntimeError("Failed to initialize FasterWhisperStreamProcess in the XprocessPool")
