@@ -64,6 +64,9 @@ class MemoryConfigValidator:
             ("memory.consolidation.backoff_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
             ("memory.consolidation.request_timeout_seconds", 60, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("memory.consolidation.max_total_seconds", 180, "a number of seconds above 0", lambda v: number(v) and v > 0),
+            ("reminders.keep_announced_days", 7, "an integer, 0 or more", lambda v: integer(v) and v >= 0),
+            ("reminders.late_after_minutes", 2, "a number of minutes, 0 or more", lambda v: number(v) and v >= 0),
+            ("reminders.very_old_after_hours", 24, "a number of hours above 0", lambda v: number(v) and v > 0),
             ("chatbot.memory_autonomy", True, "True or False", boolean),
             ("database.sqlite.auto_migrate", True, "True or False", boolean),
             ("database.sqlite.backups_keep", 5, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
@@ -112,6 +115,13 @@ class MemoryConfigValidator:
             value = config.get(key)
             if value is not None and (not isinstance(value, str) or "%s" not in value):
                 report(f"[{key}] must be a text with a %s where the data goes. The consolidation will not work until it is fixed.")
+
+        # The reminders: "very old" must come after "late", otherwise nothing is just late.
+        late = config.get("reminders.late_after_minutes")
+        very_old = config.get("reminders.very_old_after_hours")
+        if cls._is_number(late) and cls._is_number(very_old) and late >= very_old * 60:
+            report(f"[reminders.late_after_minutes] is {late} and [reminders.very_old_after_hours] is {very_old}: "
+                   "a reminder is very old before it is late, so the late wording is never used.")
 
         close_timeout = config.get("memory.summarization.close_timeout_seconds")
         if close_timeout is not None and cls._is_number(close_timeout) and close_timeout > cls.SYSTEMD_STOP_TIMEOUT_SECONDS - 20:
