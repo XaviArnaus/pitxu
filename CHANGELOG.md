@@ -27,6 +27,7 @@
 ### Fixed
 - Fix partial merging when transcription end is cut and next does not correct it [#52](https://github.com/XaviArnaus/pitxu/pull/52)
 - Fix UX not being prepared when user answers back too quickly [#54](https://github.com/XaviArnaus/pitxu/pull/54)
+- Reminders: the date and the time are normalized (`9:05` and `2026-1-5` were accepted but never rang), a reminder in the past is refused with its message (it was accepted and never rang), and what the screen shows about the reminders is localized (the count was in English, and the deleted, updated and moved messages were not used).
 - Summary of the conversation at its end unreliable, and the summarizer failing on edge cases (invalid JSON, quota, network).
 
 ## v0.4.2b - 2026-11-16

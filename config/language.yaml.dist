@@ -256,6 +256,16 @@ language:
       es: "No hay recordatorios establecidos."
       en: "There are no reminders set."
       de: "Es sind keine Erinnerungen gesetzt."
+    reminder_count_one:
+      ca: "1 recordatori."
+      es: "1 recordatorio."
+      en: "1 reminder."
+      de: "1 Erinnerung."
+    reminder_count_many:
+      ca: "%d recordatoris."
+      es: "%d recordatorios."
+      en: "%d reminders."
+      de: "%d Erinnerungen."
     reminder_retrieval_error:
       ca: "Ho sento, hi ha hagut un error en recuperar els recordatoris."
       es: "Lo siento, ha habido un error al recuperar los recordatorios."
