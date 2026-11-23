@@ -111,8 +111,11 @@ class FakeInteraction:
     def wait_for_busy_foreground_display_to_idle(self): pass
     def get_canvas_from_foreground_display(self): return Obj(FONT_SIZE_BIG=30)
 
-    def show_arbitrary_text_on_foreground_while_speaking(self, **kwargs): self.calls.append(("show", kwargs))
-    def show_arbitrary_text_on_foreground(self, **kwargs): self.calls.append(("show held", kwargs))
+    def show_arbitrary_text_on_foreground_while_announcing(self, **kwargs): self.calls.append(("show", kwargs))
+    def show_animation_while_announcing(self, animation): self.calls.append(("animation", animation))
+    def wait_for_animation_display_queue_to_empty(self): pass
+    def set_announcement_busy(self): self.calls.append("flag up")
+    def unset_announcement_busy(self): self.calls.append("flag down")
 
     def say(self, text):
         self.calls.append(("say", text))
@@ -154,7 +157,7 @@ class FakeScheduler:
 
 def app(due_list, active=True, hold=0):
     Holder = methods_of("pitxu/main.py", ["announce_due_reminders", "_announce_reminders",
-                                          "_check_waiting_reminders", "_safe_step", "_go_idle_now", "_show_announcement_on_screen",
+                                          "_check_waiting_reminders", "_safe_step", "_go_idle_now", "_announcement_layout",
                                           "_hold_announcement_on_screen"],
                         {"full_stack": lambda: "", "time": FakeClock, "datetime": datetime_module.datetime, "timedelta": datetime_module.timedelta})
     a = Holder()
@@ -163,6 +166,9 @@ def app(due_list, active=True, hold=0):
     a._log_debug = lambda *x, **k: None
     a._is_pitxu_active = active
     a._xconfig = Obj(get=lambda key, default=None: hold if key == "reminders.screen_hold_seconds" else default)
+    a.animation_setting = "reminder"
+    a._xconfig = Obj(get=lambda key, default=None: hold if key == "reminders.screen_hold_seconds"
+                     else (a.animation_setting if key == "animations.reminder" else default))
     FakeClock.now, FakeClock.on_sleep = 0.0, None
     a._reminders_waiting = False
     a._reminders_announcing = threading.Lock()
@@ -238,17 +244,17 @@ class WhenTests(unittest.TestCase):
     def test_01_when_idle_it_shows_says_marks_after_saying_and_hands_the_turn_back(self):
         a = app(ONE)
         a.announce_due_reminders()
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "unmute", "idle on", "end listening"])
-        self.assertEqual(a.calls[3], ("say", "SPOKEN"))
-        self.assertEqual(a.calls[4], ("record", "SPOKEN"))
-        self.assertEqual(a.calls[5], ("mark", [1]))
+        self.assertEqual(names(a), ["idle off", "show", "animation", "flag up", "end listening", "say", "record", "mark", "flag down", "unmute", "idle on", "end listening"])
+        self.assertEqual(a.calls[5], ("say", "SPOKEN"))
+        self.assertEqual(a.calls[6], ("record", "SPOKEN"))
+        self.assertEqual(a.calls[7], ("mark", [1]))
         self.assertFalse(a._reminders_waiting)
 
     def test_02_one_is_shown_big_and_several_as_a_list_from_the_top_left(self):
         single = app(ONE); single.announce_due_reminders()
         several = app(TWO); several.announce_due_reminders()
-        self.assertEqual(single.calls[1][1], {"icon": "📝", "text": "SCREEN", "font_size": 30})
-        self.assertEqual(several.calls[1][1], {"icon": "📝", "header": "TITLE", "text": "SCREEN", "align": "left", "valign": "top"})
+        self.assertEqual(single.calls[1][1], {"icon": "📝", "text": "SCREEN", "font_size": 30, })
+        self.assertEqual(several.calls[1][1], {"icon": "📝", "header": "TITLE", "text": "SCREEN", "align": "left", "valign": "top", })
         self.assertEqual([c for c in several.calls if c[0] == "mark"], [("mark", [1, 2])])
         self.assertEqual(len([c for c in several.calls if c[0] == "say"]), 1)
 
@@ -270,7 +276,7 @@ class WhenTests(unittest.TestCase):
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)
         a._scheduler.jobs[0]()  # what the scheduler would run
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "unmute", "idle on", "end listening"])
+        self.assertEqual(names(a), ["idle off", "show", "animation", "flag up", "end listening", "say", "record", "mark", "flag down", "unmute", "idle on", "end listening"])
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)  # nothing waits anymore
 
@@ -323,21 +329,26 @@ class WhenTests(unittest.TestCase):
             expired = (datetime_module.datetime.now() - a._last_interaction_datetime).total_seconds()
             self.assertGreater(expired, 15)  # the hold time is over: the next text needs the trigger words
 
-    def test_10a_the_reminders_stay_on_screen_before_going_idle(self):
+    def test_10a_the_reminders_stay_on_screen_until_the_hold_is_over_and_then_the_flag_goes_down(self):
         a = app(TWO, hold=5)
         a.announce_due_reminders()
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "show held",
-                                    "unmute", "idle on", "end listening"])
-        held = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show held"][0]
-        self.assertEqual((held["show_for_seconds"], held["header"], held["align"]), (5, "TITLE", "left"))
-        self.assertGreaterEqual(FakeClock.now, 5)  # it waited
+        self.assertEqual(names(a), ["idle off", "show", "animation", "flag up", "end listening", "say", "record", "mark",
+                                    "flag down", "unmute", "idle on", "end listening"])
+        self.assertGreaterEqual(FakeClock.now, 5)  # it waited, with the flag up
 
-    def test_10d_a_single_reminder_is_held_big(self):
+    def test_10a2_the_flag_is_up_while_it_waits(self):
         a = app(ONE, hold=5)
+        seen = []
+        FakeClock.on_sleep = lambda now: seen.append(names(a)[-1])
         a.announce_due_reminders()
-        held = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show held"][0]
-        self.assertEqual(held["font_size"], 30)
-        self.assertNotIn("header", held)
+        self.assertTrue(seen and all(last == "mark" for last in seen), seen)  # nothing came after the mark: the flag was still up
+
+    def test_10d_the_layout_of_a_single_reminder_is_big(self):
+        a = app(ONE)
+        a.announce_due_reminders()
+        shown = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show"][0]
+        self.assertEqual(shown["font_size"], 30)
+        self.assertNotIn("header", shown)
 
     def test_10e_whoever_wakes_pitxu_up_meanwhile_keeps_the_screen(self):
         a = app(ONE, hold=5)
@@ -346,23 +357,49 @@ class WhenTests(unittest.TestCase):
         self.assertNotIn("idle on", names(a))
         self.assertIn(("mark", [1]), a.calls)
         self.assertLess(FakeClock.now, 5)  # it did not wait for the rest
+        self.assertEqual(names(a).count("flag down"), 1)  # the screen is released at once, the new interaction draws its own
 
     def test_10f_a_busy_pitxu_or_a_closing_one_does_not_go_idle(self):
         a = app(ONE, hold=5)
         FakeClock.on_sleep = lambda now: a._interaction.busy.update(chatbot=True)
         a.announce_due_reminders()
         self.assertNotIn("idle on", names(a))
+        self.assertIn("flag down", names(a))
         a = app(ONE, hold=5)
         FakeClock.on_sleep = lambda now: setattr(a, "_is_pitxu_active", False)
         a.announce_due_reminders()
         self.assertNotIn("idle on", names(a))
+        self.assertIn("flag down", names(a))
 
-    def test_10g_a_failed_speech_is_not_held(self):
+    def test_10g_a_failed_speech_is_not_held_but_the_flag_goes_down(self):
         a = app(ONE, hold=5)
         a._interaction.say_fails = True
         a.announce_due_reminders()
-        self.assertNotIn("show held", names(a))
+        self.assertEqual(FakeClock.now, 0.0)  # no waiting
+        self.assertEqual(names(a).count("flag down"), 1)
+        self.assertLess(names(a).index("flag up"), names(a).index("flag down"))
         self.assertEqual(names(a)[-2:], ["idle on", "end listening"])
+
+    def test_10g2_a_failure_before_the_flag_goes_up_does_not_lower_it(self):
+        a = app(ONE)
+        a._interaction.show_arbitrary_text_on_foreground_while_announcing = lambda **k: (_ for _ in ()).throw(RuntimeError("display broke"))
+        a.announce_due_reminders()
+        self.assertNotIn("flag up", names(a))
+        self.assertNotIn("flag down", names(a))
+        self.assertIn(("mark", [1]), a.calls)
+        self.assertTrue(any("Error announcing the reminders" in line for line in a._xlog.lines))
+
+    def test_10g3_the_paints_are_registered_before_the_flag_goes_up_with_the_animation(self):
+        a = app(ONE)
+        a.announce_due_reminders()
+        self.assertLess(names(a).index("show"), names(a).index("flag up"))
+        self.assertIn(("animation", "reminder"), a.calls)
+        self.assertLess(names(a).index("animation"), names(a).index("flag up"))
+        a = app(ONE)
+        a.animation_setting = ""
+        a.announce_due_reminders()
+        self.assertNotIn("animation", names(a))  # none configured: only the text
+        self.assertIn("flag up", names(a))
 
     def test_10h_the_setting_is_in_both_config_files_and_validated(self):
         for file in ["config/main.yaml.dist", "config/main.yaml"]:

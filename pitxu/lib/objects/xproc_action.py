@@ -46,6 +46,9 @@ class XprocAction:
     SHOW_ERROR: str = "SHOW_ERROR"
     # Animations display: an animation (the emojis) shown while the speaker is busy.
     SHOW_ANIMATION_WHILE_SPEAKING: str = "SHOW_ANIMATION_WHILE_SPEAKING"
+    # An announcement (see SHARED_ANNOUNCEMENT_BUSY): its text on the foreground and its animation, each to its display.
+    SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING: str = "SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING"
+    SHOW_ANIMATION_WHILE_ANNOUNCING: str = "SHOW_ANIMATION_WHILE_ANNOUNCING"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"

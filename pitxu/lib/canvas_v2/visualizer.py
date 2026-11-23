@@ -21,6 +21,7 @@ from pitxu.lib.objects.point import Point
 
 from definitions import (
     SHARED_SPEAKER_BUSY,
+    SHARED_ANNOUNCEMENT_BUSY,
     SHARED_CHATBOT_BUSY,
     SHARED_DSI_LCD_IDLE_MODE,
     SHARED_NETWORK_BUSY,
@@ -322,25 +323,30 @@ class Visualizer(PyXavi):
             )
         )
 
+    def _arbitrary_text_while_flag(self, params: dict, name: str, flag: int) -> ForegroundPaint:
+        """ The foreground paint of an arbitrary text with an icon, that lives while the flag is up. """
+        return ForegroundPaint(
+            name=name,
+            command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
+
+            while_shared_memory_flag=flag,
+            while_shared_memory_flag_value=True,
+
+            drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
+            drawing_callback_parameters=params,
+
+            # final_screen_clearing=True,
+            # remove_interaction_after_painting=True,
+            # ignore_maintain_time=True
+        )
+
     def arbitrary_text_while_speaking(self, params: dict):
 
         self.painter.paint(
             PaintObject(
                 paints_by_queue={
-                    PainterQueue.FOREGROUND: ForegroundPaint(
-                        name="ArbitraryContentWhileSpeakingForegroundPaint",
-                        command=ForegroundCommand(ForegroundCommand.ARBITRARY_TEXT_ICON),
-
-                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                        while_shared_memory_flag_value=True,
-
-                        drawing_callback=self.macros_foreground.draw_arbitrary_text_with_icon,
-                        drawing_callback_parameters=params,
-
-                        # final_screen_clearing=True,
-                        # remove_interaction_after_painting=True,
-                        # ignore_maintain_time=True
-                    )
+                    PainterQueue.FOREGROUND: self._arbitrary_text_while_flag(
+                        params, "ArbitraryContentWhileSpeakingForegroundPaint", SHARED_SPEAKER_BUSY)
                 }
             )
         )
@@ -827,6 +833,58 @@ class Visualizer(PyXavi):
             )
         )
     
+    def arbitrary_text_while_announcing(self, params: dict):
+        """
+        An arbitrary text with an icon on the foreground, for as long as the announcement flag is up
+        (SHARED_ANNOUNCEMENT_BUSY). The flag is raised and lowered by whoever announces, after this was processed:
+        the painter reacts to the flag changing, not to it being up already.
+        """
+
+        self.painter.paint(
+            PaintObject(
+                paints_by_queue={
+                    PainterQueue.FOREGROUND: self._arbitrary_text_while_flag(
+                        params, "ArbitraryContentWhileAnnouncingForegroundPaint", SHARED_ANNOUNCEMENT_BUSY)
+                }
+            )
+        )
+
+    def _animation_while_flag(self, animation_name: str, paint_name_prefix: str, flag: int, purpose: str) -> AnimationPaint | None:
+        """
+        The animation paint of an animation of the animations area that lives while the flag is up, then the area is cleared.
+        None (and a warning) if the animation is not available.
+        """
+        try:
+            # Loaded here the first time it is used (the animations that are not preloaded are lazy).
+            frame_count = self.animations.get_animation(animation_name).get_frame_count()
+        except Exception as e:
+            self._xlog.warning(f"🟠 Cannot show the animation [{animation_name}] {purpose}: {e}")
+            return None
+
+        return AnimationPaint(
+            # The name has the animation, so the cache key of each animation is its own.
+            name=f"{paint_name_prefix}_{animation_name}",
+            command=AnimationsCommand(AnimationsCommand.EMOTION),
+
+            while_shared_memory_flag=flag,
+            while_shared_memory_flag_value=True,
+
+            # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
+            loop_iterations=frame_count - 1,
+            delay_between_frames=self.interaction_delays.get("emotion",
+                                                            self.interaction_delays.get("default_delay_between_frames",
+                                                                                        0.05)),
+
+            # The parameter "current_loop_iteration" is added during the painting stage,
+            # and it is the index of the frame to draw.
+            drawing_callback=self.macros_animation.merge_animation,
+            drawing_callback_parameters={"animation": animation_name},
+            cache_control_parameters=["current_loop_iteration"],
+
+            final_area_clearing=True,
+            remove_interaction_after_painting=False
+        )
+
     def animation_while_speaking(self, params: dict):
         """
         Shows an animation in the top left, for as long as the speaker is busy (the same time the answer is spoken,
@@ -836,43 +894,29 @@ class Visualizer(PyXavi):
             params: "animation" is the name of one of the animations of `animations.map`.
         """
 
-        animation_name = params.get("animation", None)
-        try:
-            # Loaded here the first time it is used (the animations that are not preloaded are lazy).
-            frame_count = self.animations.get_animation(animation_name).get_frame_count()
-        except Exception as e:
-            self._xlog.warning(f"🟠 Cannot show the animation [{animation_name}] while speaking: {e}")
+        paint = self._animation_while_flag(
+            params.get("animation", None), "AnimationWhileSpeakingAnimationPaint", SHARED_SPEAKER_BUSY, "while speaking")
+        if paint is None:
             return
 
-        self.painter.paint(
-            PaintObject(
-                paints_by_queue={
-                    PainterQueue.ANIMATIONS: AnimationPaint(
-                        # The name has the animation, so the cache key of each animation is its own.
-                        name=f"AnimationWhileSpeakingAnimationPaint_{animation_name}",
-                        command=AnimationsCommand(AnimationsCommand.EMOTION),
+        self.painter.paint(PaintObject(paints_by_queue={PainterQueue.ANIMATIONS: paint}))
 
-                        while_shared_memory_flag=SHARED_SPEAKER_BUSY,
-                        while_shared_memory_flag_value=True,
+    def animation_while_announcing(self, params: dict):
+        """
+        Shows an animation in the top left, for as long as the announcement flag is up (SHARED_ANNOUNCEMENT_BUSY).
+        Like the one while speaking, but the speech is not part of it: the announcement flag is raised and lowered by
+        whoever announces. Registered here, it appears when the flag goes up and the area is cleared when it goes down.
 
-                        # This sets the last iteration, so keep in mind that it counts starting from index `0`, so it is actually the total number of frames - 1.
-                        loop_iterations=frame_count - 1,
-                        delay_between_frames=self.interaction_delays.get("emotion",
-                                                                        self.interaction_delays.get("default_delay_between_frames",
-                                                                                                    0.05)),
+        Args:
+            params: "animation" is the name of an animation of `animations.map` or `animations.composites`.
+        """
 
-                        # The parameter "current_loop_iteration" is added during the painting stage,
-                        # and it is the index of the frame to draw.
-                        drawing_callback=self.macros_animation.merge_animation,
-                        drawing_callback_parameters={"animation": animation_name},
-                        cache_control_parameters=["current_loop_iteration"],
+        paint = self._animation_while_flag(
+            params.get("animation", None), "AnimationWhileAnnouncingAnimationPaint", SHARED_ANNOUNCEMENT_BUSY, "while announcing")
+        if paint is None:
+            return
 
-                        final_area_clearing=True,
-                        remove_interaction_after_painting=False
-                    )
-                }
-            )
-        )
+        self.painter.paint(PaintObject(paints_by_queue={PainterQueue.ANIMATIONS: paint}))
 
     def networking(self):
         """

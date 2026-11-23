@@ -51,6 +51,18 @@ class Animations(ShortcutBase):
             "animation": animation
         })
 
+    def show_animation_while_announcing(self, animation: str):
+        """
+        Shows an animation (one of `animations.map` or `animations.composites`) on the animations display,
+        for as long as the announcement flag is up (SHARED_ANNOUNCEMENT_BUSY).
+        """
+
+        self._log_debug(f"🎞️ Triggering animation [{animation}] while announcing on animations display.")
+
+        self.process_pool.send(self.get_queue(), XprocAction.SHOW_ANIMATION_WHILE_ANNOUNCING, {
+            "animation": animation
+        })
+
     # --------- (Proxy) Functions to clear screens ---------
 
     def soft_clear(self):

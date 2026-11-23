@@ -39,6 +39,10 @@ class XprocessDisplayAnimations(Xprocess):
         if action == XprocAction.SHOW_ANIMATION_WHILE_SPEAKING and param:
             self.show_animation_while_speaking(param)
 
+        # Show an animation while the announcement flag is up. The param is a dict with the "animation" name.
+        if action == XprocAction.SHOW_ANIMATION_WHILE_ANNOUNCING and param:
+            self.show_animation_while_announcing(param)
+
         # Clears the animations area only
         if action == XprocAction.ANIMATIONS_CLEAR or action == XprocAction.SOFT_CLEAR:
             self._log_debug("XprocessDisplayAnimations: Clearing animations area only.")
@@ -80,6 +84,10 @@ class XprocessDisplayAnimations(Xprocess):
     def show_animation_while_speaking(self, param: dict):
         # Not every display has animations (the legacy ones do not), so this one is optional: nothing to show there.
         self._log_debug("XprocessDisplayAnimations: This display does not show animations while speaking. Ignoring it.")
+
+    def show_animation_while_announcing(self, param: dict):
+        # Optional, like the one while speaking: a display without animations has nothing to show.
+        self._log_debug("XprocessDisplayAnimations: This display does not show animations while announcing. Ignoring it.")
 
     # ------- Communication with Flags ---------
 

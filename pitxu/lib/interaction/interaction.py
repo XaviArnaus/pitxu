@@ -32,6 +32,7 @@ from definitions import (
     SHARED_SPEAKER_BUSY,
     SHARED_NETWORK_BUSY,
     SHARED_VAD_DETECTED,
+    SHARED_ANNOUNCEMENT_BUSY,
     SHARED_MICROPHONE_MUTED,
     SHARED_CHATBOT_BUSY,
     SHARED_CHATBOT_ANSWER_IS_ERROR,
@@ -489,6 +490,14 @@ class Interaction(PyXavi):
         self._animation_requested = animation
         self.animations.show_animation_while_speaking(animation)
 
+    def show_animation_while_announcing(self, animation: str):
+        """
+        Shows an animation (one of `animations.map` or `animations.composites`) on the animations display, only while
+        the announcement flag is up. Same rule as the text: register it, wait for the queue, and then raise the flag
+        (see wait_for_animation_display_queue_to_empty()).
+        """
+        self.animations.show_animation_while_announcing(animation)
+
     def get_animation_requested(self) -> str | None:
         """ The last animation requested to be shown while speaking, None if nothing was requested since the last reset. """
         return self._animation_requested
@@ -594,6 +603,26 @@ class Interaction(PyXavi):
         """
         self.foreground.show_arbitrary_text_on_foreground_while_speaking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
+    def show_arbitrary_text_on_foreground_while_announcing(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
+        ):
+        """
+        Shows arbitrary text on the foreground display only while the announcement flag is up
+        (set_announcement_busy() / unset_announcement_busy()), whatever happens with the speech.
+
+        It only registers it, so it has to be processed BEFORE raising the flag: the painter reacts to the
+        flag changing, not to it being up already (see wait_for_foreground_display_queue_to_empty()).
+        """
+        self.foreground.show_arbitrary_text_on_foreground_while_announcing(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
+
     def show_arbitrary_icon_on_foreground_while_user_speaking(
             self,
             icon: str = None,
@@ -803,6 +832,9 @@ class Interaction(PyXavi):
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self.foreground.get_queue())
     
+    def wait_for_animation_display_queue_to_empty(self):
+        self.process_pool.wait_for_queue_to_empty(self.animations.get_queue())
+
     def wait_for_background_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self.background.get_queue())
     
@@ -815,6 +847,9 @@ class Interaction(PyXavi):
     def wait_for_busy_foreground_display_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.foreground.get_display_busy_flag())
     
+    def wait_for_busy_animation_display_to_idle(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.animations.get_display_busy_flag())
+
     def wait_for_busy_background_display_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.background.get_display_busy_flag())
     
@@ -859,6 +894,19 @@ class Interaction(PyXavi):
 
     def is_microphone_muted(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+
+    def set_announcement_busy(self):
+        """ An announcement is on the screen (its text and animation live by this flag). See show_arbitrary_text_on_foreground_while_announcing() and show_animation_while_announcing(). """
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY, True)
+        self._log_debug("📣 Setting the announcement as busy.")
+
+    def unset_announcement_busy(self):
+        """ The announcement is over: its text and animation go away. """
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY, False)
+        self._log_debug("📣 Unsetting the announcement as busy.")
+
+    def is_announcement_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY)
 
     def set_chatbot_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)

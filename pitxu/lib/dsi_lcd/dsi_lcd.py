@@ -92,6 +92,11 @@ class DsiLcd(XprocessDisplayCombined):
 
         self.visualizer.arbitrary_text_while_speaking(param)
     
+    def show_arbitrary_text_while_announcing(self, param: dict):
+        self._xlog.info(f"📣 Showing arbitrary text on DSI LCD while announcing.")
+
+        self.visualizer.arbitrary_text_while_announcing(param)
+
     def show_arbitrary_text_while_thinking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while thinking.")
 
@@ -228,6 +233,10 @@ class DsiLcd(XprocessDisplayCombined):
     def show_animation_while_speaking(self, param: dict):
         self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while speaking.")
         self.visualizer.animation_while_speaking(param)
+
+    def show_animation_while_announcing(self, param: dict):
+        self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while announcing.")
+        self.visualizer.animation_while_announcing(param)
 
     def clear_animations(self):
         self._xlog.info("Clearing DSI LCD animations interaction.")
