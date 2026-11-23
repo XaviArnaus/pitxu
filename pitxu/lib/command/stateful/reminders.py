@@ -3,11 +3,10 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.utils.xtime import Xtime
 from pitxu.lib.interaction.interaction import Interaction
 
 import logging
-
-from datetime import datetime
 
 
 class StatefulReminders(PyXavi, Command):
@@ -35,13 +34,13 @@ class StatefulReminders(PyXavi, Command):
             str: the message to answer when the date or the time are not valid.
         """
         try:
-            date = datetime.strptime(date, Reminders.FORMAT_DATE).strftime(Reminders.FORMAT_DATE)
+            date = Xtime.datetime_to_str(Xtime.str_to_datetime(date, Reminders.FORMAT_DATE), Reminders.FORMAT_DATE)
         except (ValueError, TypeError):
             return self._message("reminder_invalid_date")
 
         if time is not None:
             try:
-                time = datetime.strptime(time, Reminders.FORMAT_TIME).strftime(Reminders.FORMAT_TIME)
+                time = Xtime.datetime_to_str(Xtime.str_to_datetime(time, Reminders.FORMAT_TIME), Reminders.FORMAT_TIME)
             except (ValueError, TypeError):
                 return self._message("reminder_invalid_time")
 
@@ -59,8 +58,8 @@ class StatefulReminders(PyXavi, Command):
 
     def _is_in_the_past(self, date: str, time: str) -> bool:
         """ The minute of the reminder is over. The current minute is not the past. """
-        reminder_datetime = datetime.strptime(f"{date} {time}", f"{Reminders.FORMAT_DATE} {Reminders.FORMAT_TIME}")
-        return reminder_datetime < datetime.now().replace(second=0, microsecond=0)
+        reminder_datetime = Xtime.str_to_datetime(f"{date} {time}", f"{Reminders.FORMAT_DATE} {Reminders.FORMAT_TIME}")
+        return reminder_datetime < Xtime.now().replace(second=0, microsecond=0)
 
     def create_reminder(self, date: str, time: str, reminder_text: str) -> dict | str:
         '''

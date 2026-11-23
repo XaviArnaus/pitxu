@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from support import *  # noqa: F401,F403
+from pitxu.lib.utils.xtime import Xtime  # noqa: E402
 
 PATH = "pitxu/lib/command/stateful/reminders.py"
 METHODS = ["_message", "_validate_date_and_time", "_as_id", "_not_found", "_is_in_the_past", "create_reminder",
@@ -75,7 +76,7 @@ class Interaction:
 
 def tool(language="en", **overrides):
     Holder = methods_of(PATH, METHODS, {
-        "datetime": datetime_module.datetime, "Reminders": FakeReminders, "logging": None, "Interaction": object,
+        "Xtime": Xtime, "Reminders": FakeReminders, "logging": None, "Interaction": object,
         "full_stack": lambda: ""})
     t = Holder()
     t._xlog = Log()
@@ -116,10 +117,10 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(t._reminders.items, {})
 
     def test_04_the_current_minute_is_not_the_past(self):
-        class Fixed(datetime_module.datetime):
-            @classmethod
-            def now(cls, tz=None): return cls(2030, 5, 10, 14, 30, 45)
-        Holder = methods_of(PATH, ["_is_in_the_past"], {"datetime": Fixed, "Reminders": FakeReminders})
+        class FixedClock(Xtime):
+            @staticmethod
+            def now(): return datetime_module.datetime(2030, 5, 10, 14, 30, 45)
+        Holder = methods_of(PATH, ["_is_in_the_past"], {"Xtime": FixedClock, "Reminders": FakeReminders})
         t = Holder()
         self.assertFalse(t._is_in_the_past("2030-05-10", "14:30"))
         self.assertFalse(t._is_in_the_past("2030-05-10", "14:31"))

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 class Xtime:
@@ -78,6 +78,31 @@ class Xtime:
             format = Xtime.FORMAT
         return datetime.strptime(date_str, format)
     
+    @staticmethod
+    def datetime_to_str(dt: datetime, format: str = None) -> str:
+        """
+        Converts a datetime object to a string based on the given format.
+        If no format is provided, it defaults to FORMAT. The counterpart of str_to_datetime().
+        """
+        if format is None:
+            format = Xtime.FORMAT
+        return dt.strftime(format)
+
+    @staticmethod
+    def add_time(dt: datetime, days: float = 0, hours: float = 0, minutes: float = 0, seconds: float = 0) -> datetime:
+        """
+        Returns the datetime moved by the given time. A negative value moves it to the past.
+        """
+        return dt + timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+    @staticmethod
+    def seconds_between(start: datetime, end: datetime) -> float:
+        """
+        Returns the seconds from `start` to `end`. Negative if `end` is before `start`.
+        Unlike get_seconds_since(), it takes both moments, so the time that it compares with can be given.
+        """
+        return (end - start).total_seconds()
+
     @staticmethod
     def get_seconds_since(date_str: str, format: str = None) -> float:
         """

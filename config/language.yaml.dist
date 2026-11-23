@@ -286,6 +286,26 @@ language:
       es: "Recordatorio: %s"
       en: "Reminder: %s"
       de: "Erinnerung: %s"
+    reminder_announcement_multiple:
+      ca: "Tens %d recordatoris: %s"
+      es: "Tienes %d recordatorios: %s"
+      en: "You have %d reminders: %s"
+      de: "Du hast %d Erinnerungen: %s"
+    reminder_item_late_today:
+      ca: "A les %s, %s"
+      es: "A las %s, %s"
+      en: "At %s, %s"
+      de: "Um %s, %s"
+    reminder_item_late_other_day:
+      ca: "El %s a les %s, %s"
+      es: "El %s a las %s, %s"
+      en: "On %s at %s, %s"
+      de: "Am %s um %s, %s"
+    reminder_very_old_warning:
+      ca: "Aquest recordatori és molt antic i no es va poder anunciar en el seu moment."
+      es: "Este recordatorio es muy antiguo y no se pudo anunciar en su momento."
+      en: "This reminder is very old and could not be announced back then."
+      de: "Diese Erinnerung ist sehr alt und konnte damals nicht angekündigt werden."
     reminder_update_error:
       ca: "Ho sento, hi ha hagut un error en actualitzar el recordatori."
       es: "Lo siento, ha habido un error al actualizar el recordatorio."

@@ -3,8 +3,9 @@ from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.database.db_sqlite import DbSqlite
+from pitxu.lib.utils.xtime import Xtime
 
-from datetime import datetime, date as date_type, timedelta
+from datetime import datetime  # Only for the type hints: the time is handled through Xtime.
 import os
 import sqlite3
 import threading
@@ -28,7 +29,6 @@ class Reminders(PyXavi, Command):
     FORMAT_DATE = "%Y-%m-%d"  # E.g., 2023-12-25
     FORMAT_TIME = "%H:%M"     # E.g., 14:30
     FORMAT_DUE = "%Y-%m-%d %H:%M"
-    FORMAT_ANNOUNCED_AT = "%Y-%m-%d %H:%M:%S"
 
     # The file where the reminders were before they were in the database. See `import_legacy_yaml()`.
     LEGACY_FILENAME = "reminders.yaml"
@@ -156,15 +156,74 @@ class Reminders(PyXavi, Command):
             now: The moment to compare with. Default: now.
         '''
         try:
-            now = now or datetime.now()
+            now = now or Xtime.now()
             return self._fetch(
                 f"SELECT {self.COLUMNS} FROM {self.TABLE} WHERE announced_at IS NULL AND due_at <= ? ORDER BY due_at, id",
-                (now.strftime(self.FORMAT_DUE),))
+                (Xtime.datetime_to_str(now, self.FORMAT_DUE),))
         except Exception as e:
             self._xlog.error(f"🛑 Could not get the due reminders: {e}")
             return []
 
     # ----- Announcing and cleaning -----
+
+    # Defaults of the announcement, overridable in `reminders.*` of the config.
+    LATE_AFTER_MINUTES = 2
+    VERY_OLD_AFTER_HOURS = 24
+
+    def build_announcement(self, reminders: list[dict], now: datetime = None) -> dict:
+        '''
+        The words of the announcement of the reminders that are due, in the language of the session:
+        the same text to speak and to show, for one or for several (a list).
+
+        A reminder that is late (`reminders.late_after_minutes`) says when it was for, and one that is very old
+        (`reminders.very_old_after_hours`) says it with the date and a warning that it could not be announced back then.
+
+        Args:
+            reminders: The reminders to announce, as `get_due()` gives them.
+            now: The moment to compare with. Default: now.
+
+        Returns:
+            dict: {"spoken": str, "screen": str, "count": int, "ids": list[int]}
+        '''
+        now = now or Xtime.now()
+        late_after = float(self._xconfig.get("reminders.late_after_minutes", self.LATE_AFTER_MINUTES)) * 60
+        very_old_after = float(self._xconfig.get("reminders.very_old_after_hours", self.VERY_OLD_AFTER_HOURS)) * 3600
+
+        shown, spoken = [], []
+        for reminder in reminders:
+            due = Xtime.str_to_datetime(f"{reminder['date']} {reminder['time']}", self.FORMAT_DUE)
+            late_by = Xtime.seconds_between(due, now)
+            if late_by > very_old_after:
+                item = self._message("reminder_item_late_other_day") % (reminder["date"], reminder["time"], reminder["text"])
+                shown.append(item)
+                spoken.append(f"{self._sentence(item)} {self._message('reminder_very_old_warning')}")
+            elif late_by > late_after:
+                if due.date() == now.date():
+                    item = self._message("reminder_item_late_today") % (reminder["time"], reminder["text"])
+                else:
+                    item = self._message("reminder_item_late_other_day") % (reminder["date"], reminder["time"], reminder["text"])
+                shown.append(item)
+                spoken.append(self._sentence(item))
+            else:
+                shown.append(reminder["text"])
+                spoken.append(self._sentence(reminder["text"]))
+
+        if len(reminders) == 1:
+            return {"spoken": self._message("reminder_announcement") % spoken[0], "screen": shown[0],
+                    "count": 1, "ids": [reminders[0]["id"]]}
+        return {"spoken": self._message("reminder_announcement_multiple") % (len(reminders), " ".join(spoken)),
+                "screen": "\n".join(f"• {item}" for item in shown),
+                "count": len(reminders), "ids": [reminder["id"] for reminder in reminders]}
+
+    def _message(self, key: str) -> str:
+        """ The message `language.reminders.<key>` in the current language. """
+        return self._xconfig.get("language.reminders." + key + "." + self._xparams.get("language"))
+
+    @staticmethod
+    def _sentence(text: str) -> str:
+        """ The text as a sentence, so several can be spoken one after the other. """
+        text = text.strip()
+        return text if text == "" or text[-1] in ".!?" else text + "."
 
     def mark_announced(self, reminder_ids: list[int], announced_at: datetime = None) -> int:
         '''
@@ -175,7 +234,7 @@ class Reminders(PyXavi, Command):
         '''
         if not reminder_ids:
             return 0
-        announced_at = (announced_at or datetime.now()).strftime(self.FORMAT_ANNOUNCED_AT)
+        announced_at = Xtime.datetime_to_str(announced_at or Xtime.now())
         marked = 0
         with self._lock:
             for reminder_id in reminder_ids:
@@ -192,7 +251,7 @@ class Reminders(PyXavi, Command):
         Returns:
             How many reminders were deleted.
         '''
-        limit = ((now or datetime.now()) - timedelta(days=older_than_days)).strftime(self.FORMAT_ANNOUNCED_AT)
+        limit = Xtime.datetime_to_str(Xtime.add_time(now or Xtime.now(), days=-older_than_days))
         cursor = self._execute(
             f"DELETE FROM {self.TABLE} WHERE announced_at IS NOT NULL AND announced_at < ?", (limit,))
         self._xlog.info(f"📝 Pruned {cursor.rowcount} reminders announced more than {older_than_days} days ago")
@@ -270,14 +329,14 @@ class Reminders(PyXavi, Command):
                 continue
             for raw_time, text in times.items():
                 try:
-                    # A date written without quotes is read by YAML as a date.
-                    date = raw_date.isoformat() if isinstance(raw_date, date_type) else str(raw_date)
+                    # A date written without quotes is read by YAML as a date, and its text is the ISO one.
+                    date = str(raw_date)
                     if isinstance(raw_time, int):
                         # A time like 13:00 written without quotes is read by YAML as minutes (sexagesimal).
                         time = f"{raw_time // 60:02d}:{raw_time % 60:02d}"
                     else:
                         time = str(raw_time).replace("-", ":")
-                    due_at = datetime.strptime(f"{date} {time}", self.FORMAT_DUE).strftime(self.FORMAT_DUE)
+                    due_at = Xtime.datetime_to_str(Xtime.str_to_datetime(f"{date} {time}", self.FORMAT_DUE), self.FORMAT_DUE)
                     if text is None or str(text).strip() == "":
                         raise ValueError("no text")
                     entries.append((due_at, str(text)))

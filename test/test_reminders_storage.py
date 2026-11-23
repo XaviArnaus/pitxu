@@ -205,9 +205,10 @@ class WiringTests(unittest.TestCase):
         self.assertIn('self._xparams.key_exists("reminders")', read_file(os.path.join(REPO, "pitxu/lib/command/stateful/reminders.py")))
 
     def test_03_main_and_ptt_use_get_due_directly(self):
-        for file in ["pitxu/main.py", "pitxu/main_client_ptt.py"]:
-            source = read_file(os.path.join(REPO, file))
-            self.assertIn("for reminder in self._reminders.get_due():", source)
+        main = read_file(os.path.join(REPO, "pitxu/main.py"))
+        self.assertIn("due = self._reminders.get_due()", main)
+        self.assertIn("for reminder in self._reminders.get_due():", read_file(os.path.join(REPO, "pitxu/main_client_ptt.py")))
+        for source in [main, read_file(os.path.join(REPO, "pitxu/main_client_ptt.py"))]:
             self.assertNotIn("_safe_due_reminders", source)
 
     def test_04_the_night_tasks_prune_with_the_configured_days(self):

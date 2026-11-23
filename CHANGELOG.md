@@ -19,7 +19,8 @@
 
 ### Changed
 
-- The reminders that are due are announced also when their minute was missed (a busy Raspberry, a restart): they are not looked up by the exact minute anymore, and the purge of the past reminders at startup is gone. (The announcement is still one by one: grouping, late and very old ones, and waiting for Pitxu to be idle come next.)
+- The announcement of the reminders: all the ones due at the same time are one announcement, spoken and shown as a list; a late one says when it was for ("At 14:30, ..."); one that is very old (24 hours by default) says the date and warns that it could not be announced back then; and nothing is announced while Pitxu is answering, speaking or listening: it waits and announces as soon as it is idle. New settings `reminders.late_after_minutes` and `reminders.very_old_after_hours`. (The PTT client keeps announcing one by one.)
+- The reminders that are due are announced also when their minute was missed (a busy Raspberry, a restart): they are not looked up by the exact minute anymore, and the purge of the past reminders at startup is gone.
 - Removed the message `reminder_already_exists` (it could never happen), and `reminder_not_found` now tells the id.
 - The memory preload entries have a `key` and a version per language.
 - The closing waits for the conversation summary (bounded by `memory.summarization.close_timeout_seconds`), and the systemd service has `TimeoutStopSec=120`.

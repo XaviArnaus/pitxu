@@ -941,6 +941,17 @@ class Interaction(PyXavi):
     
     def is_transcriber_busy(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
+
+    def is_interaction_busy(self) -> bool:
+        """
+        Something of an interaction is going on: the user is speaking (voice detected), the speech is being
+        transcribed, the chatbot is answering or the speaker is speaking.
+
+        It only looks at those busy flags. The hold time after an answer (waiting for the user to go on) is not part of it.
+        Whatever should not talk over an interaction, or run while there is one, asks this.
+        """
+        return self.is_chatbot_busy() or self.is_speaker_busy() \
+            or self.is_transcriber_busy() or self.is_vad_detected()
     
     def set_wake_up_button_pressed(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, True)

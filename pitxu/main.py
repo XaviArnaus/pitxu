@@ -34,6 +34,7 @@ from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.utils.string_similarity import StringSimilarity
 import sys
+import threading
 import time
 import logging
 import asyncio
@@ -99,6 +100,10 @@ class Main(PyXavi):
     _end_of_conversation_answers: list[str] = []
     # The chatbot called its end of conversation tool in the answer that is being processed (see on_end_of_conversation_requested()).
     _end_of_conversation_requested: bool = False
+    # Reminders are due but Pitxu was busy: the every-second tick announces them as soon as it is not.
+    _reminders_waiting: bool = False
+    # One announcement of reminders at a time (the minute tick and the waiting one could meet).
+    _reminders_announcing = threading.Lock()
     _exit_words: list[str] = []
     _trigger_words: list[str] = []
     _tokens_counter: int = 0
@@ -2053,6 +2058,81 @@ class Main(PyXavi):
         self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
         self._interaction.say(greeting)
 
+    # ------- Reminders -------
+
+    def announce_due_reminders(self):
+        """
+        Announces the reminders whose time has come (also the ones that came while Pitxu was busy or off), all in
+        one announcement. If Pitxu is busy it waits: the every-second tick tries again as soon as it is not.
+
+        Called by the minute tick and, when it was waiting, by the second one. Only one runs at a time.
+        """
+        if not self._is_pitxu_active:
+            return
+        if not self._reminders_announcing.acquire(blocking=False):
+            return
+        try:
+            due = self._reminders.get_due()
+            if not due:
+                self._reminders_waiting = False
+                return
+
+            if self._interaction.is_interaction_busy():
+                if not self._reminders_waiting:
+                    self._xlog.info(f"📝 {len(due)} reminder(s) due, waiting for Pitxu to be idle to announce them.")
+                self._reminders_waiting = True
+                return
+
+            self._reminders_waiting = False
+            self._announce_reminders(due)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error announcing the due reminders: {e}")
+        finally:
+            self._reminders_announcing.release()
+
+    def _announce_reminders(self, due: list[dict]):
+        """ Shows and says the reminders, once, and marks them as announced. """
+        self._log_debug("📝 Reminders due: " + str(due))
+        announced_ids = [reminder["id"] for reminder in due]
+        try:
+            announcement = self._reminders.build_announcement(due)
+
+            self._interaction.set_idle_mode_off()
+            self._interaction.wait_for_foreground_display_queue_to_empty()
+            self._interaction.wait_for_busy_foreground_display_to_idle()
+            if announcement["count"] > 1:
+                # A list reads best from the top left.
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="📝", text=announcement["screen"], align="left", valign="top")
+            else:
+                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                    icon="📝", text=announcement["screen"],
+                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+            self._end_listening_phase("reminder announcement")
+            self._interaction.say(announcement["spoken"])
+            # TODO (next step): the announcement goes to the history of the chatbot and to the memory.
+        except Exception as e:
+            self._xlog.error(f"🛑 Error announcing the reminders {announced_ids}: {e}")
+        finally:
+            # Said, or failed: they are not pending anymore. Failing again every minute would not help anybody.
+            # (If the application dies while speaking they are not marked, so they are announced again at the next start.)
+            self._safe_step("reminders marked as announced", lambda: self._reminders.mark_announced(announced_ids))
+            # We just spoke: the turn goes back to the user, unless only the wake up button is wanted, then the
+            #   microphone stays muted. Either way the last interaction time is now.
+            if self._interaction.is_wake_up_button_wanted_exclusively():
+                self._safe_step("wake up after reminders", lambda: self._wake_up("reminder announced"))
+            else:
+                self._safe_step("listening after reminders", lambda: self._start_listening_phase("reminder announced"))
+
+    def _check_waiting_reminders(self):
+        """
+        Part of the every-second tick: if reminders were waiting for Pitxu to be idle and it is now, announce them.
+        The announcement takes seconds, so it goes to its own job and the tick (the countdown, the fans...) goes on.
+        """
+        if not self._reminders_waiting or self._interaction.is_interaction_busy() or self._scheduler is None:
+            return
+        self._scheduler.add_job(self.announce_due_reminders)
+
     # ------- Stuff to do every minute -------
 
     def do_every_minute_tasks(self, input_stream: InputStream = None):
@@ -2067,29 +2147,7 @@ class Main(PyXavi):
             # from pitxu.lib.speech_to_text.faster_whisper_stream import TrascriptionState
 
             # The reminders whose time has come. It includes the ones that should have been announced before.
-            for reminder in self._reminders.get_due():
-                self._log_debug("📝 Reminder found for now: " + str(reminder))
-                try:
-                    # Show reminder in eInk and say it
-                    reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                    self._interaction.set_idle_mode_off()
-                    self._interaction.wait_for_foreground_display_queue_to_empty()
-                    self._interaction.wait_for_busy_foreground_display_to_idle()
-                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                        icon="📝",
-                        text=reminder.get("text", ""),
-                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                    self._end_listening_phase("reminder announcement")
-                    self._interaction.say(reminder_text_for_speaking)
-                    # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                    # We just spoke: the turn goes back to the user. This unmutes the microphone and
-                    #   resets the last interaction time.
-                    self._start_listening_phase("reminder announced")
-                except Exception as e:
-                    self._xlog.error(f"🛑 Error announcing the reminder [{reminder.get('id')}]: {e}")
-                finally:
-                    # Announced, or failed: it is not pending anymore, otherwise it would fail again every minute.
-                    self._safe_step("reminder announced mark", lambda: self._reminders.mark_announced([reminder["id"]]))
+            self.announce_due_reminders()
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
@@ -2168,6 +2226,9 @@ class Main(PyXavi):
             self._last_processed_second = current_second
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
+
+            # Reminders that were due while Pitxu was busy are announced as soon as it is not.
+            self._check_waiting_reminders()
 
             # Gather the device readings (power cable, fans, temperature, volumes, battery) into the shared memory.
             #   It decides by itself how often it reads each one.
@@ -2270,8 +2331,7 @@ class Main(PyXavi):
 
     def _is_idle_for_memory_consolidation(self) -> bool:
         """ Nobody is talking to Pitxu nor about to: nothing is running, and the hold time of the last interaction is over. """
-        if self._interaction.is_chatbot_busy() or self._interaction.is_speaker_busy() \
-                or self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+        if self._interaction.is_interaction_busy():
             return False
         if self._last_interaction_datetime is not None and \
                 self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
