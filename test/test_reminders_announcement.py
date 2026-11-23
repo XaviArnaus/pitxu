@@ -111,6 +111,7 @@ class FakeInteraction:
     def get_canvas_from_foreground_display(self): return Obj(FONT_SIZE_BIG=30)
 
     def show_arbitrary_text_on_foreground_while_speaking(self, **kwargs): self.calls.append(("show", kwargs))
+    def show_arbitrary_text_on_foreground(self, **kwargs): self.calls.append(("show held", kwargs))
 
     def say(self, text):
         self.calls.append(("say", text))
@@ -119,6 +120,18 @@ class FakeInteraction:
 
 class Obj:
     def __init__(self, **kw): self.__dict__.update(kw)
+
+
+class FakeClock:
+    """ A clock that only moves when somebody sleeps. """
+    now = 0.0
+    on_sleep = None
+    @classmethod
+    def monotonic(cls): return cls.now
+    @classmethod
+    def sleep(cls, seconds):
+        cls.now += seconds
+        if cls.on_sleep: cls.on_sleep(cls.now)
 
 
 class FakeStore:
@@ -138,15 +151,18 @@ class FakeScheduler:
     def add_job(self, function): self.jobs.append(function)
 
 
-def app(due_list, active=True):
+def app(due_list, active=True, hold=0):
     Holder = methods_of("pitxu/main.py", ["announce_due_reminders", "_announce_reminders",
-                                          "_check_waiting_reminders", "_safe_step", "_go_idle_now"],
-                        {"full_stack": lambda: "", "datetime": datetime_module.datetime, "timedelta": datetime_module.timedelta})
+                                          "_check_waiting_reminders", "_safe_step", "_go_idle_now", "_show_announcement_on_screen",
+                                          "_hold_announcement_on_screen"],
+                        {"full_stack": lambda: "", "time": FakeClock, "datetime": datetime_module.datetime, "timedelta": datetime_module.timedelta})
     a = Holder()
     a.calls = []
     a._xlog = Log()
     a._log_debug = lambda *x, **k: None
     a._is_pitxu_active = active
+    a._xconfig = Obj(get=lambda key, default=None: hold if key == "reminders.screen_hold_seconds" else default)
+    FakeClock.now, FakeClock.on_sleep = 0.0, None
     a._reminders_waiting = False
     a._reminders_announcing = threading.Lock()
     a._interaction = FakeInteraction(a.calls)
@@ -294,6 +310,53 @@ class WhenTests(unittest.TestCase):
             self.assertEqual("unmute" in names(a), not button_only)  # the trigger words are heard, unless only the button is wanted
             expired = (datetime_module.datetime.now() - a._last_interaction_datetime).total_seconds()
             self.assertGreater(expired, 15)  # the hold time is over: the next text needs the trigger words
+
+    def test_10a_the_reminders_stay_on_screen_before_going_idle(self):
+        a = app(TWO, hold=5)
+        a.announce_due_reminders()
+        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "show held",
+                                    "unmute", "idle on", "end listening"])
+        held = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show held"][0]
+        self.assertEqual((held["show_for_seconds"], held["header"], held["align"]), (5, "TITLE", "left"))
+        self.assertGreaterEqual(FakeClock.now, 5)  # it waited
+
+    def test_10d_a_single_reminder_is_held_big(self):
+        a = app(ONE, hold=5)
+        a.announce_due_reminders()
+        held = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show held"][0]
+        self.assertEqual(held["font_size"], 30)
+        self.assertNotIn("header", held)
+
+    def test_10e_whoever_wakes_pitxu_up_meanwhile_keeps_the_screen(self):
+        a = app(ONE, hold=5)
+        FakeClock.on_sleep = lambda now: setattr(a, "_last_interaction_datetime", datetime_module.datetime.now() + datetime_module.timedelta(seconds=1)) if now >= 1 else None
+        a.announce_due_reminders()
+        self.assertNotIn("idle on", names(a))
+        self.assertIn(("mark", [1]), a.calls)
+        self.assertLess(FakeClock.now, 5)  # it did not wait for the rest
+
+    def test_10f_a_busy_pitxu_or_a_closing_one_does_not_go_idle(self):
+        a = app(ONE, hold=5)
+        FakeClock.on_sleep = lambda now: a._interaction.busy.update(chatbot=True)
+        a.announce_due_reminders()
+        self.assertNotIn("idle on", names(a))
+        a = app(ONE, hold=5)
+        FakeClock.on_sleep = lambda now: setattr(a, "_is_pitxu_active", False)
+        a.announce_due_reminders()
+        self.assertNotIn("idle on", names(a))
+
+    def test_10g_a_failed_speech_is_not_held(self):
+        a = app(ONE, hold=5)
+        a._interaction.say_fails = True
+        a.announce_due_reminders()
+        self.assertNotIn("show held", names(a))
+        self.assertEqual(names(a)[-2:], ["idle on", "end listening"])
+
+    def test_10h_the_setting_is_in_both_config_files_and_validated(self):
+        for file in ["config/main.yaml.dist", "config/main.yaml"]:
+            self.assertEqual(read_yaml(os.path.join(REPO, file))["reminders"]["screen_hold_seconds"], 5, file)
+        source = read_file(os.path.join(REPO, "pitxu/lib/utils/memory_config_validator.py"))
+        self.assertIn('"reminders.screen_hold_seconds"', source)
 
     def test_10b_a_list_has_a_title_and_a_single_reminder_does_not(self):
         a = app(TWO)

@@ -2105,22 +2105,18 @@ class Main(PyXavi):
         """ Shows and says the reminders, once, and marks them as announced. """
         self._log_debug("📝 Reminders due: " + str(due))
         announced_ids = [reminder["id"] for reminder in due]
+        said = False
+        hold_mark = None
         try:
             announcement = self._reminders.build_announcement(due)
 
             self._interaction.set_idle_mode_off()
             self._interaction.wait_for_foreground_display_queue_to_empty()
             self._interaction.wait_for_busy_foreground_display_to_idle()
-            if announcement["count"] > 1:
-                # A list reads best from the top left.
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝", header=announcement["title"], text=announcement["screen"], align="left", valign="top")
-            else:
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝", text=announcement["screen"],
-                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+            self._show_announcement_on_screen(announcement, while_speaking=True)
             self._end_listening_phase("reminder announcement")
             self._interaction.say(announcement["spoken"])
+            said = True
             # Said: Pitxu remembers it, also if the user does not say anything afterwards.
             self._record_announcement(announcement)
         except Exception as e:
@@ -2129,9 +2125,55 @@ class Main(PyXavi):
             # Said, or failed: they are not pending anymore. Failing again every minute would not help anybody.
             # (If the application dies while speaking they are not marked, so they are announced again at the next start.)
             self._safe_step("reminders marked as announced", lambda: self._reminders.mark_announced(announced_ids))
+            # The speech took the text away from the screen with it, and whoever was not paying attention would have
+            #   missed it: it stays visible for a moment.
+            interrupted = False
+            if said:
+                interrupted = self._safe_step("reminders held on screen", lambda: self._hold_announcement_on_screen(announcement)) is True
             # Nobody is expected to answer a reminder, and an open microphone could take the TV for the user: straight
             #   to idle. What follows needs the trigger words or the wake up button (also to move the reminder).
-            self._safe_step("idle after reminders", lambda: self._go_idle_now("Reminders announced"))
+            #   Unless someone woke Pitxu up while the reminders were on screen: then it is theirs.
+            if not interrupted:
+                self._safe_step("idle after reminders", lambda: self._go_idle_now("Reminders announced"))
+
+    def _show_announcement_on_screen(self, announcement: dict, while_speaking: bool):
+        """
+        The reminders on the foreground display: a list has its title and reads from the top left, a single
+        reminder is big and centered. While speaking, they go away with the speech; if not, they stay for
+        `reminders.screen_hold_seconds`.
+        """
+        if announcement["count"] > 1:
+            layout = {"icon": "📝", "header": announcement["title"], "text": announcement["screen"], "align": "left", "valign": "top"}
+        else:
+            layout = {"icon": "📝", "text": announcement["screen"],
+                      "font_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG}
+        if while_speaking:
+            self._interaction.show_arbitrary_text_on_foreground_while_speaking(**layout)
+        else:
+            self._interaction.show_arbitrary_text_on_foreground(
+                show_for_seconds=self._xconfig.get("reminders.screen_hold_seconds", 5), **layout)
+
+    def _hold_announcement_on_screen(self, announcement: dict) -> bool:
+        """
+        After the reminders were said, keeps them on the screen for `reminders.screen_hold_seconds` (0 for not holding).
+
+        Returns:
+            bool: True if someone woke Pitxu up meanwhile (the button, the trigger words...) or the application is closing,
+                so the caller must not take the screen away nor go idle.
+        """
+        seconds = float(self._xconfig.get("reminders.screen_hold_seconds", 5))
+        if seconds <= 0:
+            return False
+        # Whoever wakes Pitxu up marks a new interaction.
+        mark = self._last_interaction_datetime
+        self._show_announcement_on_screen(announcement, while_speaking=False)
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if not self._is_pitxu_active or self._last_interaction_datetime != mark or self._interaction.is_interaction_busy():
+                self._log_debug("📝 Reminders held on screen, but something started: not going idle.")
+                return True
+            time.sleep(0.25)
+        return False
 
     def _record_announcement(self, announcement: dict):
         """

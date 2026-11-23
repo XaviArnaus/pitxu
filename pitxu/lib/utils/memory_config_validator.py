@@ -65,6 +65,7 @@ class MemoryConfigValidator:
             ("memory.consolidation.request_timeout_seconds", 60, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("memory.consolidation.max_total_seconds", 180, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("reminders.keep_announced_days", 7, "an integer, 0 or more", lambda v: integer(v) and v >= 0),
+            ("reminders.screen_hold_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
             ("reminders.late_after_minutes", 2, "a number of minutes, 0 or more", lambda v: number(v) and v >= 0),
             ("reminders.very_old_after_hours", 24, "a number of hours above 0", lambda v: number(v) and v > 0),
             ("chatbot.memory_autonomy", True, "True or False", boolean),

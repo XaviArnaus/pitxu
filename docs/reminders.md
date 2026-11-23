@@ -41,7 +41,7 @@ Reminders are **not looked up by the exact minute**: every minute (and every sec
 - **A very old one** (after `reminders.very_old_after_hours`, 24 by default) says the date and warns: "This reminder is very old and could not be announced back then."
 - **It waits while Pitxu is busy**: while the user speaks, the speech is transcribed, the chatbot answers or the speaker speaks (`Interaction.is_interaction_busy()`) nothing is announced. The log says "waiting for Pitxu to be idle", and the every-second tick announces them as soon as it is idle, in its own job so the countdown and the fans keep going. There is no limit to the wait.
 - **Marked as announced after the speech.** If the application dies while speaking they are announced again at the next start. If the speech fails, they are marked anyway, otherwise it would fail again every minute (see the log: "Error announcing the reminders").
-- **Afterwards the turn goes back to the user** (the microphone listens, and the hold time restarts), except when only the wake up button is wanted: then the microphone stays muted.
+- **It stays on the screen, then Pitxu goes idle.** The reminders stay visible for `reminders.screen_hold_seconds` (5 by default, 0 to take them away with the speech), so whoever was not paying attention can still read them. Then Pitxu goes idle right away, with no countdown: nobody is expected to answer, and an open microphone could take the TV for the user. A reply needs the trigger words (or the wake up button, the only way when only the button is wanted), and the chatbot knows what was announced, so "move it ten minutes later" works. If somebody wakes Pitxu up while the reminders are on the screen, it does not go idle.
 
 The PTT client keeps its own simpler announcement, one by one.
 
@@ -64,6 +64,7 @@ All in `config/main.yaml`, block `reminders`. A value that is not valid is repor
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `reminders.keep_announced_days` | 7 | Days that an announced reminder is kept before the night tasks delete it. |
+| `reminders.screen_hold_seconds` | 5 | Seconds that the announced reminders stay on the screen after being said, before going idle. 0 for none. |
 | `reminders.late_after_minutes` | 2 | Minutes after its time from which the announcement says when it was for. |
 | `reminders.very_old_after_hours` | 24 | Hours after its time from which it also warns that it is very old. It should be longer than the late time. |
 
