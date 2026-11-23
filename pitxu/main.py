@@ -2347,88 +2347,119 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds += 1
 
 
-            # Show the interaction holding percentage if we're expecting an interaction
-            if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
-                
-                # Calculate how much left in percentages the time to hold the interaction
-                seconds_since_last_interaction = self.get_seconds_since_last_interaction()
-                # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
+            # The countdown of the hold time of the interaction (and its cleanup when it is over).
+            self._tick_interaction_countdown()
+
+    def _tick_interaction_countdown(self):
+        """
+        Every second: the countdown of the hold time of the interaction (the time that the user has to go on talking
+        after an answer), and its cleanup when it is over. See _start_listening_phase() and _end_listening_phase().
+        """
+        # Show the interaction holding percentage if we're expecting an interaction
+        if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
             
-                if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-                    # We are meant to show the holding percentage.
+            # Calculate how much left in percentages the time to hold the interaction
+            seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+            # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
+        
+            if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+                # We are meant to show the holding percentage.
 
-                    # The is_vad_detected should manage the *non-streaming* Faster Whisper
-                    # The is_transcriber_busy should manage the *streaming* Faster Whisper
-                    if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
-                        # The transcriber still didn't finish inferring the speech.
-                        self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
-                        self._last_interaction_paused_seconds += 1
-                    else:
-                        # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
-                        # Calculate it.
-                        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
-                    
-                    if not self._interaction.is_transcriber_busy():
-                        # Display it.
-                        if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
-                            self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
-                            self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
-                        else:
-                            self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
-                    else:
-                        # If the transcriber is busy, we don't show the percentage, show something else.
-                        current_partial = self._dictate.get_ongoing_transcription()
-                        self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
-                        # dd(current_partial)
-                        # most likely this is not the way of showing it...
-                        # the *_while_* is meant to be called once and stay until the flag is over...
-                        # Here we're calling it for every second, which it's not designed for it.
-                        # TODO: Here we have to think how to do so.
-                        # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
-                        #     icon="🎙️", 
-                        #     text="", 
-                        #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
-                        # )
-
-                elif self._last_processed_interaction_percentage >= 0 and \
-                        (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
-                    # (Only while the countdown is still alive: once it was cleaned (-1) the app is idle, and speech heard
-                    #   in idle mode must not bring an expired countdown back.)
-                    # The hold time ran out, but the user started to speak after the last tick (the countdown was in its
-                    #   last second). Ending now would mute the microphone in the middle of the sentence: the speech would
-                    #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
-                    # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
-                    self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                # The is_vad_detected should manage the *non-streaming* Faster Whisper
+                # The is_transcriber_busy should manage the *streaming* Faster Whisper
+                if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+                    # The transcriber still didn't finish inferring the speech.
+                    self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                     self._last_interaction_paused_seconds += 1
+                else:
+                    # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
+                    # Calculate it.
+                    self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
+                
+                if not self._interaction.is_transcriber_busy():
+                    # Display it.
+                    if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
+                        self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
+                        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                    else:
+                        self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                else:
+                    # If the transcriber is busy, we don't show the percentage, show something else.
+                    current_partial = self._dictate.get_ongoing_transcription()
+                    self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
+                    # dd(current_partial)
+                    # most likely this is not the way of showing it...
+                    # the *_while_* is meant to be called once and stay until the flag is over...
+                    # Here we're calling it for every second, which it's not designed for it.
+                    # TODO: Here we have to think how to do so.
+                    # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
+                    #     icon="🎙️", 
+                    #     text="", 
+                    #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
+                    # )
 
-                elif self._last_processed_interaction_percentage > 0:
-                    # The hold time is over but the bar still shows its last LED(s).
-                    # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
-                    self._last_processed_interaction_percentage = 0
-                    if not self._interaction.is_background_display_busy():
-                        self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
-                        self._interaction.show_interaction_holding_percentage(0)
+            elif self._last_processed_interaction_percentage > 0 and \
+                    (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
+                # (Only while the countdown has not shown its 0% yet: once it did (0), or it was cleaned (-1), the app is idle,
+                #   and speech heard in idle mode must not bring an expired countdown back, nor keep it on screen during
+                #   the whole transcription. It needs the trigger words, like any other idle speech.)
+                # The hold time ran out, but the user started to speak before the 0% (the countdown was in its last second).
+                #   Ending now would mute the microphone in the middle of the sentence: the speech would
+                #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
+                # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
+                self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                self._last_interaction_paused_seconds += 1
 
-                elif self._last_processed_interaction_percentage == 0:
-                    # We are meant to clean the display.
+            elif self._last_processed_interaction_percentage > 0:
+                # The hold time is over but the bar still shows its last LED(s).
+                # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
+                self._last_processed_interaction_percentage = 0
+                if not self._interaction.is_background_display_busy():
+                    self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
+                    self._interaction.show_interaction_holding_percentage(0)
 
-                    # The time to hold the interaction is over.
-                    # The display goes blank now: this is where the idle mode starts.
-                    # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
-                    #   app is idle from the moment that nothing is being shown.
-                    # ⚠️ It goes BEFORE ending the listening phase, which is what asks to end the countdown: in idle mode
-                    #   the painter blanks the screen when the countdown paint is removed, instead of drawing the layout again.
-                    if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
-                        self._interaction.set_idle_mode_on()
+                # If only the wake up button is wanted, the microphone is not needed anymore: it stops right now, not in
+                #   the next tick, so a sound in between can not start a transcription that nobody is waiting for.
+                #   (Nobody is speaking at this point: that case is the branch above.) The voice modes keep it open
+                #   for the trigger words.
+                # ⚠️ Known small gap: speech that starts in the few milliseconds between the busy check above and this
+                #   mute would be cut in the middle of the sentence, and the transcription context could stay open
+                #   (no more audio arrives to close it). Closing it needs a lock around the check and the mute. If it is
+                #   ever seen (a transcription that never ends right after the 0%), this is the place.
+                if self._interaction.is_wake_up_button_wanted_exclusively():
+                    self._interaction.mute_microphone(input_stream=self._input_stream)
 
-                    # The listening phase ends: we clear the background display and reset the counters.
-                    # If the Wake up button is wanted exclusively, we also mute the microphone,
-                    #   as the user is not speaking and we don't want to react to anything else.
-                    self._end_listening_phase(
-                        "hold time over",
-                        mute=self._interaction.is_wake_up_button_wanted_exclusively(),
-                        clear_bar=True)
-    
+            elif self._last_processed_interaction_percentage == 0:
+                # We are meant to clean the display.
+                self._finish_interaction_countdown()
+
+        elif self._last_interaction_datetime is not None and self._last_processed_interaction_percentage == 0 and \
+                self.get_seconds_since_last_interaction() > self._seconds_to_hold_interaction_answer:
+            # The microphone was stopped by the 0% (only the wake up button is wanted), so the countdown above does not run
+            #   anymore, but its cleanup is still pending. (If the hold time is not over, somebody woke Pitxu up
+            #   meanwhile: the flow of that interaction takes care.)
+            self._finish_interaction_countdown()
+
+    def _finish_interaction_countdown(self):
+        """
+        The time to hold the interaction is over and the 0% was shown: the display goes blank, and this is where the idle mode starts.
+        """
+        # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
+        #   app is idle from the moment that nothing is being shown.
+        # ⚠️ It goes BEFORE ending the listening phase, which is what asks to end the countdown: in idle mode
+        #   the painter blanks the screen when the countdown paint is removed, instead of drawing the layout again.
+        if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
+            self._interaction.set_idle_mode_on()
+
+        # The listening phase ends: we clear the background display and reset the counters.
+        # If the Wake up button is wanted exclusively, the microphone is muted (the 0% did it already, unless this
+        #   is a new start of the app), as the user is not speaking and we don't want to react to anything else.
+        self._end_listening_phase(
+            "hold time over",
+            mute=self._interaction.is_wake_up_button_wanted_exclusively() and not self._interaction.is_microphone_muted(),
+            clear_bar=True)
+
+
     # ------------- Memory consolidation -------------
 
     def _is_idle_for_memory_consolidation(self) -> bool:
