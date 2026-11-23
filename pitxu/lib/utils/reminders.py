@@ -187,7 +187,7 @@ class Reminders(PyXavi, Command):
             now: The moment to compare with. Default: now.
 
         Returns:
-            dict: {"spoken": str, "screen": str, "count": int, "ids": list[int], "texts": list[str]}
+            dict: {"spoken": str, "screen": str, "title": str, "count": int, "ids": list[int], "texts": list[str]}
         '''
         now = now or Xtime.now()
         late_after = float(self._xconfig.get("reminders.late_after_minutes", self.LATE_AFTER_MINUTES)) * 60
@@ -213,10 +213,11 @@ class Reminders(PyXavi, Command):
                 spoken.append(self._sentence(reminder["text"]))
 
         if len(reminders) == 1:
-            return {"spoken": self._message("reminder_announcement") % spoken[0], "screen": shown[0],
+            return {"spoken": self._message("reminder_announcement") % spoken[0], "screen": shown[0], "title": self._message("reminder_screen_title"),
                     "count": 1, "ids": [reminders[0]["id"]], "texts": [reminders[0]["text"]]}
         return {"spoken": self._message("reminder_announcement_multiple") % (len(reminders), " ".join(spoken)),
                 "screen": "\n".join(f"• {item}" for item in shown),
+                "title": self._message("reminder_screen_title"),
                 "count": len(reminders), "ids": [reminder["id"] for reminder in reminders],
                 "texts": [reminder["text"] for reminder in reminders]}
 

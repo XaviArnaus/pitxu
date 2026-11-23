@@ -104,6 +104,8 @@ class FakeInteraction:
     def is_interaction_busy(self): return any(self.busy.values())
     def is_wake_up_button_wanted_exclusively(self): return self.wake_up_only
     def set_idle_mode_off(self): self.calls.append("idle off")
+    def set_idle_mode_on(self): self.calls.append("idle on")
+    def unmute_microphone(self, input_stream=None): self.calls.append("unmute")
     def wait_for_foreground_display_queue_to_empty(self): pass
     def wait_for_busy_foreground_display_to_idle(self): pass
     def get_canvas_from_foreground_display(self): return Obj(FONT_SIZE_BIG=30)
@@ -126,7 +128,7 @@ class FakeStore:
     def get_due(self): return list(self.due_list)
 
     def build_announcement(self, due_list):
-        return {"spoken": "SPOKEN", "screen": "SCREEN", "count": len(due_list), "ids": [d["id"] for d in due_list]}
+        return {"spoken": "SPOKEN", "screen": "SCREEN", "title": "TITLE", "count": len(due_list), "ids": [d["id"] for d in due_list]}
 
     def mark_announced(self, ids): self.calls.append(("mark", ids))
 
@@ -138,8 +140,8 @@ class FakeScheduler:
 
 def app(due_list, active=True):
     Holder = methods_of("pitxu/main.py", ["announce_due_reminders", "_announce_reminders",
-                                          "_check_waiting_reminders", "_safe_step"],
-                        {"full_stack": lambda: ""})
+                                          "_check_waiting_reminders", "_safe_step", "_go_idle_now"],
+                        {"full_stack": lambda: "", "datetime": datetime_module.datetime, "timedelta": datetime_module.timedelta})
     a = Holder()
     a.calls = []
     a._xlog = Log()
@@ -153,6 +155,10 @@ def app(due_list, active=True):
     a._end_listening_phase = lambda reason, **k: a.calls.append(("end listening", reason))
     a._start_listening_phase = lambda reason, **k: a.calls.append(("start listening", reason))
     a._wake_up = lambda reason, **k: a.calls.append(("wake up", reason))
+    a._seconds_to_hold_interaction_answer = 15
+    a._last_interaction_datetime = datetime_module.datetime.now()
+    a._last_interaction_paused_seconds = 0
+    a._input_stream = None
     a._record_announcement = lambda announcement: a.calls.append(("record", announcement["spoken"]))
     return a
 
@@ -204,7 +210,7 @@ class WhenTests(unittest.TestCase):
     def test_01_when_idle_it_shows_says_marks_after_saying_and_hands_the_turn_back(self):
         a = app(ONE)
         a.announce_due_reminders()
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "start listening"])
+        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "unmute", "idle on", "end listening"])
         self.assertEqual(a.calls[3], ("say", "SPOKEN"))
         self.assertEqual(a.calls[4], ("record", "SPOKEN"))
         self.assertEqual(a.calls[5], ("mark", [1]))
@@ -214,7 +220,7 @@ class WhenTests(unittest.TestCase):
         single = app(ONE); single.announce_due_reminders()
         several = app(TWO); several.announce_due_reminders()
         self.assertEqual(single.calls[1][1], {"icon": "📝", "text": "SCREEN", "font_size": 30})
-        self.assertEqual(several.calls[1][1], {"icon": "📝", "text": "SCREEN", "align": "left", "valign": "top"})
+        self.assertEqual(several.calls[1][1], {"icon": "📝", "header": "TITLE", "text": "SCREEN", "align": "left", "valign": "top"})
         self.assertEqual([c for c in several.calls if c[0] == "mark"], [("mark", [1, 2])])
         self.assertEqual(len([c for c in several.calls if c[0] == "say"]), 1)
 
@@ -236,7 +242,7 @@ class WhenTests(unittest.TestCase):
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)
         a._scheduler.jobs[0]()  # what the scheduler would run
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "start listening"])
+        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "unmute", "idle on", "end listening"])
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)  # nothing waits anymore
 
@@ -261,7 +267,7 @@ class WhenTests(unittest.TestCase):
         a.announce_due_reminders()
         self.assertIn(("mark", [1]), a.calls)
         self.assertNotIn("record", names(a))  # it was not said: it is not remembered as said
-        self.assertEqual(names(a)[-1], "start listening")
+        self.assertEqual(names(a)[-2:], ["idle on", "end listening"])
         self.assertTrue(any("Error announcing the reminders" in line for line in a._xlog.lines))
         self.assertTrue(a._reminders_announcing.acquire(blocking=False))  # the lock was released
 
@@ -276,12 +282,35 @@ class WhenTests(unittest.TestCase):
         a.announce_due_reminders()
         self.assertEqual(a.calls, [])
 
-    def test_10_with_only_the_wake_up_button_the_microphone_stays_muted(self):
-        a = app(ONE)
-        a._interaction.wake_up_only = True
+    def test_10_after_the_announcement_it_goes_idle_whatever_the_wake_up_method(self):
+        for button_only in [False, True]:
+            a = app(ONE)
+            a._interaction.wake_up_only = button_only
+            a.announce_due_reminders()
+            self.assertEqual(names(a)[-2:], ["idle on", "end listening"])
+            self.assertEqual(a.calls[-1], ("end listening", "reminders announced"))
+            self.assertNotIn("start listening", names(a))
+            self.assertNotIn("wake up", names(a))
+            self.assertEqual("unmute" in names(a), not button_only)  # the trigger words are heard, unless only the button is wanted
+            expired = (datetime_module.datetime.now() - a._last_interaction_datetime).total_seconds()
+            self.assertGreater(expired, 15)  # the hold time is over: the next text needs the trigger words
+
+    def test_10b_a_list_has_a_title_and_a_single_reminder_does_not(self):
+        a = app(TWO)
         a.announce_due_reminders()
-        self.assertEqual(names(a)[-1], "wake up")
-        self.assertNotIn("start listening", names(a))
+        shown = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show"][0]
+        self.assertEqual((shown["header"], shown["text"], shown["icon"]), ("TITLE", "SCREEN", "📝"))
+        a = app(ONE)
+        a.announce_due_reminders()
+        shown = [c[1] for c in a.calls if isinstance(c, tuple) and c[0] == "show"][0]
+        self.assertNotIn("header", shown)
+
+    def test_10c_the_title_is_in_every_language(self):
+        for language in ["en", "ca", "es", "de"]:
+            r = reminders(language)
+            self.addCleanup(r.close)
+            for items in ([due("2030-05-10", "14:30", "x")], [due("2030-05-10", "14:30", "x", 1), due("2030-05-10", "14:30", "y", 2)]):
+                self.assertTrue(r.build_announcement(items, now=NOW)["title"], language)
 
     def test_11_the_ticks_call_it(self):
         source = read_file(os.path.join(REPO, "pitxu/main.py"))

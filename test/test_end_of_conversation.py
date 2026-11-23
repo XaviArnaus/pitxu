@@ -92,7 +92,7 @@ class CentralizedDefinitionTests(unittest.TestCase):
 class GoIdleTests(unittest.TestCase):
 
     def _app(self, wake_up_only=False):
-        Holder = methods_of("pitxu/main.py", ["_go_idle_after_conversation", "_text_continues_ongoing_interaction",
+        Holder = methods_of("pitxu/main.py", ["_go_idle_now", "_text_continues_ongoing_interaction",
                                               "get_seconds_since_last_interaction"],
                             {"datetime": datetime_module.datetime, "timedelta": datetime_module.timedelta})
         calls = []
@@ -115,14 +115,14 @@ class GoIdleTests(unittest.TestCase):
     def test_01_goes_idle_without_hold_time_and_keeps_listening(self):
         app, calls = self._app()
         self.assertTrue(app._text_continues_ongoing_interaction("x"))
-        app._go_idle_after_conversation()
+        app._go_idle_now("Conversation ended")
         self.assertFalse(app._text_continues_ongoing_interaction("x"))
         self.assertEqual(calls, ["unmute", "idle", ("end", "conversation ended", False, True)])
         self.assertEqual(app._last_interaction_paused_seconds, 0)
 
     def test_02_with_the_wake_up_button_only_the_microphone_is_muted(self):
         app, calls = self._app(wake_up_only=True)
-        app._go_idle_after_conversation()
+        app._go_idle_now("Conversation ended")
         self.assertEqual(calls, ["idle", ("end", "conversation ended", True, True)])
 
 
@@ -183,7 +183,7 @@ class FlowWiringTests(unittest.TestCase):
         source = read_file(os.path.join(REPO, "pitxu/main.py"))
         self.assertIn("self._end_of_conversation_requested = True", source)
         self.assertIn("answer = random.choice(self._end_of_conversation_answers)", source)
-        self.assertIn("self._go_idle_after_conversation()", source)
+        self.assertIn('self._go_idle_now("Conversation ended")', source)
         # The exit words path is untouched.
         self.assertIn("answer = self._goodbye_sentence", source)
 

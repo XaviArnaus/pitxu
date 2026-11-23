@@ -756,7 +756,7 @@ class Main(PyXavi):
             if self._end_of_conversation_requested:
                 # Unless the conversation just ended: nobody is expected to speak, so no hold time, straight to idle.
                 self._end_of_conversation_requested = False
-                self._go_idle_after_conversation()
+                self._go_idle_now("Conversation ended")
             else:
                 self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
                                             reset_mark=answer_was_delivered)
@@ -1103,15 +1103,16 @@ class Main(PyXavi):
         if mute:
             self._interaction.mute_microphone(input_stream=self._input_stream)
 
-    def _go_idle_after_conversation(self):
+    def _go_idle_now(self, reason: str):
         """
-        The conversation is over (the chatbot understood it and the ending sentence was said): instead of
-          handing the turn to the user with the hold time countdown, the app goes idle right away.
+        Nobody is expected to speak after what was just said (the conversation is over and the ending sentence was said,
+          or the reminders were announced): instead of handing the turn to the user with the hold time countdown,
+          the app goes idle right away.
 
         The hold time is expired, so what comes next needs the trigger words (or the wake up button), as if the
           countdown had ended by itself. Its counterpart, _start_listening_phase(), is what the next interaction uses.
         """
-        self._log_debug("💤 Conversation ended: going idle without waiting for the hold time.")
+        self._log_debug(f"💤 {reason}: going idle without waiting for the hold time.")
 
         # Expired hold time: the next text is not a continuation of this conversation (see _text_continues_ongoing_interaction()).
         #   That check discounts the transcription time of the NEXT text, so the margin on top of the hold time is generous.
@@ -1125,7 +1126,7 @@ class Main(PyXavi):
 
         # Same order as when the countdown ends: idle first, then the listening phase ends and the bar is cleared.
         self._interaction.set_idle_mode_on()
-        self._end_listening_phase("conversation ended", mute=wake_up_button_only, clear_bar=True)
+        self._end_listening_phase(reason.lower(), mute=wake_up_button_only, clear_bar=True)
 
     def _show_holding_bar_now(self, reason: str):
         """
@@ -2113,7 +2114,7 @@ class Main(PyXavi):
             if announcement["count"] > 1:
                 # A list reads best from the top left.
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝", text=announcement["screen"], align="left", valign="top")
+                    icon="📝", header=announcement["title"], text=announcement["screen"], align="left", valign="top")
             else:
                 self._interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="📝", text=announcement["screen"],
@@ -2128,12 +2129,9 @@ class Main(PyXavi):
             # Said, or failed: they are not pending anymore. Failing again every minute would not help anybody.
             # (If the application dies while speaking they are not marked, so they are announced again at the next start.)
             self._safe_step("reminders marked as announced", lambda: self._reminders.mark_announced(announced_ids))
-            # We just spoke: the turn goes back to the user, unless only the wake up button is wanted, then the
-            #   microphone stays muted. Either way the last interaction time is now.
-            if self._interaction.is_wake_up_button_wanted_exclusively():
-                self._safe_step("wake up after reminders", lambda: self._wake_up("reminder announced"))
-            else:
-                self._safe_step("listening after reminders", lambda: self._start_listening_phase("reminder announced"))
+            # Nobody is expected to answer a reminder, and an open microphone could take the TV for the user: straight
+            #   to idle. What follows needs the trigger words or the wake up button (also to move the reminder).
+            self._safe_step("idle after reminders", lambda: self._go_idle_now("Reminders announced"))
 
     def _record_announcement(self, announcement: dict):
         """

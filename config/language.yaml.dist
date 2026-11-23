@@ -291,6 +291,11 @@ language:
       es: "Tienes %d recordatorios: %s"
       en: "You have %d reminders: %s"
       de: "Du hast %d Erinnerungen: %s"
+    reminder_screen_title:
+      ca: "Recordatoris"
+      es: "Recordatorios"
+      en: "Reminders"
+      de: "Erinnerungen"
     reminder_item_late_today:
       ca: "A les %s, %s"
       es: "A las %s, %s"
