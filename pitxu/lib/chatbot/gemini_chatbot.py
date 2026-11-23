@@ -126,6 +126,36 @@ class GeminiChatbot(PyXavi):
     def get_chat_history(self, curated: bool = False) -> list[types.Content]:
         return self._chat.get_history(curated=curated)
     
+    def add_notice_to_history(self, notice: str, spoken: str) -> bool:
+        """
+        Adds to the history of the session something that the application said on its own (a reminder announced),
+        so the chatbot knows it when the user asks about it later: the notice as the user turn, and what was said as
+        the model turn. It is valid history: it is sent to the model in the next requests.
+
+        Only when the chatbot is not working: it does not take turns with a request that is going on.
+
+        Args:
+            notice (str): What happened, as the user turn.
+            spoken (str): What the application said, as the model turn.
+
+        Returns:
+            bool: True if it was added.
+        """
+        if self._xconfig.get("chatbot.mock", True) or getattr(self, "_chat", None) is None:
+            return False
+        try:
+            self._chat.record_history(
+                user_input=types.Content(role="user", parts=[types.Part(text=notice)]),
+                # A list: the library extends the history with whatever it gets here.
+                model_output=[types.Content(role="model", parts=[types.Part(text=spoken)])],
+                automatic_function_calling_history=[],
+                is_valid=True
+            )
+            return True
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not add the notice to the chatbot history: {e}")
+            return False
+
     def reset_session(self):
         self._xlog.info("Resetting GeminiChatbot session for the next conversation.")
         # asyncio.run_coroutine_threadsafe(self.initialize_async(tools=self.get_session_manager().tools), asyncio.get_event_loop()).result()
@@ -304,7 +334,7 @@ class GeminiChatbot(PyXavi):
                             # Make him remember that he couldn't answer
                             self._chat.record_history(
                                 user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                                model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                                model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                                 automatic_function_calling_history=[],
                                 is_valid=False
                             )
@@ -371,11 +401,11 @@ class GeminiChatbot(PyXavi):
                                 function_call=types.FunctionCall(
                                     name="error",
                                     args={"code": e.code, "message": message}))]),
-                            model_output=types.Content(role="model", parts = [types.Part(
+                            model_output=[types.Content(role="model", parts = [types.Part(
                                 text=outcome.text,
                                 function_response=types.FunctionResponse(
                                     name="error",
-                                    response={"result": message_short}))]),
+                                    response={"result": message_short}))])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -386,7 +416,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -404,7 +434,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -417,7 +447,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )

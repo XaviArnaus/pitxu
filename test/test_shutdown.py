@@ -72,13 +72,14 @@ class ShutdownTests(unittest.TestCase):
     def test_04_main_closing_summary_and_signal_handler(self):
         """Main: closing summary with write-ahead, and the signal handler (methods extracted from main.py)"""
         tree=ast.parse(read_file(os.path.join(REPO, "pitxu/main.py")))
-        wanted={"_summarize_current_conversation","_keep_conversation_before_closing","_summarize_in_process","_handle_signal"}
+        wanted={"_summarize_current_conversation","_user_turns_in","_keep_conversation_before_closing","_summarize_in_process","_handle_signal"}
         fns=[n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name in wanted]
-        check("all four methods found",len(fns)==4)
+        check("all the methods found",len(fns)==len(wanted))
         mod=ast.Module(body=[ast.ClassDef(name="M",bases=[],keywords=[],body=fns,decorator_list=[],type_params=[])],type_ignores=[])
         ast.fix_missing_locations(mod)
         import signal
-        G={"signal":signal,"sys":sys,"Dictionary":Dictionary,"Config":Config}
+        from pitxu.lib.utils.reminders import Reminders
+        G={"signal":signal,"sys":sys,"Dictionary":Dictionary,"Config":Config,"Reminders":Reminders}
         exec(compile(mod,"main_methods","exec"),G)
         M=G["M"]
         class Log:

@@ -6,7 +6,7 @@
 [ ] Mock correctly OutputStream for Speakers
 [ ] Review idle mode (was: eyes!)
 [ ] Thinking and Speaking effect should be bundled in the painter or the macros, and be set up as permanent callbacks, and control them from main (or else) via busy flags only.
-[ ] Add any alert from a remainder into the chatbot's history, so it remembers having done so.
+[x] Add any alert from a remainder into the chatbot's history, so it remembers having done so.
 [ ] Chatbot Historic: `Download > Filter >Store > Load` at a new session
 [ ] Now the Eyes statics are done by Canvas, not loading a new Image (which forced a clear() in eInk). Review if still happens (LCD doesn't)
 [ ] Parse the markdown answer and pick the **titles** on the bullet points, to present it in the screen while talking. 
@@ -42,3 +42,7 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 [ ] Transcriber or voice detected (the end of the countdown waits while the user speaks, `main.py:2265` and `2297`). Candidate: `is_user_input_busy()`.
 [ ] Transcriber only (the early thinking effect and the holding bar, `main.py:517,525,530,1133,2274`).
 [ ] Speaker plus config (speech interruption by the button, `main.py:1936`).
+
+### Found in the Gemini chat history
+
+[x] `gemini_chatbot.py:305,368,387,405,418`: `record_history(...)` of the error paths gets `model_output=types.Content(...)`, but the library (google-genai 1.62) expects a list of `Content` and extends the history with it: a single `Content` adds tuples (`("role", "model")`...) to the comprehensive history. It is harmless for the curated history (those turns are not valid), but `get_chat_history_as_list_of_dicts(curated=False)` would fail on them. Wrap it in a list, like `add_notice_to_history()` does.

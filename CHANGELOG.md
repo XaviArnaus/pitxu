@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Pitxu remembers what it announced: every announcement of reminders is added to the chatbot history (a marked system notice with the reminder ids, and what was said), so it can answer "did you tell me to check the oven?" and move or delete the reminder by its id; and it is saved as a short term memory entry, also when the user does not react. The system notices do not count as the user speaking for the conversation summary, and the summary prompt (in the 4 languages) knows them.
 - The announcement of the reminders: all the ones due at the same time are one announcement, spoken and shown as a list; a late one says when it was for ("At 14:30, ..."); one that is very old (24 hours by default) says the date and warns that it could not be announced back then; and nothing is announced while Pitxu is answering, speaking or listening: it waits and announces as soon as it is idle. New settings `reminders.late_after_minutes` and `reminders.very_old_after_hours`. (The PTT client keeps announcing one by one.)
 - The reminders that are due are announced also when their minute was missed (a busy Raspberry, a restart): they are not looked up by the exact minute anymore, and the purge of the past reminders at startup is gone.
 - Removed the message `reminder_already_exists` (it could never happen), and `reminder_not_found` now tells the id.
@@ -32,6 +33,7 @@
 - Fix partial merging when transcription end is cut and next does not correct it [#52](https://github.com/XaviArnaus/pitxu/pull/52)
 - Fix UX not being prepared when user answers back too quickly [#54](https://github.com/XaviArnaus/pitxu/pull/54)
 - Reminders: the date and the time are normalized (`9:05` and `2026-1-5` were accepted but never rang), a reminder in the past is refused with its message (it was accepted and never rang), and what the screen shows about the reminders is localized (the count was in English, and the deleted, updated and moved messages were not used).
+- The history of the chatbot after an error: the model turn that is recorded was a single `Content` where the library expects a list, so the full history got tuples (`("role", "model")`...) instead of the turn.
 - Summary of the conversation at its end unreliable, and the summarizer failing on edge cases (invalid JSON, quota, network).
 
 ## v0.4.2b - 2026-11-16

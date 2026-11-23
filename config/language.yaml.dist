@@ -306,6 +306,26 @@ language:
       es: "Este recordatorio es muy antiguo y no se pudo anunciar en su momento."
       en: "This reminder is very old and could not be announced back then."
       de: "Diese Erinnerung ist sehr alt und konnte damals nicht angekündigt werden."
+    reminder_history_notice:
+      ca: "L'aplicació acaba d'anunciar en veu alta, pel seu compte, els recordatoris amb aquests ids: %s. L'usuari no ha dit res."
+      es: "La aplicación acaba de anunciar en voz alta, por su cuenta, los recordatorios con estos ids: %s. El usuario no ha dicho nada."
+      en: "The application just announced out loud, on its own, the reminders with these ids: %s. The user did not say anything."
+      de: "Die Anwendung hat soeben von sich aus die Erinnerungen mit diesen IDs laut angekündigt: %s. Der Benutzer hat nichts gesagt."
+    reminder_memory_summary_one:
+      ca: "Recordatori anunciat: %s"
+      es: "Recordatorio anunciado: %s"
+      en: "Reminder announced: %s"
+      de: "Erinnerung angekündigt: %s"
+    reminder_memory_summary_many:
+      ca: "%d recordatoris anunciats"
+      es: "%d recordatorios anunciados"
+      en: "%d reminders announced"
+      de: "%d Erinnerungen angekündigt"
+    reminder_memory_content:
+      ca: "A les %s el Pitxu va anunciar en veu alta: %s (ids dels recordatoris: %s)"
+      es: "A las %s Pitxu anunció en voz alta: %s (ids de los recordatorios: %s)"
+      en: "At %s Pitxu announced out loud: %s (reminder ids: %s)"
+      de: "Um %s hat Pitxu laut angekündigt: %s (IDs der Erinnerungen: %s)"
     reminder_update_error:
       ca: "Ho sento, hi ha hagut un error en actualitzar el recordatori."
       es: "Lo siento, ha habido un error al actualizar el recordatorio."

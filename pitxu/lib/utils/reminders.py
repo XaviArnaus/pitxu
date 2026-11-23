@@ -170,6 +170,10 @@ class Reminders(PyXavi, Command):
     LATE_AFTER_MINUTES = 2
     VERY_OLD_AFTER_HOURS = 24
 
+    # What starts the turn that the chatbot history gets when reminders are announced. It is not the user speaking:
+    #   whoever reads the history (the conversation summary) recognizes it by this, in any language.
+    HISTORY_NOTICE_MARKER = "[SYSTEM NOTICE]"
+
     def build_announcement(self, reminders: list[dict], now: datetime = None) -> dict:
         '''
         The words of the announcement of the reminders that are due, in the language of the session:
@@ -183,7 +187,7 @@ class Reminders(PyXavi, Command):
             now: The moment to compare with. Default: now.
 
         Returns:
-            dict: {"spoken": str, "screen": str, "count": int, "ids": list[int]}
+            dict: {"spoken": str, "screen": str, "count": int, "ids": list[int], "texts": list[str]}
         '''
         now = now or Xtime.now()
         late_after = float(self._xconfig.get("reminders.late_after_minutes", self.LATE_AFTER_MINUTES)) * 60
@@ -210,10 +214,33 @@ class Reminders(PyXavi, Command):
 
         if len(reminders) == 1:
             return {"spoken": self._message("reminder_announcement") % spoken[0], "screen": shown[0],
-                    "count": 1, "ids": [reminders[0]["id"]]}
+                    "count": 1, "ids": [reminders[0]["id"]], "texts": [reminders[0]["text"]]}
         return {"spoken": self._message("reminder_announcement_multiple") % (len(reminders), " ".join(spoken)),
                 "screen": "\n".join(f"• {item}" for item in shown),
-                "count": len(reminders), "ids": [reminder["id"] for reminder in reminders]}
+                "count": len(reminders), "ids": [reminder["id"] for reminder in reminders],
+                "texts": [reminder["text"] for reminder in reminders]}
+
+    def build_history_notice(self, announcement: dict) -> str:
+        '''
+        The user turn that the chatbot history gets when the reminders are announced: a system notice, not the user.
+        It tells the ids, so the chatbot can move or delete them if the user asks later. The spoken announcement
+        is the model turn that follows.
+        '''
+        ids = ", ".join(str(reminder_id) for reminder_id in announcement["ids"])
+        return f"{self.HISTORY_NOTICE_MARKER} " + self._message("reminder_history_notice") % ids
+
+    def build_memory_entry(self, announcement: dict, announced_at: datetime = None) -> tuple[str, str]:
+        '''
+        The short term memory entry of an announcement, so Pitxu remembers that it reminded the user even if
+        the user did not say anything afterwards: ("summary", "content"), in the language of the session.
+        '''
+        announced_at = Xtime.datetime_to_str(announced_at or Xtime.now(), self.FORMAT_DUE)
+        if announcement["count"] == 1:
+            summary = self._message("reminder_memory_summary_one") % announcement["texts"][0]
+        else:
+            summary = self._message("reminder_memory_summary_many") % announcement["count"]
+        ids = ", ".join(str(reminder_id) for reminder_id in announcement["ids"])
+        return summary, self._message("reminder_memory_content") % (announced_at, announcement["spoken"], ids)
 
     def _message(self, key: str) -> str:
         """ The message `language.reminders.<key>` in the current language. """

@@ -153,6 +153,7 @@ def app(due_list, active=True):
     a._end_listening_phase = lambda reason, **k: a.calls.append(("end listening", reason))
     a._start_listening_phase = lambda reason, **k: a.calls.append(("start listening", reason))
     a._wake_up = lambda reason, **k: a.calls.append(("wake up", reason))
+    a._record_announcement = lambda announcement: a.calls.append(("record", announcement["spoken"]))
     return a
 
 
@@ -203,9 +204,10 @@ class WhenTests(unittest.TestCase):
     def test_01_when_idle_it_shows_says_marks_after_saying_and_hands_the_turn_back(self):
         a = app(ONE)
         a.announce_due_reminders()
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "mark", "start listening"])
+        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "start listening"])
         self.assertEqual(a.calls[3], ("say", "SPOKEN"))
-        self.assertEqual(a.calls[4], ("mark", [1]))
+        self.assertEqual(a.calls[4], ("record", "SPOKEN"))
+        self.assertEqual(a.calls[5], ("mark", [1]))
         self.assertFalse(a._reminders_waiting)
 
     def test_02_one_is_shown_big_and_several_as_a_list_from_the_top_left(self):
@@ -234,7 +236,7 @@ class WhenTests(unittest.TestCase):
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)
         a._scheduler.jobs[0]()  # what the scheduler would run
-        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "mark", "start listening"])
+        self.assertEqual(names(a), ["idle off", "show", "end listening", "say", "record", "mark", "start listening"])
         a._check_waiting_reminders()
         self.assertEqual(len(a._scheduler.jobs), 1)  # nothing waits anymore
 
@@ -258,6 +260,7 @@ class WhenTests(unittest.TestCase):
         a._interaction.say_fails = True
         a.announce_due_reminders()
         self.assertIn(("mark", [1]), a.calls)
+        self.assertNotIn("record", names(a))  # it was not said: it is not remembered as said
         self.assertEqual(names(a)[-1], "start listening")
         self.assertTrue(any("Error announcing the reminders" in line for line in a._xlog.lines))
         self.assertTrue(a._reminders_announcing.acquire(blocking=False))  # the lock was released

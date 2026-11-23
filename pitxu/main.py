@@ -327,6 +327,17 @@ class Main(PyXavi):
         self._xlog.info("🧠 User asks to remember the current conversation, via chatbot tool callback.")
         self._summarize_current_conversation(reason="requested by the user")
 
+    @staticmethod
+    def _user_turns_in(history: list[dict]) -> int:
+        """
+        How many times the user spoke in the history. The function responses also come with the role "user", but
+        without text, and the notices of the application (an announced reminder) have text, but they are not
+        the user speaking either.
+        """
+        return sum(1 for item in history
+                   if item.get("role") == "user" and (item.get("text") or "").strip() != ""
+                   and not (item.get("text") or "").startswith(Reminders.HISTORY_NOTICE_MARKER))
+
     def _summarize_current_conversation(self, reason: str, wait: bool = False) -> bool:
         """
         Sends the conversation of the current chatbot session to be summarized and stored in the memory.
@@ -356,8 +367,7 @@ class Main(PyXavi):
 
         pending = history[self._history_summarized_upto:]
 
-        # The function responses also come with the role "user", but without text: they are not the user speaking.
-        user_turns = sum(1 for item in pending if item.get("role") == "user" and (item.get("text") or "").strip() != "")
+        user_turns = self._user_turns_in(pending)
         min_user_turns = int(self._xconfig.get("memory.min_user_turns", 1))
         if user_turns < min_user_turns:
             self._xlog.debug(f"No significant conversation to summarize [{reason}]: {user_turns} user turns, "
@@ -2110,7 +2120,8 @@ class Main(PyXavi):
                     font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
             self._end_listening_phase("reminder announcement")
             self._interaction.say(announcement["spoken"])
-            # TODO (next step): the announcement goes to the history of the chatbot and to the memory.
+            # Said: Pitxu remembers it, also if the user does not say anything afterwards.
+            self._record_announcement(announcement)
         except Exception as e:
             self._xlog.error(f"🛑 Error announcing the reminders {announced_ids}: {e}")
         finally:
@@ -2123,6 +2134,33 @@ class Main(PyXavi):
                 self._safe_step("wake up after reminders", lambda: self._wake_up("reminder announced"))
             else:
                 self._safe_step("listening after reminders", lambda: self._start_listening_phase("reminder announced"))
+
+    def _record_announcement(self, announcement: dict):
+        """
+        What was announced goes to the history of the chatbot (so it can answer "did you tell me to check the oven?"
+        in this session) and to the short term memory (so it can in the next ones). Each one on its own: a problem
+        in one does not stop the other, nor the rest of the announcement.
+        """
+        try:
+            if self._chatbot is not None:
+                self._chatbot.add_notice_to_history(self._reminders.build_history_notice(announcement), announcement["spoken"])
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not add the announced reminders to the chatbot history: {e}")
+
+        try:
+            from pitxu.lib.utils.memory import Memory
+            summary, content = self._reminders.build_memory_entry(announcement)
+            memory = Memory(config=self._xconfig, params=Dictionary({
+                "api_key": self._xparams.get("api_key"),
+                "base_path": self._xparams.get("base_path"),
+                "language": self._xparams.get("language"),
+            }))
+            try:
+                memory.create_short_memory_entry(summary=summary, content=content, language=self._xparams.get("language"))
+            finally:
+                memory.close()
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not save the announced reminders into the memory: {e}")
 
     def _check_waiting_reminders(self):
         """
