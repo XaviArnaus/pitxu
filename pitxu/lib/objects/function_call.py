@@ -266,6 +266,26 @@ class FunctionCallPair:
         response_name = self.function_response.name if self.has_response() else ""
         return (call_name, response_name)
     
+    def matches(self, function_name: str, result) -> bool:
+        """
+        Checks if this pair is the given function and it answered the given result.
+
+        Args:
+            function_name (str): The name of the function (tool).
+            result: The value expected in the "result" of the function response.
+
+        Returns:
+            True if the pair is valid, it is that function and its result equals the expected one.
+        """
+        if self.function_name != function_name:
+            return False
+        try:
+            response = self.function_response.response
+            return isinstance(response, dict) and "result" in response and response.get("result") == result \
+                and type(response.get("result")) is type(result)
+        except Exception:
+            return False
+
     @property
     def function_name(self) -> str | None:
         """

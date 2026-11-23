@@ -10,6 +10,7 @@ from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
 from pitxu.lib.utils.text import Text
+from pitxu.lib.command.system.conversation_flow import SystemConversationFlow
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
@@ -272,7 +273,13 @@ class GeminiChatbot(PyXavi):
                         response = await self._chat.send_message(question)
                         # The raw text, before the emotion tag is taken out of it (to see what the model really said).
                         self._log_debug(f"🎭 Raw answer from the model: {response.text!r}")
-                        outcome = ChatbotResponse.from_response(response)
+                        # Tools that are the whole answer: leaving the text empty after them is not an error.
+                        outcome = ChatbotResponse.from_response(
+                            response,
+                            empty_text_ok_for={
+                                SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME: SystemConversationFlow.END_OF_CONVERSATION_RESULT
+                            }
+                        )
                         if outcome.error is not None:
                             # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?
                             # It's largely discussed: https://discuss.ai.google.dev/t/gemini-2-5-pro-with-empty-response-text/81175/71

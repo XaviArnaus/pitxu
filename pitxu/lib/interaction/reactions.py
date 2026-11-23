@@ -8,6 +8,7 @@ from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.utils.text import Text
+from pitxu.lib.command.system.conversation_flow import SystemConversationFlow
 from pitxu.lib.utils.emoji_stats import EmojiStats
 
 from functools import partial
@@ -275,7 +276,7 @@ class Reactions(PyXavi):
                 # We got a language change request.
                 self.handle_language_change_request(function_call_pair)
             
-            elif function_call_pair.function_name == "user_intends_to_end_conversation":
+            elif function_call_pair.function_name == SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME:
 
                 # We got an end of conversation request.
                 self.handle_end_of_conversation_request(function_call_pair)
@@ -431,9 +432,8 @@ class Reactions(PyXavi):
     def handle_end_of_conversation_request(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🏁 Handling end of conversation request...")
 
-        result = function_call_pair.function_response.response.get("result", False)
-
-        if isinstance(result, bool) and result is True:
+        if function_call_pair.matches(SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME,
+                                      SystemConversationFlow.END_OF_CONVERSATION_RESULT):
             # This means that the end of conversation request was successful.
             self._xlog.info("🏁 End of conversation request handled successfully.")
 

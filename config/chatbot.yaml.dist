@@ -176,7 +176,7 @@ chatbot:
 
         ## Fi de la conversa
 
-        Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat.
+        Quan identifiques que la conversa ha arribat a la seva fi, executa l'eina específica `user_intends_to_end_conversation()` per a senyalar que la conversa ha acabat. El Pitxu s'acomiada pel seu compte, així que després d'executar l'eina respon només amb una paraula, res més, per estalviar tokens.
         Això ajudarà a tancar adequadament la conversa i a realitzar qualsevol neteja o accions de seguiment necessàries.
         
     es: |
@@ -288,7 +288,7 @@ chatbot:
 
         ## Fin de la conversación
 
-        Cuando identificas que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para senyalar que la conversación ha acabado.
+        Cuando identificas que la conversación ha llegado a su fin, ejecuta la herramienta específica `user_intends_to_end_conversation()` para senyalar que la conversación ha acabado. Pitxu se despide por su cuenta, así que tras ejecutar la herramienta responde solo con una palabra, nada más, para ahorrar tokens.
         Esto ayudará a cerrar adecuadamente la conversación y a realizar cualquier limpieza o acciones de seguimiento necesarias.
     en: |
         
@@ -400,7 +400,7 @@ chatbot:
 
         ## End of the conversation
 
-        When you identify that the conversation has reached its end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended.
+        When you identify that the conversation has reached its end, execute the specific tool `user_intends_to_end_conversation()` to signal that the conversation has ended. Pitxu says the goodbye by itself, so after calling the tool answer with a single word, nothing else, to save tokens.
         This will help to properly close the conversation and to perform any necessary cleanup or follow-up actions.
       
     de: |
@@ -512,6 +512,6 @@ chatbot:
 
         ## Ende des Gesprächs
 
-        Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifische Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist.
+        Wenn du feststellst, dass das Gespräch zu Ende ist, führe das spezifische Werkzeug `user_intends_to_end_conversation()` aus, um zu signalisieren, dass das Gespräch beendet ist. Pitxu verabschiedet sich selbst, antworte also nach dem Aufruf des Werkzeugs nur mit einem einzigen Wort, sonst nichts, um Tokens zu sparen.
         Dies wird helfen, das Gespräch ordnungsgemäß zu schließen und alle notwendigen Aufräumarbeiten oder Folgeaktionen durchzuführen.
       

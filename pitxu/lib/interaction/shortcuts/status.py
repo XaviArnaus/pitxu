@@ -42,19 +42,23 @@ class Status(ShortcutBase):
             color (str | tuple | int): The color of this line. None for the default one.
                 It can be a Canvas color name (like "red"), or a Canvas color value (like canvas.COLOR_RED).
         """
-        # This paint replaces whatever the startup left in the area.
-        self.startup_screen_pending = False
+        # The status is informative: whoever adds a line (the app, the tools) must never fail because of it.
+        try:
+            # This paint replaces whatever the startup left in the area.
+            self.startup_screen_pending = False
 
-        # Maintain the list of status lines.
-        self.status_lines.append((text, color))
-        if len(self.status_lines) > self.how_many_status_lines_to_keep:
-            self.status_lines.pop(0)
+            # Maintain the list of status lines.
+            self.status_lines.append((text, color))
+            if len(self.status_lines) > self.how_many_status_lines_to_keep:
+                self.status_lines.pop(0)
 
-        self.process_pool.send(self.get_queue(), XprocAction.STATUS_LINE, {
-            # The full history to draw, and the last one separately for logging
-            "entries": list(self.status_lines),
-            "added": (text, color)
-        })
+            self.process_pool.send(self.get_queue(), XprocAction.STATUS_LINE, {
+                # The full history to draw, and the last one separately for logging
+                "entries": list(self.status_lines),
+                "added": (text, color)
+            })
+        except Exception as e:
+            self._xlog.warning(f"🟠 Could not add the status line [{text}]: {e}")
 
     # --------- (Proxy) Functions to clear screens ---------
 
