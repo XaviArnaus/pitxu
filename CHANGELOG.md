@@ -14,10 +14,13 @@
 - The chatbot uses the memory on its own (`chatbot.memory_autonomy`): it saves what is worth keeping without asking or announcing it, and searches before answering. What it writes is notified in the top-right area with the summary line, instead of the full screen.
 - The memory search is by keywords (title and content, any word, ranked) in both memories, so natural queries find the long term entries too.
 - When the chatbot understands that the user ends the conversation, Pitxu says a random ending sentence by itself (`language.end_of_conversation_answers`) and goes idle right away, without waiting for the hold time. The exit words still close the application. The status area shows "Conversation ended" and "Summarizing conversation".
+- Reminders are in the database (migration 0004) and are identified by an id, like the memory entries: several can share the same date and time, and the chatbot tools read, update, move and delete by `reminder_id`. A reminder that was announced is kept for `reminders.keep_announced_days` (7), and moving it makes it pending again. The reminders of the old `storage/reminders.yaml` are moved into the database at startup, and the file is deleted only when all of them are in.
 - Test suite in `test/` (`make unittests`). The scripts for the sound hardware moved to `test/hardware/`.
 
 ### Changed
 
+- The reminders that are due are announced also when their minute was missed (a busy Raspberry, a restart): they are not looked up by the exact minute anymore, and the purge of the past reminders at startup is gone. (The announcement is still one by one: grouping, late and very old ones, and waiting for Pitxu to be idle come next.)
+- Removed the message `reminder_already_exists` (it could never happen), and `reminder_not_found` now tells the id.
 - The memory preload entries have a `key` and a version per language.
 - The closing waits for the conversation summary (bounded by `memory.summarization.close_timeout_seconds`), and the systemd service has `TimeoutStopSec=120`.
 - Signals (SIGTERM, SIGINT) only ask the run loop to close; a second one stops waiting for the summary.

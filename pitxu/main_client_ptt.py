@@ -864,29 +864,33 @@ class MainClientPTT(PyXavi):
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
             self._log_debug("🕐 New minute detected: " + str(current_minute) + ".")
-            # Get the possible reminder for the current date and time
-            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
-            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
-            reminder: dict = self._reminders.get_reminder(date_str, time_str)
-            if reminder is not False:
+            # The reminders whose time has come. It includes the ones that should have been announced before.
+            for reminder in self._reminders.get_due():
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
-                # Show reminder in eInk and say it
-                reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.set_idle_mode_off()
-                self._interaction.wait_for_foreground_display_queue_to_empty()
-                self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝",
-                    text=reminder.get("text", ""),
-                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._interaction.mute_microphone(input_stream=input_stream)
-                self._interaction.say(reminder_text_for_speaking)
-                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                self._interaction.unmute_microphone(input_stream=input_stream)
-                # Remove the reminder now that it's been announced
-                self._reminders.delete_reminder(date_str, time_str)
-                # Reset the last interaction time, as we just spoke
-                self._last_interaction_datetime = datetime.now()
+                try:
+                    # Show reminder in eInk and say it
+                    reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
+                    self._interaction.set_idle_mode_off()
+                    self._interaction.wait_for_foreground_display_queue_to_empty()
+                    self._interaction.wait_for_busy_foreground_display_to_idle()
+                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                        icon="📝",
+                        text=reminder.get("text", ""),
+                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                    self._interaction.mute_microphone(input_stream=input_stream)
+                    self._interaction.say(reminder_text_for_speaking)
+                    # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
+                    self._interaction.unmute_microphone(input_stream=input_stream)
+                    # Reset the last interaction time, as we just spoke
+                    self._last_interaction_datetime = datetime.now()
+                except Exception as e:
+                    self._xlog.error(f"🛑 Error announcing the reminder [{reminder.get('id')}]: {e}")
+                finally:
+                    # Announced, or failed: it is not pending anymore, otherwise it would fail again every minute.
+                    try:
+                        self._reminders.mark_announced([reminder["id"]])
+                    except Exception as e:
+                        self._xlog.error(f"🛑 Could not mark the reminder [{reminder.get('id')}] as announced: {e}")
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.

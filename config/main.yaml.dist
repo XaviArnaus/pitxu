@@ -52,6 +52,12 @@ night_tasks:
   # [Integer] Minute (0 - 59).
   minute: 0
 
+# Reminders
+reminders:
+  # [Integer] Days that an announced reminder is kept before the night tasks delete it. A reminder that was just
+  #   announced can still be asked about or moved (a snooze) until then.
+  keep_announced_days: 7
+
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
 # Switches to tell if a problem comes from it. What is not here is on. Restart to apply.

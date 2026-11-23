@@ -246,11 +246,6 @@ language:
       es: "Lo siento, ha habido un error al crear el recordatorio."
       en: "I'm sorry, there was an error creating the reminder."
       de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Erinnerung."
-    reminder_already_exists:
-      ca: "Ja existeix un recordatori per a aquesta data i hora: %s."
-      es: "Ya existe un recordatorio para esta fecha y hora: %s."
-      en: "A reminder already exists for this date and time: %s."
-      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Erinnerung: %s."
     reminder_list_empty:
       ca: "No hi ha recordatoris establerts."
       es: "No hay recordatorios establecidos."
@@ -277,10 +272,10 @@ language:
       en: "Reminder deleted for %s at %s."
       de: "Erinnerung gelöscht für den %s um %s."
     reminder_not_found:
-      ca: "No s'ha trobat cap recordatori per al %s a les %s."
-      es: "No se ha encontrado ningún recordatorio para el %s a las %s."
-      en: "No reminder found for %s at %s."
-      de: "Keine Erinnerung für den %s um %s gefunden."
+      ca: "No s'ha trobat cap recordatori amb l'id %s."
+      es: "No se ha encontrado ningún recordatorio con el id %s."
+      en: "No reminder found with the id %s."
+      de: "Keine Erinnerung mit der ID %s gefunden."
     reminder_deletion_error:
       ca: "Ho sento, hi ha hagut un error en eliminar el recordatori."
       es: "Lo siento, ha habido un error al eliminar el recordatorio."

@@ -155,6 +155,8 @@ class Main(PyXavi):
             self._maintenance.validate_memory_config()
             # The database must be at its last version before anything opens it, and the preload needs it.
             self._maintenance.execute_db_migrations()
+            # The reminders that were in a file before the database are moved into it (and the file is deleted).
+            self._maintenance.import_legacy_reminders()
             self._maintenance.execute_memory_preload()
             self._maintenance.release_in_flight_conversations()
 
@@ -1312,6 +1314,10 @@ class Main(PyXavi):
             # Save the emoji stats that are still in memory
             self._safe_step("emoji stats", EmojiStats.flush)
 
+            # The connection to the database of the reminders
+            if self._reminders is not None:
+                self._safe_step("reminders database", self._reminders.close)
+
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
@@ -1638,6 +1644,8 @@ class Main(PyXavi):
             "language": self._xparams.get("language"),
             "status_shortcuts": self._interaction.get_status_shortcuts(),
             "device_monitor": self._device_monitor,
+            # The same instance (and database connection) that announces the reminders.
+            "reminders": self._reminders,
         }))
 
     def _load_language_statics(self):
@@ -2058,29 +2066,30 @@ class Main(PyXavi):
             # COMMENTED: Idea unfinished.
             # from pitxu.lib.speech_to_text.faster_whisper_stream import TrascriptionState
 
-            # Get the possible reminder for the current date and time
-            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
-            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
-            reminder: dict = self._reminders.get_reminder(date_str, time_str)
-            if reminder is not False:
+            # The reminders whose time has come. It includes the ones that should have been announced before.
+            for reminder in self._reminders.get_due():
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
-                # Show reminder in eInk and say it
-                reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.set_idle_mode_off()
-                self._interaction.wait_for_foreground_display_queue_to_empty()
-                self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝",
-                    text=reminder.get("text", ""),
-                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._end_listening_phase("reminder announcement")
-                self._interaction.say(reminder_text_for_speaking)
-                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                # Remove the reminder now that it's been announced
-                self._reminders.delete_reminder(date_str, time_str)
-                # We just spoke: the turn goes back to the user. This unmutes the microphone and
-                #   resets the last interaction time.
-                self._start_listening_phase("reminder announced")
+                try:
+                    # Show reminder in eInk and say it
+                    reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
+                    self._interaction.set_idle_mode_off()
+                    self._interaction.wait_for_foreground_display_queue_to_empty()
+                    self._interaction.wait_for_busy_foreground_display_to_idle()
+                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                        icon="📝",
+                        text=reminder.get("text", ""),
+                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                    self._end_listening_phase("reminder announcement")
+                    self._interaction.say(reminder_text_for_speaking)
+                    # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
+                    # We just spoke: the turn goes back to the user. This unmutes the microphone and
+                    #   resets the last interaction time.
+                    self._start_listening_phase("reminder announced")
+                except Exception as e:
+                    self._xlog.error(f"🛑 Error announcing the reminder [{reminder.get('id')}]: {e}")
+                finally:
+                    # Announced, or failed: it is not pending anymore, otherwise it would fail again every minute.
+                    self._safe_step("reminder announced mark", lambda: self._reminders.mark_announced([reminder["id"]]))
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
@@ -2336,6 +2345,10 @@ class Main(PyXavi):
 
         # The use of the emojis of the day goes to the stats file.
         self._safe_step("emoji stats", EmojiStats.flush)
+
+        # The reminders that were announced some days ago are not needed anymore.
+        self._safe_step("reminders prune", lambda: self._reminders.prune_announced(
+            int(self._xconfig.get("reminders.keep_announced_days", 7))))
 
         # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
         if self._xconfig.get("memory.consolidation.enabled", True):

@@ -1,219 +1,305 @@
-
-from pyxavi import Storage, Config, Dictionary
+from pyxavi import Config, Dictionary
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
+from pitxu.lib.database.db_sqlite import DbSqlite
 
-from datetime import datetime
+from datetime import datetime, date as date_type, timedelta
+import os
+import sqlite3
+import threading
+import yaml
 
 
 class Reminders(PyXavi, Command):
+    """
+    The reminders, in the `reminders` table of the database.
 
-    REMINDER_FILENAME = "reminders.yaml"
+    A reminder is identified by its id (like the memory entries), so several can share the same date and time.
+    Its date and time are stored together in `due_at` as local time ("YYYY-MM-DD HH:MM"), and what is pending is
+    what has no `announced_at`. Whoever announces a reminder asks `get_due()` and tells `mark_announced()`, so a
+    reminder is never lost because a tick was skipped, and never announced twice.
+
+    Everything it gives is a dict: {"id", "date", "time", "text", "announced"}.
+    """
+
+    TABLE = "reminders"
 
     FORMAT_DATE = "%Y-%m-%d"  # E.g., 2023-12-25
     FORMAT_TIME = "%H:%M"     # E.g., 14:30
+    FORMAT_DUE = "%Y-%m-%d %H:%M"
+    FORMAT_ANNOUNCED_AT = "%Y-%m-%d %H:%M:%S"
 
-    state: Storage = None
+    # The file where the reminders were before they were in the database. See `import_legacy_yaml()`.
+    LEGACY_FILENAME = "reminders.yaml"
+
+    COLUMNS = "id, due_at, text, language, announced_at"
 
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(Reminders, self).init_pyxavi(config=config, params=params)
 
-        self.state = self._state = Storage(filename=self._xconfig.get("storage.path") + self.REMINDER_FILENAME)
-        self.delete_past_reminders()
+        # One thread at a time in the database connection of this object.
+        self._lock = threading.RLock()
+        self.db = DbSqlite(config=self._xconfig, params=self._xparams)
 
-    def create_reminder(self, date: str, time: str, reminder_text: str) -> bool:
+    def close(self):
+        self.db.close()
+
+    # ----- Writing -----
+
+    def create_reminder(self, date: str, time: str, reminder_text: str, language: str = None) -> dict:
         '''
-        Creates a reminder for a specific date.
-        
+        Creates a reminder. There can be several for the same date and time.
+
         Args:
             date: The date for the reminder in Year-Month-Day format.
             time: The time for the reminder in HH:MM format.
             reminder_text: The text of the reminder.
-        
-        Returns:
-            A boolean indicating success or failure.
-        '''
-        self._log_debug(f"📝 Creating a reminder for [{date}] at [{time}]: {reminder_text}")
+            language: The language of the reminder. Default: the one of the session.
 
-        # First check if there are existing reminders for that key
-        reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key):
-            self._xlog.debug(f"📝 Reminder already exists for [{date}] at [{time}]")
+        Returns:
+            The reminder created.
+        '''
+        due_at = f"{date} {time}"
+        self._log_debug(f"📝 Creating a reminder for [{due_at}]: {reminder_text}")
+        cursor = self._execute(
+            f"INSERT INTO {self.TABLE} (due_at, text, language) VALUES (?, ?, ?)",
+            (due_at, reminder_text, language or self._xparams.get("language")))
+        reminder = self.get_reminder(int(cursor.lastrowid))
+        self._xlog.info(f"📝 Reminder [{reminder['id']}] set for [{due_at}]: {reminder_text}")
+        return reminder
+
+    def update_reminder(self, reminder_id: int, new_text: str) -> dict | bool:
+        '''
+        Changes the text of a reminder.
+
+        Returns:
+            The reminder updated, or False if there is none with that id.
+        '''
+        self._log_debug(f"📝 Updating the reminder [{reminder_id}] to: {new_text}")
+        cursor = self._execute(f"UPDATE {self.TABLE} SET text = ? WHERE id = ?", (new_text, reminder_id))
+        if cursor.rowcount == 0:
+            self._log_debug(f"📝 No reminder found with the id [{reminder_id}]")
             return False
+        return self.get_reminder(reminder_id)
 
-        self.state.set(reminder_key, reminder_text, slugify_param_name=True)
-        self.state.write_file()
-        self._xlog.info(f"📝 Reminder set for [{date}] at [{time}]: {reminder_text}")
-
-        return True
-        
-    def get_reminders_for_date(self, date: str) -> list[dict[str, str]]:
+    def move_reminder(self, reminder_id: int, new_date: str, new_time: str) -> dict | bool:
         '''
-        Retrieves all reminders for a specific date.
-        
-        Args:
-            date: The date to retrieve reminders for in Year-Month-Day format.
-        
+        Moves a reminder to a new date and time. If it was already announced, it is pending again (a snooze).
+
         Returns:
-            A list of reminders for the specified date in a JSON format
+            The reminder moved, with `previous_date` and `previous_time`, or False if there is none with that id.
         '''
+        self._log_debug(f"📝 Moving the reminder [{reminder_id}] to [{new_date}] at [{new_time}]")
+        with self._lock:
+            before = self.get_reminder(reminder_id)
+            if not before:
+                self._log_debug(f"📝 No reminder found with the id [{reminder_id}]")
+                return False
+            self._execute(f"UPDATE {self.TABLE} SET due_at = ?, announced_at = NULL WHERE id = ?",
+                          (f"{new_date} {new_time}", reminder_id))
+            moved = self.get_reminder(reminder_id)
+        moved["previous_date"] = before["date"]
+        moved["previous_time"] = before["time"]
+        self._xlog.info(f"📝 Reminder [{reminder_id}] moved from [{before['date']} {before['time']}] to [{new_date} {new_time}]")
+        return moved
 
-        self._log_debug(f"📝 Retrieving reminders for [{date}]")
-        self.state.read_file()
-        reminders = []
-        stored_reminders: dict = self.state.get(date, {}, slugify_param_name=True)
-        for time, reminder_text in stored_reminders.items():
-            reminders.append({
-                "time": self._unslugify_time(time),
-                "text": reminder_text
-            })
-        return reminders
-    
-    def delete_reminder(self, date: str, time: str) -> bool:
+    def delete_reminder(self, reminder_id: int) -> dict | bool:
         '''
-        Deletes a specific reminder.
-        
-        Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
-        
-        Returns:
-            A boolean indicating success or failure.
-        '''
-        self._log_debug(f"📝 Deleting a reminder for [{date}] at [{time}]")
-        self.state.read_file()
-        reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key, slugify_param_name=True):
-            self.state.delete(reminder_key, slugify_param_name=True)
-            self.state.write_file()
-            self._xlog.info(f"📝 Reminder deleted for [{date}] at [{time}]")
-            return True
-        else:
-            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
-            return False
-    
-    def get_reminder(self, date: str, time: str) -> dict | bool:
-        '''
-        Retrieves a specific reminder.
-        
-        Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
-        
-        Returns:
-            The reminder details as a JSON object or False if not found.
-        '''
-        self._log_debug(f"📝 Retrieving a reminder for [{date}] at [{time}]")
-        self.state.read_file()
-        reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key, slugify_param_name=True):
-            reminder_text = self.state.get(reminder_key, slugify_param_name=True)
-            self._xlog.info(f"📝 Reminder found for [{date}] at [{time}]: {reminder_text}")
-            return {
-                "date": date,
-                "time": time,
-                "text": reminder_text
-            }
-        else:
-            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
-            return False
+        Deletes a reminder.
 
-    def update_reminder(self, date: str, time: str, new_text: str) -> dict | bool:
+        Returns:
+            The reminder deleted, or False if there is none with that id.
         '''
-        Updates a specific reminder.
+        self._log_debug(f"📝 Deleting the reminder [{reminder_id}]")
+        with self._lock:
+            reminder = self.get_reminder(reminder_id)
+            if not reminder:
+                self._log_debug(f"📝 No reminder found with the id [{reminder_id}]")
+                return False
+            self._execute(f"DELETE FROM {self.TABLE} WHERE id = ?", (reminder_id,))
+        self._xlog.info(f"📝 Reminder [{reminder_id}] deleted")
+        return reminder
+
+    # ----- Reading -----
+
+    def get_reminder(self, reminder_id: int) -> dict | bool:
+        '''
+        Gets a reminder, announced or not.
+
+        Returns:
+            The reminder, or False if there is none with that id.
+        '''
+        reminders = self._fetch(f"SELECT {self.COLUMNS} FROM {self.TABLE} WHERE id = ?", (reminder_id,))
+        return reminders[0] if reminders else False
+
+    def get_reminders_for_date(self, date: str) -> list[dict]:
+        '''
+        Gets the reminders still pending for a date, in time order.
+        '''
+        self._log_debug(f"📝 Retrieving the pending reminders for [{date}]")
+        return self._fetch(
+            f"SELECT {self.COLUMNS} FROM {self.TABLE} WHERE announced_at IS NULL AND due_at >= ? AND due_at < ? ORDER BY due_at, id",
+            (f"{date} 00:00", f"{date} 99:99"))
+
+    def get_due(self, now: datetime = None) -> list[dict]:
+        '''
+        Gets the pending reminders whose time has come, the oldest first. Includes the ones that should have been
+        announced before (the application was off, busy...).
+
+        Unlike the other methods, it never raises: a problem is logged and it gives an empty list. It is called by
+        background jobs (the minute tasks) that have nobody to answer to, and a database problem must not stop them.
+        The other methods raise, because the tools that call them catch it and answer the chatbot with an error message.
+        The limit is that a problem with the database is only seen in the log.
 
         Args:
-            date: The date of the reminder in Year-Month-Day format.
-            time: The time of the reminder in HH:MM format.
-            new_text: The new text for the reminder.
+            now: The moment to compare with. Default: now.
+        '''
+        try:
+            now = now or datetime.now()
+            return self._fetch(
+                f"SELECT {self.COLUMNS} FROM {self.TABLE} WHERE announced_at IS NULL AND due_at <= ? ORDER BY due_at, id",
+                (now.strftime(self.FORMAT_DUE),))
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not get the due reminders: {e}")
+            return []
+
+    # ----- Announcing and cleaning -----
+
+    def mark_announced(self, reminder_ids: list[int], announced_at: datetime = None) -> int:
+        '''
+        Tells that these reminders were announced, so they are not pending anymore.
 
         Returns:
-            The updated reminder details as a JSON object or False if not found.
+            How many reminders were marked.
         '''
-        self._log_debug(f"📝 Updating a reminder for [{date}] at [{time}] to: {new_text}")
-        self.state.read_file()
-        reminder_key = f"{date}.{time}"
-        if self.state.key_exists(reminder_key, slugify_param_name=True):
-            self.state.set(reminder_key, new_text, slugify_param_name=True)
-            self.state.write_file()
-            self._xlog.info(f"📝 Reminder updated for [{date}] at [{time}]: {new_text}")
-            return {
-                "date": date,
-                "time": time,
-                "text": new_text
-            }
-        else:
-            self._log_debug(f"📝 No reminder found for [{date}] at [{time}]")
-            return False
-        
-    def move_reminder(self, old_date: str, old_time: str, new_date: str, new_time: str) -> dict | bool:
+        if not reminder_ids:
+            return 0
+        announced_at = (announced_at or datetime.now()).strftime(self.FORMAT_ANNOUNCED_AT)
+        marked = 0
+        with self._lock:
+            for reminder_id in reminder_ids:
+                cursor = self._execute(
+                    f"UPDATE {self.TABLE} SET announced_at = ? WHERE id = ? AND announced_at IS NULL",
+                    (announced_at, reminder_id))
+                marked += cursor.rowcount
+        return marked
+
+    def prune_announced(self, older_than_days: int, now: datetime = None) -> int:
         '''
-        Moves a specific reminder to a new date and time.
+        Deletes the reminders that were announced more than the given days ago.
+
+        Returns:
+            How many reminders were deleted.
+        '''
+        limit = ((now or datetime.now()) - timedelta(days=older_than_days)).strftime(self.FORMAT_ANNOUNCED_AT)
+        cursor = self._execute(
+            f"DELETE FROM {self.TABLE} WHERE announced_at IS NOT NULL AND announced_at < ?", (limit,))
+        self._xlog.info(f"📝 Pruned {cursor.rowcount} reminders announced more than {older_than_days} days ago")
+        return cursor.rowcount
+
+    # ----- The file that was before the database -----
+
+    def import_legacy_yaml(self, path: str = None) -> dict:
+        '''
+        Moves the reminders of the old `reminders.yaml` into the database, and deletes the file once ALL of them
+        are there. If anything is wrong the file stays untouched and the next start tries again (what was already
+        imported is not imported twice).
+
+        The old file had `date: {HH-MM: text}`. Every entry is imported, also the ones in the past: they are
+        announced as late reminders.
 
         Args:
-            old_date: The current date of the reminder in Year-Month-Day format.
-            old_time: The current time of the reminder in HH:MM format.
-            new_date: The new date for the reminder in Year-Month-Day format.
-            new_time: The new time for the reminder in HH:MM format.
-        Returns:
-            The moved reminder details as a JSON object or False if not found.
-        '''
-        self._log_debug(f"📝 Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
-        self.state.read_file()
-        old_reminder_key = f"{old_date}.{old_time}"
-        new_reminder_key = f"{new_date}.{new_time}"
-        if self.state.key_exists(old_reminder_key, slugify_param_name=True):
-            reminder_text = self.state.get(old_reminder_key, slugify_param_name=True)
-            self.state.set(new_reminder_key, reminder_text, slugify_param_name=True)
-            self.state.delete(old_reminder_key, slugify_param_name=True)
-            self.state.write_file()
-            self._xlog.info(f"📝 Reminder moved to [{new_date}] at [{new_time}]: {reminder_text}")
-            return {
-                "date": new_date,
-                "time": new_time,
-                "text": reminder_text
-            }
-        else:
-            self._log_debug(f"📝 No reminder found for [{old_date}] at [{old_time}]")
-            return False
-    
-    def delete_past_reminders(self) -> int:
-        '''
-        Deletes all reminders that are in the past.
-        
-        Returns:
-            The number of reminders deleted.
-        '''
-        self._xlog.info(f"📝 Deleting past reminders")
-
-        now = datetime.now()
-        deleted_count = 0
-        self.state.read_file()
-        all_reminders = self.state.get_all()
-        for date_str, times in all_reminders.items():
-            for time_str in list(times.keys()):
-                reminder_datetime_str = f"{date_str} {self._unslugify_time(time_str)}"
-                reminder_datetime = datetime.strptime(reminder_datetime_str, f"{self.FORMAT_DATE} {self.FORMAT_TIME}")
-                if reminder_datetime < now:
-                    self.state.delete(f"{date_str}.{time_str}")
-                    deleted_count += 1
-                    self._log_debug(f"📝 Deleted past reminder for [{date_str}] at [{time_str}]")
-
-        if deleted_count > 0:
-            self.state.write_file()
-
-        self._xlog.info(f"📝 Deleted {deleted_count} past reminders")
-        return deleted_count
-    
-    def _unslugify_time(self, slugified_time: str) -> str:
-        '''
-        Converts a slugified time back to its original format.
-
-        Args:
-            slugified_time: The slugified time string.
+            path: The file. Default: the one in the storage path.
 
         Returns:
-            The original time string.
+            dict: {"found": bool, "entries": int, "imported": int, "already_there": int, "invalid": list, "file_deleted": bool}
         '''
-        return slugified_time.replace("-", ":")
+        path = path or os.path.join(self._xconfig.get("storage.path"), self.LEGACY_FILENAME)
+        stats = {"found": os.path.exists(path), "entries": 0, "imported": 0, "already_there": 0, "invalid": [], "file_deleted": False}
+        if not stats["found"]:
+            return stats
+
+        with open(path, encoding="utf-8") as stream:
+            content = yaml.safe_load(stream) or {}
+
+        entries, stats["invalid"] = self._legacy_entries(content)
+        stats["entries"] = len(entries)
+
+        with self._lock:
+            try:
+                for due_at, text in entries:
+                    already = self._fetch(f"SELECT id FROM {self.TABLE} WHERE due_at = ? AND text = ?", (due_at, text))
+                    if already:
+                        stats["already_there"] += 1
+                        continue
+                    self.db.connection.execute(
+                        f"INSERT INTO {self.TABLE} (due_at, text, language) VALUES (?, ?, ?)", (due_at, text, None))
+                    stats["imported"] += 1
+                self.db.connection.commit()
+            except Exception:
+                self.db.connection.rollback()
+                raise
+
+            # Only now: is everything that the file had in the database?
+            missing = [(due_at, text) for due_at, text in entries
+                       if not self._fetch(f"SELECT id FROM {self.TABLE} WHERE due_at = ? AND text = ?", (due_at, text))]
+
+        if missing or stats["invalid"]:
+            self._xlog.error(f"🛑 The old reminders file [{path}] was NOT deleted: {len(missing)} entries are not in the database "
+                             f"and {len(stats['invalid'])} could not be read: {stats['invalid']}")
+            return stats
+
+        os.remove(path)
+        stats["file_deleted"] = True
+        self._xlog.info(f"📝 The {stats['entries']} reminders of the old file were moved to the database "
+                        f"({stats['imported']} imported, {stats['already_there']} were already there). The file is deleted.")
+        return stats
+
+    def _legacy_entries(self, content: dict) -> tuple[list[tuple[str, str]], list[str]]:
+        """ The (due_at, text) of every entry of the old file, and the descriptions of the ones that can't be read. """
+        entries, invalid = [], []
+        if not isinstance(content, dict):
+            return entries, [f"the file is not a dict of dates: {type(content).__name__}"]
+
+        for raw_date, times in content.items():
+            if times is None or times == {}:
+                continue  # A date that was emptied.
+            if not isinstance(times, dict):
+                invalid.append(f"{raw_date}: {times!r}")
+                continue
+            for raw_time, text in times.items():
+                try:
+                    # A date written without quotes is read by YAML as a date.
+                    date = raw_date.isoformat() if isinstance(raw_date, date_type) else str(raw_date)
+                    if isinstance(raw_time, int):
+                        # A time like 13:00 written without quotes is read by YAML as minutes (sexagesimal).
+                        time = f"{raw_time // 60:02d}:{raw_time % 60:02d}"
+                    else:
+                        time = str(raw_time).replace("-", ":")
+                    due_at = datetime.strptime(f"{date} {time}", self.FORMAT_DUE).strftime(self.FORMAT_DUE)
+                    if text is None or str(text).strip() == "":
+                        raise ValueError("no text")
+                    entries.append((due_at, str(text)))
+                except (ValueError, TypeError):
+                    invalid.append(f"{raw_date} {raw_time}: {text!r}")
+        return entries, invalid
+
+    # ----- Internals -----
+
+    def _to_dict(self, row: sqlite3.Row) -> dict:
+        date, time = row["due_at"].split(" ")
+        return {"id": row["id"], "date": date, "time": time, "text": row["text"],
+                "announced": row["announced_at"] is not None}
+
+    def _fetch(self, sql: str, args: tuple = ()) -> list[dict]:
+        # A new cursor on every call: the shared one is not thread-safe.
+        with self._lock:
+            rows = self.db.connection.execute(sql, args).fetchall()
+        return [self._to_dict(row) if "due_at" in row.keys() else {key: row[key] for key in row.keys()} for row in rows]
+
+    def _execute(self, sql: str, args: tuple = ()) -> sqlite3.Cursor:
+        with self._lock:
+            cursor = self.db.connection.execute(sql, args)
+            self.db.connection.commit()
+        return cursor

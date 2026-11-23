@@ -17,7 +17,9 @@ class StatefulReminders(PyXavi, Command):
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(StatefulReminders, self).init_pyxavi(config=config, params=params)
 
-        self._reminders = Reminders(config=config, params=params)
+        # The application shares one Reminders (one connection to the database) with the tools, through the params.
+        self._reminders = self._xparams.get("reminders") if self._xparams.key_exists("reminders") \
+            else Reminders(config=config, params=params)
 
     def _message(self, key: str) -> str:
         """ The message `language.reminders.<key>` in the current language. """
@@ -45,15 +47,25 @@ class StatefulReminders(PyXavi, Command):
 
         return (date, time)
 
+    def _as_id(self, reminder_id) -> int | None:
+        """ The id as the integer it is, or None if it is not a number (the chatbot may send anything). """
+        try:
+            return int(reminder_id)
+        except (TypeError, ValueError):
+            return None
+
+    def _not_found(self, reminder_id) -> str:
+        return self._message("reminder_not_found") % reminder_id
+
     def _is_in_the_past(self, date: str, time: str) -> bool:
         """ The minute of the reminder is over. The current minute is not the past. """
         reminder_datetime = datetime.strptime(f"{date} {time}", f"{Reminders.FORMAT_DATE} {Reminders.FORMAT_TIME}")
         return reminder_datetime < datetime.now().replace(second=0, microsecond=0)
 
-    def create_reminder(self, date: str, time: str, reminder_text: str) -> str:
+    def create_reminder(self, date: str, time: str, reminder_text: str) -> dict | str:
         '''
         Create a reminder for a specific date and time, with a specified text.
-        The date and time must not be in the past.
+        The date and time must not be in the past. Several reminders can share the same date and time.
         
         Args:
             date (str): The date for the reminder in Year-Month-Day format.
@@ -61,7 +73,7 @@ class StatefulReminders(PyXavi, Command):
             reminder_text (str): The text of the reminder.
         
         Returns:
-            str: A confirmation message or an error message.
+            dict | str: The reminder created, with its `id`, or an error message.
         '''
         try:
             self._xlog.info(f"📝 Request for Creating a reminder for [{date}] at [{time}]: {reminder_text}")
@@ -75,27 +87,22 @@ class StatefulReminders(PyXavi, Command):
             if self._is_in_the_past(date, time):
                 return self._message("reminder_past_datetime")
             
-            result = self._reminders.create_reminder(date, time, reminder_text)
-            if result:
-                return self._xconfig.get("language.reminders.reminder_set." + self._xparams.get("language")) % (date, time, reminder_text)
-            else:
-                existing_reminder = self._reminders.get_reminder(date, time)
-                return self._xconfig.get("language.reminders.reminder_already_exists." + self._xparams.get("language")) % existing_reminder["text"]
+            return self._reminders.create_reminder(date, time, reminder_text)
 
         except Exception as e:
             self._xlog.error(f"🛑 Error creating reminder for [{date}] [{time}] [{reminder_text}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_creation_error." + self._xparams.get("language"))
+            return self._message("reminder_creation_error")
         
-    def get_reminders_for_date(self, date: str) -> list[str]:
+    def get_reminders_for_date(self, date: str) -> list[dict] | str:
         '''
-        Retrieve all reminders for a specific date.
+        Retrieve the reminders still pending for a specific date, in time order.
         
         Args:
             date (str): The date to retrieve reminders for in Year-Month-Day format.
         
         Returns:
-            list[str]: A list of reminders for the specified date in a JSON format or an error message as string.
+            list[dict] | str: A list of reminders with their `id`, `time` and `text`, or an error message.
         '''
 
         self._xlog.info(f"📝 Request for Retrieving reminders for [{date}]")
@@ -105,156 +112,116 @@ class StatefulReminders(PyXavi, Command):
                 return validated
             date, _ = validated
 
-            return self._reminders.get_reminders_for_date(date)
+            return [{"id": reminder["id"], "time": reminder["time"], "text": reminder["text"]}
+                    for reminder in self._reminders.get_reminders_for_date(date)]
         except Exception as e:
             self._xlog.error(f"🛑 Error retrieving reminders for date [{date}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_retrieval_error." + self._xparams.get("language"))
+            return self._message("reminder_retrieval_error")
     
-    def delete_reminder(self, date: str, time: str) -> str:
+    def delete_reminder(self, reminder_id: int) -> dict | str:
         '''
-        Delete a specific reminder by date and time.
+        Delete a reminder by its id.
         
         Args:
-            date (str): The date of the reminder in Year-Month-Day format.
-            time (str): The time of the reminder in HH:MM format.
+            reminder_id (int): The id of the reminder.
         
         Returns:
-            dict | str: If successful, returns a JSON with the deleted reminder details; otherwise, an error message.
+            dict | str: If successful, the reminder that was deleted; otherwise, an error message.
         '''
-        self._xlog.info(f"📝 Request for Deleting a reminder for [{date}] at [{time}]")
+        self._xlog.info(f"📝 Request for Deleting the reminder [{reminder_id}]")
         try:
-            validated = self._validate_date_and_time(date, time)
-            if isinstance(validated, str):
-                return validated
-            date, time = validated
-
-            reminder_deleted = self._reminders.get_reminder(date, time)
-            success = self._reminders.delete_reminder(date, time)
-            if success:
-                # return self._xconfig.get("language.reminders.reminder_deleted." + self._xparams.get("language")) % (date, time)
-                return {
-                    "date": date,
-                    "time": time,
-                    "text": reminder_deleted["text"]
-                }
-            else:
-                return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
+            found = self._as_id(reminder_id)
+            deleted = self._reminders.delete_reminder(found) if found is not None else False
+            return deleted if deleted else self._not_found(reminder_id)
         except Exception as e:
-            self._xlog.error(f"🛑 Error deleting reminder for [{date}] [{time}]: {e}")
+            self._xlog.error(f"🛑 Error deleting the reminder [{reminder_id}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_deletion_error." + self._xparams.get("language"))
+            return self._message("reminder_deletion_error")
     
-    def get_reminder(self, date: str, time: str) -> dict | str:
+    def get_reminder(self, reminder_id: int) -> dict | str:
         '''
-        Retrieve a specific reminder by date and time.
+        Retrieve a reminder by its id, also if it was already announced (`announced` tells).
         
         Args:
-            date (str): The date of the reminder in Year-Month-Day format.
-            time (str): The time of the reminder in HH:MM format.
+            reminder_id (int): The id of the reminder.
         
         Returns:
-            dict | str: The reminder in a JSON format or an error message as string.
+            dict | str: The reminder, or an error message.
         '''
-        self._xlog.info(f"📝 Request for Retrieving a reminder for [{date}] at [{time}]")
+        self._xlog.info(f"📝 Request for Retrieving the reminder [{reminder_id}]")
         try:
-            validated = self._validate_date_and_time(date, time)
-            if isinstance(validated, str):
-                return validated
-            date, time = validated
-
-            reminder = self._reminders.get_reminder(date, time)
-            if reminder:
-                return reminder
-            else:
-                return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
+            found = self._as_id(reminder_id)
+            reminder = self._reminders.get_reminder(found) if found is not None else False
+            return reminder if reminder else self._not_found(reminder_id)
         except Exception as e:
-            self._xlog.error(f"🛑 Error retrieving reminder for [{date}] [{time}]: {e}")
+            self._xlog.error(f"🛑 Error retrieving the reminder [{reminder_id}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_retrieval_error." + self._xparams.get("language"))
+            return self._message("reminder_retrieval_error")
     
-    def update_reminder(self, date: str, time: str, new_text: str) -> str:
+    def update_reminder(self, reminder_id: int, new_text: str) -> dict | str:
         '''
-        Update the text of a specific reminder by date and time.
+        Update the text of a reminder by its id.
         
         Args:
-            date (str): The date of the reminder in Year-Month-Day format.
-            time (str): The time of the reminder in HH:MM format.
+            reminder_id (int): The id of the reminder.
             new_text (str): The new text for the reminder.
         
         Returns:
-            dict | str: If successful, returns a JSON with the updated reminder details; otherwise, an error message.
+            dict | str: If successful, the reminder updated; otherwise, an error message.
         '''
-        self._xlog.info(f"📝 Request for Updating a reminder for [{date}] at [{time}] to: {new_text}")
+        self._xlog.info(f"📝 Request for Updating the reminder [{reminder_id}] to: {new_text}")
         try:
-            validated = self._validate_date_and_time(date, time)
-            if isinstance(validated, str):
-                return validated
-            date, time = validated
-
-            success = self._reminders.update_reminder(date, time, new_text)
-            if success:
-                return {
-                    "date": date,
-                    "time": time,
-                    "text": new_text
-                }
-            else:
-                return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (date, time)
+            found = self._as_id(reminder_id)
+            updated = self._reminders.update_reminder(found, new_text) if found is not None else False
+            return updated if updated else self._not_found(reminder_id)
         except Exception as e:
-            self._xlog.error(f"🛑 Error updating reminder for [{date}] [{time}] to [{new_text}]: {e}")
+            self._xlog.error(f"🛑 Error updating the reminder [{reminder_id}] to [{new_text}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_update_error." + self._xparams.get("language"))
+            return self._message("reminder_update_error")
     
-    def move_reminder(self, old_date: str, old_time: str, new_date: str, new_time: str) -> str:
+    def move_reminder(self, reminder_id: int, new_date: str, new_time: str) -> dict | str:
         '''
-        Move a reminder from one date and time to another.
-        
+        Move a reminder by its id to another date and time, that must not be in the past.
+        A reminder that was already announced is pending again after it is moved (a snooze).
+
         Args:
-            old_date (str): The current date of the reminder in Year-Month-Day format.
-            old_time (str): The current time of the reminder in HH:MM format.
+            reminder_id (int): The id of the reminder.
             new_date (str): The new date for the reminder in Year-Month-Day format.
             new_time (str): The new time for the reminder in HH:MM format.
 
         Returns:
-            dict | str: If successful, returns a JSON with the moved reminder details; otherwise, an error message.
+            dict | str: If successful, the reminder moved, with its `previous_date` and `previous_time`; otherwise, an error message.
         '''
-        self._xlog.info(f"📝 Request for Moving a reminder from [{old_date}] at [{old_time}] to [{new_date}] at [{new_time}]")
+        self._xlog.info(f"📝 Request for Moving the reminder [{reminder_id}] to [{new_date}] at [{new_time}]")
         try:
-            validated_old = self._validate_date_and_time(old_date, old_time)
-            if isinstance(validated_old, str):
-                return validated_old
-            old_date, old_time = validated_old
-            validated_new = self._validate_date_and_time(new_date, new_time)
-            if isinstance(validated_new, str):
-                return validated_new
-            new_date, new_time = validated_new
+            validated = self._validate_date_and_time(new_date, new_time)
+            if isinstance(validated, str):
+                return validated
+            new_date, new_time = validated
 
             # Moving to the past would be a reminder that is never announced.
             if self._is_in_the_past(new_date, new_time):
                 return self._message("reminder_past_datetime")
 
-            success = self._reminders.move_reminder(old_date, old_time, new_date, new_time)
-            if success:
-                return {
-                    "date": new_date,
-                    "time": new_time,
-                    "text": success["text"]
-                }
-            else:
-                return self._xconfig.get("language.reminders.reminder_not_found." + self._xparams.get("language")) % (old_date, old_time)
+            found = self._as_id(reminder_id)
+            moved = self._reminders.move_reminder(found, new_date, new_time) if found is not None else False
+            return moved if moved else self._not_found(reminder_id)
         except Exception as e:
-            self._xlog.error(f"🛑 Error moving reminder from [{old_date}] [{old_time}] to [{new_date}] [{new_time}]: {e}")
+            self._xlog.error(f"🛑 Error moving the reminder [{reminder_id}] to [{new_date}] [{new_time}]: {e}")
             self._xlog.debug(full_stack())
-            return self._xconfig.get("language.reminders.reminder_move_error." + self._xparams.get("language"))
+            return self._message("reminder_move_error")
 
     def show_create_reminder(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
 
         try:
-            log.debug(f"📝 Showing Create Reminder on eInk: {value}")
+            # The reminder created is told in the language of the session. A message (an error) is shown as it is.
+            text = value if not isinstance(value, dict) else \
+                self._message("reminder_set") % (value["date"], value["time"], value["text"])
+            log.debug(f"📝 Showing Create Reminder on eInk: {text}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(
                 icon="📝",
-                text=value,
+                text=text,
                 font_size=interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
         except Exception as e:
             log.error(f"🛑 Error showing Create Reminder on eInk: {e}")
@@ -319,11 +286,9 @@ class StatefulReminders(PyXavi, Command):
         self._show_changed_reminder(log, interaction, value, "reminder_updated", lambda r: (r["date"], r["time"], r["text"]))
 
     def show_moved_reminder(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
-        # The old date and time are what the chatbot asked for.
-        args = args or {}
         self._show_changed_reminder(
             log, interaction, value, "reminder_moved",
-            lambda r: (args.get("old_date", "?"), args.get("old_time", "?"), r["date"], r["time"]))
+            lambda r: (r["previous_date"], r["previous_time"], r["date"], r["time"]))
 
     def get_tool_definition(self) -> list[callable]:
         """
