@@ -2090,7 +2090,8 @@ class Main(PyXavi):
 
             if self._interaction.is_interaction_busy():
                 if not self._reminders_waiting:
-                    self._xlog.info(f"📝 {len(due)} reminder(s) due, waiting for Pitxu to be idle to announce them.")
+                    self._xlog.info(f"📝 {len(due)} reminder(s) due, waiting for Pitxu to be idle to announce them "
+                                    f"(busy: {', '.join(self._interaction.get_busy_interaction_flags())}).")
                 self._reminders_waiting = True
                 return
 
@@ -2114,7 +2115,8 @@ class Main(PyXavi):
             self._interaction.wait_for_foreground_display_queue_to_empty()
             self._interaction.wait_for_busy_foreground_display_to_idle()
             self._show_announcement_on_screen(announcement, while_speaking=True)
-            self._end_listening_phase("reminder announcement")
+            # The countdown goes too: it would stay under the reminders (and come back after the speech) if a hold time was running.
+            self._end_listening_phase("reminder announcement", clear_bar=True)
             self._interaction.say(announcement["spoken"])
             said = True
             # Said: Pitxu remembers it, also if the user does not say anything afterwards.

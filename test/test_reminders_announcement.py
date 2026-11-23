@@ -102,6 +102,7 @@ class FakeInteraction:
         self.say_fails = False
 
     def is_interaction_busy(self): return any(self.busy.values())
+    def get_busy_interaction_flags(self): return [name for name, up in self.busy.items() if up]
     def is_wake_up_button_wanted_exclusively(self): return self.wake_up_only
     def set_idle_mode_off(self): self.calls.append("idle off")
     def set_idle_mode_on(self): self.calls.append("idle on")
@@ -168,7 +169,7 @@ def app(due_list, active=True, hold=0):
     a._interaction = FakeInteraction(a.calls)
     a._reminders = FakeStore(a.calls, due_list)
     a._scheduler = FakeScheduler()
-    a._end_listening_phase = lambda reason, **k: a.calls.append(("end listening", reason))
+    a._end_listening_phase = lambda reason, **k: a.calls.append(("end listening", reason) if not (k.get("clear_bar") and reason == "reminder announcement") else ("end listening", reason, "clear bar"))
     a._start_listening_phase = lambda reason, **k: a.calls.append(("start listening", reason))
     a._wake_up = lambda reason, **k: a.calls.append(("wake up", reason))
     a._seconds_to_hold_interaction_answer = 15
@@ -189,9 +190,11 @@ def names(a): return [c if isinstance(c, str) else c[0] for c in a.calls]
 class InteractionBusyTests(unittest.TestCase):
 
     def _interaction(self, **busy):
-        Holder = methods_of("pitxu/lib/interaction/interaction.py", ["is_interaction_busy"])
+        Holder = methods_of("pitxu/lib/interaction/interaction.py", ["is_interaction_busy", "get_busy_interaction_flags"])
+        muted = busy.pop("muted", False)
         flags = {"chatbot": False, "speaker": False, "transcriber": False, "vad": False, **busy}
         class Interaction(Holder):
+            def is_microphone_muted(self): return muted
             def is_chatbot_busy(self): return flags["chatbot"]
             def is_speaker_busy(self): return flags["speaker"]
             def is_transcriber_busy(self): return flags["transcriber"]
@@ -202,6 +205,15 @@ class InteractionBusyTests(unittest.TestCase):
         self.assertFalse(self._interaction().is_interaction_busy())
         for who in ["chatbot", "speaker", "transcriber", "vad"]:
             self.assertTrue(self._interaction(**{who: True}).is_interaction_busy(), who)
+
+    def test_01b_a_vad_left_up_with_the_microphone_muted_is_not_busy(self):
+        self.assertTrue(self._interaction(vad=True, muted=False).is_interaction_busy())
+        self.assertFalse(self._interaction(vad=True, muted=True).is_interaction_busy())
+        self.assertEqual(self._interaction(vad=True, muted=True).get_busy_interaction_flags(), [])
+        # The other flags count whatever the microphone does.
+        self.assertTrue(self._interaction(chatbot=True, muted=True).is_interaction_busy())
+        self.assertEqual(self._interaction(chatbot=True, speaker=True, vad=True).get_busy_interaction_flags(),
+                         ["chatbot", "speaker", "vad"])
 
     def test_02_the_memory_consolidation_waits_for_it_and_for_the_hold_time(self):
         Holder = methods_of("pitxu/main.py", ["_is_idle_for_memory_consolidation", "get_seconds_since_last_interaction"],
@@ -357,6 +369,17 @@ class WhenTests(unittest.TestCase):
             self.assertEqual(read_yaml(os.path.join(REPO, file))["reminders"]["screen_hold_seconds"], 5, file)
         source = read_file(os.path.join(REPO, "pitxu/lib/utils/memory_config_validator.py"))
         self.assertIn('"reminders.screen_hold_seconds"', source)
+
+    def test_10i_the_countdown_is_cleared_before_the_announcement(self):
+        a = app(ONE)
+        a.announce_due_reminders()
+        self.assertIn(("end listening", "reminder announcement", "clear bar"), a.calls)
+
+    def test_10j_the_waiting_log_tells_the_busy_flags(self):
+        a = app(ONE)
+        a._interaction.busy["vad"] = True
+        a.announce_due_reminders()
+        self.assertTrue(any("busy: vad" in line for line in a._xlog.lines))
 
     def test_10b_a_list_has_a_title_and_a_single_reminder_does_not(self):
         a = app(TWO)

@@ -950,8 +950,26 @@ class Interaction(PyXavi):
         It only looks at those busy flags. The hold time after an answer (waiting for the user to go on) is not part of it.
         Whatever should not talk over an interaction, or run while there is one, asks this.
         """
-        return self.is_chatbot_busy() or self.is_speaker_busy() \
-            or self.is_transcriber_busy() or self.is_vad_detected()
+        return len(self.get_busy_interaction_flags()) > 0
+
+    def get_busy_interaction_flags(self) -> list[str]:
+        """
+        The names of the flags of is_interaction_busy() that are up now: "chatbot", "speaker", "transcriber", "vad".
+
+        The VAD flag only counts while the microphone is listening. A muted microphone is not hearing anybody, and the
+        flag can be left up when the input stream is stopped in the middle of a sound (the "speech end" only arrives
+        when the stream starts again), which used to hold everything that waits for Pitxu to be idle.
+        """
+        busy = []
+        if self.is_chatbot_busy():
+            busy.append("chatbot")
+        if self.is_speaker_busy():
+            busy.append("speaker")
+        if self.is_transcriber_busy():
+            busy.append("transcriber")
+        if self.is_vad_detected() and not self.is_microphone_muted():
+            busy.append("vad")
+        return busy
     
     def set_wake_up_button_pressed(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, True)
