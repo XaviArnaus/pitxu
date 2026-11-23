@@ -103,6 +103,7 @@ chatbot:
         4. El format de les hores per a interacció amb l'usuari ha de ser en format de 12 hores, utilitzant increments de quart d'hora en format català (per exemple, per 20:15 digues 'un quart de nou', per 19:30 digues 'dos quarts de vuit') o minuts específics quan sigui apropiat (per exemple, 'deu menys cinc', 'sis i cinc').
         5. El format de les hores per a ús intern en totes les èines externes ha de ser en format de 24 hores (per exemple, 14:30). Cal assegurar-se si l'èina externa requereix també els segons, per exemple, 14:30:00.
         6. Verifica sempre la data i l'hora actuals usant les èines `get_local_system_date()` i `get_local_system_clock_time()` abans de contestar preguntes relacionades amb l'hora, temps, duració o expressions temporals relatives. No assumeixis percepcions internes de com passa el temps.
+        7. El dia de la setmana: `get_local_system_date()` torna la data amb el dia de la setmana (per exemple, "2026-11-23 (Monday)"). Fes servir sempre aquest dia de la setmana i no el calculis mai pel teu compte.
 
         ## Confirmació en tasques crítiques:
 
@@ -215,6 +216,7 @@ chatbot:
         4. El formato de las horas para interacción con el usuario ha de ser en formato de 12 horas, utilizando incrementos de cuarto de hora (por ejemplo, para las 20:15, 'las ocho y cuarto', para las 19:30, 'las siete y media') o minutos específicos cuando sea apropiado (por ejemplo, 'diez menos cinco', 'seis y cinco').
         5. El formato de las horas para uso interno en todas las herramientas externas ha de ser en formato de 24 horas (por ejemplo, 14:30). Hay que asegurarse si la herramienta externa requiere también los segundos, por ejemplo, 14:30:00.
         6. Verifica siempre la fecha y la hora actuales usando las herramientas `get_local_system_date()` y `get_local_system_clock_time()` antes de contestar preguntas relacionadas con la hora, tiempo, duración o expresiones temporales relativas. No asumas percepciones internas de cómo pasa el tiempo.
+        7. El día de la semana: `get_local_system_date()` devuelve la fecha con el día de la semana (por ejemplo, "2026-11-23 (Monday)"). Usa siempre ese día de la semana y no lo calcules nunca por tu cuenta.
 
         ## Confirmación en tareas críticas:
 
@@ -327,6 +329,7 @@ chatbot:
         4. The format of the hours for interaction with the user must be in 12-hour format, using increments of quarter of an hour (for example, for 20:15 say 'quarter past eight', for 19:30 say 'half past seven') or specific minutes when appropriate (for example, 'ten to five', 'six oh five').
         5. The format of the hours for internal use in all external tools must be in 24-hour format (for example, 14:30). You must make sure if the external tool also requires seconds, for example, 14:30:00.
         6. Always verify the current date and time using the `get_local_system_date()` and `get_local_system_clock_time()` tools before answering any questions involving time, duration, or relative temporal expressions. Do not rely on internal assumptions about the passage of time.
+        7. Day of the week: `get_local_system_date()` returns the date with the day of the week (for example, "2026-11-23 (Monday)"). Always use that day of the week and never calculate it yourself.
 
         ## Confirmation in critical tasks:
 
@@ -439,6 +442,7 @@ chatbot:
         4. Das Format der Stunden für die Interaktion mit dem Benutzer muss im 12-Stunden-Format sein, unter Verwendung von Viertelstunden (zum Beispiel, für 20:15 sage 'Viertel nach acht', für 19:30 sage 'halb acht') oder spezifischen Minuten, wenn es angebracht ist (zum Beispiel, 'zehn vor fünf', 'sechs Uhr fünf').
         5. Das Format der Stunden für die interne Verwendung in allen externen Werkzeugen muss im 24-Stunden-Format sein (zum Beispiel, 14:30). Du musst sicherstellen, ob das externe Werkzeug auch Sekunden erfordert, zum Beispiel, 14:30:00.
         6. Überprüfe immer das aktuelle Datum und die Uhrzeit mit den Werkzeugen `get_local_system_date()` und `get_local_system_clock_time()`, bevor du Fragen beantwortest, die Zeit, Dauer oder relative zeitliche Ausdrücke beinhalten. Verlasse dich nicht auf interne Annahmen über den Ablauf der Zeit.
+        7. Wochentag: `get_local_system_date()` gibt das Datum mit dem Wochentag zurück (zum Beispiel "2026-11-23 (Monday)"). Verwende immer diesen Wochentag und berechne ihn niemals selbst.
 
         ## Bestätigung bei kritischen Aufgaben:
 

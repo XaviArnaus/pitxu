@@ -869,7 +869,7 @@ class Memory(PyXavi):
 
         if self._xconfig.get("memory.summarization.include_current_date", True):
             now = Xtime.now()
-            prompt = f"Current date and time: {now.strftime('%A %Y-%m-%d %H:%M')} ({now.astimezone().tzname()})\n\n" + prompt
+            prompt = f"Current date and time: {Xtime.weekday_name(now)} {now.strftime('%Y-%m-%d %H:%M')} ({now.astimezone().tzname()})\n\n" + prompt
 
         return prompt
 

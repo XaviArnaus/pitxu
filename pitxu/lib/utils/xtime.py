@@ -8,6 +8,9 @@ class Xtime:
     FORMAT_WITHOUT_SECONDS: str = "%Y-%m-%dT%H:%M:%S"
     FORMAT_ISO: str = "%Y-%m-%dT%H:%M:%S"
 
+    # Fixed English names, Monday first (as datetime.weekday()). Unlike "%A" they do not depend on the locale of the system.
+    WEEKDAYS: tuple = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
     @staticmethod
     def current_time_str(format: str = None) -> str:
         """Returns the current time as a formatted string."""
@@ -87,6 +90,16 @@ class Xtime:
         if format is None:
             format = Xtime.FORMAT
         return dt.strftime(format)
+
+    @staticmethod
+    def weekday_name(dt: datetime = None) -> str:
+        """
+        Returns the English name of the day of the week of the given datetime (now by default).
+        It does not depend on the locale of the system, as "%A" does.
+        """
+        if dt is None:
+            dt = Xtime.now()
+        return Xtime.WEEKDAYS[dt.weekday()]
 
     @staticmethod
     def add_time(dt: datetime, days: float = 0, hours: float = 0, minutes: float = 0, seconds: float = 0) -> datetime:

@@ -34,6 +34,7 @@
 - Fix UX not being prepared when user answers back too quickly [#54](https://github.com/XaviArnaus/pitxu/pull/54)
 - Reminders: the date and the time are normalized (`9:05` and `2026-1-5` were accepted but never rang), a reminder in the past is refused with its message (it was accepted and never rang), and what the screen shows about the reminders is localized (the count was in English, and the deleted, updated and moved messages were not used).
 - The history of the chatbot after an error: the model turn that is recorded was a single `Content` where the library expects a list, so the full history got tuples (`("role", "model")`...) instead of the turn.
+- The day of the week: the chatbot guessed it wrong ("Sunday" on a Monday) because the date tool gave only `2026-11-23`. `get_local_system_date()` now returns `2026-11-23 (Monday)` and the prompts (4 languages) tell to use it and never calculate it. The English name comes from the new `Xtime.weekday_name()`, which does not depend on the locale of the system, and the memory prompts use it instead of `%A`.
 - Summary of the conversation at its end unreliable, and the summarizer failing on edge cases (invalid JSON, quota, network).
 
 ## v0.4.2b - 2026-11-16

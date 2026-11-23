@@ -1,5 +1,7 @@
 """Xtime: the conversions that the app shares."""
 import datetime as datetime_module
+import logging
+import types
 import os
 import sys
 import unittest
@@ -42,6 +44,52 @@ class XtimeTests(unittest.TestCase):
             source = read_file(os.path.join(REPO, path))
             for call in ["datetime.now(", "datetime.strptime(", ".strftime(", "timedelta("]:
                 self.assertNotIn(call, source, f"{path} {call}")
+
+    def test_06_weekday_name_is_english_and_independent_of_the_locale(self):
+        self.assertEqual(Xtime.weekday_name(D(2026, 11, 23)), "Monday")
+        self.assertEqual(Xtime.weekday_name(D(2026, 11, 22)), "Sunday")
+        self.assertEqual([Xtime.weekday_name(D(2026, 11, 23 + i)) for i in range(7)], list(Xtime.WEEKDAYS))
+        self.assertIn(Xtime.weekday_name(), Xtime.WEEKDAYS)
+
+
+class SystemDateTests(unittest.TestCase):
+
+    def _tool(self):
+        return methods_of("pitxu/lib/command/system/date.py", ["get_local_system_date", "callback_show_date"], {
+            "Xtime": Xtime, "full_stack": lambda: "", "logging": logging, "Interaction": object})
+
+    def _instance(self):
+        holder = self._tool()
+        instance = holder()
+        instance.format, instance.displayed_format = "%Y-%m-%d", "%d.%m.%Y"
+        instance.status_shortcuts = None
+        instance._xlog = logging.getLogger("test")
+        return instance
+
+    def test_01_the_date_comes_with_the_day_of_the_week(self):
+        value = self._instance().get_local_system_date()
+        self.assertRegex(value, r"^\d{4}-\d{2}-\d{2} \((Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\)$")
+        self.assertEqual(value, f"{Xtime.current_time_str('%Y-%m-%d')} ({Xtime.weekday_name()})")
+
+    def test_02_the_callback_shows_only_the_date(self):
+        shown = []
+
+        class FakeInteraction:
+            def show_arbitrary_text_on_foreground_while_speaking(self, icon, text, font_size):
+                shown.append(text)
+
+            def get_canvas_from_foreground_display(self):
+                return types.SimpleNamespace(FONT_SIZE_BIG=1)
+
+        instance = self._instance()
+        instance.callback_show_date(logging.getLogger("test"), FakeInteraction(), "2026-11-23 (Monday)")
+        instance.callback_show_date(logging.getLogger("test"), FakeInteraction(), "2026-11-23")
+        self.assertEqual(shown, ["23.11.2026", "23.11.2026"])
+
+    def test_03_the_prompts_tell_to_use_the_given_weekday(self):
+        for path in ["config/chatbot.yaml.dist"]:
+            source = read_file(os.path.join(REPO, path))
+            self.assertEqual(source.count("(Monday)"), 4, path)
 
 
 if __name__ == "__main__":
