@@ -15,6 +15,7 @@ from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
 from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.utils.lists import Lists
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
@@ -83,6 +84,7 @@ class Main(PyXavi):
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
+    _lists: Lists = None
     _fan_control: FanControl = None
     _scheduler: BackgroundScheduler = None
 
@@ -1336,6 +1338,10 @@ class Main(PyXavi):
             if self._reminders is not None:
                 self._safe_step("reminders database", self._reminders.close)
 
+            # And the one of the lists
+            if self._lists is not None:
+                self._safe_step("lists database", self._lists.close)
+
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
@@ -1459,6 +1465,8 @@ class Main(PyXavi):
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+        # The Lists, shared with the chatbot tools
+        self._lists = Lists(config=self._xconfig, params=self._xparams)
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
@@ -1664,6 +1672,8 @@ class Main(PyXavi):
             "device_monitor": self._device_monitor,
             # The same instance (and database connection) that announces the reminders.
             "reminders": self._reminders,
+            # And the one of the lists.
+            "lists": self._lists,
         }))
 
     def _load_language_statics(self):

@@ -359,56 +359,72 @@ language:
       es: "Lo siento, ha habido un error al crear la lista."
       en: "I'm sorry, there was an error creating the list."
       de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Liste."
-    list_already_exists:
-      ca: "Ja existeix una llista per a aquesta data i hora: %s."
-      es: "Ya existe una lista para esta fecha y hora: %s."
-      en: "A list already exists for this date and time: %s."
-      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Liste: %s."
     list_retrieval_error:
       ca: "Ho sento, hi ha hagut un error en recuperar la llista."
       es: "Lo siento, ha habido un error al recuperar la lista."
       en: "I'm sorry, there was an error retrieving the list."
       de: "Es tut mir leid, es gab einen Fehler beim Abrufen der Liste."
-    list_not_found:
-      ca: "No s'ha trobat cap llista per al %s a les %s."
-      es: "No se ha encontrado ninguna lista para el %s a las %s."
-      en: "No list found for %s at %s."
-      de: "Keine Liste für den %s um %s gefunden."
-    list_deletion_error:
-      ca: "Ho sento, hi ha hagut un error en eliminar la llista."
-      es: "Lo siento, ha habido un error al eliminar la lista."
-      en: "I'm sorry, there was an error deleting the list."
-      de: "Es tut mir leid, es gab einen Fehler beim Löschen der Liste."
     list_update_error:
       ca: "Ho sento, hi ha hagut un error en actualitzar la llista."
       es: "Lo siento, ha habido un error al actualizar la lista."
       en: "I'm sorry, there was an error updating the list."
       de: "Es tut mir leid, es gab einen Fehler beim Aktualisieren der Liste."
-    list_entry_addition_error:
-      ca: "Ho sento, hi ha hagut un error en afegir l'element a la llista %s."
-      es: "Lo siento, ha habido un error al agregar el elemento a la lista %s."
-      en: "I'm sorry, there was an error adding the item to the list %s."
-      de: "Es tut mir leid, es gab einen Fehler beim Hinzufügen des Elements zur Liste %s."
-    list_entry_deletion_error:
-      ca: "Ho sento, hi ha hagut un error en eliminar l'element de la llista %s a la posició %s."
-      es: "Lo siento, ha habido un error al eliminar el elemento de la lista %s a la posición %s."
-      en: "I'm sorry, there was an error deleting the item from the list %s at position %s."
-      de: "Es tut mir leid, es gab einen Fehler beim Löschen des Elements aus der Liste %s an Position %s."
-    list_entry_update_error:
-      ca: "Ho sento, hi ha hagut un error en actualitzar l'element de la llista %s a la posició %s."
-      es: "Lo siento, ha habido un error al actualizar el elemento de la lista %s a la posición %s."
-      en: "I'm sorry, there was an error updating the item in the list %s at position %s."
-      de: "Es tut mir leid, es gab einen Fehler beim Aktualisieren des Elements in der Liste %s an Position %s."
-    all_entries_retrieval_error:
-      ca: "Ho sento, hi ha hagut un error en recuperar tots els elements de la llista %s."
-      es: "Lo siento, ha habido un error al recuperar todos los elementos de la lista %s."
-      en: "I'm sorry, there was an error retrieving all items from the list %s."
-      de: "Es tut mir leid, es gab einen Fehler beim Abrufen aller Elemente aus der Liste %s."
-    list_entry_retrieval_error:
-      ca: "Ho sento, hi ha hagut un error en recuperar l'element de la llista %s a la posició %s."
-      es: "Lo siento, ha habido un error al recuperar el elemento de la lista %s a la posición %s."
-      en: "I'm sorry, there was an error retrieving the item from the list %s at position %s."
-      de: "Es tut mir leid, es gab einen Fehler beim Abrufen des Elements aus der Liste %s an Position %s."
+    list_deletion_error:
+      ca: "Ho sento, hi ha hagut un error en eliminar la llista."
+      es: "Lo siento, ha habido un error al eliminar la lista."
+      en: "I'm sorry, there was an error deleting the list."
+      de: "Es tut mir leid, es gab einen Fehler beim Löschen der Liste."
+    # Adding, changing, marking, removing and restoring items.
+    list_items_error:
+      ca: "Ho sento, hi ha hagut un error en treballar amb els elements de la llista."
+      es: "Lo siento, ha habido un error al trabajar con los elementos de la lista."
+      en: "I'm sorry, there was an error working with the items of the list."
+      de: "Es tut mir leid, es gab einen Fehler bei der Arbeit mit den Elementen der Liste."
+    # %s: the name that was said, and the names of the lists that exist.
+    list_not_found:
+      ca: "No hi ha cap llista anomenada '%s'. Llistes existents: %s. Per fer-ne una de nova, crea-la amb create_list."
+      es: "No hay ninguna lista llamada '%s'. Listas existentes: %s. Para hacer una nueva, créala con create_list."
+      en: "There is no list called '%s'. Existing lists: %s. To make a new one, create it with create_list."
+      de: "Es gibt keine Liste namens '%s'. Vorhandene Listen: %s. Um eine neue anzulegen, erstelle sie mit create_list."
+    # %s: the name that was said.
+    list_not_found_empty:
+      ca: "No hi ha cap llista anomenada '%s', i encara no hi ha cap llista. Per fer-ne una, crea-la amb create_list."
+      es: "No hay ninguna lista llamada '%s', y todavía no hay ninguna lista. Para hacer una, créala con create_list."
+      en: "There is no list called '%s', and there are no lists yet. To make one, create it with create_list."
+      de: "Es gibt keine Liste namens '%s', und es gibt noch keine Listen. Um eine anzulegen, erstelle sie mit create_list."
+    # %s: the name that was said, and the names of the lists that could be it.
+    list_ambiguous:
+      ca: "'%s' podria ser més d'una llista: %s. Pregunta a l'usuari quina vol dir."
+      es: "'%s' podría ser más de una lista: %s. Pregunta al usuario cuál quiere decir."
+      en: "'%s' could be more than one list: %s. Ask the user which one they mean."
+      de: "'%s' könnte mehr als eine Liste sein: %s. Frage den Benutzer, welche er meint."
+    # %s: the id that was given.
+    item_not_found:
+      ca: "No hi ha cap element amb l'id %s."
+      es: "No hay ningún elemento con el id %s."
+      en: "There is no item with the id %s."
+      de: "Es gibt kein Element mit der ID %s."
+    # %s: the name of the list that already has the name.
+    list_name_taken:
+      ca: "Ja hi ha una llista anomenada '%s'. No s'ha canviat res."
+      es: "Ya hay una lista llamada '%s'. No se ha cambiado nada."
+      en: "There is already a list called '%s'. Nothing was changed."
+      de: "Es gibt bereits eine Liste namens '%s'. Es wurde nichts geändert."
+    list_name_missing:
+      ca: "Una llista necessita un nom."
+      es: "Una lista necesita un nombre."
+      en: "A list needs a name."
+      de: "Eine Liste braucht einen Namen."
+    list_check_needs_target:
+      ca: "Dona els ids dels elements o el nom d'una llista, però no les dues coses ni cap."
+      es: "Da los ids de los elementos o el nombre de una lista, pero ni las dos cosas ni ninguna."
+      en: "Give either the ids of the items or the name of a list, not both and not none."
+      de: "Gib entweder die IDs der Elemente oder den Namen einer Liste an, nicht beides und nicht keins."
+    list_restore_needs_target:
+      ca: "Dona els ids dels elements eliminats o el nom d'una llista."
+      es: "Da los ids de los elementos eliminados o el nombre de una lista."
+      en: "Give the ids of the removed items or the name of a list."
+      de: "Gib die IDs der entfernten Elemente oder den Namen einer Liste an."
 
   # Code generation
   code:
