@@ -57,6 +57,10 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 [ ] Let a list stay on the screen after the speech ends, until another paint claims the area (the painter already replaces a staying paint when a new one arrives). For now it shows only while speaking.
 [ ] Lists on the screen are plain text (the foreground text goes through `MarkdownRenderer.draw_plain`, with no bold or italic): the status and the change are told with emoji (⬜ ✅ 👈). Real highlights (bold/italic, colours, strikethrough for done items) need a Markdown mode for the foreground text and an extension of the renderer (a single foreground colour, no strikethrough).
 
+### Foreground titles
+
+[ ] The shortcuts `show_arbitrary_text_on_foreground*` (and `Interaction`) default `font_header_size` to 32, a number that is not one of the canvas sizes: the reminders list had it. Make a missing size mean `FONT_SIZE_BIG`, so every title is the same unless a caller (the weather) asks for another.
+
 ### Stuck VAD flag
 
 [ ] Cleaner fix: reset the voice-detected flag when the mic is muted, instead of ignoring it in `is_interaction_busy()` while muted.

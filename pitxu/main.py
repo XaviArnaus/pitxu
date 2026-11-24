@@ -2185,7 +2185,8 @@ class Main(PyXavi):
         reminder is big and centered.
         """
         if announcement["count"] > 1:
-            return {"icon": "📝", "header": announcement["title"], "text": announcement["screen"], "align": "left", "valign": "top"}
+            return {"icon": "📝", "header": announcement["title"], "font_header_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
+                    "text": announcement["screen"], "align": "left", "valign": "top"}
         return {"icon": "📝", "text": announcement["screen"],
                 "font_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG}
 

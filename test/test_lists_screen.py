@@ -44,6 +44,10 @@ class ScreenTests(unittest.TestCase):
         for tool in self.tools.get_tool_definition():
             self.assertNotEqual(self.tools.get_callback_by_given_function_name(tool.__name__), self.tools.default_empty_callback, tool.__name__)
 
+    def test_01b_the_title_is_not_bigger_than_big(self):
+        self.run_tool("create_list", "Shopping list", items=["milk"])
+        self.assertEqual(self.last["font_header_size"], Canvas.FONT_SIZE_BIG)
+
     def test_02_creating_a_list_with_items_shows_it_with_the_new_ones_marked(self):
         self.run_tool("create_list", "Shopping list", items=["milk", "bread"])
         self.assertEqual(self.last["header"], "Shopping list")

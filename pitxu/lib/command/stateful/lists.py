@@ -401,7 +401,7 @@ class StatefulLists(PyXavi, Command):
             text=text,
             font_size=canvas.FONT_SIZE_MEDIUM if as_list else canvas.FONT_SIZE_BIG,
             header=header,
-            font_header_size=canvas.FONT_SIZE_HUGE,
+            font_header_size=canvas.FONT_SIZE_BIG,
             align="left" if as_list else "center",
             valign="top" if as_list else "center")
 

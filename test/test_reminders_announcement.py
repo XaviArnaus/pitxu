@@ -254,7 +254,7 @@ class WhenTests(unittest.TestCase):
         single = app(ONE); single.announce_due_reminders()
         several = app(TWO); several.announce_due_reminders()
         self.assertEqual(single.calls[1][1], {"icon": "📝", "text": "SCREEN", "font_size": 30, })
-        self.assertEqual(several.calls[1][1], {"icon": "📝", "header": "TITLE", "text": "SCREEN", "align": "left", "valign": "top", })
+        self.assertEqual(several.calls[1][1], {"icon": "📝", "header": "TITLE", "font_header_size": 30, "text": "SCREEN", "align": "left", "valign": "top", })
         self.assertEqual([c for c in several.calls if c[0] == "mark"], [("mark", [1, 2])])
         self.assertEqual(len([c for c in several.calls if c[0] == "say"]), 1)
 
