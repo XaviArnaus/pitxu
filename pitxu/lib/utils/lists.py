@@ -490,6 +490,89 @@ class Lists(PyXavi, Command):
             "SELECT id, list_id, text, done, deleted_at FROM list_item WHERE list_id = ? AND deleted_at IS NOT NULL "
             "ORDER BY deleted_at DESC, id DESC", (list_id,))]
 
+    # ----- Translations (made by the night translation, see ListTranslator) -----
+
+    def get_untranslated(self, languages: list[str]) -> list[dict]:
+        '''
+        What still has to be translated: the names (and descriptions) of the active lists, and the items of the
+        active lists that are not removed, each with the languages that it misses. A text is not translated into the
+        language that it was written in. Lists first, then items, both in id order.
+
+        Args:
+            languages: The languages that everything must be in (the supported ones).
+
+        Returns:
+            list[dict]: [{"kind": "list" | "item", "id", "source_language", "text", "description", "key", "targets"}].
+            `key` is the key of the text now: the translation is only stored if it is still the same text (see `set_*_translation()`).
+            `source_language` is None when it is not known. `description` is for lists only.
+        '''
+        have = {}
+        for row in self._fetch("SELECT list_id AS id, language FROM list_translation"):
+            have.setdefault(("list", row["id"]), set()).add(row["language"])
+        for row in self._fetch("SELECT item_id AS id, language FROM list_item_translation"):
+            have.setdefault(("item", row["id"]), set()).add(row["language"])
+
+        elements = []
+        for row in self._fetch("SELECT id, name AS text, name_key AS key, language, description FROM list "
+                               "WHERE deleted_at IS NULL ORDER BY id"):
+            elements.append({"kind": "list", "source_language": row["language"], **{k: row[k] for k in ("id", "text", "key", "description")}})
+        for row in self._fetch("SELECT i.id, i.text, i.text_key AS key, i.language FROM list_item i JOIN list l ON l.id = i.list_id "
+                               "WHERE i.deleted_at IS NULL AND l.deleted_at IS NULL ORDER BY i.id"):
+            elements.append({"kind": "item", "source_language": row["language"], "description": None,
+                             **{k: row[k] for k in ("id", "text", "key")}})
+
+        pending = []
+        for element in elements:
+            skip = {element["source_language"]} | have.get((element["kind"], element["id"]), set())
+            element["targets"] = [language for language in languages if language not in skip]
+            if element["targets"]:
+                pending.append(element)
+        return pending
+
+    def set_list_translation(self, list_id: int, language: str, name: str, description: str, source_key: str) -> str:
+        '''
+        Stores the name and the description of a list in a language.
+
+        Args:
+            source_key: The key of the name that was translated. If the name changed meanwhile, the translation is stale.
+
+        Returns:
+            str: "stored", "stale" (the list is gone or its name changed), or "collision" (the name is already the
+            one of another list: it would hide it, so it is not stored).
+        '''
+        key = self.normalize(name)
+        with self._tx() as connection:
+            row = connection.execute("SELECT name_key FROM list WHERE id = ? AND deleted_at IS NULL", (list_id,)).fetchone()
+            if row is None or row["name_key"] != source_key:
+                return "stale"
+            clash = connection.execute(
+                "SELECT id FROM list WHERE deleted_at IS NULL AND id != ? AND (name_key = ? OR id IN "
+                "(SELECT list_id FROM list_translation WHERE name_key = ? AND list_id != ?))", (list_id, key, key, list_id)).fetchone()
+            if clash:
+                return "collision"
+            connection.execute(
+                "INSERT OR REPLACE INTO list_translation (list_id, language, name, name_key, description) VALUES (?, ?, ?, ?, ?)",
+                (list_id, language, name.strip(), key, (description or "").strip() or None))
+        return "stored"
+
+    def set_item_translation(self, item_id: int, language: str, text: str, source_key: str) -> str:
+        '''
+        Stores the text of an item in a language.
+
+        Args:
+            source_key: The key of the text that was translated. If the text changed meanwhile, the translation is stale.
+
+        Returns:
+            str: "stored", or "stale" (the item is gone, in the trash, or its text changed).
+        '''
+        with self._tx() as connection:
+            row = connection.execute("SELECT text_key FROM list_item WHERE id = ? AND deleted_at IS NULL", (item_id,)).fetchone()
+            if row is None or row["text_key"] != source_key:
+                return "stale"
+            connection.execute("INSERT OR REPLACE INTO list_item_translation (item_id, language, text, text_key) VALUES (?, ?, ?, ?)",
+                               (item_id, language, text.strip(), self.normalize(text)))
+        return "stored"
+
     # ----- The file that was before the database -----
 
     # The file where the lists were before they were in the database. See `import_legacy_yaml()`.

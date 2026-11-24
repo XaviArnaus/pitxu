@@ -43,6 +43,10 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 [ ] Transcriber only (the early thinking effect and the holding bar, `main.py:517,525,530,1133,2274`).
 [ ] Speaker plus config (speech interruption by the button, `main.py:1936`).
 
+### Configuration files
+
+[ ] Go through all the config entries, sort them out and split the long files into new, smaller ones. Candidates: `reminders` and `lists` (now in `main.yaml`), each display type that can have its own file, and above all the speech one (STT/TTS). Remember to update `config/*.yaml.dist`, `ConfigChecker`, the `MemoryConfigValidator` keys, the config loader, the tests that read the `.dist` files (`test/support.py`, `cfg()`), the docs and the live files on the Pi.
+
 ### Database naming
 
 [ ] Rename the `reminders` table to singular `reminder` (and its index `idx_reminders_pending` to `idx_reminder_pending`) in a small migration, to match `short_time_memory`, `knowledge_base`, `list`... Remember to update `reminders.py`, the legacy import, docs and tests.

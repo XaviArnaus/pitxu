@@ -2555,6 +2555,10 @@ class Main(PyXavi):
         self._safe_step("reminders prune", lambda: self._reminders.prune_announced(
             int(self._xconfig.get("reminders.keep_announced_days", 7))))
 
+        # The lists get a version in every supported language (the Support worker does it, and gives way to anything else).
+        if self._xconfig.get("lists.translation.enabled", True):
+            self._safe_step("lists translation", lambda: self._support.translate_lists("night"))
+
         # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
         if self._xconfig.get("memory.consolidation.enabled", True):
             self._safe_step("memory consolidation", lambda: self.request_memory_consolidation(reason="night"))

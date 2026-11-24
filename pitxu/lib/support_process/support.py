@@ -98,6 +98,11 @@ class Support(PyXavi):
         self._log_debug(f"Requesting the memory consolidation in Support process [{reason}]")
         self.process_pool.send(QUEUE_SUPPORT, XprocAction.CONSOLIDATE_MEMORY, reason)
 
+    def translate_lists(self, reason: str = "requested"):
+        """ Asks the Support process to translate the lists into the supported languages (it runs in the background). """
+        self._log_debug(f"Requesting the translation of the lists in Support process [{reason}]")
+        self.process_pool.send(QUEUE_SUPPORT, XprocAction.TRANSLATE_LISTS, reason)
+
     def summarize_and_store_in_memory(self, chatbot_history: list[dict], pending_id: int = None) -> None:
         """ `pending_id`: the in-flight pending conversation that has a copy of this history (see Summarizer). """
         self._log_debug("Summarizing and storing chatbot history in memory in Support process")
