@@ -3,6 +3,7 @@ from pyxavi import Config, Dictionary, full_stack
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.utils.lists import Lists
+from pitxu.lib.interaction.interaction import Interaction
 
 import logging
 
@@ -363,14 +364,122 @@ class StatefulLists(PyXavi, Command):
                 self.remove_items,
                 self.restore]
 
+    # ----- The screen -----
+
+    # The list is drawn as plain text (the foreground does not read Markdown), so the status and the change are
+    #   told with emoji: a box for each item, and a marker at the end of what the last action touched.
+    OPEN = "⬜"
+    DONE = "✅"
+    MARK = "👈"
+    ICON = "📝"
+    ICON_FAVOURITE = "⭐"
+    # The most items on the screen. A longer list is shown as a window around the change, with how many are hidden.
+    SCREEN_MAX_ITEMS = 8
+
+    def _line(self, item: dict, marked: bool) -> str:
+        return f"{self.DONE if item['done'] else self.OPEN} {item['text']}{' ' + self.MARK if marked else ''}"
+
+    def _window(self, items: list[dict], marked: set) -> list[str]:
+        """ The lines of the items. If they are too many: the window around the first one marked, and `… +n` for the hidden. """
+        lines = [self._line(item, item["id"] in marked) for item in items]
+        if len(lines) <= self.SCREEN_MAX_ITEMS:
+            return lines
+        first = next((index for index, item in enumerate(items) if item["id"] in marked), 0)
+        start = min(max(first - self.SCREEN_MAX_ITEMS // 2, 0), len(lines) - self.SCREEN_MAX_ITEMS)
+        end = start + self.SCREEN_MAX_ITEMS
+        return ([f"… +{start}"] if start else []) + lines[start:end] + ([f"… +{len(lines) - end}"] if end < len(lines) else [])
+
+    @staticmethod
+    def _ids(entries) -> list[int]:
+        """ The ids of what the tools answer: [[id, text, ...], ...]. """
+        return [entry[0] for entry in entries or [] if isinstance(entry, (list, tuple)) and entry]
+
+    def _show_text(self, log: logging, interaction: Interaction, text: str, header: str = None, icon: str = None, as_list: bool = False) -> None:
+        canvas = interaction.get_canvas_from_foreground_display()
+        interaction.show_arbitrary_text_on_foreground_while_speaking(
+            icon=icon or self.ICON,
+            text=text,
+            font_size=canvas.FONT_SIZE_MEDIUM if as_list else canvas.FONT_SIZE_BIG,
+            header=header,
+            font_header_size=canvas.FONT_SIZE_HUGE,
+            align="left" if as_list else "center",
+            valign="top" if as_list else "center")
+
+    def _show_list(self, log: logging, interaction: Interaction, list_id: int, marked: set = None, removed: list = None) -> None:
+        """ A list, read from the database now: the items touched are marked, and what was removed comes in a last line. """
+        full = self._lists.get_list(list_id, self._xparams.get("language"))
+        if not full:
+            log.debug(f"📝 The list [{list_id}] is not there to be shown")
+            return
+        lines = self._window(full["items"], marked or set())
+        if removed:
+            lines.append("🗑 " + self._message("list_removed_screen") % ", ".join(removed))
+        text = "\n".join(lines) if lines else self._message("list_items_empty")
+        log.debug(f"📝 Showing the list [{full['name']}] on the foreground display")
+        self._show_text(log, interaction, text, header=full["name"], as_list=bool(lines),
+                        icon=self.ICON_FAVOURITE if full["favourite"] else self.ICON)
+
+    def show_lists(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """ `get_lists`: the names of the lists (the favourite ones with a star) and how many items are open in each. """
+        try:
+            if isinstance(value, dict):
+                return self.show_list(log, interaction, value, args)  # It was asked for one list.
+            if not isinstance(value, list):
+                return self._show_text(log, interaction, str(value))  # A message (an error): as it is.
+            lines = [f"{self.ICON_FAVOURITE + ' ' if entry.get('favourite') else ''}{entry['name']} ({entry['open']})" for entry in value]
+            self._show_text(log, interaction, "\n".join(lines) if lines else self._message("list_lists_empty"),
+                            header=self._message("lists_header"), as_list=bool(lines))
+        except Exception as e:
+            log.error(f"🛑 Error showing the lists on the foreground display: {e}")
+
+    def show_list(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        """
+        What was done to a list or to its items: the list as it is now, with the items that were touched marked
+        (added, changed, marked as done or open, brought back, or the one that was already there), and what was removed.
+        Also for a list that was only read. A message (an error) is shown as it is.
+        """
+        try:
+            if not isinstance(value, dict):
+                return self._show_text(log, interaction, str(value))
+
+            # The removed items of a list, to choose from (`restore` with a name): they are what is shown.
+            if "removed" in value and "list" in value and "list_id" not in value:
+                lines = [f"🗑 {text}" for _, text in value["removed"]]
+                return self._show_text(log, interaction, "\n".join(lines) if lines else self._message("list_trash_empty"),
+                                       header=value["list"], as_list=bool(lines))
+
+            list_id = value.get("list_id") or value.get("id")
+            marked = set(self._ids(value.get("added")) + self._ids(value.get("duplicates")) + self._ids(value.get("restored"))
+                         + [i for i in value.get("changed", []) if isinstance(i, int)])
+            if "duplicate" in value:  # An item that could not be changed because its text was already there.
+                marked.add(value["duplicate"][0])
+                list_id = list_id or self._lists.get_item(value["duplicate"][0])["list_id"]
+            elif "text" in value and "list_id" in value:  # An item that was changed.
+                marked.add(value["id"])
+            self._show_list(log, interaction, list_id, marked, removed=[text for _, text in value.get("removed", [])])
+        except Exception as e:
+            log.error(f"🛑 Error showing the list on the foreground display: {e}")
+
+    def show_deleted_list(self, log: logging, interaction: Interaction, value: any, args: dict = None) -> None:
+        try:
+            text = self._message("list_deleted_screen") % value["name"] if isinstance(value, dict) else str(value)
+            self._show_text(log, interaction, text, icon="🗑")
+        except Exception as e:
+            log.error(f"🛑 Error showing the deleted list on the foreground display: {e}")
+
     def get_callback_by_given_function_name(self, function_name: str) -> callable:
         """
         Gets the callback function for a given function name.
 
         It expects the function_name because a class may provide multiple functions as tools.
-        The callbacks that show the lists on the screen come with the screen step: until then nothing is shown.
 
         Args:
             function_name: The name of the function to get the callback for.
         """
+        if function_name == "get_lists":
+            return self.show_lists
+        elif function_name == "delete_list":
+            return self.show_deleted_list
+        elif function_name in ("create_list", "update_list", "add_items", "update_item", "check_items", "remove_items", "restore"):
+            return self.show_list
         return self.default_empty_callback

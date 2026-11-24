@@ -425,6 +425,39 @@ language:
       es: "Da los ids de los elementos eliminados o el nombre de una lista."
       en: "Give the ids of the removed items or the name of a list."
       de: "Gib die IDs der entfernten Elemente oder den Namen einer Liste an."
+    # What the screen says.
+    lists_header:
+      ca: "Llistes"
+      es: "Listas"
+      en: "Lists"
+      de: "Listen"
+    list_lists_empty:
+      ca: "Encara no hi ha cap llista"
+      es: "Todavía no hay ninguna lista"
+      en: "No lists yet"
+      de: "Noch keine Listen"
+    list_items_empty:
+      ca: "Encara no hi ha cap element"
+      es: "Todavía no hay ningún elemento"
+      en: "No items yet"
+      de: "Noch keine Elemente"
+    list_trash_empty:
+      ca: "No hi ha res eliminat"
+      es: "No hay nada eliminado"
+      en: "Nothing removed"
+      de: "Nichts entfernt"
+    # %s: the removed items, separated by commas.
+    list_removed_screen:
+      ca: "Eliminat: %s"
+      es: "Eliminado: %s"
+      en: "Removed: %s"
+      de: "Entfernt: %s"
+    # %s: the name of the list.
+    list_deleted_screen:
+      ca: "Llista eliminada: %s"
+      es: "Lista eliminada: %s"
+      en: "List deleted: %s"
+      de: "Liste gelöscht: %s"
 
   # Code generation
   code:

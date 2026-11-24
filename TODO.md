@@ -51,7 +51,7 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 ### Lists
 
 [ ] Let a list stay on the screen after the speech ends, until another paint claims the area (the painter already replaces a staying paint when a new one arrives). For now it shows only while speaking.
-[ ] Highlight colours for added / updated / done items (the `MarkdownRenderer` has a single foreground colour and no strikethrough, it needs an extension).
+[ ] Lists on the screen are plain text (the foreground text goes through `MarkdownRenderer.draw_plain`, with no bold or italic): the status and the change are told with emoji (⬜ ✅ 👈). Real highlights (bold/italic, colours, strikethrough for done items) need a Markdown mode for the foreground text and an extension of the renderer (a single foreground colour, no strikethrough).
 
 ### Stuck VAD flag
 
