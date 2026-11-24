@@ -43,6 +43,20 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 [ ] Transcriber only (the early thinking effect and the holding bar, `main.py:517,525,530,1133,2274`).
 [ ] Speaker plus config (speech interruption by the button, `main.py:1936`).
 
+### Database naming
+
+[ ] Rename the `reminders` table to singular `reminder` (and its index `idx_reminders_pending` to `idx_reminder_pending`) in a small migration, to match `short_time_memory`, `knowledge_base`, `list`... Remember to update `reminders.py`, the legacy import, docs and tests.
+[ ] Same for `pending_conversations`, if we want full consistency.
+
+### Lists
+
+[ ] Let a list stay on the screen after the speech ends, until another paint claims the area (the painter already replaces a staying paint when a new one arrives). For now it shows only while speaking.
+[ ] Highlight colours for added / updated / done items (the `MarkdownRenderer` has a single foreground colour and no strikethrough, it needs an extension).
+
+### Stuck VAD flag
+
+[ ] Cleaner fix: reset the voice-detected flag when the mic is muted, instead of ignoring it in `is_interaction_busy()` while muted.
+
 ### Found in the Gemini chat history
 
 [x] `gemini_chatbot.py:305,368,387,405,418`: `record_history(...)` of the error paths gets `model_output=types.Content(...)`, but the library (google-genai 1.62) expects a list of `Content` and extends the history with it: a single `Content` adds tuples (`("role", "model")`...) to the comprehensive history. It is harmless for the curated history (those turns are not valid), but `get_chat_history_as_list_of_dicts(curated=False)` would fail on them. Wrap it in a list, like `add_notice_to_history()` does.

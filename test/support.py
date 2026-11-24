@@ -79,6 +79,7 @@ def _install_pyxavi_stand_in():
 
     module = types.ModuleType("pyxavi")
     module.Config, module.Dictionary, module.Logger = Config, Dictionary, Logger
+    module.Text = type("Text", (), {})  # pitxu's Text extends it, and only uses its own methods here.
     module.full_stack = lambda: ""
     module.dd = lambda *args: None
     module.TerminalColor = type("TerminalColor", (), {"RED_BRIGHT": "", "END": ""})
