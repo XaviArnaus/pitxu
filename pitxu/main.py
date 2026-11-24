@@ -2555,6 +2555,12 @@ class Main(PyXavi):
         self._safe_step("reminders prune", lambda: self._reminders.prune_announced(
             int(self._xconfig.get("reminders.keep_announced_days", 7))))
 
+        # The done items of the lists go to the trash, and what is old in the trash is deleted for good.
+        if self._xconfig.get("lists.cleanup.enabled", True):
+            self._safe_step("lists cleanup", lambda: self._lists.cleanup(
+                int(self._xconfig.get("lists.cleanup.done_after_days", 14)),
+                int(self._xconfig.get("lists.cleanup.trash_after_days", 30))))
+
         # The lists get a version in every supported language (the Support worker does it, and gives way to anything else).
         if self._xconfig.get("lists.translation.enabled", True):
             self._safe_step("lists translation", lambda: self._support.translate_lists("night"))

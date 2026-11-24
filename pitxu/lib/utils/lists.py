@@ -490,6 +490,46 @@ class Lists(PyXavi, Command):
             "SELECT id, list_id, text, done, deleted_at FROM list_item WHERE list_id = ? AND deleted_at IS NOT NULL "
             "ORDER BY deleted_at DESC, id DESC", (list_id,))]
 
+    # ----- The night cleanup -----
+
+    def cleanup(self, done_after_days: int, trash_after_days: int, now=None) -> dict:
+        '''
+        The two stages of the night cleanup:
+
+        1. The items marked as done more than `done_after_days` days ago go to the trash (they can be restored), unless
+           their list is a favourite. A favourite list keeps its done items.
+        2. What is in the trash for more than `trash_after_days` days is deleted for good: the items removed (by the
+           user or by the stage 1) and the lists deleted (with their items and translations).
+
+        An item in the trash for the first stage is in it from now, so it has the whole period to be restored.
+
+        Args:
+            done_after_days: Days that a done item stays in its list.
+            trash_after_days: Days that the trash keeps what is in it.
+            now: The moment to count from. Default: now.
+
+        Returns:
+            dict: {"trashed": int, "purged_items": int, "purged_lists": int}
+        '''
+        now = now or Xtime.now()
+        stamp = Xtime.datetime_to_str(now)
+        done_limit = Xtime.datetime_to_str(Xtime.add_time(now, days=-done_after_days))
+        trash_limit = Xtime.datetime_to_str(Xtime.add_time(now, days=-trash_after_days))
+        with self._tx() as connection:
+            # Stage 1. The items of a deleted list are hidden already: they go with the list.
+            trashed = connection.execute(
+                "UPDATE list_item SET deleted_at = ? WHERE deleted_at IS NULL AND done = 1 AND done_at IS NOT NULL AND done_at < ? "
+                "AND list_id IN (SELECT id FROM list WHERE favourite = 0 AND deleted_at IS NULL)", (stamp, done_limit)).rowcount
+            # Stage 2. The items of the lists that go are deleted with them (the cascade): they are counted before.
+            purged_items = connection.execute(
+                "SELECT COUNT(*) FROM list_item WHERE list_id IN (SELECT id FROM list WHERE deleted_at IS NOT NULL AND deleted_at < ?) "
+                "OR (deleted_at IS NOT NULL AND deleted_at < ?)", (trash_limit, trash_limit)).fetchone()[0]
+            connection.execute("DELETE FROM list_item WHERE deleted_at IS NOT NULL AND deleted_at < ?", (trash_limit,))
+            purged_lists = connection.execute("DELETE FROM list WHERE deleted_at IS NOT NULL AND deleted_at < ?", (trash_limit,)).rowcount
+        self._xlog.info(f"📝 Lists cleanup: {trashed} done items to the trash (more than {done_after_days} days done), "
+                        f"{purged_items} items and {purged_lists} lists deleted for good (more than {trash_after_days} days in the trash)")
+        return {"trashed": trashed, "purged_items": purged_items, "purged_lists": purged_lists}
+
     # ----- Translations (made by the night translation, see ListTranslator) -----
 
     def get_untranslated(self, languages: list[str]) -> list[dict]:

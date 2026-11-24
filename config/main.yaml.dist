@@ -69,6 +69,15 @@ reminders:
 
 # Lists
 lists:
+  # The night cleanup of the lists, in two stages.
+  cleanup:
+    # [Boolean] False: nothing is cleaned up.
+    enabled: True
+    # [Integer] Days that an item marked as done stays in its list. Then it goes to the trash (it can be restored).
+    #   The lists marked as favourite keep their done items.
+    done_after_days: 14
+    # [Integer] Days that the trash keeps what is in it: removed items and deleted lists. Then they are deleted for good.
+    trash_after_days: 30
   # The night translation: names, descriptions and items get a version in every supported language
   #   (app.supported_languages), so a list is read in the language that is being spoken.
   #   The Support worker does it, with the LLM, after the night tasks start. `poetry run util -u translate_lists` does it now.
