@@ -556,40 +556,32 @@ finally:
         try:
             from pitxu.lib.utils.lists import Lists
             lists = Lists(config=self._xconfig, params=self._xparams)
+            try:
+                # Create a list with items
+                created = lists.create_list("Test List", items=["First item", "Second item"])
+                self._xlog.info(f"List created: {json.dumps(created, indent=2)}")
+                list_id = created["list"]["id"]
 
-            # Create list
-            list_name = "Test List"
-            test_list = lists.create_list(list_name=list_name)
-            if not test_list:
-                self._xlog.error("Failed to create test list.")
-                return
-            self._xlog.info(f"List created successfully: {json.dumps(test_list, indent=2)}")
-            
-            # Add items
-            lists.add_entry(list_name, "First entry")
-            lists.add_entry(list_name, "Second entry")
-            self._xlog.info(f"2 entries added successfully to the list [{list_name}]: {json.dumps(test_list, indent=2)}")
+                # Add an item, and a duplicate that is refused
+                added = lists.add_items(list_id, ["Third item", "first ITEM"])
+                self._xlog.info(f"Items added: {json.dumps(added, indent=2)}")
 
-            # Get items
-            element_2 = lists.get_entry(list_name, position=2)
-            if not element_2:
-                self._xlog.error("Failed to retrieve entry")
-                return
-            self._xlog.info(f"Entry retrieved successfully: {json.dumps(element_2, indent=2)}")
+                # Update and mark as done
+                first, second = [item["id"] for item in lists.get_list(list_id)["items"]][:2]
+                self._xlog.info(f"Item updated: {json.dumps(lists.update_item(first, 'Updated first item'), indent=2)}")
+                self._xlog.info(f"Items checked: {json.dumps(lists.check_items(True, item_ids=[second]), indent=2)}")
 
-            # Update item
-            updated_element_1 = lists.update_entry(list_name, position=1, new_text="Updated first entry")
-            if not updated_element_1:
-                self._xlog.error("Failed to retrieve updated entry")
-                return
-            self._xlog.info(f"Entry updated successfully: {json.dumps(updated_element_1, indent=2)}")
+                # Remove and restore
+                self._xlog.info(f"Item removed: {json.dumps(lists.remove_items([first]), indent=2)}")
+                self._xlog.info(f"Item restored: {json.dumps(lists.restore_items([first]), indent=2)}")
 
-            # Delete item
-            deleted_element_1 = lists.delete_entry(list_name, position=1)
-            if not deleted_element_1:
-                self._xlog.error("Failed to delete entry.")
-                return
-            self._xlog.info(f"Entry deleted successfully: {json.dumps(deleted_element_1, indent=2)}")
+                # The list as it is now
+                self._xlog.info(f"The list: {json.dumps(lists.get_list(list_id), indent=2)}")
+
+                # Clean up what this test made
+                self._xlog.info(f"List deleted: {json.dumps(lists.delete_list(list_id), indent=2)}")
+            finally:
+                lists.close()
 
         except RuntimeError as e:
             print(TerminalColor.RED_BRIGHT + str(e) + TerminalColor.END)
