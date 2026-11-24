@@ -8,9 +8,11 @@ from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.xtime import Xtime
 
 from contextlib import contextmanager
+import os
 import re
 import sqlite3
 import threading
+import yaml
 
 
 class Lists(PyXavi, Command):
@@ -487,6 +489,134 @@ class Lists(PyXavi, Command):
         return [self._item_dict(row) for row in self._fetch(
             "SELECT id, list_id, text, done, deleted_at FROM list_item WHERE list_id = ? AND deleted_at IS NOT NULL "
             "ORDER BY deleted_at DESC, id DESC", (list_id,))]
+
+    # ----- The file that was before the database -----
+
+    # The file where the lists were before they were in the database. See `import_legacy_yaml()`.
+    LEGACY_FILENAME = "lists.yaml"
+    LEGACY_FORMAT = "%Y-%m-%d %H:%M"
+
+    def import_legacy_yaml(self, path: str = None, language: str = None) -> dict:
+        '''
+        Moves the lists of the old `lists.yaml` into the database, and deletes the file once ALL of them are there.
+        If anything is wrong the file stays untouched and the next start tries again (what was already imported is
+        not imported twice).
+
+        The old file had `slug: {name, description, created_at, entries: [{text, created_at, ...}]}`. Lists and items
+        keep their creation date, and get the given language (they were written in the one of the application).
+        An item that is twice in a list is imported once: the repeated ones are in `duplicates`, and do not stop the
+        file from being deleted.
+
+        Args:
+            path: The file. Default: the one in the storage path.
+            language: The language of the lists and items. Default: the one of the session, or the default one.
+
+        Returns:
+            dict: {"found": bool, "lists": int, "items": int, "imported_lists": int, "imported_items": int,
+            "already_there": int, "duplicates": list, "invalid": list, "file_deleted": bool}
+        '''
+        path = path or os.path.join(self._xconfig.get("storage.path"), self.LEGACY_FILENAME)
+        stats = {"found": os.path.exists(path), "lists": 0, "items": 0, "imported_lists": 0, "imported_items": 0,
+                 "already_there": 0, "duplicates": [], "invalid": [], "file_deleted": False}
+        if not stats["found"]:
+            return stats
+        language = language or self._xparams.get("language") or self._xconfig.get("app.default_language")
+
+        with open(path, encoding="utf-8") as stream:
+            content = yaml.safe_load(stream) or {}
+        lists, stats["invalid"] = self._legacy_lists(content)
+        stats["lists"] = len(lists)
+        stats["items"] = sum(len(entry["items"]) for entry in lists)
+
+        with self._tx() as connection:
+            for entry in lists:
+                row = connection.execute("SELECT id FROM list WHERE name_key = ? AND deleted_at IS NULL", (entry["key"],)).fetchone()
+                if row:
+                    list_id = row["id"]
+                else:
+                    list_id = int(connection.execute(
+                        "INSERT INTO list (name, name_key, language, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (entry["name"], entry["key"], language, entry["description"], entry["created_at"], entry["created_at"])).lastrowid)
+                    stats["imported_lists"] += 1
+                for item in entry["items"]:
+                    if self._find_item_by_key(connection, list_id, item["key"]):
+                        # Already in the database: from an earlier start, or a repeated one of the same file.
+                        if item["key"] in entry["seen"]:
+                            stats["duplicates"].append(f"{entry['name']}: {item['text']}")
+                        else:
+                            stats["already_there"] += 1
+                    else:
+                        connection.execute(
+                            "INSERT INTO list_item (list_id, text, text_key, language, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (list_id, item["text"], item["key"], language, item["created_at"], item["created_at"]))
+                        stats["imported_items"] += 1
+                    entry["seen"].add(item["key"])
+
+        # Only now: is everything that the file had in the database?
+        missing = []
+        for entry in lists:
+            found = self._fetch("SELECT id FROM list WHERE name_key = ? AND deleted_at IS NULL", (entry["key"],))
+            if not found:
+                missing.append(entry["name"])
+                continue
+            missing += [f"{entry['name']}: {item['text']}" for item in entry["items"]
+                        if not self._fetch("SELECT id FROM list_item WHERE list_id = ? AND text_key = ? AND deleted_at IS NULL",
+                                           (found[0]["id"], item["key"]))]
+
+        if missing or stats["invalid"]:
+            self._xlog.error(f"🛑 The old lists file [{path}] was NOT deleted: {len(missing)} entries are not in the database "
+                             f"and {len(stats['invalid'])} could not be read: {stats['invalid']}")
+            return stats
+
+        os.remove(path)
+        stats["file_deleted"] = True
+        self._xlog.info(f"📝 The {stats['lists']} lists ({stats['items']} items) of the old file were moved to the database "
+                        f"({stats['imported_lists']} lists and {stats['imported_items']} items imported, "
+                        f"{stats['already_there']} items were already there, {len(stats['duplicates'])} repeated ones kept once: "
+                        f"{stats['duplicates']}). The file is deleted.")
+        return stats
+
+    def _legacy_lists(self, content: dict) -> tuple[list[dict], list[str]]:
+        """ The lists of the old file as {"name", "key", "description", "created_at", "items", "seen"}, and what can't be read. """
+        lists, invalid, by_key = [], [], {}
+        if not isinstance(content, dict):
+            return lists, [f"the file is not a dict of lists: {type(content).__name__}"]
+
+        for slug, raw in content.items():
+            if not isinstance(raw, dict) or not str(raw.get("name") or "").strip():
+                invalid.append(f"{slug}: {raw!r}")
+                continue
+            name = str(raw["name"]).strip()
+            key = self.normalize(name)
+            created_at = self._legacy_date(raw.get("created_at"))
+            entries = raw.get("entries")
+            if entries is None:
+                entries = []
+            if not isinstance(entries, list):
+                invalid.append(f"{slug}: the entries are not a list: {entries!r}")
+                continue
+            # Two slugs that are the same name: one list.
+            current = by_key.get(key)
+            if current is None:
+                current = by_key[key] = {"name": name, "key": key, "created_at": created_at, "seen": set(), "items": [],
+                                         "description": raw.get("description") if raw.get("description") not in (None, "") else None}
+                lists.append(current)
+            for entry in entries:
+                text = str(entry.get("text") or "").strip() if isinstance(entry, dict) else ""
+                if not text:
+                    invalid.append(f"{slug}: {entry!r}")
+                    continue
+                current["items"].append({"text": text, "key": self.normalize(text),
+                                         "created_at": self._legacy_date(entry.get("created_at")) or current["created_at"]})
+        return lists, invalid
+
+    def _legacy_date(self, value) -> str:
+        """ The creation date of the old file as text. YAML reads an unquoted date as a datetime. Unknown: now. """
+        if value in (None, ""):
+            return self._now()
+        if hasattr(value, "strftime"):
+            return value.strftime(self.LEGACY_FORMAT)
+        return str(value)
 
     # ----- Internals -----
 

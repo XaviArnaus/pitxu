@@ -162,6 +162,8 @@ class Main(PyXavi):
             self._maintenance.execute_db_migrations()
             # The reminders that were in a file before the database are moved into it (and the file is deleted).
             self._maintenance.import_legacy_reminders()
+            # Same for the lists.
+            self._maintenance.import_legacy_lists()
             self._maintenance.execute_memory_preload()
             self._maintenance.release_in_flight_conversations()
 

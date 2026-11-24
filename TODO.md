@@ -21,7 +21,7 @@ Not part of the reminders work: to tackle later, each one by itself.
 The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`. Two more would cover several of these: `now_iso()` and `iso_to_datetime()`.
 
 [ ] `db_sqlite.py:144`: `datetime.now().strftime(...)` for the backup names.
-[ ] `lists.py:61,192`: `datetime.now().strftime(...)` (do it together with the Lists pass, like the Reminders).
+[x] `lists.py:61,192`: `datetime.now().strftime(...)` (done with the Lists pass).
 [ ] `memory.py:151,186,221,331,394,717,728` and `memory_consolidator.py:110`: `Xtime.now().isoformat()` (10 times). New `Xtime.now_iso()`.
 [ ] `memory.py:242`, `main.py:2391`, `json_logger.py:130`: `datetime.fromisoformat(...)`. New `Xtime.iso_to_datetime()`.
 [ ] `memory.py:428`: `Xtime.now() - timedelta(...)`. `add_time`.
