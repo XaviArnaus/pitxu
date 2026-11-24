@@ -13,7 +13,7 @@ from definitions import SHARED_MEMORY_FLAGS, SHARED_EINK_BUSY, SHARED_MATRIX_BUS
     SHARED_MIC_VOLUME, SHARED_SPEAKER_VOLUME, SHARED_BATTERY_LEVEL, \
     SHARED_SPEAKER_MUTED, SHARED_POWER_CABLE_CONNECTED, \
     SHARED_CPU_TEMPERATURE, SHARED_CPU_FAN_RPM, SHARED_CASE_FAN_1_SPEED, SHARED_CASE_FAN_2_SPEED, \
-    SHARED_SPEECH_INTERRUPT_REQUESTED
+    SHARED_SPEECH_INTERRUPT_REQUESTED, SHARED_ANNOUNCEMENT_BUSY
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.core.doorbell import Doorbell, DoorbellRinger
 from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
@@ -37,7 +37,8 @@ class SharedMemoryManager(PyXavi):
         "support_busy": SHARED_SUPPORT_BUSY,
         "stt_busy": SHARED_STT_BUSY,
         "transcriber_busy": SHARED_TRANSCRIBER_BUSY,
-        "wake_up_button_request": SHARED_WAKE_UP_BUTTON_PRESSED
+        "wake_up_button_request": SHARED_WAKE_UP_BUTTON_PRESSED,
+        "announcement_busy": SHARED_ANNOUNCEMENT_BUSY
     }
     # TODO: consider generating this map automatically together with xprocess_pool, painter_busy_flags, etc.
     _map_index_to_flag: dict[int, str] = {
@@ -58,7 +59,8 @@ class SharedMemoryManager(PyXavi):
         SHARED_STT_BUSY: "stt_busy",
         SHARED_TRANSCRIBER_BUSY: "transcriber_busy",
         SHARED_WAKE_UP_BUTTON_PRESSED: "wake_up_button_request",
-        SHARED_SPEECH_INTERRUPT_REQUESTED: "speech_interrupt_requested"
+        SHARED_SPEECH_INTERRUPT_REQUESTED: "speech_interrupt_requested",
+        SHARED_ANNOUNCEMENT_BUSY: "announcement_busy"
     }
     _shared_values: dict[str, int] = {
         "dynamic_rms_silence_threshold": SHARED_DYNAMIC_RMS_SILENCE_THRESHOLD,
@@ -165,6 +167,7 @@ class SharedMemoryManager(PyXavi):
                 False,  # transcriber is busy
                 False,  # wake up button is pressed
                 False,  # speech interrupt requested
+                False,  # an announcement is on the screen
             ], name=SHARED_MEMORY_FLAGS)
         except Exception as e:
             self._xlog.error("Failed to initialize shared memory: " + str(e))

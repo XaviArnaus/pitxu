@@ -157,6 +157,31 @@ class Foreground(ShortcutBase):
             "valign": valign
         })
     
+    def show_arbitrary_text_on_foreground_while_announcing(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
+        ):
+        """
+        Shows arbitrary text on the foreground display only while the announcement flag is up.
+        """
+        self.process_pool.send(self.get_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding,
+            "align": align,
+            "valign": valign
+        })
+
     def show_arbitrary_icon_on_foreground_while_user_speaking(
             self,
             icon: str = None,

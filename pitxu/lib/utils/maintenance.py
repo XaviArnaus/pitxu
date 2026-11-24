@@ -401,6 +401,24 @@ class Maintenance(PyXavi):
         except Exception as e:
             self._xlog.error(f"⚙️  Error migrating the database: {e}")
 
+    def import_legacy_reminders(self):
+        '''
+        The reminders were in `storage/reminders.yaml` before the database. If the file is still there, its reminders
+        are moved into the database and the file is deleted, only when all of them are in the database.
+        It must run after the migrations. Without the file it does nothing.
+        '''
+        try:
+            from pitxu.lib.utils.reminders import Reminders
+            reminders = Reminders(config=self._xconfig, params=self._xparams)
+            try:
+                stats = reminders.import_legacy_yaml()
+            finally:
+                reminders.close()
+            if stats["found"]:
+                self._xlog.info(f"⚙️  Old reminders file: {stats}")
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error moving the old reminders into the database (the file is kept): {e}")
+
     def validate_memory_config(self):
         '''
         Reports in the log the settings of the memory and the database that are not valid, and replaces them by their defaults.

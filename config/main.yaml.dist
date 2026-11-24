@@ -52,6 +52,21 @@ night_tasks:
   # [Integer] Minute (0 - 59).
   minute: 0
 
+# Reminders
+reminders:
+  # [Integer] Days that an announced reminder is kept before the night tasks delete it. A reminder that was just
+  #   announced can still be asked about or moved (a snooze) until then.
+  keep_announced_days: 7
+  # [Number] Minutes after its time that a reminder is announced saying when it was for ("At 14:30, ...").
+  #   It is late when Pitxu was busy (talking, listening) or off when its time came.
+  late_after_minutes: 2
+  # [Number] Seconds that the announced reminders stay on the screen after being said, before going idle.
+  #   0 to take them away together with the speech.
+  screen_hold_seconds: 5
+  # [Number] Hours after its time from which the announcement also warns that the reminder is very old
+  #   and could not be announced back then.
+  very_old_after_hours: 24
+
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
 # Switches to tell if a problem comes from it. What is not here is on. Restart to apply.

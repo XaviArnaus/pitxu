@@ -36,6 +36,10 @@ class XprocessDisplayForeground(Xprocess):
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_SPEAKING and param:
             self.show_arbitrary_text_while_speaking(param)
 
+        # An announcement: the text lives by the announcement flag.
+        if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING and param:
+            self.show_arbitrary_text_while_announcing(param)
+
         if action == XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_THINKING and param:
             self.show_arbitrary_text_while_thinking(param)
         
@@ -136,6 +140,10 @@ class XprocessDisplayForeground(Xprocess):
 
     def show_arbitrary_text_while_speaking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_speaking() must be implemented in Display Foreground subclasses.")
+
+    def show_arbitrary_text_while_announcing(self, param: dict):
+        # Optional: a display that has nothing to show for an announcement just ignores it.
+        self._log_debug("XprocessDisplayForeground: This display does not show announcements. Ignoring it.")
 
     def show_arbitrary_text_while_thinking(self, param: dict):
         raise NotImplementedError("show_arbitrary_text_while_thinking() must be implemented in Display Foreground subclasses.")

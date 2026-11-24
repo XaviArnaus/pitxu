@@ -34,6 +34,7 @@ from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.utils.string_similarity import StringSimilarity
 import sys
+import threading
 import time
 import logging
 import asyncio
@@ -99,6 +100,10 @@ class Main(PyXavi):
     _end_of_conversation_answers: list[str] = []
     # The chatbot called its end of conversation tool in the answer that is being processed (see on_end_of_conversation_requested()).
     _end_of_conversation_requested: bool = False
+    # Reminders are due but Pitxu was busy: the every-second tick announces them as soon as it is not.
+    _reminders_waiting: bool = False
+    # One announcement of reminders at a time (the minute tick and the waiting one could meet).
+    _reminders_announcing = threading.Lock()
     _exit_words: list[str] = []
     _trigger_words: list[str] = []
     _tokens_counter: int = 0
@@ -155,6 +160,8 @@ class Main(PyXavi):
             self._maintenance.validate_memory_config()
             # The database must be at its last version before anything opens it, and the preload needs it.
             self._maintenance.execute_db_migrations()
+            # The reminders that were in a file before the database are moved into it (and the file is deleted).
+            self._maintenance.import_legacy_reminders()
             self._maintenance.execute_memory_preload()
             self._maintenance.release_in_flight_conversations()
 
@@ -320,6 +327,17 @@ class Main(PyXavi):
         self._xlog.info("🧠 User asks to remember the current conversation, via chatbot tool callback.")
         self._summarize_current_conversation(reason="requested by the user")
 
+    @staticmethod
+    def _user_turns_in(history: list[dict]) -> int:
+        """
+        How many times the user spoke in the history. The function responses also come with the role "user", but
+        without text, and the notices of the application (an announced reminder) have text, but they are not
+        the user speaking either.
+        """
+        return sum(1 for item in history
+                   if item.get("role") == "user" and (item.get("text") or "").strip() != ""
+                   and not (item.get("text") or "").startswith(Reminders.HISTORY_NOTICE_MARKER))
+
     def _summarize_current_conversation(self, reason: str, wait: bool = False) -> bool:
         """
         Sends the conversation of the current chatbot session to be summarized and stored in the memory.
@@ -349,8 +367,7 @@ class Main(PyXavi):
 
         pending = history[self._history_summarized_upto:]
 
-        # The function responses also come with the role "user", but without text: they are not the user speaking.
-        user_turns = sum(1 for item in pending if item.get("role") == "user" and (item.get("text") or "").strip() != "")
+        user_turns = self._user_turns_in(pending)
         min_user_turns = int(self._xconfig.get("memory.min_user_turns", 1))
         if user_turns < min_user_turns:
             self._xlog.debug(f"No significant conversation to summarize [{reason}]: {user_turns} user turns, "
@@ -739,7 +756,7 @@ class Main(PyXavi):
             if self._end_of_conversation_requested:
                 # Unless the conversation just ended: nobody is expected to speak, so no hold time, straight to idle.
                 self._end_of_conversation_requested = False
-                self._go_idle_after_conversation()
+                self._go_idle_now("Conversation ended")
             else:
                 self._start_listening_phase("answer delivered" if answer_was_delivered else "transcript ignored",
                                             reset_mark=answer_was_delivered)
@@ -1086,15 +1103,16 @@ class Main(PyXavi):
         if mute:
             self._interaction.mute_microphone(input_stream=self._input_stream)
 
-    def _go_idle_after_conversation(self):
+    def _go_idle_now(self, reason: str):
         """
-        The conversation is over (the chatbot understood it and the ending sentence was said): instead of
-          handing the turn to the user with the hold time countdown, the app goes idle right away.
+        Nobody is expected to speak after what was just said (the conversation is over and the ending sentence was said,
+          or the reminders were announced): instead of handing the turn to the user with the hold time countdown,
+          the app goes idle right away.
 
         The hold time is expired, so what comes next needs the trigger words (or the wake up button), as if the
           countdown had ended by itself. Its counterpart, _start_listening_phase(), is what the next interaction uses.
         """
-        self._log_debug("💤 Conversation ended: going idle without waiting for the hold time.")
+        self._log_debug(f"💤 {reason}: going idle without waiting for the hold time.")
 
         # Expired hold time: the next text is not a continuation of this conversation (see _text_continues_ongoing_interaction()).
         #   That check discounts the transcription time of the NEXT text, so the margin on top of the hold time is generous.
@@ -1108,7 +1126,7 @@ class Main(PyXavi):
 
         # Same order as when the countdown ends: idle first, then the listening phase ends and the bar is cleared.
         self._interaction.set_idle_mode_on()
-        self._end_listening_phase("conversation ended", mute=wake_up_button_only, clear_bar=True)
+        self._end_listening_phase(reason.lower(), mute=wake_up_button_only, clear_bar=True)
 
     def _show_holding_bar_now(self, reason: str):
         """
@@ -1311,6 +1329,10 @@ class Main(PyXavi):
 
             # Save the emoji stats that are still in memory
             self._safe_step("emoji stats", EmojiStats.flush)
+
+            # The connection to the database of the reminders
+            if self._reminders is not None:
+                self._safe_step("reminders database", self._reminders.close)
 
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
@@ -1638,6 +1660,8 @@ class Main(PyXavi):
             "language": self._xparams.get("language"),
             "status_shortcuts": self._interaction.get_status_shortcuts(),
             "device_monitor": self._device_monitor,
+            # The same instance (and database connection) that announces the reminders.
+            "reminders": self._reminders,
         }))
 
     def _load_language_statics(self):
@@ -2045,6 +2069,172 @@ class Main(PyXavi):
         self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
         self._interaction.say(greeting)
 
+    # ------- Reminders -------
+
+    def announce_due_reminders(self):
+        """
+        Announces the reminders whose time has come (also the ones that came while Pitxu was busy or off), all in
+        one announcement. If Pitxu is busy it waits: the every-second tick tries again as soon as it is not.
+
+        Called by the minute tick and, when it was waiting, by the second one. Only one runs at a time.
+        """
+        if not self._is_pitxu_active:
+            return
+        if not self._reminders_announcing.acquire(blocking=False):
+            return
+        try:
+            due = self._reminders.get_due()
+            if not due:
+                self._reminders_waiting = False
+                return
+
+            if self._interaction.is_interaction_busy():
+                if not self._reminders_waiting:
+                    self._xlog.info(f"📝 {len(due)} reminder(s) due, waiting for Pitxu to be idle to announce them "
+                                    f"(busy: {', '.join(self._interaction.get_busy_interaction_flags())}).")
+                self._reminders_waiting = True
+                return
+
+            self._reminders_waiting = False
+            self._announce_reminders(due)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error announcing the due reminders: {e}")
+        finally:
+            self._reminders_announcing.release()
+
+    def _announce_reminders(self, due: list[dict]):
+        """
+        Shows and says the reminders, once, and marks them as announced.
+
+        The script, in order:
+          1. The text and the animation are registered, each to its display: they live by the announcement flag.
+          2. The flag goes up: they appear. The countdown goes away.
+          3. The speech (blocks until it is said; the mouth follows the speaker flag, not this one).
+          4. The announcement is remembered (history and memory) and the reminders are marked as announced.
+          5. They stay on the screen for `reminders.screen_hold_seconds` (unless somebody wakes Pitxu up).
+          6. The flag goes down, always: the text and the animation go away.
+          7. Pitxu goes idle, unless somebody woke it up.
+        """
+        self._log_debug("📝 Reminders due: " + str(due))
+        announced_ids = [reminder["id"] for reminder in due]
+        announcement_raised = False
+        said = False
+        try:
+            announcement = self._reminders.build_announcement(due)
+
+            self._interaction.set_idle_mode_off()
+            self._interaction.wait_for_foreground_display_queue_to_empty()
+            self._interaction.wait_for_busy_foreground_display_to_idle()
+
+            # 1. They are only registered: the painter reacts when the flag changes, so the flag goes up after the displays processed this.
+            self._interaction.show_arbitrary_text_on_foreground_while_announcing(**self._announcement_layout(announcement))
+            animation = self._xconfig.get("animations.reminder", "reminder")
+            if animation:
+                self._interaction.show_animation_while_announcing(animation)
+            self._interaction.wait_for_foreground_display_queue_to_empty()
+            self._interaction.wait_for_animation_display_queue_to_empty()
+
+            # 2. They appear. The countdown goes too: it would stay under the reminders if a hold time was running.
+            self._interaction.set_announcement_busy()
+            announcement_raised = True
+            self._end_listening_phase("reminder announcement", clear_bar=True)
+
+            # 3.
+            self._interaction.say(announcement["spoken"])
+            said = True
+
+            # 4. Said: Pitxu remembers it, also if the user does not say anything afterwards.
+            self._record_announcement(announcement)
+        except Exception as e:
+            self._xlog.error(f"🛑 Error announcing the reminders {announced_ids}: {e}")
+        finally:
+            # 4. Said, or failed: they are not pending anymore. Failing again every minute would not help anybody.
+            # (If the application dies while speaking they are not marked, so they are announced again at the next start.)
+            self._safe_step("reminders marked as announced", lambda: self._reminders.mark_announced(announced_ids))
+
+            # 5. The speech is over, but whoever was not paying attention would have missed it: it stays on the screen for a moment.
+            interrupted = False
+            if said:
+                interrupted = self._safe_step("reminders held on screen", self._hold_announcement_on_screen) is True
+
+            # 6. Whatever happened.
+            if announcement_raised:
+                self._safe_step("announcement flag lowered", self._interaction.unset_announcement_busy)
+
+            # 7. Nobody is expected to answer a reminder, and an open microphone could take the TV for the user: straight
+            #   to idle. What follows needs the trigger words or the wake up button (also to move the reminder).
+            #   Unless someone woke Pitxu up while the reminders were on screen: then it is theirs.
+            if not interrupted:
+                self._safe_step("idle after reminders", lambda: self._go_idle_now("Reminders announced"))
+
+    def _announcement_layout(self, announcement: dict) -> dict:
+        """
+        How the reminders look on the foreground: a list has its title and reads from the top left, a single
+        reminder is big and centered.
+        """
+        if announcement["count"] > 1:
+            return {"icon": "📝", "header": announcement["title"], "text": announcement["screen"], "align": "left", "valign": "top"}
+        return {"icon": "📝", "text": announcement["screen"],
+                "font_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG}
+
+    def _hold_announcement_on_screen(self) -> bool:
+        """
+        After the reminders were said, waits `reminders.screen_hold_seconds` (0 for not waiting) while they stay on the
+        screen: the announcement flag is still up, the caller lowers it afterwards.
+
+        Returns:
+            bool: True if someone woke Pitxu up meanwhile (the button, the trigger words...) or the application is closing,
+                so the caller must not go idle.
+        """
+        seconds = float(self._xconfig.get("reminders.screen_hold_seconds", 5))
+        if seconds <= 0:
+            return False
+        # Whoever wakes Pitxu up marks a new interaction.
+        mark = self._last_interaction_datetime
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if not self._is_pitxu_active or self._last_interaction_datetime != mark or self._interaction.is_interaction_busy():
+                self._log_debug("📝 Reminders held on screen, but something started: not going idle.")
+                return True
+            time.sleep(0.25)
+        return False
+
+    def _record_announcement(self, announcement: dict):
+        """
+        What was announced goes to the history of the chatbot (so it can answer "did you tell me to check the oven?"
+        in this session) and to the short term memory (so it can in the next ones). Each one on its own: a problem
+        in one does not stop the other, nor the rest of the announcement.
+        """
+        try:
+            if self._chatbot is not None:
+                self._chatbot.add_notice_to_history(self._reminders.build_history_notice(announcement), announcement["spoken"])
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not add the announced reminders to the chatbot history: {e}")
+
+        try:
+            from pitxu.lib.utils.memory import Memory
+            summary, content = self._reminders.build_memory_entry(announcement)
+            memory = Memory(config=self._xconfig, params=Dictionary({
+                "api_key": self._xparams.get("api_key"),
+                "base_path": self._xparams.get("base_path"),
+                "language": self._xparams.get("language"),
+            }))
+            try:
+                memory.create_short_memory_entry(summary=summary, content=content, language=self._xparams.get("language"))
+            finally:
+                memory.close()
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not save the announced reminders into the memory: {e}")
+
+    def _check_waiting_reminders(self):
+        """
+        Part of the every-second tick: if reminders were waiting for Pitxu to be idle and it is now, announce them.
+        The announcement takes seconds, so it goes to its own job and the tick (the countdown, the fans...) goes on.
+        """
+        if not self._reminders_waiting or self._interaction.is_interaction_busy() or self._scheduler is None:
+            return
+        self._scheduler.add_job(self.announce_due_reminders)
+
     # ------- Stuff to do every minute -------
 
     def do_every_minute_tasks(self, input_stream: InputStream = None):
@@ -2058,29 +2248,8 @@ class Main(PyXavi):
             # COMMENTED: Idea unfinished.
             # from pitxu.lib.speech_to_text.faster_whisper_stream import TrascriptionState
 
-            # Get the possible reminder for the current date and time
-            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
-            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
-            reminder: dict = self._reminders.get_reminder(date_str, time_str)
-            if reminder is not False:
-                self._log_debug("📝 Reminder found for now: " + str(reminder))
-                # Show reminder in eInk and say it
-                reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.set_idle_mode_off()
-                self._interaction.wait_for_foreground_display_queue_to_empty()
-                self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝",
-                    text=reminder.get("text", ""),
-                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._end_listening_phase("reminder announcement")
-                self._interaction.say(reminder_text_for_speaking)
-                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                # Remove the reminder now that it's been announced
-                self._reminders.delete_reminder(date_str, time_str)
-                # We just spoke: the turn goes back to the user. This unmutes the microphone and
-                #   resets the last interaction time.
-                self._start_listening_phase("reminder announced")
+            # The reminders whose time has come. It includes the ones that should have been announced before.
+            self.announce_due_reminders()
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
@@ -2160,6 +2329,9 @@ class Main(PyXavi):
             # COMMENTING: This log is too much verbose, as it happens every second.
             # self._log_debug("🕐 New second detected: " + str(time.localtime(current_second).tm_sec) + f".")
 
+            # Reminders that were due while Pitxu was busy are announced as soon as it is not.
+            self._check_waiting_reminders()
+
             # Gather the device readings (power cable, fans, temperature, volumes, battery) into the shared memory.
             #   It decides by itself how often it reads each one.
             if self._device_monitor is not None:
@@ -2175,94 +2347,124 @@ class Main(PyXavi):
                 self._fan_control_iterated_seconds += 1
 
 
-            # Show the interaction holding percentage if we're expecting an interaction
-            if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
-                
-                # Calculate how much left in percentages the time to hold the interaction
-                seconds_since_last_interaction = self.get_seconds_since_last_interaction()
-                # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
+            # The countdown of the hold time of the interaction (and its cleanup when it is over).
+            self._tick_interaction_countdown()
+
+    def _tick_interaction_countdown(self):
+        """
+        Every second: the countdown of the hold time of the interaction (the time that the user has to go on talking
+        after an answer), and its cleanup when it is over. See _start_listening_phase() and _end_listening_phase().
+        """
+        # Show the interaction holding percentage if we're expecting an interaction
+        if self._last_interaction_datetime is not None and not self._interaction.is_microphone_muted():
             
-                if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
-                    # We are meant to show the holding percentage.
+            # Calculate how much left in percentages the time to hold the interaction
+            seconds_since_last_interaction = self.get_seconds_since_last_interaction()
+            # dd(f"since last interaction: {seconds_since_last_interaction}, secs to hold: {self._seconds_to_hold_interaction_answer}")
+        
+            if seconds_since_last_interaction <= self._seconds_to_hold_interaction_answer:
+                # We are meant to show the holding percentage.
 
-                    # The is_vad_detected should manage the *non-streaming* Faster Whisper
-                    # The is_transcriber_busy should manage the *streaming* Faster Whisper
-                    if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
-                        # The transcriber still didn't finish inferring the speech.
-                        self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
-                        self._last_interaction_paused_seconds += 1
-                    else:
-                        # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
-                        # Calculate it.
-                        self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
-                    
-                    if not self._interaction.is_transcriber_busy():
-                        # Display it.
-                        if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
-                            self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
-                            self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
-                        else:
-                            self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
-                    else:
-                        # If the transcriber is busy, we don't show the percentage, show something else.
-                        current_partial = self._dictate.get_ongoing_transcription()
-                        self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
-                        # dd(current_partial)
-                        # most likely this is not the way of showing it...
-                        # the *_while_* is meant to be called once and stay until the flag is over...
-                        # Here we're calling it for every second, which it's not designed for it.
-                        # TODO: Here we have to think how to do so.
-                        # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
-                        #     icon="🎙️", 
-                        #     text="", 
-                        #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
-                        # )
-
-                elif self._last_processed_interaction_percentage >= 0 and \
-                        (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
-                    # (Only while the countdown is still alive: once it was cleaned (-1) the app is idle, and speech heard
-                    #   in idle mode must not bring an expired countdown back.)
-                    # The hold time ran out, but the user started to speak after the last tick (the countdown was in its
-                    #   last second). Ending now would mute the microphone in the middle of the sentence: the speech would
-                    #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
-                    # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
-                    self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                # The is_vad_detected should manage the *non-streaming* Faster Whisper
+                # The is_transcriber_busy should manage the *streaming* Faster Whisper
+                if self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+                    # The transcriber still didn't finish inferring the speech.
+                    self._xlog.debug("🎤 Speech-to-Text is processing, pausing interaction holding time counter.")
                     self._last_interaction_paused_seconds += 1
+                else:
+                    # No transcription is happening or VAD did not detect anything, and we're in the time window to show the holding percentage
+                    # Calculate it.
+                    self._last_processed_interaction_percentage = self._holding_percentage_for(seconds_since_last_interaction)
+                
+                if not self._interaction.is_transcriber_busy():
+                    # Display it.
+                    if not self._interaction.is_background_display_busy() and self._last_processed_interaction_percentage >= 0:
+                        self._xlog.debug(f"⏳ Waiting for an user interaction. {self._last_processed_interaction_percentage}% (paused {self._last_interaction_paused_seconds}s) time left.")
+                        self._interaction.show_interaction_holding_percentage(self._last_processed_interaction_percentage)
+                    else:
+                        self._xlog.debug("🤖 Background display is busy, not showing interaction holding percentage.")
+                else:
+                    # If the transcriber is busy, we don't show the percentage, show something else.
+                    current_partial = self._dictate.get_ongoing_transcription()
+                    self._xlog.debug(f"🎤 STT processing: ongoing transcription: {TerminalColor.ORANGE}{current_partial}{TerminalColor.END}")
+                    # dd(current_partial)
+                    # most likely this is not the way of showing it...
+                    # the *_while_* is meant to be called once and stay until the flag is over...
+                    # Here we're calling it for every second, which it's not designed for it.
+                    # TODO: Here we have to think how to do so.
+                    # self._interaction.show_arbitrary_icon_on_foreground_while_user_speaking(
+                    #     icon="🎙️", 
+                    #     text="", 
+                    #     color=self._interaction.get_canvas_from_foreground_display().COLOR_GREEN,
+                    # )
 
-                elif self._last_processed_interaction_percentage > 0:
-                    # The hold time is over but the bar still shows its last LED(s).
-                    # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
-                    self._last_processed_interaction_percentage = 0
-                    if not self._interaction.is_background_display_busy():
-                        self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
-                        self._interaction.show_interaction_holding_percentage(0)
+            elif self._last_processed_interaction_percentage > 0 and \
+                    (self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected()):
+                # (Only while the countdown has not shown its 0% yet: once it did (0), or it was cleaned (-1), the app is idle,
+                #   and speech heard in idle mode must not bring an expired countdown back, nor keep it on screen during
+                #   the whole transcription. It needs the trigger words, like any other idle speech.)
+                # The hold time ran out, but the user started to speak before the 0% (the countdown was in its last second).
+                #   Ending now would mute the microphone in the middle of the sentence: the speech would
+                #   be cut, and the transcription context would stay open for ever, as no more audio arrives to close it.
+                # So it keeps pausing, exactly like it does inside the hold time, until the transcription is over.
+                self._xlog.debug("🎤 Hold time is over, but the user is speaking or the transcription is running: pausing the end of the countdown.")
+                self._last_interaction_paused_seconds += 1
 
-                elif self._last_processed_interaction_percentage == 0:
-                    # We are meant to clean the display.
+            elif self._last_processed_interaction_percentage > 0:
+                # The hold time is over but the bar still shows its last LED(s).
+                # Make the 0% explicit first, so the bar visibly empties. The cleanup comes in the next tick.
+                self._last_processed_interaction_percentage = 0
+                if not self._interaction.is_background_display_busy():
+                    self._xlog.debug("⏳ Waiting for an user interaction. 0% time left (hold time is over).")
+                    self._interaction.show_interaction_holding_percentage(0)
 
-                    # The time to hold the interaction is over.
-                    # The display goes blank now: this is where the idle mode starts.
-                    # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
-                    #   app is idle from the moment that nothing is being shown.
-                    # ⚠️ It goes BEFORE ending the listening phase, which is what asks to end the countdown: in idle mode
-                    #   the painter blanks the screen when the countdown paint is removed, instead of drawing the layout again.
-                    if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
-                        self._interaction.set_idle_mode_on()
+                # If only the wake up button is wanted, the microphone is not needed anymore: it stops right now, not in
+                #   the next tick, so a sound in between can not start a transcription that nobody is waiting for.
+                #   (Nobody is speaking at this point: that case is the branch above.) The voice modes keep it open
+                #   for the trigger words.
+                # ⚠️ Known small gap: speech that starts in the few milliseconds between the busy check above and this
+                #   mute would be cut in the middle of the sentence, and the transcription context could stay open
+                #   (no more audio arrives to close it). Closing it needs a lock around the check and the mute. If it is
+                #   ever seen (a transcription that never ends right after the 0%), this is the place.
+                if self._interaction.is_wake_up_button_wanted_exclusively():
+                    self._interaction.mute_microphone(input_stream=self._input_stream)
 
-                    # The listening phase ends: we clear the background display and reset the counters.
-                    # If the Wake up button is wanted exclusively, we also mute the microphone,
-                    #   as the user is not speaking and we don't want to react to anything else.
-                    self._end_listening_phase(
-                        "hold time over",
-                        mute=self._interaction.is_wake_up_button_wanted_exclusively(),
-                        clear_bar=True)
-    
+            elif self._last_processed_interaction_percentage == 0:
+                # We are meant to clean the display.
+                self._finish_interaction_countdown()
+
+        elif self._last_interaction_datetime is not None and self._last_processed_interaction_percentage == 0 and \
+                self.get_seconds_since_last_interaction() > self._seconds_to_hold_interaction_answer:
+            # The microphone was stopped by the 0% (only the wake up button is wanted), so the countdown above does not run
+            #   anymore, but its cleanup is still pending. (If the hold time is not over, somebody woke Pitxu up
+            #   meanwhile: the flow of that interaction takes care.)
+            self._finish_interaction_countdown()
+
+    def _finish_interaction_countdown(self):
+        """
+        The time to hold the interaction is over and the 0% was shown: the display goes blank, and this is where the idle mode starts.
+        """
+        # The idle screen shows only after some minutes of inactivity (see do_every_minute_tasks()), but the
+        #   app is idle from the moment that nothing is being shown.
+        # ⚠️ It goes BEFORE ending the listening phase, which is what asks to end the countdown: in idle mode
+        #   the painter blanks the screen when the countdown paint is removed, instead of drawing the layout again.
+        if not self._interaction.is_chatbot_busy() and not self._interaction.is_speaker_busy():
+            self._interaction.set_idle_mode_on()
+
+        # The listening phase ends: we clear the background display and reset the counters.
+        # If the Wake up button is wanted exclusively, the microphone is muted (the 0% did it already, unless this
+        #   is a new start of the app), as the user is not speaking and we don't want to react to anything else.
+        self._end_listening_phase(
+            "hold time over",
+            mute=self._interaction.is_wake_up_button_wanted_exclusively() and not self._interaction.is_microphone_muted(),
+            clear_bar=True)
+
+
     # ------------- Memory consolidation -------------
 
     def _is_idle_for_memory_consolidation(self) -> bool:
         """ Nobody is talking to Pitxu nor about to: nothing is running, and the hold time of the last interaction is over. """
-        if self._interaction.is_chatbot_busy() or self._interaction.is_speaker_busy() \
-                or self._interaction.is_transcriber_busy() or self._interaction.is_vad_detected():
+        if self._interaction.is_interaction_busy():
             return False
         if self._last_interaction_datetime is not None and \
                 self.get_seconds_since_last_interaction() <= self._seconds_to_hold_interaction_answer:
@@ -2336,6 +2538,10 @@ class Main(PyXavi):
 
         # The use of the emojis of the day goes to the stats file.
         self._safe_step("emoji stats", EmojiStats.flush)
+
+        # The reminders that were announced some days ago are not needed anymore.
+        self._safe_step("reminders prune", lambda: self._reminders.prune_announced(
+            int(self._xconfig.get("reminders.keep_announced_days", 7))))
 
         # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
         if self._xconfig.get("memory.consolidation.enabled", True):

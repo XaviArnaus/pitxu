@@ -292,7 +292,7 @@ class MemoryConsolidator(PyXavi):
         now = Xtime.now()
         topic_ids = {topic["topic_id"] for topic in topics}
         data = {
-            "today": f"{now.strftime('%A %Y-%m-%d %H:%M')} ({now.astimezone().tzname()})",
+            "today": f"{Xtime.weekday_name(now)} {now.strftime('%Y-%m-%d %H:%M')} ({now.astimezone().tzname()})",
             "language": language,
             "existing_topics": topics,
             "pending_entries": [

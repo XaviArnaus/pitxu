@@ -45,9 +45,18 @@ animations:
       badge: ear
       position: top-right
       badge_scale: 0.4
+    # Pitxu announces something by itself (a reminder): a calm smile with a ringing bell.
+    reminder:
+      base: smile-small
+      badge: bell
+      position: top-right
+      badge_scale: 0.4
   # [String] The animation shown while the assistant listens: from the start of the countdown (the user can speak) until
   # the countdown ends or the thinking starts. Any animation of the `map` or the `composites`. Empty for none.
   listening: listening
+  # [String] The animation shown with an announcement that Pitxu starts by itself (a reminder), from before it is said until
+  # it leaves the screen. Any animation of the `map` or the `composites`. Empty for none.
+  reminder: reminder
   # Mapping between animation name and file
   map:
     sleeping: "sleeping.gif"

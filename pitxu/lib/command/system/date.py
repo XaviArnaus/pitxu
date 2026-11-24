@@ -1,15 +1,12 @@
-import time
-
 from pyxavi import Config, Dictionary, full_stack
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.abstract.command import Command
 from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.interaction.shortcuts.status import Status
+from pitxu.lib.utils.xtime import Xtime
 
 import logging
-
-from datetime import datetime
 
 
 class SystemDate(PyXavi, Command):
@@ -29,15 +26,17 @@ class SystemDate(PyXavi, Command):
 
     def get_local_system_date(self) -> str:
         '''
-        Get the local system date in Year-Month-Day format.
+        Get the local system date in Year-Month-Day format, followed by the day of the week.
         
         Returns:
-            str: The current date in Year-Month-Day format
+            str: The current date in Year-Month-Day format and the day of the week in brackets,
+                like "2026-11-23 (Monday)"
         '''
         try:
             if self.status_shortcuts:
                 self.status_shortcuts.add_new_status_line(f"🔧 Date: Getting date from local system")
-            return time.strftime(self.format, time.localtime())
+            now = Xtime.now()
+            return f"{Xtime.datetime_to_str(now, self.format)} ({Xtime.weekday_name(now)})"
         except Exception as e:
             self._xlog.error(f"Error getting current date: {e}")
             return "Error"
@@ -62,9 +61,9 @@ class SystemDate(PyXavi, Command):
         log.info(f"The current date in the callback is: {value}")
 
         try:
-            # Get a datetime object from the value
-            date_obj = datetime.strptime(value, self.format)
-            value = date_obj.strftime(self.displayed_format)
+            # The value is the date followed by the day of the week: "2026-11-23 (Monday)". We show only the date.
+            date_obj = Xtime.str_to_datetime(str(value).split(" ")[0], self.format)
+            value = Xtime.datetime_to_str(date_obj, self.displayed_format)
 
             log.error(f"📆 Showing date on Foreground Display: {value}")
             interaction.show_arbitrary_text_on_foreground_while_speaking(

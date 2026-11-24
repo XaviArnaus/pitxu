@@ -58,6 +58,38 @@ class ValidationTests(unittest.TestCase):
         self.assertIsNone(config.get("memory.consolidation.hour"))
         self.assertIsNone(config.get("memory.consolidation.minute"))
 
+    def test_the_reminders_settings_are_checked(self):
+        config = cfg(tempfile.mkdtemp(), **{
+            "reminders.keep_announced_days": -1,
+            "reminders.late_after_minutes": "soon",
+            "reminders.very_old_after_hours": 0,
+        })
+        messages = MemoryConfigValidator.validate(config)
+        self.assertEqual(len(messages), 3)
+        self.assertEqual((config.get("reminders.keep_announced_days"), config.get("reminders.late_after_minutes"),
+                          config.get("reminders.very_old_after_hours")), (7, 2, 24))
+
+    def test_a_late_that_comes_after_very_old_is_reported(self):
+        config = cfg(tempfile.mkdtemp(), **{"reminders.late_after_minutes": 120, "reminders.very_old_after_hours": 1})
+        messages = MemoryConfigValidator.validate(config)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("late wording is never used", messages[0])
+        # Not an error: they stay as the user wrote them.
+        self.assertEqual((config.get("reminders.late_after_minutes"), config.get("reminders.very_old_after_hours")), (120, 1))
+
+    def test_the_reminders_defaults_of_the_dist_are_the_ones_of_the_code(self):
+        from pitxu.lib.utils.reminders import Reminders
+        block = read_yaml(os.path.join(REPO, "config", "main.yaml.dist"))["reminders"]
+        self.assertEqual(block["late_after_minutes"], Reminders.LATE_AFTER_MINUTES)
+        self.assertEqual(block["very_old_after_hours"], Reminders.VERY_OLD_AFTER_HOURS)
+
+    def test_the_reminders_doc_names_every_reminders_setting_and_tool(self):
+        doc = read_file(os.path.join(REPO, "docs", "reminders.md"))
+        for key in read_yaml(os.path.join(REPO, "config", "main.yaml.dist"))["reminders"]:
+            self.assertIn(f"reminders.{key}", doc)
+        for tool in ["create_reminder", "get_reminders_for_date", "get_reminder", "update_reminder", "move_reminder", "delete_reminder"]:
+            self.assertIn(tool, doc)
+
     def test_a_boolean_is_not_a_number(self):
         config = cfg(tempfile.mkdtemp(), **{"night_tasks.hour": True, "memory.consolidation.batch_size": True})
         self.assertEqual(len(MemoryConfigValidator.validate(config)), 2)

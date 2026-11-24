@@ -36,6 +36,10 @@ SHARED_WAKE_UP_BUTTON_PRESSED = 16
 # The user asks to cut the speech that is being said. Raised by the button while the speaker is busy, cleared by the TTS.
 # It is NOT a busy flag, so it is not one of the waiters of the SharedMemoryManager.
 SHARED_SPEECH_INTERRUPT_REQUESTED = 17
+# An announcement (a reminder, any notification that Pitxu starts by itself, not an answer) is on the screen: its text and
+# animation live by this flag. Raised and lowered by the Main (see Main._announce_reminders()), from before the speech to
+# the end of the time that it stays on the screen. The speech and the mouth do not follow it: they follow SHARED_SPEAKER_BUSY.
+SHARED_ANNOUNCEMENT_BUSY = 18
 
 # Shared Memory Values
 SHARED_MEMORY_VALUES = "pitxu_shared_memory_values"

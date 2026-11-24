@@ -177,6 +177,11 @@ memory:
       - El camp `significant` és un booleà. Posa'l a `true` quan la conversa conté alguna cosa que valgui la pena recordar més endavant: dades, decisions, preferències, plans, respostes, recursos o ubicacions.
       - Posa'l a `false` i deixa `summary` i `content` com a cadenes buides quan la conversa només tingui salutacions, xerrameca, proves o qualsevol cosa sense valor per recordar més endavant.
 
+      # Avisos del sistema
+      - Els torns de l'usuari que comencen amb `[SYSTEM NOTICE]` no són l'usuari parlant: són avisos de l'aplicació, com un recordatori anunciat en veu alta. Ja es guarden a la memòria per separat: no els dupliquis al resum.
+      - Si després d'un avís l'usuari hi reacciona (parla del recordatori, el mou, l'esborra...), recull-ho al resum amb el seu context.
+      - Una conversa que només té avisos del sistema no és significativa.
+
       # Pautes
       Segueix aquestes pautes quan resumeixis l'historial de converses del chatbot:
 
@@ -233,6 +238,11 @@ memory:
       # Relevancia
       - El campo `significant` es un booleano. Ponlo a `true` cuando la conversación contiene algo que valga la pena recordar más adelante: datos, decisiones, preferencias, planes, respuestas, recursos o ubicaciones.
       - Ponlo a `false` y deja `summary` y `content` como cadenas vacías cuando la conversación solo tenga saludos, charla trivial, pruebas o cualquier cosa sin valor para recordar más adelante.
+
+      # Avisos del sistema
+      - Los turnos del usuario que empiezan por `[SYSTEM NOTICE]` no son el usuario hablando: son avisos de la aplicación, como un recordatorio anunciado en voz alta. Ya se guardan en la memoria por separado: no los dupliques en el resumen.
+      - Si después de un aviso el usuario reacciona (habla del recordatorio, lo mueve, lo borra...), recógelo en el resumen con su contexto.
+      - Una conversación que solo tiene avisos del sistema no es significativa.
 
       # Pautas
       Sigue estas pautas cuando resumas el historial de conversaciones del chatbot:
@@ -291,6 +301,11 @@ memory:
       - The field `significant` is a boolean. Set it to `true` when the conversation contains something worth remembering later: facts, decisions, preferences, plans, answers, resources or locations.
       - Set it to `false` and leave `summary` and `content` as empty strings when the conversation only has greetings, small talk, tests or anything without value to remember later.
 
+      # System notices
+      - The user turns that start with `[SYSTEM NOTICE]` are not the user speaking: they are notices from the application, like a reminder announced out loud. They are already saved in the memory separately: do not duplicate them in the summary.
+      - If the user reacts after a notice (talks about the reminder, moves it, deletes it...), include it in the summary with its context.
+      - A conversation that only has system notices is not significant.
+
       # Guidelines
       Follow these guidelines when summarizing the chatbot conversation history:
 
@@ -347,6 +362,11 @@ memory:
       # Relevanz
       - Das Feld `significant` ist ein Boolean. Setze es auf `true`, wenn das Gespräch etwas enthält, das es wert ist, später erinnert zu werden: Fakten, Entscheidungen, Vorlieben, Pläne, Antworten, Ressourcen oder Orte.
       - Setze es auf `false` und lasse `summary` und `content` als leere Zeichenketten, wenn das Gespräch nur Begrüßungen, Smalltalk, Tests oder etwas ohne Wert für spätere Erinnerung enthält.
+
+      # Systemhinweise
+      - Die Benutzer-Turns, die mit `[SYSTEM NOTICE]` beginnen, sind nicht der Benutzer, der spricht: Es sind Hinweise der Anwendung, wie eine laut angekündigte Erinnerung. Sie werden bereits separat im Gedächtnis gespeichert: Dupliziere sie nicht in der Zusammenfassung.
+      - Wenn der Benutzer nach einem Hinweis reagiert (über die Erinnerung spricht, sie verschiebt, löscht...), nimm das mit seinem Kontext in die Zusammenfassung auf.
+      - Ein Gespräch, das nur Systemhinweise enthält, ist nicht signifikant.
 
       # Richtlinien
       Befolgen Sie diese Richtlinien, wenn Sie den Chatbot-Gesprächsverlauf zusammenfassen:

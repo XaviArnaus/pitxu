@@ -246,16 +246,21 @@ language:
       es: "Lo siento, ha habido un error al crear el recordatorio."
       en: "I'm sorry, there was an error creating the reminder."
       de: "Es tut mir leid, es gab einen Fehler beim Erstellen der Erinnerung."
-    reminder_already_exists:
-      ca: "Ja existeix un recordatori per a aquesta data i hora: %s."
-      es: "Ya existe un recordatorio para esta fecha y hora: %s."
-      en: "A reminder already exists for this date and time: %s."
-      de: "Für dieses Datum und diese Uhrzeit existiert bereits eine Erinnerung: %s."
     reminder_list_empty:
       ca: "No hi ha recordatoris establerts."
       es: "No hay recordatorios establecidos."
       en: "There are no reminders set."
       de: "Es sind keine Erinnerungen gesetzt."
+    reminder_count_one:
+      ca: "1 recordatori."
+      es: "1 recordatorio."
+      en: "1 reminder."
+      de: "1 Erinnerung."
+    reminder_count_many:
+      ca: "%d recordatoris."
+      es: "%d recordatorios."
+      en: "%d reminders."
+      de: "%d Erinnerungen."
     reminder_retrieval_error:
       ca: "Ho sento, hi ha hagut un error en recuperar els recordatoris."
       es: "Lo siento, ha habido un error al recuperar los recordatorios."
@@ -267,10 +272,10 @@ language:
       en: "Reminder deleted for %s at %s."
       de: "Erinnerung gelöscht für den %s um %s."
     reminder_not_found:
-      ca: "No s'ha trobat cap recordatori per al %s a les %s."
-      es: "No se ha encontrado ningún recordatorio para el %s a las %s."
-      en: "No reminder found for %s at %s."
-      de: "Keine Erinnerung für den %s um %s gefunden."
+      ca: "No s'ha trobat cap recordatori amb l'id %s."
+      es: "No se ha encontrado ningún recordatorio con el id %s."
+      en: "No reminder found with the id %s."
+      de: "Keine Erinnerung mit der ID %s gefunden."
     reminder_deletion_error:
       ca: "Ho sento, hi ha hagut un error en eliminar el recordatori."
       es: "Lo siento, ha habido un error al eliminar el recordatorio."
@@ -281,6 +286,51 @@ language:
       es: "Recordatorio: %s"
       en: "Reminder: %s"
       de: "Erinnerung: %s"
+    reminder_announcement_multiple:
+      ca: "Tens %d recordatoris: %s"
+      es: "Tienes %d recordatorios: %s"
+      en: "You have %d reminders: %s"
+      de: "Du hast %d Erinnerungen: %s"
+    reminder_screen_title:
+      ca: "Recordatoris"
+      es: "Recordatorios"
+      en: "Reminders"
+      de: "Erinnerungen"
+    reminder_item_late_today:
+      ca: "A les %s, %s"
+      es: "A las %s, %s"
+      en: "At %s, %s"
+      de: "Um %s, %s"
+    reminder_item_late_other_day:
+      ca: "El %s a les %s, %s"
+      es: "El %s a las %s, %s"
+      en: "On %s at %s, %s"
+      de: "Am %s um %s, %s"
+    reminder_very_old_warning:
+      ca: "Aquest recordatori és molt antic i no es va poder anunciar en el seu moment."
+      es: "Este recordatorio es muy antiguo y no se pudo anunciar en su momento."
+      en: "This reminder is very old and could not be announced back then."
+      de: "Diese Erinnerung ist sehr alt und konnte damals nicht angekündigt werden."
+    reminder_history_notice:
+      ca: "L'aplicació acaba d'anunciar en veu alta, pel seu compte, els recordatoris amb aquests ids: %s. L'usuari no ha dit res."
+      es: "La aplicación acaba de anunciar en voz alta, por su cuenta, los recordatorios con estos ids: %s. El usuario no ha dicho nada."
+      en: "The application just announced out loud, on its own, the reminders with these ids: %s. The user did not say anything."
+      de: "Die Anwendung hat soeben von sich aus die Erinnerungen mit diesen IDs laut angekündigt: %s. Der Benutzer hat nichts gesagt."
+    reminder_memory_summary_one:
+      ca: "Recordatori anunciat: %s"
+      es: "Recordatorio anunciado: %s"
+      en: "Reminder announced: %s"
+      de: "Erinnerung angekündigt: %s"
+    reminder_memory_summary_many:
+      ca: "%d recordatoris anunciats"
+      es: "%d recordatorios anunciados"
+      en: "%d reminders announced"
+      de: "%d Erinnerungen angekündigt"
+    reminder_memory_content:
+      ca: "A les %s el Pitxu va anunciar en veu alta: %s (ids dels recordatoris: %s)"
+      es: "A las %s Pitxu anunció en voz alta: %s (ids de los recordatorios: %s)"
+      en: "At %s Pitxu announced out loud: %s (reminder ids: %s)"
+      de: "Um %s hat Pitxu laut angekündigt: %s (IDs der Erinnerungen: %s)"
     reminder_update_error:
       ca: "Ho sento, hi ha hagut un error en actualitzar el recordatori."
       es: "Lo siento, ha habido un error al actualizar el recordatorio."
