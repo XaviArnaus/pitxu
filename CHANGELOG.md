@@ -15,6 +15,7 @@
 - The memory search is by keywords (title and content, any word, ranked) in both memories, so natural queries find the long term entries too.
 - When the chatbot understands that the user ends the conversation, Pitxu says a random ending sentence by itself (`language.end_of_conversation_answers`) and goes idle right away, without waiting for the hold time. The exit words still close the application. The status area shows "Conversation ended" and "Summarizing conversation".
 - Reminders are in the database (migration 0004; see [docs/reminders.md](docs/reminders.md)) and are identified by an id, like the memory entries: several can share the same date and time, and the chatbot tools read, update, move and delete by `reminder_id`. A reminder that was announced is kept for `reminders.keep_announced_days` (7), and moving it makes it pending again. The reminders of the old `storage/reminders.yaml` are moved into the database at startup, and the file is deleted only when all of them are in.
+- The DSI screen dims when the app goes into idle mode and recovers its brightness when it wakes up (`dsi_lcd.idle_dimming`: `enabled`, `brightness_percent`, `active_percent`). The brightness is also restored at startup and when the app closes. It uses the panel's `brightness` in sysfs, independent from the screen on/off command.
 - Test suite in `test/` (`make unittests`). The scripts for the sound hardware moved to `test/hardware/`.
 
 ### Changed

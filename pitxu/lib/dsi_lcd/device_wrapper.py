@@ -18,6 +18,7 @@ class DeviceWrapper(PyXavi, Device):
     path_for_mocked_images: str = None
 
     device = None
+    _mocked_brightness: float = 100.0
 
     VERBOSE_DEBUG: bool = False
 
@@ -27,10 +28,6 @@ class DeviceWrapper(PyXavi, Device):
         if self.is_dsi_allowed():
             from pitxu.lib.dsi_lcd.framebuffer_screen import FramebufferScreen
             self.device = FramebufferScreen(config=config, params=params)
-
-            # brightness = int(config.get("dsi_lcd.brightness", 50))
-            # self.device.set_backlight_mode(True)
-            # self.device.set_backlight(brightness)
         else:
             import os
             self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
@@ -72,6 +69,21 @@ class DeviceWrapper(PyXavi, Device):
             else:
                 self.display(Image.new("RGBA", screen_size, "black"))
     
+    def set_brightness(self, percent: float) -> bool:
+        """
+        Sets the brightness of the backlight, in percent (0-100). The mocked display only remembers it.
+        Returns True if it was applied.
+        """
+        if (self.is_dsi_allowed()):
+            from pitxu.lib.hardware import DisplayControl
+            applied = DisplayControl.set_brightness(percent)
+            if not applied:
+                self._xlog.warning(f"Could not set the brightness to {percent}%.")
+            return applied
+        self._mocked_brightness = percent
+        self._log_debug(f"Mocked brightness set to {percent}%.")
+        return True
+
     def close(self):
         if (self.is_dsi_allowed()):
             self.device.close()

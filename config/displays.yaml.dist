@@ -144,6 +144,14 @@ dsi_lcd:
     y: 480
   # [bool] Rotate the display 180 degrees or not.
   rotate: False
+  # Dim the backlight while the app is in idle mode, and restore it when it wakes up.
+  idle_dimming:
+    # [Bool] Enable the dimming. Defaults to True
+    enabled: True
+    # [Number] Brightness in percent (0-100) while idle. Defaults to 5
+    brightness_percent: 5
+    # [Number] Brightness in percent (0-100) to restore when awake (also applied at startup). Defaults to 100
+    active_percent: 100
   # Configuration regarding the fonts
   fonts:
     # [String] Path and filename for the specific font to use in this screen
