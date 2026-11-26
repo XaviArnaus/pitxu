@@ -90,7 +90,7 @@ class IdleDimmerTests(unittest.TestCase):
         self.assertTrue(dimmer.is_enabled())
         dimmer.dim()
         dimmer.restore()
-        self.assertEqual(device.calls, [10, 100])
+        self.assertEqual(device.calls, [5, 100])
 
     def test_08_it_can_be_disabled_by_config(self):
         self.assertFalse(make_dimmer(FakeDevice(), enabled=False).is_enabled())

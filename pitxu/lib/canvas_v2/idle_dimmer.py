@@ -24,7 +24,7 @@ class IdleDimmer(PyXavi):
     """
 
     DEFAULT_ENABLED: bool = True
-    DEFAULT_DIM_PERCENT: float = 10
+    DEFAULT_DIM_PERCENT: float = 5
     DEFAULT_ACTIVE_PERCENT: float = 100
 
     VERBOSE_DEBUG: bool = False
