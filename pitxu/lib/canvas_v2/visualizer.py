@@ -5,6 +5,7 @@ from pitxu.lib.abstract.device import Device
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.canvas_v2.canvas import Canvas
 from pitxu.lib.canvas_v2.animations import Animations
+from pitxu.lib.canvas_v2.idle_dimmer import IdleDimmer
 from pitxu.lib.canvas_v2.layout_info import LayoutInfo, DisplayArea
 from pitxu.lib.canvas_v2.macros.macros_animation import MacrosAnimation
 from pitxu.lib.canvas_v2.macros.macros_background import MacrosBackground
@@ -49,6 +50,7 @@ class Visualizer(PyXavi):
     macros_animation: MacrosAnimation = None
     macros_buttons: MacrosButtons = None
     animations: Animations = None
+    idle_dimmer: IdleDimmer | None = None
 
     interaction_delays: dict[str, float] = None
     layout_info: dict[str, dict[str, Rectangle]] = None
@@ -230,6 +232,7 @@ class Visualizer(PyXavi):
         # The idea is to set them up only once here, in the Visualizer, and never worry about them again, without needing to set them up on every interaction that needs them.
         self._setup_buttons_monitoring()
         self._setup_countdown_cleanup()
+        self._setup_idle_dimming()
 
         self._xlog.debug("Initialized Visualizer.")
     
@@ -247,6 +250,9 @@ class Visualizer(PyXavi):
     
     def close(self):
         self._xlog.debug("Closing Visualizer...")
+        # Whatever the state, the screen is left at its normal brightness.
+        if self.idle_dimmer is not None:
+            self.idle_dimmer.restore()
         self.painter.close()
         self.canvas.close_canvas()
         self._xlog.debug("Visualizer closed.")
@@ -1092,6 +1098,31 @@ class Visualizer(PyXavi):
             callback=end_holding_percentage_when_thinking,
             is_dependant=False)
     
+    def _setup_idle_dimming(self):
+        """
+        Registers, once and forever, the callbacks that dim the display when the idle mode starts and restore it when it ends.
+        It listens to the flag itself, so it does not matter who sets the idle mode on or off.
+        The restore callback also runs at startup (the flag is off), which leaves the screen at its normal brightness
+        even if the previous run died while dimmed.
+        """
+        # It takes the device from the params, and reads and logs its own configuration.
+        idle_dimmer = IdleDimmer(self._xconfig, self._xparams)
+        if not idle_dimmer.is_enabled():
+            return
+        if not hasattr(self.device, "set_brightness"):
+            self._xlog.warning("Idle dimming is enabled, but the device can't set the brightness. Ignoring it.")
+            return
+        self.idle_dimmer = idle_dimmer
+
+        painter_shared_memory = self.painter.get_painter_shared_memory()
+        for value, callback in ((True, self.idle_dimmer.dim), (False, self.idle_dimmer.restore)):
+            painter_shared_memory.set_callback_for_shared_memory_flag(
+                name=f"idle_dimming_{value}",
+                shared_memory_flag=SHARED_DSI_LCD_IDLE_MODE,
+                activation_value=value,
+                callback=callback,
+                is_dependant=False)
+
     # ----- Status paints -----
 
     def show_status_line(self, param: dict):
