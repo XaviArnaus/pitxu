@@ -8,6 +8,7 @@ from pitxu.lib.objects import XprocAction
 from pitxu.lib.support_process.dumper import Dumper
 from pitxu.lib.support_process.summarizer import Summarizer
 from pitxu.lib.utils.memory_consolidator import MemoryConsolidator
+from pitxu.lib.utils.list_translator import ListTranslator
 
 import numpy as np
 
@@ -21,6 +22,7 @@ class SupportProcess(Xprocess):
     dumper: Dumper = None
     summarizer: Summarizer = None
     consolidator: MemoryConsolidator = None
+    list_translator: ListTranslator = None
 
     def get_process_name(self) -> str:
         return "Support"
@@ -41,7 +43,14 @@ class SupportProcess(Xprocess):
         self.consolidator = MemoryConsolidator(
             config=self._xconfig, params=self._xparams, should_abort=self._something_is_waiting)
 
+        # It gives way like the consolidator does.
+        self.list_translator = ListTranslator(
+            config=self._xconfig, params=self._xparams, should_abort=self._something_is_waiting)
+
     def finish(self):
+        self._xlog.debug("Closing List Translator in Support Worker")
+        if self.list_translator is not None:
+            self.list_translator.close()
         self._xlog.debug("Closing Memory Consolidator in Support Worker")
         if self.consolidator is not None:
             self.consolidator.close()
@@ -89,6 +98,9 @@ class SupportProcess(Xprocess):
 
         if action == XprocAction.CONSOLIDATE_MEMORY:
             self.consolidate_memory(param if isinstance(param, str) else "requested")
+
+        if action == XprocAction.TRANSLATE_LISTS:
+            self.translate_lists(param if isinstance(param, str) else "requested")
     
     def accumulate_audio(self, audio_data_np: np.ndarray, preprocessed: bool = False):
         self._log_debug(f"Accummulating {'preprocessed' if preprocessed else 'raw'} audio data in Support Worker")
@@ -113,6 +125,10 @@ class SupportProcess(Xprocess):
     def consolidate_memory(self, reason: str) -> None:
         self._xlog.info(f"Consolidating the memory in Support Worker [{reason}]")
         self.consolidator.run(reason=reason)
+
+    def translate_lists(self, reason: str) -> None:
+        self._xlog.info(f"Translating the lists in Support Worker [{reason}]")
+        self.list_translator.run(reason=reason)
 
     def _something_is_waiting(self) -> bool:
         """

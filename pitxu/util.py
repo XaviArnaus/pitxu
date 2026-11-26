@@ -117,6 +117,20 @@ class Util(PyXavi):
         finally:
             consolidator.close()
 
+    def util_translate_lists(self):
+        """
+        Translates the lists into the supported languages now, in this process, instead of waiting for the night.
+        Do not run it while the application does its own: both only add translations that are missing, so it is safe,
+        but the LLM would be asked twice.
+        """
+        from pitxu.lib.utils.list_translator import ListTranslator
+        translator = ListTranslator(config=self._xconfig, params=self._xparams)
+        try:
+            stats = translator.run(reason="manual util")
+            print(stats if stats is not None else "The translation did not run. Check the log.")
+        finally:
+            translator.close()
+
     def util_check_config(self):
         """
         Compares every live config file with its `.dist` and tells what each one lacks or has extra.

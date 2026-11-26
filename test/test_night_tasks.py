@@ -85,23 +85,47 @@ class NightTasksTests(unittest.TestCase):
 
         holder._maintenance = Maintenance()
         holder.request_memory_consolidation = lambda reason: calls.append(("consolidate", reason))
+
+        class Support:
+            @staticmethod
+            def translate_lists(reason):
+                calls.append(("translate lists", reason))
+
+        holder._support = Support()
+
+        class Lists:
+            @staticmethod
+            def cleanup(done_after_days, trash_after_days):
+                calls.append(("lists cleanup", done_after_days, trash_after_days))
+
+        holder._lists = Lists()
         FakeEmojiStats.flushed = 0
         holder.do_at_night_tasks()
         return holder, calls
 
     def test_it_does_everything(self):
         _, calls = self._run()
-        self.assertEqual(calls, ["rotate", ("consolidate", "night")])
+        self.assertEqual(calls, ["rotate", ("lists cleanup", 14, 30), ("translate lists", "night"), ("consolidate", "night")])
         self.assertEqual(FakeEmojiStats.flushed, 1)
 
     def test_the_consolidation_can_be_turned_off(self):
         _, calls = self._run(**{"memory.consolidation.enabled": False})
-        self.assertEqual(calls, ["rotate"])
+        self.assertEqual(calls, ["rotate", ("lists cleanup", 14, 30), ("translate lists", "night")])
         self.assertEqual(FakeEmojiStats.flushed, 1)
+
+    def test_the_translation_of_the_lists_can_be_turned_off(self):
+        _, calls = self._run(**{"lists.translation.enabled": False})
+        self.assertEqual(calls, ["rotate", ("lists cleanup", 14, 30), ("consolidate", "night")])
+
+    def test_the_cleanup_of_the_lists_can_be_turned_off_and_has_its_periods(self):
+        _, calls = self._run(**{"lists.cleanup.enabled": False})
+        self.assertNotIn(("lists cleanup", 14, 30), calls)
+        _, calls = self._run(**{"lists.cleanup.done_after_days": 7, "lists.cleanup.trash_after_days": 60})
+        self.assertIn(("lists cleanup", 7, 60), calls)
 
     def test_a_failing_task_does_not_skip_the_others(self):
         holder, calls = self._run(rotate_fails=True)
-        self.assertEqual(calls, ["rotate", ("consolidate", "night")])
+        self.assertEqual(calls, ["rotate", ("lists cleanup", 14, 30), ("translate lists", "night"), ("consolidate", "night")])
         self.assertEqual(FakeEmojiStats.flushed, 1)
         self.assertTrue(any("rotate metrics logs" in line and "disk full" in line for line in holder._xlog.lines))
 

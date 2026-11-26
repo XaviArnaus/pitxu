@@ -67,6 +67,54 @@ reminders:
   #   and could not be announced back then.
   very_old_after_hours: 24
 
+# Lists
+lists:
+  # The night cleanup of the lists, in two stages.
+  cleanup:
+    # [Boolean] False: nothing is cleaned up.
+    enabled: True
+    # [Integer] Days that an item marked as done stays in its list. Then it goes to the trash (it can be restored).
+    #   The lists marked as favourite keep their done items.
+    done_after_days: 14
+    # [Integer] Days that the trash keeps what is in it: removed items and deleted lists. Then they are deleted for good.
+    trash_after_days: 30
+  # The night translation: names, descriptions and items get a version in every supported language
+  #   (app.supported_languages), so a list is read in the language that is being spoken.
+  #   The Support worker does it, with the LLM, after the night tasks start. `poetry run util -u translate_lists` does it now.
+  translation:
+    # [Boolean] False: nothing is translated. The chatbot still translates what it reads in another language.
+    enabled: True
+    # [Integer] Texts sent to the LLM at once.
+    batch_size: 30
+    # [String] Model for the translation. Empty: gemini-2.5-flash.
+    model: gemini-3.1-flash-lite
+    # The LLM request: tries, seconds to wait before the second one (it doubles after every try), seconds before a request
+    #   gives up, and seconds that the tries of one batch can take altogether.
+    retries: 3
+    backoff_seconds: 5
+    request_timeout_seconds: 60
+    max_total_seconds: 180
+    # The text and its translations are in `Input`: a list of elements, each with its `kind` ("list" or "item"), `id`,
+    #   `source_language` (what the user was speaking when writing it: only a hint, it can be in another language), `text`
+    #   (the name of a list), `description` (lists only) and the `targets` that it has to be translated into.
+    prompt: |
+      Translate the names and descriptions of lists, and the items of lists (shopping lists, to do lists...), into other languages.
+
+      Rules:
+      - Give one translation for every element and every language of its `targets`.
+      - The `source_language` is only a hint: the text can be in another language, or mixed. If the text already is in a target
+        language, give it back as it is for that language.
+      - Do NOT translate proper names, brand names, product names, codes, numbers or units.
+      - Keep it short and natural, as somebody would write it in a list. Keep the style and the capital letters of the source.
+        Do not add nor remove information.
+      - `description` is for lists only: translate it too, or leave it empty if it is empty.
+
+      Output a JSON object with `translations`: a list with one item per element and target language, each one with `kind`,
+      `id`, `language` (one of the `targets`), `text` and `description` (empty for items).
+
+      # Input
+      %s
+
 # The doorbell: the processes ring each other when something changes in the shared memory,
 #   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
 # Switches to tell if a problem comes from it. What is not here is on. Restart to apply.

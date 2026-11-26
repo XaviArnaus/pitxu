@@ -21,7 +21,7 @@ Not part of the reminders work: to tackle later, each one by itself.
 The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`. Two more would cover several of these: `now_iso()` and `iso_to_datetime()`.
 
 [ ] `db_sqlite.py:144`: `datetime.now().strftime(...)` for the backup names.
-[ ] `lists.py:61,192`: `datetime.now().strftime(...)` (do it together with the Lists pass, like the Reminders).
+[x] `lists.py:61,192`: `datetime.now().strftime(...)` (done with the Lists pass).
 [ ] `memory.py:151,186,221,331,394,717,728` and `memory_consolidator.py:110`: `Xtime.now().isoformat()` (10 times). New `Xtime.now_iso()`.
 [ ] `memory.py:242`, `main.py:2391`, `json_logger.py:130`: `datetime.fromisoformat(...)`. New `Xtime.iso_to_datetime()`.
 [ ] `memory.py:428`: `Xtime.now() - timedelta(...)`. `add_time`.
@@ -42,6 +42,28 @@ The new `Xtime` helpers are `datetime_to_str`, `add_time` and `seconds_between`.
 [ ] Transcriber or voice detected (the end of the countdown waits while the user speaks, `main.py:2265` and `2297`). Candidate: `is_user_input_busy()`.
 [ ] Transcriber only (the early thinking effect and the holding bar, `main.py:517,525,530,1133,2274`).
 [ ] Speaker plus config (speech interruption by the button, `main.py:1936`).
+
+### Configuration files
+
+[ ] Go through all the config entries, sort them out and split the long files into new, smaller ones. Candidates: `reminders` and `lists` (now in `main.yaml`), each display type that can have its own file, and above all the speech one (STT/TTS). Remember to update `config/*.yaml.dist`, `ConfigChecker`, the `MemoryConfigValidator` keys, the config loader, the tests that read the `.dist` files (`test/support.py`, `cfg()`), the docs and the live files on the Pi.
+
+### Database naming
+
+[ ] Rename the `reminders` table to singular `reminder` (and its index `idx_reminders_pending` to `idx_reminder_pending`) in a small migration, to match `short_time_memory`, `knowledge_base`, `list`... Remember to update `reminders.py`, the legacy import, docs and tests.
+[ ] Same for `pending_conversations`, if we want full consistency.
+
+### Lists
+
+[ ] Let a list stay on the screen after the speech ends, until another paint claims the area (the painter already replaces a staying paint when a new one arrives). For now it shows only while speaking.
+[ ] Lists on the screen are plain text (the foreground text goes through `MarkdownRenderer.draw_plain`, with no bold or italic): the status and the change are told with emoji (⬜ ✅ 👈). Real highlights (bold/italic, colours, strikethrough for done items) need a Markdown mode for the foreground text and an extension of the renderer (a single foreground colour, no strikethrough).
+
+### Foreground titles
+
+[ ] The shortcuts `show_arbitrary_text_on_foreground*` (and `Interaction`) default `font_header_size` to 32, a number that is not one of the canvas sizes: the reminders list had it. Make a missing size mean `FONT_SIZE_BIG`, so every title is the same unless a caller (the weather) asks for another.
+
+### Stuck VAD flag
+
+[ ] Cleaner fix: reset the voice-detected flag when the mic is muted, instead of ignoring it in `is_interaction_busy()` while muted.
 
 ### Found in the Gemini chat history
 

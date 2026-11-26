@@ -65,6 +65,19 @@ chatbot:
         - Only when the user explicitly asks you to remember something, confirm it with a few words.
         - If a memory tool fails, tell the user, as the memory reliability rules say.
         - When the user asks to forget something, do it without asking again. Ask only if it is unclear which entry they mean.
+  # [String] Added at the end of the system instruction (in any language), after the memory one, to tell how to use the lists
+  #   tools. Written in English on purpose, like `emotion_instruction`. It has no `%s`. Empty: nothing is added.
+  lists_instruction: |
+
+        # Lists
+
+        - Do what the user asks about lists right away, without asking for confirmation. Several items in one request go in ONE call (`add_items`, or `create_list` with `items`).
+        - If a list does not exist, create it with `create_list` (with its items) instead of asking: the answer of the tools says which lists exist.
+        - When the user says they bought or did something, mark it as done with `check_items`; remove an item only when they ask to delete it. To start a list over, `check_items` with done=false and the list name.
+        - If `add_items` says an item is a duplicate, tell the user in one short sentence. If it was done, offer to mark it as open again, and do not change it until they say so.
+        - The screen already shows the list: answer in one short sentence, and do not read the list aloud unless the user asks you to.
+        - Items are told by their id: get them with `get_lists` and a list name. Never make up an id.
+        - To print or send a list, read it with `get_lists` and the language that the user asks for (otherwise the current one), and translate yourself what comes as `untranslated`.
   # [String] Sets up the context for the interaction. Has a prompt shape.
   system_instruction:
     ca: |

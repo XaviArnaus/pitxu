@@ -419,6 +419,24 @@ class Maintenance(PyXavi):
         except Exception as e:
             self._xlog.error(f"⚙️  Error moving the old reminders into the database (the file is kept): {e}")
 
+    def import_legacy_lists(self):
+        '''
+        The lists were in `storage/lists.yaml` before the database. If the file is still there, its lists are moved
+        into the database and the file is deleted, only when all of them are in the database.
+        It must run after the migrations. Without the file it does nothing.
+        '''
+        try:
+            from pitxu.lib.utils.lists import Lists
+            lists = Lists(config=self._xconfig, params=self._xparams)
+            try:
+                stats = lists.import_legacy_yaml()
+            finally:
+                lists.close()
+            if stats["found"]:
+                self._xlog.info(f"⚙️  Old lists file: {stats}")
+        except Exception as e:
+            self._xlog.error(f"⚙️  Error moving the old lists into the database (the file is kept): {e}")
+
     def validate_memory_config(self):
         '''
         Reports in the log the settings of the memory and the database that are not valid, and replaces them by their defaults.

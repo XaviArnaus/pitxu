@@ -15,6 +15,7 @@ from pitxu.lib.core.shared_memory_monitor import SharedMemoryMonitor
 from pitxu.lib.core.xprocess_pool import XprocessPool
 from pitxu.lib.core.doorbell_waiter import DoorbellWaiter
 from pitxu.lib.utils.reminders import Reminders
+from pitxu.lib.utils.lists import Lists
 from pitxu.lib.utils.fan_control import FanControl
 from pitxu.lib.chatbot import GeminiChatbot
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
@@ -83,6 +84,7 @@ class Main(PyXavi):
 
     _maintenance: Maintenance = None
     _reminders: Reminders = None
+    _lists: Lists = None
     _fan_control: FanControl = None
     _scheduler: BackgroundScheduler = None
 
@@ -162,6 +164,8 @@ class Main(PyXavi):
             self._maintenance.execute_db_migrations()
             # The reminders that were in a file before the database are moved into it (and the file is deleted).
             self._maintenance.import_legacy_reminders()
+            # Same for the lists.
+            self._maintenance.import_legacy_lists()
             self._maintenance.execute_memory_preload()
             self._maintenance.release_in_flight_conversations()
 
@@ -1334,6 +1338,10 @@ class Main(PyXavi):
             if self._reminders is not None:
                 self._safe_step("reminders database", self._reminders.close)
 
+            # And the one of the lists
+            if self._lists is not None:
+                self._safe_step("lists database", self._lists.close)
+
             # Stop Idle Mode if active
             self._safe_step("idle mode", self._interaction.set_idle_mode_off)
 
@@ -1457,6 +1465,8 @@ class Main(PyXavi):
 
         # The Reminders functionality
         self._reminders = Reminders(config=self._xconfig, params=self._xparams)
+        # The Lists, shared with the chatbot tools
+        self._lists = Lists(config=self._xconfig, params=self._xparams)
 
         # Stopwatch to measure times
         self._stopwatch = Stopwatch()
@@ -1662,6 +1672,8 @@ class Main(PyXavi):
             "device_monitor": self._device_monitor,
             # The same instance (and database connection) that announces the reminders.
             "reminders": self._reminders,
+            # And the one of the lists.
+            "lists": self._lists,
         }))
 
     def _load_language_statics(self):
@@ -2173,7 +2185,8 @@ class Main(PyXavi):
         reminder is big and centered.
         """
         if announcement["count"] > 1:
-            return {"icon": "📝", "header": announcement["title"], "text": announcement["screen"], "align": "left", "valign": "top"}
+            return {"icon": "📝", "header": announcement["title"], "font_header_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG,
+                    "text": announcement["screen"], "align": "left", "valign": "top"}
         return {"icon": "📝", "text": announcement["screen"],
                 "font_size": self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG}
 
@@ -2542,6 +2555,16 @@ class Main(PyXavi):
         # The reminders that were announced some days ago are not needed anymore.
         self._safe_step("reminders prune", lambda: self._reminders.prune_announced(
             int(self._xconfig.get("reminders.keep_announced_days", 7))))
+
+        # The done items of the lists go to the trash, and what is old in the trash is deleted for good.
+        if self._xconfig.get("lists.cleanup.enabled", True):
+            self._safe_step("lists cleanup", lambda: self._lists.cleanup(
+                int(self._xconfig.get("lists.cleanup.done_after_days", 14)),
+                int(self._xconfig.get("lists.cleanup.trash_after_days", 30))))
+
+        # The lists get a version in every supported language (the Support worker does it, and gives way to anything else).
+        if self._xconfig.get("lists.translation.enabled", True):
+            self._safe_step("lists translation", lambda: self._support.translate_lists("night"))
 
         # The short term memory goes into the long term one. It waits for Pitxu to be idle, if it is not.
         if self._xconfig.get("memory.consolidation.enabled", True):

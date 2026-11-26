@@ -64,6 +64,16 @@ class MemoryConfigValidator:
             ("memory.consolidation.backoff_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
             ("memory.consolidation.request_timeout_seconds", 60, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("memory.consolidation.max_total_seconds", 180, "a number of seconds above 0", lambda v: number(v) and v > 0),
+            ("lists.cleanup.enabled", True, "True or False", boolean),
+            ("lists.cleanup.done_after_days", 14, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
+            ("lists.cleanup.trash_after_days", 30, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
+            ("lists.translation.enabled", True, "True or False", boolean),
+            ("lists.translation.batch_size", 30, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
+            ("lists.translation.model", "gemini-3.1-flash-lite", "a model name, or empty", lambda v: isinstance(v, str)),
+            ("lists.translation.retries", 3, "an integer, 1 or more", lambda v: integer(v) and v >= 1),
+            ("lists.translation.backoff_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
+            ("lists.translation.request_timeout_seconds", 60, "a number of seconds above 0", lambda v: number(v) and v > 0),
+            ("lists.translation.max_total_seconds", 180, "a number of seconds above 0", lambda v: number(v) and v > 0),
             ("reminders.keep_announced_days", 7, "an integer, 0 or more", lambda v: integer(v) and v >= 0),
             ("reminders.screen_hold_seconds", 5, "a number of seconds, 0 or more", lambda v: number(v) and v >= 0),
             ("reminders.late_after_minutes", 2, "a number of minutes, 0 or more", lambda v: number(v) and v >= 0),
@@ -112,10 +122,10 @@ class MemoryConfigValidator:
                        "(main.yaml). Remove it.")
 
         # Without a default that can replace them: only reported.
-        for key in ("memory.consolidation.prompt", "memory.consolidation.translation_prompt"):
+        for key in ("memory.consolidation.prompt", "memory.consolidation.translation_prompt", "lists.translation.prompt"):
             value = config.get(key)
             if value is not None and (not isinstance(value, str) or "%s" not in value):
-                report(f"[{key}] must be a text with a %s where the data goes. The consolidation will not work until it is fixed.")
+                report(f"[{key}] must be a text with a %s where the data goes. It will not work until it is fixed.")
 
         # The reminders: "very old" must come after "late", otherwise nothing is just late.
         late = config.get("reminders.late_after_minutes")

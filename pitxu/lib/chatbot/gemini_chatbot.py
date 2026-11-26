@@ -258,17 +258,27 @@ class GeminiChatbot(PyXavi):
         instruction = self._xconfig.get("chatbot.memory_autonomy_instruction", None)
         return str(instruction) if instruction else ""
 
+    def _lists_instruction(self) -> str:
+        """
+        The part of the system instruction that tells how to use the lists tools (`chatbot.lists_instruction`).
+        Empty if there is none in the config.
+        """
+        instruction = self._xconfig.get("chatbot.lists_instruction", None)
+        return str(instruction) if instruction else ""
+
     def _initialize_chat(self, tools: list):
         emotion_instruction = self._emotion_instruction()
         memory_autonomy_instruction = self._memory_autonomy_instruction()
+        lists_instruction = self._lists_instruction()
         self._xlog.info("🧠 Memory autonomy instruction: " + ("added to the system instruction" if memory_autonomy_instruction else "NOT added"))
+        self._xlog.info("📝 Lists instruction: " + ("added to the system instruction" if lists_instruction else "NOT added"))
         self._xlog.info("🎭 Emotion tag instruction: " + (f"added to the system instruction ({len(emotion_instruction)} characters)" if emotion_instruction else "NOT added (needs animations.emotions and chatbot.emotion_instruction in the config)"))
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=(
                     self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME)
-                ) + emotion_instruction + memory_autonomy_instruction,
+                ) + emotion_instruction + memory_autonomy_instruction + lists_instruction,
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
