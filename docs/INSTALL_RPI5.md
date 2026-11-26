@@ -416,6 +416,15 @@ This will tell you in which groups the your user is registered.
 
 ⚠️ Tracing the execution as shipped by the Pitxu repo, the `systemd` service (ran by `user`) executes `bin/pitxu`, which at its time runs `poetry run main`. This means that the actual execution of Pitxu is done by `user`. Therefore, we need `user` to be part of `video`.  
 
+### Backlight control (dimming while idle, screen on/off)
+
+The backlight is controlled through sysfs, with `sudo` (the same way the "turn off the screen" command does it), so `user` needs passwordless `sudo`, which is the default in Raspberry Pi OS. To check that your panel accepts brightness values:
+```
+cat /sys/class/backlight/11-0045/{brightness,max_brightness}
+```
+
+The dimming is configured in `dsi_lcd.idle_dimming` (see `config/displays.yaml.dist`).
+
 References:
 - https://gist.github.com/Quasimondo/e47a5be0c2fa9a3ef80c433e3ee2aead
 - https://medium.com/@avik.das/writing-gui-applications-on-the-raspberry-pi-without-a-desktop-environment-8f8f840d9867
@@ -518,7 +527,7 @@ At this point, Pitxu should be prepared to run. The configuration changes that w
 sudo reboot
 ```
 
-After that, we should be up and running with the ALSA configuration. I recommend to run the following test: [bin/test_record_and_play_alsa.sh](./bin/test_record_and_play_alsa.sh)
+After that, we should be up and running with the ALSA configuration. I recommend to run the following test: [test/hardware/test_record_and_play_alsa.sh](../test/hardware/test_record_and_play_alsa.sh)
 
 Now, we can test Pitxu as is in the current SSH terminal. The RPi should become Pitxu 100% working. Just run Pitxu's binary without parameters:
 ```

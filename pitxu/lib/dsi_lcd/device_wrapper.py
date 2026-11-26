@@ -18,6 +18,7 @@ class DeviceWrapper(PyXavi, Device):
     path_for_mocked_images: str = None
 
     device = None
+    _mocked_brightness: float = 100.0
 
     VERBOSE_DEBUG: bool = False
 
@@ -27,19 +28,26 @@ class DeviceWrapper(PyXavi, Device):
         if self.is_dsi_allowed():
             from pitxu.lib.dsi_lcd.framebuffer_screen import FramebufferScreen
             self.device = FramebufferScreen(config=config, params=params)
-
-            # brightness = int(config.get("dsi_lcd.brightness", 50))
-            # self.device.set_backlight_mode(True)
-            # self.device.set_backlight(brightness)
         else:
             import os
             self.path_for_mocked_images = self._xconfig.get("storage.path", self.DEFAULT_STORAGE_PATH) + self.DEFAULT_MOCKED_IMAGES_PATH
             if os.path.exists(self.path_for_mocked_images) == False:
                 os.makedirs(self.path_for_mocked_images)
 
-    def display(self, image: Image.Image, partial: bool = True):
+    def display(self, image: Image.Image, partial: bool = True, region: tuple[int, int, int, int] | None = None):
+        """
+        Shows the image, which is always the whole frame.
+
+        The mocked display ALWAYS stores the whole frame, whatever happens with the real device: the mocked pictures
+        are what allows to test the app without the hardware (reading them), so they can never be partial.
+        Any optimization that writes only a part of the frame is only for the real device, in its own class.
+
+        Args:
+            region: (left, top, right, bottom). Only for the real device: the rest of the image is what it already shows, so
+                it writes only that rectangle. The mocked display ignores it and stores the whole image.
+        """
         if (self.is_dsi_allowed()):
-            self.device.display(image)
+            self.device.display(image, region=region)
         else:
             if (self._xconfig.get("displays.discard_mocked_images", False)):
                 self._log_debug("Won't store mocked image due to [displays.discard_mocked_images].")
@@ -61,6 +69,21 @@ class DeviceWrapper(PyXavi, Device):
             else:
                 self.display(Image.new("RGBA", screen_size, "black"))
     
+    def set_brightness(self, percent: float) -> bool:
+        """
+        Sets the brightness of the backlight, in percent (0-100). The mocked display only remembers it.
+        Returns True if it was applied.
+        """
+        if (self.is_dsi_allowed()):
+            from pitxu.lib.hardware import DisplayControl
+            applied = DisplayControl.set_brightness(percent)
+            if not applied:
+                self._xlog.warning(f"Could not set the brightness to {percent}%.")
+            return applied
+        self._mocked_brightness = percent
+        self._log_debug(f"Mocked brightness set to {percent}%.")
+        return True
+
     def close(self):
         if (self.is_dsi_allowed()):
             self.device.close()

@@ -6,12 +6,18 @@ from pitxu.lib.abstract.command import Command
 
 class SystemConversationFlow(PyXavi, Command):
 
+    # The tool the chatbot calls when the user wants to end the conversation, and what it returns when it worked.
+    #   Defined here once: the Reactions route by it, and an empty answer after it is not an error (see ChatbotResponse).
+    END_OF_CONVERSATION_TOOL_NAME = "user_intends_to_end_conversation"
+    END_OF_CONVERSATION_RESULT = True
+
     def __init__(self, config: Config = None, params: Dictionary = None):
         super(SystemConversationFlow, self).init_pyxavi(config=config, params=params)
 
     def user_intends_to_end_conversation(self) -> bool:
         '''
         Handles the user's intention to end the conversation.
+        The app says the goodbye by itself: after calling this tool, answer with a single word and nothing else.
 
         Returns:
             bool: Returns True if the user intends to end the conversation, False otherwise.

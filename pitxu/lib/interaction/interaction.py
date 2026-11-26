@@ -1,4 +1,6 @@
 import importlib
+import threading
+import time
 
 from pyxavi import Config, Dictionary
 from pitxu.lib.abstract.pyxavi import PyXavi
@@ -13,6 +15,7 @@ from pitxu.lib.utils.text import Text
 from pitxu.lib.utils.latency_timeline import LatencyTimeline
 from pitxu.lib.speech_to_text.input_stream import InputStream
 
+from pitxu.lib.interaction.shortcuts.animations import Animations
 from pitxu.lib.interaction.shortcuts.background import Background
 from pitxu.lib.interaction.shortcuts.foreground import Foreground
 from pitxu.lib.interaction.shortcuts.status import Status
@@ -29,6 +32,7 @@ from definitions import (
     SHARED_SPEAKER_BUSY,
     SHARED_NETWORK_BUSY,
     SHARED_VAD_DETECTED,
+    SHARED_ANNOUNCEMENT_BUSY,
     SHARED_MICROPHONE_MUTED,
     SHARED_CHATBOT_BUSY,
     SHARED_CHATBOT_ANSWER_IS_ERROR,
@@ -64,6 +68,7 @@ class Interaction(PyXavi):
     #   2. Make it easy to use, that's why it has all these methods and became so big.
     foreground: Foreground = None
     background: Background = None
+    animations: Animations = None
     status: Status = None
 
     # Subprocess control. Needs to be passed to the shortcuts
@@ -84,6 +89,9 @@ class Interaction(PyXavi):
     # Also. the display name IS ASSUMED TO BE THE SAME AS THE device_config_prefix passed to the display process.
     # The legacy displays are given as "module:Class" and imported only if they are used, so the main pipeline
     #   does not depend on them (nor on their drivers) unless they are configured.
+    # ⚠️ The legacy displays (eink, matrix_led, lcd) are DEPRECATED: they are behind the current implementation
+    #   (for example, they know nothing about the Animations area). They need to be updated according to the
+    #   current implementation before using them.
     map_display_name_to_instance_data = {
         "eink": ("pitxu.lib.legacy.eink.display:Display", QUEUE_EINK),
         "matrix_led": ("pitxu.lib.legacy.matrix_led:MatrixLed", QUEUE_MATRIX),
@@ -152,6 +160,8 @@ class Interaction(PyXavi):
         displays_to_use = []
         foreground_display = self._xconfig.get("displays.foreground_display", None)
         background_display = self._xconfig.get("displays.background_display", None)
+        # The animations display is the one that shows the emojis. Unless said otherwise, it is the background one.
+        animations_display = self._xconfig.get("displays.animations_display", None) or background_display
         status_display = self._xconfig.get("displays.status_display", None)
         # Now that we're here, just remember which queues to use for foreground and background
         # self.foreground_display_queue = self.map_display_name_to_instance_data.get(foreground_display, (None, None))[1]
@@ -167,6 +177,10 @@ class Interaction(PyXavi):
             "process_pool": self.process_pool,
             "display_queue": self.map_display_name_to_instance_data.get(background_display, (None, None))[1]
         }))
+        self.animations = Animations(config=self._xconfig, params=Dictionary({
+            "process_pool": self.process_pool,
+            "display_queue": self.map_display_name_to_instance_data.get(animations_display, (None, None))[1]
+        }))
         self.status = Status(config=self._xconfig, params=Dictionary({
             "process_pool": self.process_pool,
             "display_queue": self.map_display_name_to_instance_data.get(status_display, (None, None))[1]
@@ -181,6 +195,10 @@ class Interaction(PyXavi):
             and background_display in available_displays\
             and background_display not in displays_to_use:
             displays_to_use.append(background_display)
+        if animations_display is not None\
+            and animations_display in available_displays\
+            and animations_display not in displays_to_use:
+            displays_to_use.append(animations_display)
         if status_display is not None\
             and status_display in available_displays\
             and status_display not in displays_to_use:
@@ -204,10 +222,12 @@ class Interaction(PyXavi):
                 if display_name == background_display:
                     if self._xconfig.key_exists(f"{display_name}.delays.default_delay_between_frames"):
                         self.DEFAULT_DELAY_BETWEEN_FRAMES = self._xconfig.get(f"{display_name}.delays.default_delay_between_frames")
-                    if self._xconfig.key_exists(f"{display_name}.delays.thinking"):
-                        self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.speaking"):
                         self.map_actions_to_delays[XprocAction.SAY] = self._xconfig.get(f"{display_name}.delays.speaking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
+                # Animations display
+                if display_name == animations_display:
+                    if self._xconfig.key_exists(f"{display_name}.delays.thinking"):
+                        self.map_actions_to_delays[XprocAction.THINKING] = self._xconfig.get(f"{display_name}.delays.thinking", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                     if self._xconfig.key_exists(f"{display_name}.delays.idle"):
                         self.map_actions_to_delays[XprocAction.SHOW_IDLE] = self._xconfig.get(f"{display_name}.delays.idle", self.DEFAULT_DELAY_BETWEEN_FRAMES)
                 # Status display
@@ -252,7 +272,7 @@ class Interaction(PyXavi):
         """
         # This is a clear candidate to be moved to the display class, but for now we keep it here because it's the only interaction we have that needs to be triggered after the initialization.
         self._xlog.info("Initializing animations in Visualizer through Interaction.")
-        self.process_pool.send(self.background.get_queue(), XprocAction.INITIALIZE_ANIMATIONS)
+        self.animations.initialize_animations()
     
     def is_wake_up_voice_wanted(self) -> bool:
         """
@@ -318,6 +338,7 @@ class Interaction(PyXavi):
 
         self.foreground.close()
         self.background.close()
+        self.animations.close()
         self.status.close()
 
         self.process_pool.get_memory_manager().force_all_flags_to_idle(is_closing=True)
@@ -452,12 +473,39 @@ class Interaction(PyXavi):
     
     def show_thinking(self):
         """
-        Triggers a "thinking" interaction on the background display.
+        Triggers a "thinking" interaction on the animations display.
 
         This needs the SHARED_CHATBOT_BUSY flag to be set by the Chatbot/Main process.
         """
-        self.background.show_thinking()
-    
+        self.animations.show_thinking()
+
+    # The last animation requested with show_animation_while_speaking(), so whoever decides on the animation of an answer
+    #   (see Reactions) knows if someone else, like the callback of a tool, already did. None if nobody did since the last reset.
+    _animation_requested: str | None = None
+
+    def show_animation_while_speaking(self, animation: str):
+        """
+        Shows an animation (one of `animations.map`) on the animations display, while the answer is spoken.
+        """
+        self._animation_requested = animation
+        self.animations.show_animation_while_speaking(animation)
+
+    def show_animation_while_announcing(self, animation: str):
+        """
+        Shows an animation (one of `animations.map` or `animations.composites`) on the animations display, only while
+        the announcement flag is up. Same rule as the text: register it, wait for the queue, and then raise the flag
+        (see wait_for_animation_display_queue_to_empty()).
+        """
+        self.animations.show_animation_while_announcing(animation)
+
+    def get_animation_requested(self) -> str | None:
+        """ The last animation requested to be shown while speaking, None if nothing was requested since the last reset. """
+        return self._animation_requested
+
+    def reset_animation_requested(self):
+        """ Forgets the animation requested. It is called when a new answer starts to be handled. """
+        self._animation_requested = None
+
     def show_networking(self):
         """
         Triggers a "networking" interaction on the background display.
@@ -482,6 +530,7 @@ class Interaction(PyXavi):
         """
         Show the initialization phases on the Foreground display.
         """
+        self.status.mark_startup_screen_shown()
         self.foreground.show_init_phases(step, text)
 
     def show_idle(self):
@@ -499,12 +548,15 @@ class Interaction(PyXavi):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
+
         ):
         """
         Shows arbitrary text on the foreground display.
         """
-        self.foreground.show_arbitrary_text_on_foreground(icon, text, font_size, header, font_header_size, padding, show_for_seconds)
+        self.foreground.show_arbitrary_text_on_foreground(icon, text, font_size, header, font_header_size, padding, show_for_seconds, align=align, valign=valign)
     
     def show_arbitrary_text_on_foreground_while_idle(
             self,
@@ -514,12 +566,15 @@ class Interaction(PyXavi):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
+
         ):
         """
         Shows arbitrary text on the foreground display.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_idle(icon, text, font_size, header, font_header_size, padding, show_for_seconds)
+        self.foreground.show_arbitrary_text_on_foreground_while_idle(icon, text, font_size, header, font_header_size, padding, show_for_seconds, align=align, valign=valign)
     
     def show_arbitrary_icon_on_foreground(
             self,
@@ -539,13 +594,35 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while speaking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_speaking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_speaking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
+    def show_arbitrary_text_on_foreground_while_announcing(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
+        ):
+        """
+        Shows arbitrary text on the foreground display only while the announcement flag is up
+        (set_announcement_busy() / unset_announcement_busy()), whatever happens with the speech.
+
+        It only registers it, so it has to be processed BEFORE raising the flag: the painter reacts to the
+        flag changing, not to it being up already (see wait_for_foreground_display_queue_to_empty()).
+        """
+        self.foreground.show_arbitrary_text_on_foreground_while_announcing(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
+
     def show_arbitrary_icon_on_foreground_while_user_speaking(
             self,
             icon: str = None,
@@ -564,12 +641,14 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while thinking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_thinking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_thinking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
     def show_arbitrary_text_on_foreground_while_networking(
             self,
@@ -578,12 +657,14 @@ class Interaction(PyXavi):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while networking.
         """
-        self.foreground.show_arbitrary_text_on_foreground_while_networking(icon, text, font_size, header, font_header_size, padding)
+        self.foreground.show_arbitrary_text_on_foreground_while_networking(icon, text, font_size, header, font_header_size, padding, align=align, valign=valign)
     
     def show_code_block_on_foreground(self, code: str, for_seconds: float = 10.0):
         """
@@ -638,15 +719,22 @@ class Interaction(PyXavi):
         # No logging here: the Background shortcut already logs it.
         self.background.end_interaction_holding_percentage()
     
-    def add_new_status_line(self, text: str, color: str = None):
+    def add_new_status_line(self, text: str, color: str | tuple | int = None):
         """
-        Adds a new status line on the background display.
+        Adds a new status line on the status display.
 
         Args:
-            text (str): The text to show in the status line.
-            color (str): The color of the text in the status line.
+            text (str): The text to show in the status line. It should start with an icon.
+            color (str | tuple | int): The color of this line: a Canvas color name (like "red"),
+                a Canvas color value (like canvas.COLOR_RED), or None for the default one.
         """
         self.status.add_new_status_line(text, color)
+
+    def clear_status_startup_screen(self):
+        """
+        Clears the startup screen from the status area, once, if nothing replaced it yet.
+        """
+        self.status.clear_startup_screen()
 
     # --------- (Proxy) Functions to clear screens ---------
 
@@ -655,11 +743,15 @@ class Interaction(PyXavi):
 
     def clear_background_display(self):
         self.background.soft_clear()
-    
+
+    def clear_animations_display(self):
+        self.animations.soft_clear()
+
     def clear_combined_display(self):
         # They are combined, so we need to send the clear to all of them.
         self.clear_foreground_display()
         self.clear_background_display()
+        self.clear_animations_display()
     
     def clear_device(self):
         """
@@ -688,13 +780,61 @@ class Interaction(PyXavi):
     def wait_for_speaker_to_finish_speaking(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SPEAKER_BUSY)
     
-    def wait_for_support_process_to_finish(self):
-        self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
-        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
+    def wait_for_support_process_to_finish(self, timeout: float = None, should_stop: callable = None) -> bool:
+        """
+        Waits until the Support process has done everything that was sent to it.
+
+        Args:
+            timeout (float): Seconds to give up. None waits forever (the previous behaviour).
+            should_stop (callable): Asked every half second while waiting with a timeout. If it returns True, it gives up.
+
+        Returns:
+            bool: True if the Support process finished, False if the timeout was reached.
+        """
+        if timeout is None:
+            self.process_pool.wait_for_queue_to_empty(QUEUE_SUPPORT)
+            self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(SHARED_SUPPORT_BUSY)
+            return True
+
+        # With a timeout we can't rely on "queue empty + busy flag idle": the item leaves the queue slightly before
+        #   the process marks itself as busy, so that check may return while the work is still ahead.
+        # JoinableQueue.join() returns when every item was processed (task_done), but it has no timeout,
+        #   so it runs in a thread that we wait for with a limit.
+        support_queue = self.process_pool.get_queue(QUEUE_SUPPORT)
+        if support_queue is None:
+            return True
+
+        def _join():
+            try:
+                support_queue.join()
+            except Exception as e:
+                self._xlog.warning(f"Could not join the Support queue: {e}")
+
+        waiter = threading.Thread(target=_join, name="support-join", daemon=True)
+        waiter.start()
+        deadline = time.monotonic() + timeout
+        while waiter.is_alive():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._xlog.error(f"🛑 Timeout of {timeout}s reached while waiting for the Support process to finish.")
+                return False
+            waiter.join(min(0.5, remaining))
+            if waiter.is_alive() and should_stop is not None and should_stop():
+                self._xlog.warning("🟠 Not waiting any longer for the Support process to finish: asked to stop.")
+                return False
+        return True
+
+    def is_support_process_alive(self) -> bool:
+        """ True if the Support process is running. A Control + C in a terminal kills it with the rest of the group. """
+        process = self.process_pool.get_process(QUEUE_SUPPORT)
+        return process is not None and process.is_alive()
 
     def wait_for_foreground_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self.foreground.get_queue())
     
+    def wait_for_animation_display_queue_to_empty(self):
+        self.process_pool.wait_for_queue_to_empty(self.animations.get_queue())
+
     def wait_for_background_display_queue_to_empty(self):
         self.process_pool.wait_for_queue_to_empty(self.background.get_queue())
     
@@ -707,6 +847,9 @@ class Interaction(PyXavi):
     def wait_for_busy_foreground_display_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.foreground.get_display_busy_flag())
     
+    def wait_for_busy_animation_display_to_idle(self):
+        self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.animations.get_display_busy_flag())
+
     def wait_for_busy_background_display_to_idle(self):
         self.process_pool.get_memory_manager().wait_for_busy_process_to_idle(self.background.get_display_busy_flag())
     
@@ -751,6 +894,19 @@ class Interaction(PyXavi):
 
     def is_microphone_muted(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_MICROPHONE_MUTED)
+
+    def set_announcement_busy(self):
+        """ An announcement is on the screen (its text and animation live by this flag). See show_arbitrary_text_on_foreground_while_announcing() and show_animation_while_announcing(). """
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY, True)
+        self._log_debug("📣 Setting the announcement as busy.")
+
+    def unset_announcement_busy(self):
+        """ The announcement is over: its text and animation go away. """
+        self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY, False)
+        self._log_debug("📣 Unsetting the announcement as busy.")
+
+    def is_announcement_busy(self) -> bool:
+        return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_ANNOUNCEMENT_BUSY)
 
     def set_chatbot_busy(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_CHATBOT_BUSY, True)
@@ -817,11 +973,9 @@ class Interaction(PyXavi):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_SPEAKER_BUSY, False)
     
     def set_vad_detected(self):
-        self.add_new_status_line("🎤 VAD detected")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, True)
     
     def unset_vad_detected(self):
-        self.add_new_status_line("🎤 VAD cleared")
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_VAD_DETECTED, False)
     
     def is_vad_detected(self) -> bool:
@@ -835,6 +989,35 @@ class Interaction(PyXavi):
     
     def is_transcriber_busy(self) -> bool:
         return self.process_pool.get_memory_manager().read_shared_memory_flag(SHARED_TRANSCRIBER_BUSY)
+
+    def is_interaction_busy(self) -> bool:
+        """
+        Something of an interaction is going on: the user is speaking (voice detected), the speech is being
+        transcribed, the chatbot is answering or the speaker is speaking.
+
+        It only looks at those busy flags. The hold time after an answer (waiting for the user to go on) is not part of it.
+        Whatever should not talk over an interaction, or run while there is one, asks this.
+        """
+        return len(self.get_busy_interaction_flags()) > 0
+
+    def get_busy_interaction_flags(self) -> list[str]:
+        """
+        The names of the flags of is_interaction_busy() that are up now: "chatbot", "speaker", "transcriber", "vad".
+
+        The VAD flag only counts while the microphone is listening. A muted microphone is not hearing anybody, and the
+        flag can be left up when the input stream is stopped in the middle of a sound (the "speech end" only arrives
+        when the stream starts again), which used to hold everything that waits for Pitxu to be idle.
+        """
+        busy = []
+        if self.is_chatbot_busy():
+            busy.append("chatbot")
+        if self.is_speaker_busy():
+            busy.append("speaker")
+        if self.is_transcriber_busy():
+            busy.append("transcriber")
+        if self.is_vad_detected() and not self.is_microphone_muted():
+            busy.append("vad")
+        return busy
     
     def set_wake_up_button_pressed(self):
         self.process_pool.get_memory_manager().write_shared_memory_flag(SHARED_WAKE_UP_BUTTON_PRESSED, True)

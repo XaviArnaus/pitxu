@@ -44,6 +44,11 @@ class XprocAction:
     SHOW_TEXT_BLOCK: str = "SHOW_TEXT_BLOCK"
     SHOW_TEXT_BLOCK_WHILE_SPEAKING: str = "SHOW_TEXT_BLOCK_WHILE_SPEAKING"
     SHOW_ERROR: str = "SHOW_ERROR"
+    # Animations display: an animation (the emojis) shown while the speaker is busy.
+    SHOW_ANIMATION_WHILE_SPEAKING: str = "SHOW_ANIMATION_WHILE_SPEAKING"
+    # An announcement (see SHARED_ANNOUNCEMENT_BUSY): its text on the foreground and its animation, each to its display.
+    SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING: str = "SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING"
+    SHOW_ANIMATION_WHILE_ANNOUNCING: str = "SHOW_ANIMATION_WHILE_ANNOUNCING"
 
     # Common between eInk and LED
     CLEAR: str = "CLEAR"
@@ -64,6 +69,7 @@ class XprocAction:
     FOREGROUND_CLEAR: str = "FOREGROUND_CLEAR"
     BACKGROUND_CLEAR: str = "BACKGROUND_CLEAR"
     STATUS_CLEAR: str = "STATUS_CLEAR"
+    ANIMATIONS_CLEAR: str = "ANIMATIONS_CLEAR"
 
     # Support
     ACCUMULATE_AUDIO: str = "ACCUMULATE_AUDIO"
@@ -74,6 +80,7 @@ class XprocAction:
     CLEAR_AUDIOS: str = "CLEAR_AUDIOS"
     DUMP_ALL: str = "DUMP_ALL"
     SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY: str = "SUMMARIZE_CHATBOT_HISTORY_AND_STORE_IN_MEMORY"
+    CONSOLIDATE_MEMORY: str = "CONSOLIDATE_MEMORY"
 
     # Faster Whisper Stream specific
     TRANSCRIBE_CHUNK_WINDOW: str = "TRANSCRIBE_CHUNK_WINDOW"

@@ -71,7 +71,9 @@ class Foreground(ShortcutBase):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display.
@@ -83,6 +85,8 @@ class Foreground(ShortcutBase):
             "header": header,
             "font_header_size": font_header_size,
             "padding": padding,
+            "align": align,
+            "valign": valign,
             "show_for_seconds": show_for_seconds
         })
     
@@ -94,7 +98,9 @@ class Foreground(ShortcutBase):
             header: str = None,
             font_header_size: int = 32,
             padding = 5,
-            show_for_seconds = None
+            show_for_seconds = None,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display.
@@ -106,6 +112,8 @@ class Foreground(ShortcutBase):
             "header": header,
             "font_header_size": font_header_size,
             "padding": padding,
+            "align": align,
+            "valign": valign,
             "show_for_seconds": show_for_seconds
         })
     
@@ -131,7 +139,9 @@ class Foreground(ShortcutBase):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while speaking.
@@ -142,9 +152,36 @@ class Foreground(ShortcutBase):
             "font_size": font_size,
             "header": header,
             "font_header_size": font_header_size,
-            "padding": padding
+            "padding": padding,
+            "align": align,
+            "valign": valign
         })
     
+    def show_arbitrary_text_on_foreground_while_announcing(
+            self,
+            icon: str = None,
+            text: str = None,
+            font_size: int = 24,
+            header: str = None,
+            font_header_size: int = 32,
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
+        ):
+        """
+        Shows arbitrary text on the foreground display only while the announcement flag is up.
+        """
+        self.process_pool.send(self.get_queue(), XprocAction.SHOW_ARBITRARY_TEXT_FOREGROUND_ANNOUNCING, {
+            "icon": icon,
+            "text": text,
+            "font_size": font_size,
+            "header": header,
+            "font_header_size": font_header_size,
+            "padding": padding,
+            "align": align,
+            "valign": valign
+        })
+
     def show_arbitrary_icon_on_foreground_while_user_speaking(
             self,
             icon: str = None,
@@ -167,7 +204,9 @@ class Foreground(ShortcutBase):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while thinking.
@@ -178,7 +217,9 @@ class Foreground(ShortcutBase):
             "font_size": font_size,
             "header": header,
             "font_header_size": font_header_size,
-            "padding": padding
+            "padding": padding,
+            "align": align,
+            "valign": valign
         })
     
     def show_arbitrary_text_on_foreground_while_networking(
@@ -188,7 +229,9 @@ class Foreground(ShortcutBase):
             font_size: int = 24,
             header: str = None,
             font_header_size: int = 32,
-            padding = 5
+            padding = 5,
+            align: str = "center",
+            valign: str = "center"
         ):
         """
         Shows arbitrary text on the foreground display only while networking.
@@ -199,7 +242,9 @@ class Foreground(ShortcutBase):
             "font_size": font_size,
             "header": header,
             "font_header_size": font_header_size,
-            "padding": padding
+            "padding": padding,
+            "align": align,
+            "valign": valign
         })
     
     def show_code_block_on_foreground(self, code: str, for_seconds: float = 10.0):

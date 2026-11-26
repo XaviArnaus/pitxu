@@ -28,6 +28,55 @@ app:
   # [Bool] The button also cuts the speech while it is being said, to get back to listening.
   #   It works whatever the wake_up_method is: the button is initialised for this alone if needed.
   button_interrupts_speech: true
+  # [Bool] Show the thinking effect as soon as the user stops speaking, instead of when the transcription arrives.
+  #   Only inside an ongoing interaction (hold time running), where the speech is almost certainly for the assistant.
+  #   If the text then turns out empty or not for the chatbot, the effect is taken back.
+  thinking_at_speech_end: true
+  # [Float] It only shows when the STT already has some text of what was said (otherwise it may be only noise). Seconds to wait
+  #   for that first text after the speech ended. If the STT finishes with nothing in the meantime, the effect is not shown.
+  thinking_at_speech_end_wait: 1.5
+  # [Float] Safety net: seconds after which the effect is taken back if nobody took it over (the chatbot) or cancelled it.
+  thinking_at_speech_end_timeout: 15
+  # [String] How the text is matched against the exit words (language.exit_words), both without accents nor punctuation:
+  #   "exact": the whole text is an exit word. "Adéu!" matches "adeu".
+  #   "edge": a short text that starts or ends with an exit word also matches, like "ok bye".
+  exit_words_match: "exact"
+  # [Integer] Only for "edge": longest text (in words) that can be an exit. Avoids exiting on "tell me about the goodbye song".
+  exit_max_words: 3
+
+# The tasks of every night, in one job: rotate the old logs, flush the stats, and ask for the memory consolidation
+#   (see `memory.consolidation`, that can be turned off there). Restart to apply.
+night_tasks:
+  # [Integer] Hour of the night to run them (0 - 23).
+  hour: 3
+  # [Integer] Minute (0 - 59).
+  minute: 0
+
+# Reminders
+reminders:
+  # [Integer] Days that an announced reminder is kept before the night tasks delete it. A reminder that was just
+  #   announced can still be asked about or moved (a snooze) until then.
+  keep_announced_days: 7
+  # [Number] Minutes after its time that a reminder is announced saying when it was for ("At 14:30, ...").
+  #   It is late when Pitxu was busy (talking, listening) or off when its time came.
+  late_after_minutes: 2
+  # [Number] Seconds that the announced reminders stay on the screen after being said, before going idle.
+  #   0 to take them away together with the speech.
+  screen_hold_seconds: 5
+  # [Number] Hours after its time from which the announcement also warns that the reminder is very old
+  #   and could not be announced back then.
+  very_old_after_hours: 24
+
+# The doorbell: the processes ring each other when something changes in the shared memory,
+#   so the monitors and the waits sleep until then instead of asking again every few milliseconds.
+# Switches to tell if a problem comes from it. What is not here is on. Restart to apply.
+doorbell:
+  # [Bool] Everything. Off: nobody rings, and the monitors and the waits poll like they did before the doorbell.
+  enabled: true
+  # [Bool] The flag monitors (Main and the painter) listen to the doorbell.
+  monitors: true
+  # [Bool] The waits of Main (flags to be idle/busy, queues to be empty) listen to the doorbell.
+  waiter: true
 
 # Filesystem definition
 storage:
@@ -88,6 +137,17 @@ fonts:
   path: "pitxu/fonts"
   # [String] Default font file
   default_filename: "Font_with_emojis.ttc"
+  # [String] font to be used for monospace text
+  mono_filename: "Font.ttc"
+  # [Integer] Index of the monospace font within the font file
+  mono_index: 1
+
+# Canvas configuration
+canvas:
+  # Markdown parser & renderer configuration
+  markdown:
+    # [Boolean] Whether to enable Markdown parsing and rendering
+    enabled: True
 
 # Timings
 timings:

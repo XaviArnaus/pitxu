@@ -1,9 +1,9 @@
-from pyxavi import Config, Dictionary, full_stack
+from pyxavi import Config, Dictionary, Stopwatch, full_stack
 from pitxu.lib.utils.app_state import AppState
 
 from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.utils.text import Text
-from pitxu.lib.utils.stopwatch import Stopwatch
+from pitxu.lib.utils.emoji_stats import EmojiStats
 from pitxu.lib.hardware import SystemReader
 from pitxu.lib.utils.maintenance import Maintenance
 from pitxu.lib.utils.reminders import Reminders
@@ -409,7 +409,8 @@ class MainClientPTT(PyXavi):
                     
                         # Clean the answer first, just in case
                         answer = Text.remove_emojis(answer)
-                        answer = Text.remove_markdown(answer)
+                        # For the voice: no syntax, no line breaks, and the tables spoken as the config says
+                        answer = Text.markdown_for_speech(answer, tables=cls._xconfig.get("text-to-speech.tables", "rows"))
                         answer = Text.replace_known_text(answer, cls._xconfig.get("language.text_replacements." + cls._xparams.get("language"), {}))
 
                         # The Client first needs to gather the answer from the server. Meanwhile, show the question as an overlay
@@ -494,6 +495,8 @@ class MainClientPTT(PyXavi):
                 sw_greeting = self._stopwatch.start(name="greeting")
                 self._interaction.show_init_phases(10, text="👋 Greeting")
                 self._interaction.show_idle()
+                # The greeting does not come from the chatbot, so there is no emotion: the default animation goes with it.
+                self._reactions.show_animation(Reactions.DEFAULT_ANIMATION)
                 self._interaction.say(self._greeting_sentence)
                 self._xlog.debug("⏱️  Greeting: " + str(self._stopwatch.stop(sw_greeting)))
 
@@ -635,6 +638,11 @@ class MainClientPTT(PyXavi):
         self._buttons = Buttons(config=self._xconfig, params=self._xparams)
         self._buttons.initialize_buttons()
 
+        # An event that gpiozero did not report and the poll fallback had to cover: show it.
+        self._buttons.set_fallback_notifier(
+            lambda count, button_name, event: self._interaction.add_new_status_line(
+                f"🕹️ Button event missed (#{count}), poll covered it", color="red"))
+
         if self._buttons.buttons is not None and len(self._buttons.buttons) > 0:
             button_names = list(self._buttons.buttons.keys())
             self._xlog.info(f"Initialized buttons: {button_names}")
@@ -736,6 +744,9 @@ class MainClientPTT(PyXavi):
 
         # EVERY NIGHT AT 3 AM
         self._scheduler.add_job(self.do_at_night_tasks, 'cron', hour=3, minute=0)
+
+        # EVERY HOUR: the emoji stats, so a power loss does not take the whole day with it.
+        self._scheduler.add_job(EmojiStats.flush, 'interval', hours=1)
         self._scheduler.start()
     
     def check_connectivity(self):
@@ -790,6 +801,9 @@ class MainClientPTT(PyXavi):
         # Persist state
         self.persist_state()
 
+        # Save the emoji stats that are still in memory
+        EmojiStats.flush()
+
         # Stop Idle Mode if active
         if self._interaction.is_idle_mode_on():
             self._interaction.set_idle_mode_off()
@@ -840,6 +854,8 @@ class MainClientPTT(PyXavi):
         self._interaction.clear_foreground_display()
         self._log_debug("Clearing the Background Display.")
         self._interaction.clear_background_display()
+        self._log_debug("Clearing the Animations Display.")
+        self._interaction.clear_animations_display()
 
     # ------- Stuff to do every minute -------
 
@@ -848,29 +864,33 @@ class MainClientPTT(PyXavi):
         if current_minute != self._last_processed_minute:
             self._last_processed_minute = current_minute
             self._log_debug("🕐 New minute detected: " + str(current_minute) + ".")
-            # Get the possible reminder for the current date and time
-            date_str = datetime.now().strftime(Reminders.FORMAT_DATE)
-            time_str = datetime.now().strftime(Reminders.FORMAT_TIME)
-            reminder: dict = self._reminders.get_reminder(date_str, time_str)
-            if reminder is not False:
+            # The reminders whose time has come. It includes the ones that should have been announced before.
+            for reminder in self._reminders.get_due():
                 self._log_debug("📝 Reminder found for now: " + str(reminder))
-                # Show reminder in eInk and say it
-                reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
-                self._interaction.set_idle_mode_off()
-                self._interaction.wait_for_foreground_display_queue_to_empty()
-                self._interaction.wait_for_busy_foreground_display_to_idle()
-                self._interaction.show_arbitrary_text_on_foreground_while_speaking(
-                    icon="📝",
-                    text=reminder.get("text", ""),
-                    font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
-                self._interaction.mute_microphone(input_stream=input_stream)
-                self._interaction.say(reminder_text_for_speaking)
-                # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
-                self._interaction.unmute_microphone(input_stream=input_stream)
-                # Remove the reminder now that it's been announced
-                self._reminders.delete_reminder(date_str, time_str)
-                # Reset the last interaction time, as we just spoke
-                self._last_interaction_datetime = datetime.now()
+                try:
+                    # Show reminder in eInk and say it
+                    reminder_text_for_speaking = self._xconfig.get("language.reminders.reminder_announcement." + self._xparams.get("language")) % reminder.get("text", "")
+                    self._interaction.set_idle_mode_off()
+                    self._interaction.wait_for_foreground_display_queue_to_empty()
+                    self._interaction.wait_for_busy_foreground_display_to_idle()
+                    self._interaction.show_arbitrary_text_on_foreground_while_speaking(
+                        icon="📝",
+                        text=reminder.get("text", ""),
+                        font_size=self._interaction.get_canvas_from_foreground_display().FONT_SIZE_BIG)
+                    self._interaction.mute_microphone(input_stream=input_stream)
+                    self._interaction.say(reminder_text_for_speaking)
+                    # TODO: Would be wonderful to integrate this spoken reminder to the history of the chatbot
+                    self._interaction.unmute_microphone(input_stream=input_stream)
+                    # Reset the last interaction time, as we just spoke
+                    self._last_interaction_datetime = datetime.now()
+                except Exception as e:
+                    self._xlog.error(f"🛑 Error announcing the reminder [{reminder.get('id')}]: {e}")
+                finally:
+                    # Announced, or failed: it is not pending anymore, otherwise it would fail again every minute.
+                    try:
+                        self._reminders.mark_announced([reminder["id"]])
+                    except Exception as e:
+                        self._xlog.error(f"🛑 Could not mark the reminder [{reminder.get('id')}] as announced: {e}")
             
             # Every minute, log a bunch of metrics defined internally.
             # It also accepts a dict, that will be merged with the internal metrics.
@@ -916,3 +936,6 @@ class MainClientPTT(PyXavi):
 
         # At night, we want to clear the logs that are older than the retention period.
         self._maintenance.rotate_metrics_logs()
+
+        # The use of the emojis of the day goes to the stats file.
+        EmojiStats.flush()

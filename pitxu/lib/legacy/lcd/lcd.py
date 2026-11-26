@@ -272,6 +272,16 @@ class Lcd(XprocessDisplayCombined):
         self._xlog.info("Clearing LCD foreground interaction.")
         self.painter.just_paint(foreground_interaction=ClearForegroundPaint())
 
+    # ------- Animations functions ---------
+    # ⚠️ The legacy LCD has no Animations area: its background is the only one. These exist only to satisfy
+    #   the Animations protocol of the Combined display, so the actions that reach them don't fail.
+
+    def initialize_animations(self):
+        pass
+
+    def clear_animations(self):
+        pass
+
 
     # ------- Background functions ---------
     

@@ -9,6 +9,8 @@ from pitxu.lib.abstract.pyxavi import PyXavi
 from pitxu.lib.chatbot.chatbot_session_manager import ChatbotSessionManager
 from pitxu.lib.core.shared_memory_manager import SharedMemoryManager
 from pitxu.lib.objects import FunctionCallPair, FunctionCall, FunctionResponse, ChatbotResponse
+from pitxu.lib.utils.text import Text
+from pitxu.lib.command.system.conversation_flow import SystemConversationFlow
 
 from definitions import SHARED_CHATBOT_ANSWER_IS_ERROR
 
@@ -124,6 +126,36 @@ class GeminiChatbot(PyXavi):
     def get_chat_history(self, curated: bool = False) -> list[types.Content]:
         return self._chat.get_history(curated=curated)
     
+    def add_notice_to_history(self, notice: str, spoken: str) -> bool:
+        """
+        Adds to the history of the session something that the application said on its own (a reminder announced),
+        so the chatbot knows it when the user asks about it later: the notice as the user turn, and what was said as
+        the model turn. It is valid history: it is sent to the model in the next requests.
+
+        Only when the chatbot is not working: it does not take turns with a request that is going on.
+
+        Args:
+            notice (str): What happened, as the user turn.
+            spoken (str): What the application said, as the model turn.
+
+        Returns:
+            bool: True if it was added.
+        """
+        if self._xconfig.get("chatbot.mock", True) or getattr(self, "_chat", None) is None:
+            return False
+        try:
+            self._chat.record_history(
+                user_input=types.Content(role="user", parts=[types.Part(text=notice)]),
+                # A list: the library extends the history with whatever it gets here.
+                model_output=[types.Content(role="model", parts=[types.Part(text=spoken)])],
+                automatic_function_calling_history=[],
+                is_valid=True
+            )
+            return True
+        except Exception as e:
+            self._xlog.error(f"🛑 Could not add the notice to the chatbot history: {e}")
+            return False
+
     def reset_session(self):
         self._xlog.info("Resetting GeminiChatbot session for the next conversation.")
         # asyncio.run_coroutine_threadsafe(self.initialize_async(tools=self.get_session_manager().tools), asyncio.get_event_loop()).result()
@@ -135,6 +167,8 @@ class GeminiChatbot(PyXavi):
         for item in history:
             parts = item.parts if item.parts is not None else []
             text = "\n".join([part.text for part in parts if part.text is not None])
+            # The emotion tag is for the display only: whoever reads the history (like the memory summary) does not need it.
+            text, _ = Text.extract_emotion_tag(text)
             functions = {
                 "calls": [{ "name": part.function_call.name, "args": part.function_call.args } for part in parts if part.function_call is not None],
                 "responses": [{ "name": part.function_response.name, "response": part.function_response.response } for part in parts if part.function_response is not None]
@@ -199,11 +233,42 @@ class GeminiChatbot(PyXavi):
         self._xlog.info("🧠 Using model: " + str(self.MODEL))
         self._initialize_chat(tools=tools)
     
+    def _emotion_instruction(self) -> str:
+        """
+        The part of the system instruction that asks the chatbot to start its answers with an emotion tag, like `[emotion: sad]`.
+        It lists the emotions of `animations.emotions` (plus `none`). It is empty, so nothing is asked, if there are no emotions configured.
+        The labels are in English for every language, so it is a single text (chatbot.emotion_instruction) that is not translated.
+        """
+        emotions = self._xconfig.get("animations.emotions", None)
+        template = self._xconfig.get("chatbot.emotion_instruction", None)
+        if not emotions or not template:
+            return ""
+
+        labels = [f"- {label}: {description}" for label, description in emotions.items()]
+        labels.append("- none: a neutral or just informative answer")
+        return str(template) % "\n".join(labels)
+
+    def _memory_autonomy_instruction(self) -> str:
+        """
+        The part of the system instruction that makes the chatbot read and write the memory by its own initiative
+        (`chatbot.memory_autonomy_instruction`), if `chatbot.memory_autonomy` is True. Empty otherwise.
+        """
+        if not self._xconfig.get("chatbot.memory_autonomy", True):
+            return ""
+        instruction = self._xconfig.get("chatbot.memory_autonomy_instruction", None)
+        return str(instruction) if instruction else ""
+
     def _initialize_chat(self, tools: list):
+        emotion_instruction = self._emotion_instruction()
+        memory_autonomy_instruction = self._memory_autonomy_instruction()
+        self._xlog.info("🧠 Memory autonomy instruction: " + ("added to the system instruction" if memory_autonomy_instruction else "NOT added"))
+        self._xlog.info("🎭 Emotion tag instruction: " + (f"added to the system instruction ({len(emotion_instruction)} characters)" if emotion_instruction else "NOT added (needs animations.emotions and chatbot.emotion_instruction in the config)"))
         self._chat = self._client.aio.chats.create(
             model=self.MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME),
+                system_instruction=(
+                    self._xconfig.get("chatbot.system_instruction." + self._xparams.get("language")) % self._xconfig.get("chatbot.name", self.DEFAULT_CHATBOT_NAME)
+                ) + emotion_instruction + memory_autonomy_instruction,
                 tools=tools,
                 temperature=0.1,
                 # The following is a hack to avoid receiving a "Event loop is closed" error from the Gemini API client
@@ -236,7 +301,15 @@ class GeminiChatbot(PyXavi):
                             await asyncio.sleep(delay_between_retries * retries)
 
                         response = await self._chat.send_message(question)
-                        outcome = ChatbotResponse.from_response(response)
+                        # The raw text, before the emotion tag is taken out of it (to see what the model really said).
+                        self._log_debug(f"🎭 Raw answer from the model: {response.text!r}")
+                        # Tools that are the whole answer: leaving the text empty after them is not an error.
+                        outcome = ChatbotResponse.from_response(
+                            response,
+                            empty_text_ok_for={
+                                SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME: SystemConversationFlow.END_OF_CONVERSATION_RESULT
+                            }
+                        )
                         if outcome.error is not None:
                             # Turns out that in most cases the answer is None. The tokens are exhausted, so Gemini refuses to answer?
                             # It's largely discussed: https://discuss.ai.google.dev/t/gemini-2-5-pro-with-empty-response-text/81175/71
@@ -261,7 +334,7 @@ class GeminiChatbot(PyXavi):
                             # Make him remember that he couldn't answer
                             self._chat.record_history(
                                 user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                                model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                                model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                                 automatic_function_calling_history=[],
                                 is_valid=False
                             )
@@ -328,11 +401,11 @@ class GeminiChatbot(PyXavi):
                                 function_call=types.FunctionCall(
                                     name="error",
                                     args={"code": e.code, "message": message}))]),
-                            model_output=types.Content(role="model", parts = [types.Part(
+                            model_output=[types.Content(role="model", parts = [types.Part(
                                 text=outcome.text,
                                 function_response=types.FunctionResponse(
                                     name="error",
-                                    response={"result": message_short}))]),
+                                    response={"result": message_short}))])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -343,7 +416,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -361,7 +434,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )
@@ -374,7 +447,7 @@ class GeminiChatbot(PyXavi):
                         # Make him remember that he couldn't answer
                         self._chat.record_history(
                             user_input=types.Content(role="user", parts = [types.Part(text=question)]),
-                            model_output=types.Content(role="model", parts = [types.Part(text=outcome.text)]),
+                            model_output=[types.Content(role="model", parts = [types.Part(text=outcome.text)])],
                             automatic_function_calling_history=[],
                             is_valid=False
                         )

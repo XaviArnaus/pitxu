@@ -1,36 +1,89 @@
-# This file contains memory entries that will be dumped into the memory at startup.
-# Ideally, this is a one-time dump into the memory. Enable it before the first run, and then disable it for the next runs, 
-#   to avoid dumping the same entries multiple times.
-# WARNING: This is NOT LANGUAGE AWARE. It will take the current language of the chatbot at startup, and dump the entries in that language. 
-#   If you change the language of the chatbot, you should update the entries in this file accordingly, to match the new language.
-#   Otherwise, the entries will be dumped in the old language, which may not be useful for the chatbot if it is now operating in a different language.
+# This file contains memory entries that are dumped into the LONG TERM memory at startup.
+# It is safe to leave it enabled: an entry that is already in the memory (by `key` and language) is not written again.
+# Every entry is available in the languages that it provides. The ones that are missing are completed (translated)
+#   by the nightly memory consolidation.
 memory_preload:
   # [bool] Enable or disable the memory preload. If disabled, the entries in this file will be ignored.
   enabled: True
   # [list] The entries to preload into the memory. Each entry is a dictionary with the following keys:
-  #   - title: The title of the memory entry. 
-  #       This is a string that will be used by the chatbot to search for relevant information in the memory. 
+  #   - key: A stable identifier of the entry, without spaces. Mandatory.
+  #       It is what tells that the entry is already in the memory, so do not change it once it was preloaded.
+  #   - title: The title of the memory entry, per language (en, es, ca, de).
+  #       This is a string that will be used by the chatbot to search for relevant information in the memory.
   #       It should be descriptive and concise, as it will be used as a reference for the content of the entry.
-  #   - content: The content of the memory entry. 
+  #   - content: The content of the memory entry, per language.
   #       This can be any string that you want to be available in the memory at startup.
   #       It can be used to store important information, facts, or any other data that you want to be easily accessible by the chatbot.
+  #   A plain string (no languages) is taken as the language in `memory.legacy_entries_language`.
   entries:
-    - title: "Pitxu Chatbot Project and Github Information"
-      content: |
-        - The main goal of the project is to create a local, voice-based chatbot that can run on a Raspberry Pi, with the ability to understand and respond to user queries in natural language, and to perform various tasks using external tools and APIs.
-        - At the hardware level,
-          - the main architecture is a Raspberry Pi 5 with 8GB of RAM.
-          - there is a microphone to capture voice input, and speakers for voice output.
-          - there is a screen where you show visual notifications with the interactions.
-          - there is access to the internet through WiFi, but only when you use the external tools you have configured.
-          - there is no keyboard, mouse or any other form of manual input, all input is done by voice.
-        - At the software level,
-          - the operating system is Raspberry Pi OS, a Linux distribution based on Debian.
-          - the application that orchestrates everything is written in Python, and uses several libraries and tools for the different functions (STT, TTS, LLM, etc.).
-        - Project information:
-          - Xavi's Github account: `XaviArnaus`
-          - Project name: `Pitxu`
-          - Repository in Xavi's Github: `pitxu`
-          - Project repository URL: `https://github.com/XaviArnaus/pitxu`
-    
-
+    - key: pitxu_project
+      title:
+        en: "Pitxu Chatbot Project and Github Information"
+        es: "Proyecto del chatbot Pitxu e información de Github"
+        ca: "Projecte del chatbot Pitxu i informació de Github"
+        de: "Pitxu-Chatbot-Projekt und Github-Informationen"
+      content:
+        en: |
+          - The main goal of the project is to create a local, voice-based chatbot that can run on a Raspberry Pi, with the ability to understand and respond to user queries in natural language, and to perform various tasks using external tools and APIs.
+          - At the hardware level,
+            - the main architecture is a Raspberry Pi 5 with 8GB of RAM.
+            - there is a microphone to capture voice input, and speakers for voice output.
+            - there is a screen where you show visual notifications with the interactions.
+            - there is access to the internet through WiFi, but only when you use the external tools you have configured.
+            - there is no keyboard, mouse or any other form of manual input, all input is done by voice.
+          - At the software level,
+            - the operating system is Raspberry Pi OS, a Linux distribution based on Debian.
+            - the application that orchestrates everything is written in Python, and uses several libraries and tools for the different functions (STT, TTS, LLM, etc.).
+          - Project information:
+            - Xavi's Github account: `XaviArnaus`
+            - Project name: `Pitxu`
+            - Repository in Xavi's Github: `pitxu`
+            - Project repository URL: `https://github.com/XaviArnaus/pitxu`
+        es: |
+          - El objetivo principal del proyecto es crear un chatbot local, basado en voz, que pueda funcionar en una Raspberry Pi, con la capacidad de entender y responder a las consultas del usuario en lenguaje natural, y de realizar diversas tareas usando herramientas y APIs externas.
+          - A nivel de hardware,
+            - la arquitectura principal es una Raspberry Pi 5 con 8GB de RAM.
+            - hay un micrófono para capturar la entrada de voz, y altavoces para la salida de voz.
+            - hay una pantalla donde muestras notificaciones visuales con las interacciones.
+            - hay acceso a internet por WiFi, pero solo cuando usas las herramientas externas que tienes configuradas.
+            - no hay teclado, ratón ni ninguna otra forma de entrada manual, toda la entrada se hace por voz.
+          - A nivel de software,
+            - el sistema operativo es Raspberry Pi OS, una distribución de Linux basada en Debian.
+            - la aplicación que lo orquesta todo está escrita en Python, y usa varias librerías y herramientas para las distintas funciones (STT, TTS, LLM, etc.).
+          - Información del proyecto:
+            - Cuenta de Github de Xavi: `XaviArnaus`
+            - Nombre del proyecto: `Pitxu`
+            - Repositorio en el Github de Xavi: `pitxu`
+            - URL del repositorio del proyecto: `https://github.com/XaviArnaus/pitxu`
+        ca: |
+          - L'objectiu principal del projecte és crear un chatbot local, basat en veu, que pugui funcionar en una Raspberry Pi, amb la capacitat d'entendre i respondre les consultes de l'usuari en llenguatge natural, i de fer diverses tasques fent servir eines i APIs externes.
+          - A nivell de maquinari,
+            - l'arquitectura principal és una Raspberry Pi 5 amb 8GB de RAM.
+            - hi ha un micròfon per capturar l'entrada de veu, i altaveus per a la sortida de veu.
+            - hi ha una pantalla on mostres notificacions visuals amb les interaccions.
+            - hi ha accés a internet per WiFi, però només quan fas servir les eines externes que tens configurades.
+            - no hi ha teclat, ratolí ni cap altra forma d'entrada manual, tota l'entrada es fa per veu.
+          - A nivell de programari,
+            - el sistema operatiu és Raspberry Pi OS, una distribució de Linux basada en Debian.
+            - l'aplicació que ho orquestra tot està escrita en Python, i fa servir diverses llibreries i eines per a les diferents funcions (STT, TTS, LLM, etc.).
+          - Informació del projecte:
+            - Compte de Github d'en Xavi: `XaviArnaus`
+            - Nom del projecte: `Pitxu`
+            - Repositori al Github d'en Xavi: `pitxu`
+            - URL del repositori del projecte: `https://github.com/XaviArnaus/pitxu`
+        de: |
+          - Das Hauptziel des Projekts ist es, einen lokalen, sprachbasierten Chatbot zu erstellen, der auf einem Raspberry Pi laufen kann, mit der Fähigkeit, Benutzeranfragen in natürlicher Sprache zu verstehen und zu beantworten und verschiedene Aufgaben mit externen Werkzeugen und APIs auszuführen.
+          - Auf der Hardware-Ebene,
+            - ist die Hauptarchitektur ein Raspberry Pi 5 mit 8GB RAM.
+            - gibt es ein Mikrofon zur Aufnahme der Spracheingabe und Lautsprecher für die Sprachausgabe.
+            - gibt es einen Bildschirm, auf dem du visuelle Benachrichtigungen zu den Interaktionen anzeigst.
+            - gibt es Internetzugang über WLAN, aber nur, wenn du die konfigurierten externen Werkzeuge benutzt.
+            - gibt es keine Tastatur, Maus oder andere Form der manuellen Eingabe, jede Eingabe erfolgt per Sprache.
+          - Auf der Software-Ebene,
+            - ist das Betriebssystem Raspberry Pi OS, eine auf Debian basierende Linux-Distribution.
+            - ist die Anwendung, die alles orchestriert, in Python geschrieben und verwendet mehrere Bibliotheken und Werkzeuge für die verschiedenen Funktionen (STT, TTS, LLM usw.).
+          - Projektinformationen:
+            - Xavis Github-Konto: `XaviArnaus`
+            - Projektname: `Pitxu`
+            - Repository in Xavis Github: `pitxu`
+            - URL des Projekt-Repositorys: `https://github.com/XaviArnaus/pitxu`

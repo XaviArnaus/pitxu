@@ -71,6 +71,14 @@ class DsiLcd(XprocessDisplayCombined):
 
     def finish(self):
         self._xlog.info("Finalizing DSI LCD Worker")
+        # The Visualizer closes the Painter, and with it the painting thread and its shared memory monitor.
+        # It goes before the device: the painter may still be flushing to it.
+        if getattr(self, "visualizer", None) is not None:
+            self._log_debug("Closing DSI LCD Visualizer")
+            try:
+                self.visualizer.close()
+            except Exception as e:
+                self._xlog.error(f"🛑 Error closing the DSI LCD Visualizer: {e}")
         self._log_debug("Closing DSI LCD Canvas")
         self.canvas.close_canvas()
         self._log_debug("Closing DSI LCD Device")
@@ -79,14 +87,16 @@ class DsiLcd(XprocessDisplayCombined):
 
     # ------- Foreground functions ---------
 
-    def initialize_animations(self):
-        self.visualizer.load_animations()
-
     def show_arbitrary_text_while_speaking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while speaking.")
 
         self.visualizer.arbitrary_text_while_speaking(param)
     
+    def show_arbitrary_text_while_announcing(self, param: dict):
+        self._xlog.info(f"📣 Showing arbitrary text on DSI LCD while announcing.")
+
+        self.visualizer.arbitrary_text_while_announcing(param)
+
     def show_arbitrary_text_while_thinking(self, param: dict):
         self._xlog.info(f"👀 Showing arbitrary text on DSI LCD while thinking.")
 
@@ -189,11 +199,19 @@ class DsiLcd(XprocessDisplayCombined):
         # Clear the display.
         # Passing the display size just in case we want to clear the mocked LCD, to have a black image of the correct size.
         self.device.clear(screen_size=(self._display_size.x, self._display_size.y))
-    
+        # The Painter composes only what changed: it has to know that the display is not what it left.
+        self.visualizer.invalidate_screen()
+
     def soft_clear(self):
         self.clear_background()
+        self.clear_animations()
         self.clear_foreground()
     
+    def clear_status(self):
+        self._xlog.info("Clearing DSI LCD status area.")
+        # An empty list of entries paints the area empty.
+        self.visualizer.show_status_line({"entries": []})
+
     def clear_background(self):
         self._xlog.info("Clearing DSI LCD background interaction.")
         self.visualizer.clear_background()
@@ -203,15 +221,32 @@ class DsiLcd(XprocessDisplayCombined):
         self.visualizer.clear_foreground()
 
 
-    # ------- Background functions ---------
-    
-    def show_speaking(self):
-        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
-        self.visualizer.speaking()
-    
+    # ------- Animations functions ---------
+
+    def initialize_animations(self):
+        self.visualizer.load_animations()
+
     def show_thinking(self):
         self._xlog.info(f"🤖 Showing thinking animation on DSI LCD.")
         self.visualizer.thinking()
+
+    def show_animation_while_speaking(self, param: dict):
+        self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while speaking.")
+        self.visualizer.animation_while_speaking(param)
+
+    def show_animation_while_announcing(self, param: dict):
+        self._xlog.info(f"🎞️ Showing animation [{param.get('animation')}] on DSI LCD while announcing.")
+        self.visualizer.animation_while_announcing(param)
+
+    def clear_animations(self):
+        self._xlog.info("Clearing DSI LCD animations interaction.")
+        self.visualizer.clear_animations()
+
+    # ------- Background functions ---------
+
+    def show_speaking(self):
+        self._xlog.info(f"👄 Showing speaking effect on DSI LCD.")
+        self.visualizer.speaking()
 
     def show_networking(self):
         self._xlog.info(f"🌐 Showing networking effect on DSI LCD.")
@@ -231,12 +266,9 @@ class DsiLcd(XprocessDisplayCombined):
     # ------- Status functions ---------
 
     def show_status_line(self, param: dict):
-        text = param.get("text", "")
-        color = param.get("color", self.canvas.COLOR_FOREGROUND)
-        self._xlog.info(f"👀 Showing status line on DSI LCD: {text} (color: {color})")
+        # Log only the entry just added, not the whole history.
+        added = param.get("added", None)
+        if added is not None:
+            self._xlog.info(f"👀 Showing status line on DSI LCD: {added[0]} (color: {added[1]})")
 
-        param = {
-            "text": text,
-            "color": color
-        }
-        self.visualizer.show_status_line(param)
+        self.visualizer.show_status_line({"entries": param.get("entries", [])})

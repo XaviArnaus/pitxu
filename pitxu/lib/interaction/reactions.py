@@ -7,6 +7,9 @@ from pitxu.lib.interaction.interaction import Interaction
 from pitxu.lib.objects.chatbot_response import ChatbotResponse
 from pitxu.lib.objects.function_call import FunctionCallPair
 from pitxu.lib.canvas_v2.canvas import Canvas
+from pitxu.lib.utils.text import Text
+from pitxu.lib.command.system.conversation_flow import SystemConversationFlow
+from pitxu.lib.utils.emoji_stats import EmojiStats
 
 from functools import partial
 from subprocess import call
@@ -25,6 +28,9 @@ class Reactions(PyXavi):
 
     # Support to trigger a particular callback when the user intends to end the conversation.
     end_of_conversation_callback: callable = None
+
+    # Support to trigger a particular callback when the user asks to remember the current conversation.
+    remember_conversation_callback: callable = None
 
     # Support to behave with the microphone.
     input_stream: InputStream = None
@@ -50,6 +56,9 @@ class Reactions(PyXavi):
         if params.key_exists("end_of_conversation_callback") and callable(params.get("end_of_conversation_callback")):
             self.end_of_conversation_callback = params.get("end_of_conversation_callback")
 
+        if params.key_exists("remember_conversation_callback") and callable(params.get("remember_conversation_callback")):
+            self.remember_conversation_callback = params.get("remember_conversation_callback")
+
         if params.key_exists("input_stream") and isinstance(params.get("input_stream"), InputStream):
             self.input_stream = params.get("input_stream")
         
@@ -57,6 +66,8 @@ class Reactions(PyXavi):
     
     def initialize(self):
         self._xlog.info("Initializing Reactions")
+        # Where the use of every emoji is saved (see EmojiStats).
+        EmojiStats.configure(self._xconfig)
 
         # The app state is shared with the whole app: a second one on the same file would overwrite it with stale data.
         if self._xparams.key_exists("state") and self._xparams.get("state") is not None:
@@ -81,7 +92,10 @@ class Reactions(PyXavi):
         # We do need a proper Chat Response. Otherwise just return.
         if chat_response is None or not isinstance(chat_response, ChatbotResponse):
             return chat_response
-        
+
+        # A new answer: whatever animation was requested for the previous one does not count.
+        self.interaction.reset_animation_requested()
+
         # The whole logic for the code block needs to be reviewed.
         # The code can come in 2 ways:
         #   1. Inside the text, as part of the answer.
@@ -111,15 +125,99 @@ class Reactions(PyXavi):
 
             if not callback_was_handled:
                 self._xlog.debug("⚡️ Reacting to an answer without code block or function call, just showing the text on the foreground display.")
+                # The top right area does not render Markdown: show the text without its syntax.
+                #   (The OVERALL text blocks, shown by the tools, do render it.)
+                cleaned = Text.remove_markdown(chat_response.text)
+                self._xlog.debug(f"Foreground text after removing the Markdown: [{cleaned}]")
+                # Short text reads best centered; a list of lines reads best from the top left.
+                several_lines = "\n" in (cleaned or "").strip()
                 self.interaction.show_arbitrary_text_on_foreground_while_speaking(
                     icon="🧠",
-                    text=chat_response.text
+                    text=cleaned,
+                    align="left" if several_lines else "center",
+                    valign="top" if several_lines else "center"
                 )
-        
+
+        # And how the answer feels, as an animation while it is spoken, for any kind of answer.
+        # If someone already asked for an animation for this answer (the callback of a tool, an error handler), that one wins.
+        try:
+            requested = self.interaction.get_animation_requested()
+            if requested is not None:
+                self._xlog.debug(f"🎭 The animation [{requested}] was already requested for this answer. Not adding the emotion [{chat_response.emotion}].")
+            else:
+                self.show_emotion(chat_response.emotion if chat_response.error is None else "sad")
+        except Exception as e:
+            self._xlog.error("🛑 Error showing the emotion of an answer: " + str(e))
+            self._xlog.debug(full_stack())
+
         # We return the possibly modified chat response, so it can be spoken or shown as well.
         return chat_response
         
     
+    # The reserved name of the animation that goes with what has no animation of its own: it is `animations.default_emotion`.
+    DEFAULT_ANIMATION: str = "default"
+
+    def show_animation(self, animation: str, how: str = None, invalid_label: str = None) -> bool:
+        """
+        Shows an animation (one of `animations.map`) while something is spoken. It is the one way to ask for it.
+        Every use is counted in the emoji stats (see EmojiStats), once the name is resolved.
+
+        Args:
+            animation (str): The name of the animation. `default` is the one of `animations.default_emotion`:
+                what is spoken without the chatbot (like the greeting) and the answers without emotion use it,
+                so the animations area is not left empty while Pitxu talks.
+            how (str): How it was decided, for the stats (see EmojiStats). By default it is "default" when the
+                animation is `default` and "requested" otherwise.
+            invalid_label (str): For the stats, the label the chatbot made up when how is "invalid".
+
+        Returns:
+            bool: True if the animation was requested, False if there is nothing to show (no default configured).
+        """
+        if how is None:
+            how = "default" if animation == self.DEFAULT_ANIMATION else "requested"
+
+        if animation == self.DEFAULT_ANIMATION:
+            animation = self._xconfig.get("animations.default_emotion", None)
+            if not animation:
+                self._xlog.debug("🎭 No default animation configured (animations.default_emotion). No animation.")
+                return False
+            self._xlog.debug(f"🎭 Using the default animation [{animation}].")
+
+        self._xlog.debug(f"🎭 Showing the animation [{animation}] while speaking.")
+        self.interaction.show_animation_while_speaking(animation)
+        EmojiStats.count(animation, how, invalid_label)
+        return True
+
+    def show_emotion(self, label: str | None) -> bool:
+        """
+        Shows the animation of the emotion the chatbot said the answer has.
+        Without a valid emotion (none, no tag, or a label that is not configured) it is the default animation.
+
+        Args:
+            label (str | None): The emotion, as the chatbot says it (one of `animations.emotions`).
+
+        Returns:
+            bool: True if an animation was requested, False otherwise (no emotion and no default configured).
+        """
+        emotions = self._xconfig.get("animations.emotions", None) or {}
+
+        invalid_label = None
+        if label is None:
+            how = "no_tag"
+            self._xlog.debug("🎭 The answer came without an emotion tag.")
+        elif label == "none":
+            how = "none"
+            self._xlog.debug("🎭 The chatbot says the answer is neutral [none].")
+        elif label not in emotions:
+            # A label the chatbot made up, or that was taken out of the config, is not worth an error.
+            how = "invalid"
+            invalid_label = label
+            self._xlog.debug(f"🎭 The emotion [{label}] is not one of the configured ones.")
+        else:
+            return self.show_animation(label, how="chosen")
+
+        return self.show_animation(self.DEFAULT_ANIMATION, how=how, invalid_label=invalid_label)
+
     def react_on_function_call(self, function_call_pair: FunctionCallPair, text: str = None) -> bool:
         """
         Reacts to the received function call response, meaning that a Tool was used,
@@ -178,11 +276,16 @@ class Reactions(PyXavi):
                 # We got a language change request.
                 self.handle_language_change_request(function_call_pair)
             
-            elif function_call_pair.function_name == "user_intends_to_end_conversation":
+            elif function_call_pair.function_name == SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME:
 
                 # We got an end of conversation request.
                 self.handle_end_of_conversation_request(function_call_pair)
-            
+
+            elif function_call_pair.function_name == "remember_this_conversation":
+
+                # We got a request to remember the current conversation.
+                self.handle_remember_conversation_request(function_call_pair)
+
             elif function_call_pair.function_name in self.client_callbacks.keys():
 
                 # We got a client tool callback, treat it generically.
@@ -205,6 +308,10 @@ class Reactions(PyXavi):
     def handle_error(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🚨  Showing an ERROR in the Foreground Display")
 
+        self.interaction.add_new_status_line(
+            "🚨 " + str(function_call_pair.function_response.response.get("result", "unknown")),
+            self._get_canvas().COLOR_RED)
+
         self.interaction.set_idle_mode_off()
         self.interaction.wait_for_foreground_display_queue_to_empty()
         self.interaction.wait_for_busy_foreground_display_to_idle()
@@ -213,7 +320,9 @@ class Reactions(PyXavi):
             icon="🚨",
             text=function_call_pair.function_response.response.get("result", "unknown"),
             font_size=self._get_canvas().FONT_SIZE_BIG)
-    
+        # No need to ask the chatbot how it feels about its own error.
+        self.show_emotion("sad")
+
     def handle_client_callback(self, function_call_pair: FunctionCallPair, text: str = None):
         self._xlog.debug("↩️  Reacting to a function call with a client callback: " + str(function_call_pair.function_name))
         
@@ -323,9 +432,8 @@ class Reactions(PyXavi):
     def handle_end_of_conversation_request(self, function_call_pair: FunctionCallPair):
         self._xlog.debug("🏁 Handling end of conversation request...")
 
-        result = function_call_pair.function_response.response.get("result", False)
-
-        if isinstance(result, bool) and result is True:
+        if function_call_pair.matches(SystemConversationFlow.END_OF_CONVERSATION_TOOL_NAME,
+                                      SystemConversationFlow.END_OF_CONVERSATION_RESULT):
             # This means that the end of conversation request was successful.
             self._xlog.info("🏁 End of conversation request handled successfully.")
 
@@ -343,6 +451,21 @@ class Reactions(PyXavi):
         # If we reached this point, means that the language change failed for any reason.
         self._unmute_microphone_if_needed()
     
+    def handle_remember_conversation_request(self, function_call_pair: FunctionCallPair):
+        self._xlog.debug("🧠 Handling remember conversation request...")
+
+        result = function_call_pair.function_response.response.get("result", False)
+
+        if isinstance(result, bool) and result is True:
+            # The tool only registers the request: the app has the chatbot history, so it does the work.
+            if self.remember_conversation_callback is not None:
+                try:
+                    self.remember_conversation_callback()
+                except Exception as e:
+                    self._xlog.error(f"🛑 Failed to handle the remember conversation request: {e}")
+            else:
+                self._xlog.warning("🟠 No remember conversation callback defined, the conversation will not be remembered now.")
+
     def handle_answer_with_code_block(self, chat_response: ChatbotResponse) -> ChatbotResponse:
         self._xlog.debug(f"⚡️ Reacting to the first of {len(chat_response.code)} code blocks in the response for language [{self._xparams.get('language')}]")
 
